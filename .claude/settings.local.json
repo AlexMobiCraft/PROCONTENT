@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npx create-next-app@latest:*)",
       "Bash(cp:*)",
-      "Bash(npx shadcn@latest:*)"
+      "Bash(npx shadcn@latest:*)",
+      "Bash(npm run:*)",
+      "Bash(test:*)"
     ]
   }
 }
