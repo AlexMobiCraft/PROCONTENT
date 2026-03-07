@@ -1,6 +1,6 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -49,13 +49,13 @@
 
 :root {
   /* Warm Minimalism — light theme */
-  --background: oklch(0.993 0.006 90);     /* #FDFBF7 — теплый кремовый */
-  --foreground: oklch(0.22 0.01 60);       /* #2C2924 — dark charcoal warm */
+  --background: oklch(0.993 0.006 90); /* #FDFBF7 — теплый кремовый */
+  --foreground: oklch(0.22 0.01 60); /* #2C2924 — dark charcoal warm */
   --card: oklch(0.993 0.006 90);
   --card-foreground: oklch(0.22 0.01 60);
   --popover: oklch(0.993 0.006 90);
   --popover-foreground: oklch(0.22 0.01 60);
-  --primary: oklch(0.56 0.1 35);           /* Muted Terracotta — главный акцент */
+  --primary: oklch(0.56 0.1 35); /* Muted Terracotta — главный акцент */
   --primary-foreground: oklch(0.98 0.005 90);
   --secondary: oklch(0.96 0.008 90);
   --secondary-foreground: oklch(0.22 0.01 60);
@@ -90,7 +90,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0.00 0);
+  --primary: oklch(0.87 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
