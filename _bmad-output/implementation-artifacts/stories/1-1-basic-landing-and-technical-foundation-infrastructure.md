@@ -1,0 +1,82 @@
+# Story 1.1: Базовый лендинг и технический фундамент (Infrastructure)
+
+Status: ready-for-dev
+
+<!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+
+## Story
+
+As a посетительница,
+I want быстро и безопасно открыть главную страницу платформы,
+so that я могла ознакомиться с клубом без задержек и технических проблем.
+
+## Acceptance Criteria
+
+1. **Given** пустой репозиторий и развернутая инфраструктура (Vercel, Supabase)
+   **When** пользователь открывает корневой маршрут (`/`)
+   **Then** быстро загружается базовая страница-заглушка или каркас лендинга
+2. **And** настроен Next.js (App Router), Tailwind CSS и ESLint (без правила camelcase для БД)
+3. **And** метрики производительности (LCP, TTI) соответствуют NFR
+4. **And** проект успешно деплоится на Vercel
+
+## Tasks / Subtasks
+
+- [ ] Task 1 (AC: 1, 2) Инициализация проекта Next.js
+  - [ ] Subtask 1.1 Создать Next.js приложение с App Router, Tailwind, TypeScript (флаги: `--typescript --tailwind --eslint --app --src-dir --import-alias "@/*"`)
+  - [ ] Subtask 1.2 Настроить ESLint: отключить правило `camelcase` на уровне конфига для совместимости с типами Supabase (согласно архитектуре)
+  - [ ] Subtask 1.3 Инициализировать Shadcn UI (`npx shadcn@latest init`) с базовой темой
+  - [ ] Subtask 1.4 Настроить базовую структуру папок (`src/features`, `src/components/ui`, `src/components/layouts`, `src/lib`, `src/app`)
+- [ ] Task 2 (AC: 1, 3) Подготовка базового лендинга
+  - [ ] Subtask 2.1 Подготовить `src/app/page.tsx` с приветственным сообщением-заглушкой и базовой версткой (будет заменено в Story 1.3)
+  - [ ] Subtask 2.2 Добавить базовый layout (`src/app/layout.tsx`) с общими стилями "Warm Minimalism" (из `ux-design-specification.md`) и настроить дефолтные метаданные
+- [ ] Task 3 (AC: 1, 4) Настройка инфраструктуры и CI/CD
+  - [ ] Subtask 3.1 Создать/подготовить Supabase проект (взять ключи URL и ANON KEY)
+  - [ ] Subtask 3.2 Добавить файлы `.env.local` (Git-ignored) и `.env.example` (с шаблонами ключей)
+  - [ ] Subtask 3.3 Привязать репозиторий GitHub к Vercel для автоматических деплоев
+  - [ ] Subtask 3.4 Настроить production переменные окружения на платформе Vercel
+
+## Dev Notes
+
+- Relevant architecture patterns and constraints:
+  - Mobile-First подход (брейкпоинты 375px/390px). Tailwind-классы писать начиная с мобильных.
+  - Feature-based архитектура (`src/features/*`), но пока создаем базовую структуру, базовые UI-элементы в `src/components/ui/` (shadcn).
+  - Стейт-менеджемент Zustand v5.x пока не интегрируем (рано), но стоит иметь в виду для следующих стори.
+  - Нулевая конфигурация Vercel - инфраструктура берет Next.js SSR автоматически.
+- Source tree components to touch:
+  - Корневые конфиги: `package.json`, `components.json`, `tailwind.config.ts`, `.eslintrc.json` или `eslint.config.mjs`, `tsconfig.json`.
+  - Директории: `src/app/`, `src/components/`, `src/features/`, `src/lib/`.
+- Testing standards summary:
+  - Проверка LCP <= 2.5 сек и TTI <= 4 сек на мобайле (3G сеть) в Lighthouse-репортах продакшена или локально (согласно NFR1, NFR2).
+  - Проверка успешного билда (`next build`) и деплоя на Vercel (чтобы зеленый статус в PR).
+
+### Project Structure Notes
+
+- Alignment with unified project structure (paths, modules, naming):
+  - Используем `src/` директорию для строгого разделения кода и конфигурационных файлов.
+  - `snake_case` используется для БД-типов (это важно для Supabase-совместимости, поэтому отключаем camelcase в ESLint заранее).
+- Detected conflicts or variances (with rationale):
+  - None at this stage.
+
+### References
+
+- Architecture Constraints: `_bmad-output/planning-artifacts/architecture.md#Starter-Template` и `_bmad-output/planning-artifacts/architecture.md#Additional-Requirements`
+- Requirements: `_bmad-output/planning-artifacts/epics.md#FR-Coverage-Map` (Epic 1)
+- UX Specifications & Design System: `_bmad-output/planning-artifacts/ux-design-specification.md#Design-System-Options` (Warm Minimalism)
+
+## Dev Agent Record
+
+### Agent Model Used
+
+gemini-2.5-pro
+
+### Debug Log References
+
+
+
+### Completion Notes List
+
+
+
+### File List
+
+
