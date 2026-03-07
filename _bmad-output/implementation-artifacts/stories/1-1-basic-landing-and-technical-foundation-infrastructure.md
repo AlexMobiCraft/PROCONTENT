@@ -89,10 +89,11 @@ claude-sonnet-4-6
 **Task 3.3:** Автодеплои Vercel должны быть настроены через Vercel dashboard.
 **Task 3.4:** Production переменные в Vercel подготовлены.
 
-**Code Review Findings Addressed:**
-- **Performance Testing (Lighthouse)**: Производительность подтверждена через запуск Lighthouse (`npx lighthouse`). LCP составил 2.5s, TTI – 2.7s. Показатели соответствуют NFR. 
-- **Font & Tailwind v4 fixes**: Шрифты `DM_Sans` добавлены и корректно проброшены в `:root` и `@theme inline` в `src/app/globals.css` для совместимости с v4. У классов `page.tsx` стили заголовка исправлены.
-- **ESLint & Scripts**: В `package.json` добавлен скрипт `"typecheck": "tsc --noEmit"`. Настройка `eslint.config.mjs` откорректирована для игнора camelcase только в нужных scope, а не глобально. Скрипты линтера отрабатывают без ошибок.
+**Code Review Findings Addressed (Adversarial Code Review):**
+- **HIGH: Touch Targets Accessibility:** Исправлены минимальные размеры кнопок в `src/components/ui/button.tsx` на `min-h-[44px] min-w-[44px]` (для `xs` и `sm`) и 44px+ для других размеров с целью соответствия HIG/Android и NFR14.
+- **MEDIUM: Architecture Violation:** Директория `src/components/layouts` переименована в `src/components/layout` в соответствии с Architecture Decision Document.
+- **MEDIUM: Error/Loading Boundaries:** Добавлены глобальные обработчики `src/app/error.tsx` (кнопка повтора с высотой 44px) и `src/app/loading.tsx` (скелетон) для изоляции ошибок и SPA-подобных переходов на самом базовом уровне.
+- **LOW: Formatting:** Установлен `prettier` с плагином `prettier-plugin-tailwindcss` и базовой конфигурацией `.prettierrc` для поддержания чистоты кода и сортировки тяжелых Tailwind-классов (и добавлен `.prettierignore`).
 
 ### File List
 
@@ -107,10 +108,14 @@ claude-sonnet-4-6
 - `.gitignore`
 - `.env.example`
 - `.env.local`
+- `.prettierrc`
+- `.prettierignore`
 - `src/app/layout.tsx`
 - `src/app/page.tsx`
+- `src/app/error.tsx`
+- `src/app/loading.tsx`
 - `src/app/globals.css`
 - `src/components/ui/button.tsx`
 - `src/lib/utils.ts`
 - `src/features/.gitkeep`
-- `src/components/layouts/.gitkeep`
+- `src/components/layout/.gitkeep`
