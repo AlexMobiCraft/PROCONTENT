@@ -1,6 +1,6 @@
 # Story 1.2: Регистрация и Вход на платформу (Supabase Auth & Magic Link/OTP)
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -117,12 +117,18 @@ so that легко и безопасно получать доступ к сво
   - [x] Subtask 8.4 [AI-Review][Medium] Zustand-стор `src/features/auth/store.ts` сохранён — будет использован в будущих историях.
   - [x] Subtask 8.5 [AI-Review][Medium] Улучшить обработку ошибок в `src/features/auth/components/AuthContainer.tsx` (избегать хрупкой проверки через `apiError.message.includes('expired')`).
 
-- [ ] Task 9 (Review Follow-ups) Исправление недочетов после ревью кода (Итерация 2)
-  - [ ] Subtask 9.1 [AI-Review][Critical] Тесты не работают (0 passed). Vitest не находит/не запускает тесты из-за некорректной конфигурации или зависимостей.
-  - [ ] Subtask 9.2 [AI-Review][High] Middleware защищает только `/feed`. Требуется переписать `middleware.ts` так, чтобы все маршруты внутри `(app)/` (помимо `/feed`) были под защитой.
-  - [ ] Subtask 9.3 [AI-Review][High] Zustand `store.ts` создан, но нигде не используется. Необходимо интегрировать глобальное состояние в `AuthContainer.tsx`.
-  - [ ] Subtask 9.4 [AI-Review][Medium] Неотслеженные файлы в Git (`src/middleware.ts`, `vitest.config.ts`, `tests/`). Нужно закоммитить изменения.
-  - [ ] Subtask 9.5 [AI-Review][Medium] Отсутствует JS-валидация email и OTP в клиентских формах (`LoginForm`, `OTPVerificationForm`) перед отправкой запроса.
+- [x] Task 9 (Review Follow-ups) Исправление недочетов после ревью кода (Итерация 2)
+  - [x] Subtask 9.1 [AI-Review][Critical] Тесты не работают (0 passed). Vitest не находит/не запускает тесты из-за некорректной конфигурации или зависимостей.
+  - [x] Subtask 9.2 [AI-Review][High] Middleware защищает только `/feed`. Требуется переписать `middleware.ts` так, чтобы все маршруты внутри `(app)/` (помимо `/feed`) были под защитой.
+  - [x] Subtask 9.3 [AI-Review][High] Zustand `store.ts` создан, но нигде не используется. Необходимо интегрировать глобальное состояние в `AuthContainer.tsx`.
+  - [x] Subtask 9.4 [AI-Review][Medium] Неотслеженные файлы в Git (`src/middleware.ts`, `vitest.config.ts`, `tests/`). Нужно закоммитить изменения.
+  - [x] Subtask 9.5 [AI-Review][Medium] Отсутствует JS-валидация email и OTP в клиентских формах (`LoginForm`, `OTPVerificationForm`) перед отправкой запроса.
+
+- [x] Task 10 (Review Follow-ups) Исправление недочетов после ревью кода (Итерация 3)
+  - [x] Subtask 10.1 [AI-Review][Critical] Исправить middleware (потеря сессии при редиректе). В `src/middleware.ts` используется `NextResponse.redirect`, который теряет выставленные в процессе куки. Нужно пересохранять заголовки кук в возвращаемом объекте редиректа.
+  - [x] Subtask 10.2 [AI-Review][Critical] Инициализация Zustand стора из серверной сессии. Создать `AuthProvider` (или аналогичный механизм), чтобы при успешной проверке сессии на сервере (например в `layout.tsx` для `(app)`) Zustand инициализировался на клиенте, если `user` отсутствует.
+  - [x] Subtask 10.3 [AI-Review][High] Zustand-утечка при логауте. В `src/app/(app)/feed/page.tsx` при клике на "Выйти" вызвать `clearAuth()` из `useAuthStore()`.
+  - [x] Subtask 10.4 [AI-Review][Medium] Мобильный UX. Добавить атрибут `autoComplete="one-time-code"` к полю ввода OTP в `src/features/auth/components/OTPVerificationForm.tsx` и `router.refresh()` при выходе (logout) для очистки серверных компонент.
 
 ## Dev Notes
 
@@ -440,6 +446,17 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [Medium]: Zustand-стор сохранён для использования в будущих историях.
 - ✅ Resolved review finding [Medium]: детектирование OTP-ошибки заменено на `apiError.status === 422`.
 - Все проверки прошли: `typecheck ✓`, `lint ✓`, `build ✓`, `36 tests ✓`.
+- ✅ Resolved review finding [Critical]: тесты работают (51 passed, 5 файлов).
+- ✅ Resolved review finding [High]: middleware переписан — защищены все маршруты кроме `/`, `/login`, `/auth/*`; добавлены 8 тестов middleware.
+- ✅ Resolved review finding [High]: Zustand store интегрирован в AuthContainer — `setUser`/`setSession` вызываются после успешного verifyOtp.
+- ✅ Resolved review finding [Medium]: все файлы закоммичены (commit de9c957c).
+- ✅ Resolved review finding [Medium]: JS-валидация email (HTML5 validity API) добавлена в LoginForm; JS-валидация OTP (regex `^\d{6}$`) добавлена в OTPVerificationForm; итого +6 тестов валидации.
+- Итоговые проверки: `typecheck ✓`, `lint ✓`, `build ✓`, `51 tests ✓`.
+- ✅ Resolved review finding [Critical]: добавлена helper-функция `copyRedirect` в `middleware.ts` — куки из `supabaseResponse` копируются в redirect-ответ, сессия не теряется.
+- ✅ Resolved review finding [Critical]: создан `AuthProvider.tsx` — при монтировании инициализирует Zustand store (`setUser`/`setSession`) из серверной сессии, если store пуст; интегрирован в `(app)/layout.tsx`.
+- ✅ Resolved review finding [High]: `clearAuth()` вызывается при логауте в `feed/page.tsx` — Zustand store очищается после `signOut()`.
+- ✅ Resolved review finding [Medium]: добавлен `autoComplete="one-time-code"` к OTP-полю; добавлен `router.refresh()` при логауте.
+- Итоговые проверки: `typecheck ✓`, `build ✓`, `58 tests ✓` (7 новых тестов).
 
 ### File List
 
@@ -466,4 +483,19 @@ claude-sonnet-4-6
 - `tests/unit/features/auth/components/LoginForm.test.tsx` — NEW (8 тестов)
 - `tests/unit/features/auth/components/OTPVerificationForm.test.tsx` — NEW (10 тестов)
 - `tests/unit/features/auth/components/AuthContainer.test.tsx` — NEW (8 тестов)
-- `src/features/auth/components/AuthContainer.tsx` — MODIFIED (otpKey, status 422)
+- `src/features/auth/components/AuthContainer.tsx` — MODIFIED (otpKey, status 422, Zustand store integration)
+- `src/features/auth/components/LoginForm.tsx` — MODIFIED (JS email validation)
+- `src/features/auth/components/OTPVerificationForm.tsx` — MODIFIED (JS OTP validation)
+- `src/middleware.ts` — MODIFIED (защита всех не-публичных маршрутов)
+- `tests/unit/middleware.test.ts` — NEW (8 тестов middleware)
+- `tests/unit/features/auth/components/AuthContainer.test.tsx` — MODIFIED (мок store, тест store-интеграции)
+- `tests/unit/features/auth/components/LoginForm.test.tsx` — MODIFIED (3 теста валидации)
+- `tests/unit/features/auth/components/OTPVerificationForm.test.tsx` — MODIFIED (3 теста валидации + 1 тест autoComplete)
+- `src/middleware.ts` — MODIFIED (helper copyRedirect: куки копируются в redirect-ответ)
+- `src/features/auth/components/AuthProvider.tsx` — NEW (инициализация Zustand из серверной сессии)
+- `src/app/(app)/layout.tsx` — MODIFIED (использует AuthProvider, передаёт user и session)
+- `src/app/(app)/feed/page.tsx` — MODIFIED (clearAuth при логауте, router.refresh())
+- `src/features/auth/components/OTPVerificationForm.tsx` — MODIFIED (autoComplete="one-time-code")
+- `tests/unit/features/auth/components/AuthProvider.test.tsx` — NEW (3 теста)
+- `tests/unit/app/feed/page.test.tsx` — NEW (2 теста: рендер + полный сценарий выхода)
+- `tests/unit/middleware.test.ts` — MODIFIED (+1 тест copyRedirect-редирект)

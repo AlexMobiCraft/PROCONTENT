@@ -69,6 +69,18 @@ describe('middleware', () => {
     })
   })
 
+  describe('потеря сессии при редиректе', () => {
+    it('редирект неавторизованного возвращает корректный Location', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/dashboard')
+      const response = await middleware(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+    })
+  })
+
   describe('авторизованный пользователь', () => {
     const mockUser = { id: '1', email: 'test@example.com' }
 

@@ -112,6 +112,15 @@ describe('OTPVerificationForm', () => {
     expect(input).toHaveAttribute('maxLength', '6')
   })
 
+  it('поле OTP имеет autoComplete="one-time-code" для мобильного UX', () => {
+    render(<OTPVerificationForm {...defaultProps} />)
+
+    expect(screen.getByLabelText('Код из письма')).toHaveAttribute(
+      'autoComplete',
+      'one-time-code'
+    )
+  })
+
   it('не вызывает onSubmit при пустом OTP', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
