@@ -1,6 +1,6 @@
 # Story 1.2: Регистрация и Вход на платформу (Supabase Auth & Magic Link/OTP)
 
-Status: review
+Status: in-progress
 
 ## Story
 
