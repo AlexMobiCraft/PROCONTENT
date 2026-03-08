@@ -128,3 +128,13 @@
     @apply font-sans;
   }
 }
+
+/* Скрытие скроллбара для горизонтального скролла (CategoryScroll) */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area padding for devices with notch/home indicator */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 
 import { AuthProvider } from '@/features/auth/components/AuthProvider'
 import { createClient } from '@/lib/supabase/server'
+import { MobileNav } from '@/components/navigation/MobileNav'
 
 export default async function AppLayout({
   children,
@@ -27,7 +28,9 @@ export default async function AppLayout({
 
   return (
     <AuthProvider user={user} session={session}>
-      {children}
+      {/* Bottom nav clearance — 60px nav + safe area */}
+      <div className="pb-[76px]">{children}</div>
+      <MobileNav />
     </AuthProvider>
   )
 }
