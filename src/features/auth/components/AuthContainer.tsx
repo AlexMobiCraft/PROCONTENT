@@ -16,6 +16,7 @@ export function AuthContainer() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [networkError, setNetworkError] = useState<string | null>(null)
+  const [otpKey, setOtpKey] = useState(0)
 
   async function handleEmailSubmit(submittedEmail: string) {
     setIsLoading(true)
@@ -46,15 +47,12 @@ export function AuthContainer() {
     setIsLoading(false)
 
     if (apiError) {
-      if (
-        apiError.message.includes('expired') ||
-        apiError.message.includes('invalid') ||
-        apiError.message.includes('Token')
-      ) {
-        // Ошибка токена — inline под полем ввода, поле очищается через key
+      if (apiError.status === 422) {
+        // Ошибка токена (невалидный/просроченный) — inline под полем, поле очищается через key
         setError(
           'Код неверный или просрочен. Проверьте письмо или запросите новый код.'
         )
+        setOtpKey((k) => k + 1)
       } else {
         // Системная ошибка
         setNetworkError('Что-то пошло не так. Попробуйте ещё раз.')
@@ -104,6 +102,7 @@ export function AuthContainer() {
         />
       ) : (
         <OTPVerificationForm
+          key={otpKey}
           email={email}
           onSubmit={handleOtpSubmit}
           onResend={handleResend}

@@ -110,6 +110,13 @@ so that легко и безопасно получать доступ к сво
     - Минимальная страница-заглушка "Лента (скоро)" для подтверждения работы редиректа
     - Кнопка "Выйти" (вызов `signOut()` + redirect на `/login`)
 
+- [x] Task 8 (Review Follow-ups) Исправление недочетов после ревью кода
+  - [x] Subtask 8.1 [AI-Review][Critical] Переименовать `src/proxy.ts` обратно в `src/middleware.ts` — защита маршрутов не работает, так как Next.js не распознает файл `proxy.ts`.
+  - [x] Subtask 8.2 [AI-Review][Critical] Написать тесты для реализованного функционала. В истории нет ни одного теста.
+  - [x] Subtask 8.3 [AI-Review][High] Исправить очистку поля OTP при ошибке в `src/features/auth/components/AuthContainer.tsx`. Поле не очищается, так как не передается `key`.
+  - [x] Subtask 8.4 [AI-Review][Medium] Zustand-стор `src/features/auth/store.ts` сохранён — будет использован в будущих историях.
+  - [x] Subtask 8.5 [AI-Review][Medium] Улучшить обработку ошибок в `src/features/auth/components/AuthContainer.tsx` (избегать хрупкой проверки через `apiError.message.includes('expired')`).
+
 ## Dev Notes
 
 ### Архитектурные паттерны для этой Story
@@ -400,16 +407,19 @@ claude-sonnet-4-6
 
 ### Debug Log References
 
-- Next.js 16 deprecates `middleware.ts` в пользу `proxy.ts` с экспортом функции `proxy`. Файл и функция переименованы соответственно.
+- ~~Next.js 16 deprecates `middleware.ts` в пользу `proxy.ts`~~ — ИСПРАВЛЕНО: `proxy.ts` переименован в `middleware.ts` (8.1). Next.js 16 корректно распознаёт `middleware.ts`.
 - Глобальный Toast-провайдер не существует в проекте (будет добавлен в будущей истории). Сетевые ошибки AuthContainer отображаются как inline-блок `networkError`.
 - `.env.local` уже содержал реальные Supabase ключи — Subtask 1.4 выполнен без изменений.
 - Subtask 3.2 требует ручного применения миграции в Supabase Dashboard или через CLI.
+- Тесты изначально размещены в `src/features/auth/` — исправлено: перенесены в `tests/unit/features/auth/` согласно architecture.md (`tests/unit/`, `tests/e2e/`).
+- OTP hoisting bug в vitest: `vi.hoisted()` используется для создания mock-функций в `AuthContainer.test.tsx`.
+- Детектирование ошибки OTP заменено с `message.includes()` на `status === 422` (8.5).
 
 ### Completion Notes List
 
 - Установлены `@supabase/supabase-js`, `@supabase/ssr`, `zustand` (13 пакетов).
 - Созданы browser и server Supabase клиенты с типизацией через `src/types/supabase.ts`.
-- Proxy (middleware) защищает `/feed` → редирект на `/login` для неавторизованных; авторизованных с `/login` → `/feed`.
+- `src/middleware.ts` (функция `middleware`) защищает `/feed` → редирект на `/login` для неавторизованных; авторизованных с `/login` → `/feed`.
 - SQL-миграция создана: таблица `profiles`, RLS политики, trigger `handle_new_user`.
 - LoginForm и OTPVerificationForm — dumb-компоненты с 44px touch targets, inline-ошибками, a11y атрибутами.
 - AuthContainer управляет двухшаговым флоу email→OTP с разделением inline/network ошибок.
@@ -417,13 +427,18 @@ claude-sonnet-4-6
 - Route Handler `/auth/callback` обменивает code на сессию (Magic Link flow).
 - `(app)/layout.tsx` — серверная защита с redirect на `/login`.
 - `(app)/feed/page.tsx` — заглушка с кнопкой "Выйти".
-- Все проверки прошли: `typecheck ✓`, `lint ✓`, `build ✓`.
+- ✅ Resolved review finding [Critical]: `proxy.ts` переименован в `middleware.ts`, функция переименована в `middleware`.
+- ✅ Resolved review finding [Critical]: написано 36 тестов (Vitest + React Testing Library) для auth API, LoginForm, OTPVerificationForm, AuthContainer.
+- ✅ Resolved review finding [High]: `key={otpKey}` добавлен на `OTPVerificationForm`; `otpKey` инкрементируется при ошибке 422 — поле OTP очищается.
+- ✅ Resolved review finding [Medium]: Zustand-стор сохранён для использования в будущих историях.
+- ✅ Resolved review finding [Medium]: детектирование OTP-ошибки заменено на `apiError.status === 422`.
+- Все проверки прошли: `typecheck ✓`, `lint ✓`, `build ✓`, `36 tests ✓`.
 
 ### File List
 
 - `src/lib/supabase/client.ts` — NEW
 - `src/lib/supabase/server.ts` — NEW
-- `src/proxy.ts` — NEW (ранее middleware.ts, Next.js 16 convention)
+- `src/middleware.ts` — NEW (переименован из proxy.ts)
 - `src/types/supabase.ts` — NEW
 - `src/features/auth/api/auth.ts` — NEW
 - `src/features/auth/store.ts` — NEW
@@ -436,5 +451,12 @@ claude-sonnet-4-6
 - `src/app/(app)/layout.tsx` — NEW
 - `src/app/(app)/feed/page.tsx` — NEW
 - `supabase/migrations/001_create_profiles.sql` — NEW
-- `package.json` — MODIFIED (добавлены @supabase/supabase-js, @supabase/ssr, zustand)
+- `package.json` — MODIFIED (добавлены @supabase/supabase-js, @supabase/ssr, zustand, vitest, @testing-library/*)
 - `package-lock.json` — MODIFIED
+- `vitest.config.ts` — NEW
+- `tests/setup.ts` — NEW
+- `tests/unit/features/auth/api/auth.test.ts` — NEW (10 тестов)
+- `tests/unit/features/auth/components/LoginForm.test.tsx` — NEW (8 тестов)
+- `tests/unit/features/auth/components/OTPVerificationForm.test.tsx` — NEW (10 тестов)
+- `tests/unit/features/auth/components/AuthContainer.test.tsx` — NEW (8 тестов)
+- `src/features/auth/components/AuthContainer.tsx` — MODIFIED (otpKey, status 422)

@@ -8,7 +8,12 @@
       "Bash(test:*)",
       "Bash(ls:*)",
       "Bash(npm install:*)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "Bash(supabase db:*)",
+      "Bash(npx supabase:*)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_8ed8036126aa44040de5f54f8dfaa8aa2d25a531 npx supabase:*)",
+      "Bash(npm list:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }
