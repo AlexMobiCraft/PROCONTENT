@@ -1,6 +1,6 @@
 # Story 1.2: Регистрация и Вход на платформу (Supabase Auth & Magic Link/OTP)
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -44,69 +44,69 @@ so that легко и безопасно получать доступ к сво
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 (AC: 1, 2, 3) Установка и конфигурация Supabase-клиентов
-  - [ ] Subtask 1.1 Установить зависимости: `npm install @supabase/supabase-js @supabase/ssr`
-  - [ ] Subtask 1.2 Создать `src/lib/supabase/client.ts` с `createBrowserClient` из `@supabase/ssr` для клиентских компонентов
-  - [ ] Subtask 1.3 Создать `src/lib/supabase/server.ts` с `createServerClient` из `@supabase/ssr` (читает cookies через `next/headers`) для серверных компонентов и Route Handlers
-  - [ ] Subtask 1.4 Добавить в `.env.local` переменные `NEXT_PUBLIC_SUPABASE_URL` и `NEXT_PUBLIC_SUPABASE_ANON_KEY` (шаблон уже есть в `.env.example` из Story 1.1)
+- [x] Task 1 (AC: 1, 2, 3) Установка и конфигурация Supabase-клиентов
+  - [x] Subtask 1.1 Установить зависимости: `npm install @supabase/supabase-js @supabase/ssr`
+  - [x] Subtask 1.2 Создать `src/lib/supabase/client.ts` с `createBrowserClient` из `@supabase/ssr` для клиентских компонентов
+  - [x] Subtask 1.3 Создать `src/lib/supabase/server.ts` с `createServerClient` из `@supabase/ssr` (читает cookies через `next/headers`) для серверных компонентов и Route Handlers
+  - [x] Subtask 1.4 Добавить в `.env.local` переменные `NEXT_PUBLIC_SUPABASE_URL` и `NEXT_PUBLIC_SUPABASE_ANON_KEY` (шаблон уже есть в `.env.example` из Story 1.1)
 
-- [ ] Task 2 (AC: 6) Настройка Next.js Middleware для защиты маршрутов
-  - [ ] Subtask 2.1 Создать `src/middleware.ts`: проверять наличие сессии Supabase через `@supabase/ssr` и делать redirect неавторизованных на `/login` для всех маршрутов под `(app)/`
-  - [ ] Subtask 2.2 Настроить `matcher` в middleware — включить `/(app)/(.*)` и исключить `/login`, `/auth/(.*)`, статику и API маршруты
+- [x] Task 2 (AC: 6) Настройка Next.js Middleware для защиты маршрутов
+  - [x] Subtask 2.1 Создать `src/proxy.ts`: проверять наличие сессии Supabase через `@supabase/ssr` и делать redirect неавторизованных на `/login` для всех маршрутов под `(app)/`
+  - [x] Subtask 2.2 Настроить `matcher` в proxy — включить `/(app)/(.*)` и исключить `/login`, `/auth/(.*)`, статику и API маршруты
 
-- [ ] Task 3 (AC: 7) Создание схемы БД (таблица `profiles`)
-  - [ ] Subtask 3.1 Создать SQL-миграцию в `supabase/migrations/` (файл `001_create_profiles.sql`):
+- [x] Task 3 (AC: 7) Создание схемы БД (таблица `profiles`)
+  - [x] Subtask 3.1 Создать SQL-миграцию в `supabase/migrations/` (файл `001_create_profiles.sql`):
     - Таблица `public.profiles (id uuid references auth.users primary key, email text not null, display_name text, avatar_url text, created_at timestamptz default now())`
     - Включить RLS: `alter table profiles enable row level security`
     - Политики RLS: `select` и `update` только для `auth.uid() = id`
     - DB trigger `handle_new_user` — при INSERT в `auth.users` создаёт запись в `profiles`
-  - [ ] Subtask 3.2 Применить миграцию через Supabase Dashboard или Supabase CLI (`supabase db push`)
+  - [ ] Subtask 3.2 Применить миграцию через Supabase Dashboard или Supabase CLI (`supabase db push`) — **требует ручного действия**
 
-- [ ] Task 4 (AC: 1, 4) Создание UI компонентов формы авторизации
-  - [ ] Subtask 4.1 Создать Dumb-компонент `src/features/auth/components/LoginForm.tsx`:
+- [x] Task 4 (AC: 1, 4) Создание UI компонентов формы авторизации
+  - [x] Subtask 4.1 Создать Dumb-компонент `src/features/auth/components/LoginForm.tsx`:
     - Поле email (input type="email"), кнопка отправки, inline-ошибка под полем
     - Props: `onSubmit(email: string)`, `isLoading: boolean`, `error: string | null`
     - Skeleton-состояние через проп `isLoading` на кнопке
     - Соответствие UX: тёплый tone, подпись под формой (например, "Мы отправим ссылку на ваш email")
-  - [ ] Subtask 4.2 Создать Dumb-компонент `src/features/auth/components/OTPVerificationForm.tsx`:
+  - [x] Subtask 4.2 Создать Dumb-компонент `src/features/auth/components/OTPVerificationForm.tsx`:
     - Поле для 6-значного OTP, кнопка "Подтвердить", ссылка "Отправить код повторно", inline-ошибка
     - Props: `email: string`, `onSubmit(token: string)`, `onResend()`, `isLoading: boolean`, `error: string | null`
-  - [ ] Subtask 4.3 Все интерактивные элементы — минимум 44x44px (соблюдать паттерн из Story 1.1 `button.tsx`)
+  - [x] Subtask 4.3 Все интерактивные элементы — минимум 44x44px (соблюдать паттерн из Story 1.1 `button.tsx`)
 
-- [ ] Task 5 (AC: 1, 2) Создание API-слоя и Smart Container для авторизации
-  - [ ] Subtask 5.1 Создать `src/features/auth/api/auth.ts` с функциями:
+- [x] Task 5 (AC: 1, 2) Создание API-слоя и Smart Container для авторизации
+  - [x] Subtask 5.1 Создать `src/features/auth/api/auth.ts` с функциями:
     - `signInWithOtp(email: string)` → вызов `supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })`
     - `verifyOtp(email: string, token: string)` → вызов `supabase.auth.verifyOtp({ email, token, type: 'email' })`
     - `signOut()` → вызов `supabase.auth.signOut()`
     - `getSession()` → вызов `supabase.auth.getSession()`
-  - [ ] Subtask 5.2 Создать Zustand-стор `src/features/auth/store.ts`:
+  - [x] Subtask 5.2 Создать Zustand-стор `src/features/auth/store.ts`:
     - State: `user`, `session`, `isLoading`
     - Actions: `setUser`, `setSession`, `clearAuth`
     - Использовать Zustand v5.x синтаксис (`create` без `immer` если не требуется)
-  - [ ] Subtask 5.3 Создать Smart Container `src/features/auth/components/AuthContainer.tsx`:
+  - [x] Subtask 5.3 Создать Smart Container `src/features/auth/components/AuthContainer.tsx`:
     - Управляет state (email, step: 'email' | 'otp', error, isLoading)
     - Обрабатывает onSubmit для email (вызов `signInWithOtp`) и OTP (вызов `verifyOtp`)
-    - При ошибке API → показывает Toast через глобальный store (системная ошибка сети/сервера)
+    - При ошибке API → отображает inline networkError (глобальный Toast-провайдер не реализован в этой истории)
     - При ошибке валидации токена → передаёт `error` в Dumb-компонент (inline)
     - После успешного входа → `router.push('/feed')`
 
-- [ ] Task 6 (AC: 1, 3, 5) Создание страниц авторизации и callback
-  - [ ] Subtask 6.1 Создать `src/app/(public)/login/page.tsx`:
+- [x] Task 6 (AC: 1, 3, 5) Создание страниц авторизации и callback
+  - [x] Subtask 6.1 Создать `src/app/(public)/login/page.tsx`:
     - Серверный компонент, проверяет сессию → если есть, redirect на `/feed`
     - Рендерит `<AuthContainer />`
     - Метаданные страницы: `title: "Войти | PROCONTENT"`
-  - [ ] Subtask 6.2 Создать `src/app/(public)/layout.tsx` если ещё нет (минимальный layout для публичной зоны)
-  - [ ] Subtask 6.3 Создать Route Handler `src/app/auth/callback/route.ts`:
+  - [x] Subtask 6.2 Создать `src/app/(public)/layout.tsx` если ещё нет (минимальный layout для публичной зоны)
+  - [x] Subtask 6.3 Создать Route Handler `src/app/auth/callback/route.ts`:
     - Принимает `?code=` query параметр
     - Вызывает `supabase.auth.exchangeCodeForSession(code)` через server client
     - Redirect на `/feed` при успехе, на `/login?error=...` при ошибке
 
-- [ ] Task 7 (AC: 2, 5, 6) Создание защищённого layout для зоны `(app)`
-  - [ ] Subtask 7.1 Создать `src/app/(app)/layout.tsx`:
+- [x] Task 7 (AC: 2, 5, 6) Создание защищённого layout для зоны `(app)`
+  - [x] Subtask 7.1 Создать `src/app/(app)/layout.tsx`:
     - Серверный компонент, проверяет сессию через `src/lib/supabase/server.ts`
     - Если сессии нет → `redirect('/login')`
     - Если сессия есть → рендерит `{children}` (MobileNav будет добавлен в следующих историях)
-  - [ ] Subtask 7.2 Создать заглушку `src/app/(app)/feed/page.tsx`:
+  - [x] Subtask 7.2 Создать заглушку `src/app/(app)/feed/page.tsx`:
     - Минимальная страница-заглушка "Лента (скоро)" для подтверждения работы редиректа
     - Кнопка "Выйти" (вызов `signOut()` + redirect на `/login`)
 
@@ -400,6 +400,41 @@ claude-sonnet-4-6
 
 ### Debug Log References
 
+- Next.js 16 deprecates `middleware.ts` в пользу `proxy.ts` с экспортом функции `proxy`. Файл и функция переименованы соответственно.
+- Глобальный Toast-провайдер не существует в проекте (будет добавлен в будущей истории). Сетевые ошибки AuthContainer отображаются как inline-блок `networkError`.
+- `.env.local` уже содержал реальные Supabase ключи — Subtask 1.4 выполнен без изменений.
+- Subtask 3.2 требует ручного применения миграции в Supabase Dashboard или через CLI.
+
 ### Completion Notes List
 
+- Установлены `@supabase/supabase-js`, `@supabase/ssr`, `zustand` (13 пакетов).
+- Созданы browser и server Supabase клиенты с типизацией через `src/types/supabase.ts`.
+- Proxy (middleware) защищает `/feed` → редирект на `/login` для неавторизованных; авторизованных с `/login` → `/feed`.
+- SQL-миграция создана: таблица `profiles`, RLS политики, trigger `handle_new_user`.
+- LoginForm и OTPVerificationForm — dumb-компоненты с 44px touch targets, inline-ошибками, a11y атрибутами.
+- AuthContainer управляет двухшаговым флоу email→OTP с разделением inline/network ошибок.
+- Страница `/login` — серверный компонент с auth-check и redirect.
+- Route Handler `/auth/callback` обменивает code на сессию (Magic Link flow).
+- `(app)/layout.tsx` — серверная защита с redirect на `/login`.
+- `(app)/feed/page.tsx` — заглушка с кнопкой "Выйти".
+- Все проверки прошли: `typecheck ✓`, `lint ✓`, `build ✓`.
+
 ### File List
+
+- `src/lib/supabase/client.ts` — NEW
+- `src/lib/supabase/server.ts` — NEW
+- `src/proxy.ts` — NEW (ранее middleware.ts, Next.js 16 convention)
+- `src/types/supabase.ts` — NEW
+- `src/features/auth/api/auth.ts` — NEW
+- `src/features/auth/store.ts` — NEW
+- `src/features/auth/components/LoginForm.tsx` — NEW
+- `src/features/auth/components/OTPVerificationForm.tsx` — NEW
+- `src/features/auth/components/AuthContainer.tsx` — NEW
+- `src/app/(public)/layout.tsx` — NEW
+- `src/app/(public)/login/page.tsx` — NEW
+- `src/app/auth/callback/route.ts` — NEW
+- `src/app/(app)/layout.tsx` — NEW
+- `src/app/(app)/feed/page.tsx` — NEW
+- `supabase/migrations/001_create_profiles.sql` — NEW
+- `package.json` — MODIFIED (добавлены @supabase/supabase-js, @supabase/ssr, zustand)
+- `package-lock.json` — MODIFIED
