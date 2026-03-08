@@ -83,4 +83,38 @@ describe('LoginForm', () => {
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
+
+  it('не вызывает onSubmit при пустом email', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
+
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+  })
+
+  it('не вызывает onSubmit при невалидном email', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
+
+    await user.type(screen.getByLabelText('Email'), 'не-email')
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+  })
+
+  it('вызывает onSubmit при валидном email', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
+
+    await user.type(screen.getByLabelText('Email'), 'valid@example.com')
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+
+    expect(onSubmit).toHaveBeenCalledWith('valid@example.com')
+  })
 })

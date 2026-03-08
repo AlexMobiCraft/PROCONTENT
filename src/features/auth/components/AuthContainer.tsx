@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { signInWithOtp, verifyOtp } from '@/features/auth/api/auth'
+import { useAuthStore } from '@/features/auth/store'
 import { LoginForm } from './LoginForm'
 import { OTPVerificationForm } from './OTPVerificationForm'
 
@@ -11,6 +12,8 @@ type AuthStep = 'email' | 'otp'
 
 export function AuthContainer() {
   const router = useRouter()
+  const setUser = useAuthStore((state) => state.setUser)
+  const setSession = useAuthStore((state) => state.setSession)
   const [step, setStep] = useState<AuthStep>('email')
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -42,7 +45,7 @@ export function AuthContainer() {
     setError(null)
     setNetworkError(null)
 
-    const { error: apiError } = await verifyOtp(email, token)
+    const { data, error: apiError } = await verifyOtp(email, token)
 
     setIsLoading(false)
 
@@ -58,6 +61,12 @@ export function AuthContainer() {
         setNetworkError('Что-то пошло не так. Попробуйте ещё раз.')
       }
       return
+    }
+
+    // Сохраняем сессию в глобальный store
+    if (data?.session) {
+      setUser(data.session.user)
+      setSession(data.session)
     }
 
     router.push('/feed')

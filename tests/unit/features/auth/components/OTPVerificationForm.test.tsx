@@ -111,4 +111,38 @@ describe('OTPVerificationForm', () => {
     expect(input).toHaveAttribute('inputMode', 'numeric')
     expect(input).toHaveAttribute('maxLength', '6')
   })
+
+  it('не вызывает onSubmit при пустом OTP', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<OTPVerificationForm {...defaultProps} onSubmit={onSubmit} />)
+
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+  })
+
+  it('не вызывает onSubmit при OTP меньше 6 цифр', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<OTPVerificationForm {...defaultProps} onSubmit={onSubmit} />)
+
+    await user.type(screen.getByLabelText('Код из письма'), '123')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+  })
+
+  it('вызывает onSubmit при ровно 6 цифрах', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<OTPVerificationForm {...defaultProps} onSubmit={onSubmit} />)
+
+    await user.type(screen.getByLabelText('Код из письма'), '654321')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(onSubmit).toHaveBeenCalledWith('654321')
+  })
 })

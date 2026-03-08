@@ -36,8 +36,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/feed', request.url))
   }
 
-  // Защита всех маршрутов внутри (app)/ — редирект неавторизованных на /login
-  if (!user && pathname.startsWith('/feed')) {
+  // Публичные маршруты — не требуют авторизации
+  const publicPaths = ['/', '/login']
+  const isPublicPath =
+    publicPaths.includes(pathname) || pathname.startsWith('/auth/')
+
+  // Защита всех не-публичных маршрутов — редирект неавторизованных на /login
+  if (!user && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

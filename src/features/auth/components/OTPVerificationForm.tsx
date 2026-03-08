@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -18,12 +20,23 @@ export function OTPVerificationForm({
   isLoading,
   error,
 }: OTPVerificationFormProps) {
+  const [validationError, setValidationError] = useState<string | null>(null)
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = e.currentTarget
     const token = (form.elements.namedItem('otp') as HTMLInputElement).value
+
+    if (!/^\d{6}$/.test(token)) {
+      setValidationError('Введите 6-значный код из письма')
+      return
+    }
+
+    setValidationError(null)
     onSubmit(token)
   }
+
+  const displayError = validationError ?? error
 
   return (
     <div className="flex flex-col gap-4">
@@ -48,17 +61,17 @@ export function OTPVerificationForm({
             required
             placeholder="123456"
             disabled={isLoading}
-            aria-describedby={error ? 'otp-error' : undefined}
-            aria-invalid={!!error}
+            aria-describedby={displayError ? 'otp-error' : undefined}
+            aria-invalid={!!displayError}
             className={cn(
               'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm tracking-widest transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
-              error &&
+              displayError &&
                 'border-destructive focus:ring-destructive/20 focus:border-destructive'
             )}
           />
-          {error && (
+          {displayError && (
             <p id="otp-error" role="alert" className="text-destructive text-sm">
-              {error}
+              {displayError}
             </p>
           )}
         </div>

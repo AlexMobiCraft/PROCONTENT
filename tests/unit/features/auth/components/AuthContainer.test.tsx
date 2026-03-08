@@ -27,11 +27,21 @@ vi.mock('@/features/auth/api/auth', () => ({
   verifyOtp: mockVerifyOtp,
 }))
 
+const mockSetUser = vi.fn()
+const mockSetSession = vi.fn()
+
+vi.mock('@/features/auth/store', () => ({
+  useAuthStore: (selector: (state: { setUser: typeof mockSetUser; setSession: typeof mockSetSession }) => unknown) =>
+    selector({ setUser: mockSetUser, setSession: mockSetSession }),
+}))
+
 import { AuthContainer } from '@/features/auth/components/AuthContainer'
 
 describe('AuthContainer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSetUser.mockReset()
+    mockSetSession.mockReset()
   })
 
   it('рендерит заголовок и форму email на начальном шаге', () => {
@@ -92,7 +102,7 @@ describe('AuthContainer', () => {
 
   it('выполняет router.push("/feed") после успешной верификации OTP', async () => {
     mockSignInWithOtp.mockResolvedValue({ error: null })
-    mockVerifyOtp.mockResolvedValue({ error: null })
+    mockVerifyOtp.mockResolvedValue({ data: { session: null, user: null }, error: null })
     const user = userEvent.setup()
     render(<AuthContainer />)
 
@@ -161,6 +171,29 @@ describe('AuthContainer', () => {
       expect(
         screen.getByText('Что-то пошло не так. Попробуйте ещё раз.')
       ).toBeInTheDocument()
+    })
+  })
+
+  it('обновляет Zustand store при успешном входе', async () => {
+    const mockSession = { access_token: 'tok', user: { id: '42', email: 'test@example.com' } }
+    mockSignInWithOtp.mockResolvedValue({ error: null })
+    mockVerifyOtp.mockResolvedValue({ data: { session: mockSession, user: mockSession.user }, error: null })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
+    )
+
+    await user.type(screen.getByLabelText('Код из письма'), '123456')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    await waitFor(() => {
+      expect(mockSetUser).toHaveBeenCalledWith(mockSession.user)
+      expect(mockSetSession).toHaveBeenCalledWith(mockSession)
     })
   })
 
