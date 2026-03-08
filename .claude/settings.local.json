@@ -5,7 +5,8 @@
       "Bash(cp:*)",
       "Bash(npx shadcn@latest:*)",
       "Bash(npm run:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(ls:*)"
     ]
   }
 }
