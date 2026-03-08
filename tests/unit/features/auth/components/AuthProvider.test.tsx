@@ -6,13 +6,22 @@ const mockSetSession = vi.fn()
 let mockStoreUser: null | { id: string } = null
 
 vi.mock('@/features/auth/store', () => ({
-  useAuthStore: (
-    selector: (state: {
-      user: typeof mockStoreUser
-      setUser: typeof mockSetUser
-      setSession: typeof mockSetSession
-    }) => unknown
-  ) => selector({ user: mockStoreUser, setUser: mockSetUser, setSession: mockSetSession }),
+  useAuthStore: Object.assign(
+    (
+      selector: (state: {
+        user: typeof mockStoreUser
+        setUser: typeof mockSetUser
+        setSession: typeof mockSetSession
+      }) => unknown
+    ) => selector({ user: mockStoreUser, setUser: mockSetUser, setSession: mockSetSession }),
+    {
+      getState: () => ({
+        user: mockStoreUser,
+        setUser: mockSetUser,
+        setSession: mockSetSession,
+      }),
+    }
+  ),
 }))
 
 import { AuthProvider } from '@/features/auth/components/AuthProvider'
@@ -38,7 +47,7 @@ describe('AuthProvider', () => {
     expect(mockSetSession).toHaveBeenCalledWith(mockSession)
   })
 
-  it('не перезаписывает store если user уже установлен', () => {
+  it('не перезаписывает store если user с тем же id уже установлен', () => {
     mockStoreUser = { id: '42' }
 
     render(
@@ -49,6 +58,32 @@ describe('AuthProvider', () => {
 
     expect(mockSetUser).not.toHaveBeenCalled()
     expect(mockSetSession).not.toHaveBeenCalled()
+  })
+
+  it('перезаписывает store если id пользователя изменился', () => {
+    mockStoreUser = { id: 'old-id' }
+
+    render(
+      <AuthProvider user={mockUser} session={mockSession}>
+        <div>child</div>
+      </AuthProvider>
+    )
+
+    expect(mockSetUser).toHaveBeenCalledWith(mockUser)
+    expect(mockSetSession).toHaveBeenCalledWith(mockSession)
+  })
+
+  it('инициализирует store синхронно — без waitFor', () => {
+    // Проверяем, что store заполнен сразу после render, без useEffect
+    render(
+      <AuthProvider user={mockUser} session={mockSession}>
+        <div>child</div>
+      </AuthProvider>
+    )
+
+    // Без waitFor: store должен быть заполнен в момент рендера
+    expect(mockSetUser).toHaveBeenCalledWith(mockUser)
+    expect(mockSetSession).toHaveBeenCalledWith(mockSession)
   })
 
   it('рендерит children', () => {

@@ -12,14 +12,17 @@ vi.mock('@base-ui/react/button', () => ({
   }) => <button {...props}>{children}</button>,
 }))
 
-const { mockPush, mockSignInWithOtp, mockVerifyOtp } = vi.hoisted(() => ({
+const { mockPush, mockReplace, mockSignInWithOtp, mockVerifyOtp, mockSearchParams } = vi.hoisted(() => ({
   mockPush: vi.fn(),
+  mockReplace: vi.fn(),
   mockSignInWithOtp: vi.fn(),
   mockVerifyOtp: vi.fn(),
+  mockSearchParams: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  useSearchParams: () => mockSearchParams(),
 }))
 
 vi.mock('@/features/auth/api/auth', () => ({
@@ -42,6 +45,9 @@ describe('AuthContainer', () => {
     vi.clearAllMocks()
     mockSetUser.mockReset()
     mockSetSession.mockReset()
+    mockReplace.mockReset()
+    // По умолчанию нет параметров в URL
+    mockSearchParams.mockReturnValue({ get: () => null })
   })
 
   it('рендерит заголовок и форму email на начальном шаге', () => {
@@ -195,6 +201,104 @@ describe('AuthContainer', () => {
       expect(mockSetUser).toHaveBeenCalledWith(mockSession.user)
       expect(mockSetSession).toHaveBeenCalledWith(mockSession)
     })
+  })
+
+  it('показывает ошибку при ?error=auth_callback_error в URL', () => {
+    mockSearchParams.mockReturnValue({
+      get: (key: string) => (key === 'error' ? 'auth_callback_error' : null),
+    })
+    render(<AuthContainer />)
+
+    expect(
+      screen.getByText('Ссылка недействительна. Запросите новый код.')
+    ).toBeInTheDocument()
+  })
+
+  it('не показывает ошибку Magic Link при отсутствии параметра error', () => {
+    render(<AuthContainer />)
+
+    expect(
+      screen.queryByText('Ссылка недействительна. Запросите новый код.')
+    ).not.toBeInTheDocument()
+  })
+
+  it('кнопка "Войти" остаётся задизейблена после успешной верификации (isLoading=true до навигации)', async () => {
+    mockSignInWithOtp.mockResolvedValue({ error: null })
+    mockVerifyOtp.mockResolvedValue({ data: { session: null, user: null }, error: null })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
+    )
+
+    await user.type(screen.getByLabelText('Код из письма'), '123456')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/feed')
+    })
+
+    // После успешной верификации isLoading остаётся true — кнопка задизейблена
+    expect(screen.getByRole('button', { name: 'Проверяем...' })).toBeDisabled()
+  })
+
+  it('очищает sticky ?error из URL при возврате на шаг email', async () => {
+    mockSearchParams.mockReturnValue({
+      get: (key: string) => (key === 'error' ? 'auth_callback_error' : null),
+    })
+    mockSignInWithOtp.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Изменить email' }))
+
+    expect(mockReplace).toHaveBeenCalledWith('/login')
+  })
+
+  it('не вызывает router.replace при возврате без error-параметра в URL', async () => {
+    mockSignInWithOtp.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Изменить email' }))
+
+    expect(mockReplace).not.toHaveBeenCalled()
+  })
+
+  it('кнопка "Изменить email" возвращает на шаг email', async () => {
+    mockSignInWithOtp.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Изменить email' }))
+
+    expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Код из письма')).not.toBeInTheDocument()
   })
 
   it('кнопка "Отправить повторно" вызывает signInWithOtp с сохранённым email', async () => {

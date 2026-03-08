@@ -9,6 +9,7 @@ interface OTPVerificationFormProps {
   email: string
   onSubmit: (token: string) => void
   onResend: () => void
+  onBack?: () => void
   isLoading: boolean
   error: string | null
 }
@@ -17,6 +18,7 @@ export function OTPVerificationForm({
   email,
   onSubmit,
   onResend,
+  onBack,
   isLoading,
   error,
 }: OTPVerificationFormProps) {
@@ -25,7 +27,9 @@ export function OTPVerificationForm({
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = e.currentTarget
-    const token = (form.elements.namedItem('otp') as HTMLInputElement).value
+    const rawToken = (form.elements.namedItem('otp') as HTMLInputElement).value
+    // Убираем пробелы для корректного UX копипасты (например, "123 456" → "123456")
+    const token = rawToken.replace(/\s/g, '')
 
     if (!/^\d{6}$/.test(token)) {
       setValidationError('Введите 6-значный код из письма')
@@ -64,6 +68,7 @@ export function OTPVerificationForm({
             disabled={isLoading}
             aria-describedby={displayError ? 'otp-error' : undefined}
             aria-invalid={!!displayError}
+            onChange={() => setValidationError(null)}
             className={cn(
               'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm tracking-widest transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
               displayError &&
@@ -82,7 +87,7 @@ export function OTPVerificationForm({
         </Button>
       </form>
 
-      <div className="text-center">
+      <div className="flex items-center justify-between">
         <button
           type="button"
           onClick={onResend}
@@ -91,6 +96,16 @@ export function OTPVerificationForm({
         >
           Отправить повторно
         </button>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={isLoading}
+            className="text-muted-foreground min-h-[44px] min-w-[44px] px-2 text-sm underline-offset-4 transition-opacity hover:underline disabled:opacity-50"
+          >
+            Изменить email
+          </button>
+        )}
       </div>
     </div>
   )

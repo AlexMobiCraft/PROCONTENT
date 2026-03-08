@@ -49,6 +49,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
           disabled={isLoading}
           aria-describedby={displayError ? 'email-error' : undefined}
           aria-invalid={!!displayError}
+          onChange={() => setValidationError(null)}
           className={cn(
             'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
             displayError &&

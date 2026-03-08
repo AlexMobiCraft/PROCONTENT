@@ -14,16 +14,17 @@ export default function FeedPage() {
     await signOut()
     clearAuth()
     router.push('/login')
-    router.refresh()
   }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4">
       <div className="text-center">
-        <h1 className="font-heading text-3xl font-semibold text-foreground">
+        <h1 className="font-heading text-foreground text-3xl font-semibold">
           Лента
         </h1>
-        <p className="mt-2 text-muted-foreground">Скоро здесь появится контент</p>
+        <p className="text-muted-foreground mt-2">
+          Скоро здесь появится контент
+        </p>
       </div>
 
       <Button variant="outline" onClick={handleSignOut}>

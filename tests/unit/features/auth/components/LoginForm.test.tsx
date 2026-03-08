@@ -117,4 +117,18 @@ describe('LoginForm', () => {
 
     expect(onSubmit).toHaveBeenCalledWith('valid@example.com')
   })
+
+  it('очищает ошибку валидации при вводе в поле email', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
+
+    // Вызываем ошибку валидации (пустая отправка)
+    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    // Начинаем вводить — ошибка должна исчезнуть
+    await user.type(screen.getByLabelText('Email'), 'a')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })

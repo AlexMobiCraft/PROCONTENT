@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import { signInWithOtp, verifyOtp } from '@/features/auth/api/auth'
 import { useAuthStore } from '@/features/auth/store'
@@ -12,6 +12,7 @@ type AuthStep = 'email' | 'otp'
 
 export function AuthContainer() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const setUser = useAuthStore((state) => state.setUser)
   const setSession = useAuthStore((state) => state.setSession)
   const [step, setStep] = useState<AuthStep>('email')
@@ -20,6 +21,21 @@ export function AuthContainer() {
   const [error, setError] = useState<string | null>(null)
   const [networkError, setNetworkError] = useState<string | null>(null)
   const [otpKey, setOtpKey] = useState(0)
+
+  const magicLinkError =
+    searchParams.get('error') === 'auth_callback_error'
+      ? 'Ссылка недействительна. Запросите новый код.'
+      : null
+
+  function handleBack() {
+    setStep('email')
+    setError(null)
+    setNetworkError(null)
+    // Убираем sticky ?error=... из URL, чтобы сообщение не прилипало после возврата
+    if (searchParams.get('error')) {
+      router.replace('/login')
+    }
+  }
 
   async function handleEmailSubmit(submittedEmail: string) {
     setIsLoading(true)
@@ -47,9 +63,10 @@ export function AuthContainer() {
 
     const { data, error: apiError } = await verifyOtp(email, token)
 
-    setIsLoading(false)
-
     if (apiError) {
+      // Сбрасываем loading только при ошибке — при успехе оставляем true,
+      // чтобы заблокировать повторные нажатия на время роутинга
+      setIsLoading(false)
       if (apiError.status === 422) {
         // Ошибка токена (невалидный/просроченный) — inline под полем, поле очищается через key
         setError(
@@ -69,6 +86,7 @@ export function AuthContainer() {
       setSession(data.session)
     }
 
+    // isLoading остаётся true до размонтирования компонента при навигации
     router.push('/feed')
   }
 
@@ -94,12 +112,12 @@ export function AuthContainer() {
         </p>
       </div>
 
-      {networkError && (
+      {(magicLinkError || networkError) && (
         <div
           role="alert"
           className="border-destructive/20 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm"
         >
-          {networkError}
+          {magicLinkError ?? networkError}
         </div>
       )}
 
@@ -107,7 +125,7 @@ export function AuthContainer() {
         <LoginForm
           onSubmit={handleEmailSubmit}
           isLoading={isLoading}
-          error={error}
+          error={null}
         />
       ) : (
         <OTPVerificationForm
@@ -115,6 +133,7 @@ export function AuthContainer() {
           email={email}
           onSubmit={handleOtpSubmit}
           onResend={handleResend}
+          onBack={handleBack}
           isLoading={isLoading}
           error={error}
         />
