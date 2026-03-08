@@ -56,6 +56,7 @@ export function OTPVerificationForm({
             name="otp"
             type="text"
             inputMode="numeric"
+            autoComplete="one-time-code"
             pattern="\d{6}"
             maxLength={6}
             required

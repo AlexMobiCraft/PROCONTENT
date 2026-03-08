@@ -1,6 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Копирует куки из исходного ответа в ответ-редирект,
+// чтобы обновлённые токены сессии не терялись при редиректе
+function copyRedirect(source: NextResponse, url: URL): NextResponse {
+  const redirectResponse = NextResponse.redirect(url)
+  source.cookies.getAll().forEach(({ name, value }) => {
+    redirectResponse.cookies.set(name, value)
+  })
+  return redirectResponse
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -31,19 +41,19 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  // Редирект авторизованного пользователя с /login на /feed
-  if (user && pathname === '/login') {
-    return NextResponse.redirect(new URL('/feed', request.url))
-  }
-
   // Публичные маршруты — не требуют авторизации
   const publicPaths = ['/', '/login']
   const isPublicPath =
     publicPaths.includes(pathname) || pathname.startsWith('/auth/')
 
+  // Редирект авторизованного пользователя с /login на /feed
+  if (user && pathname === '/login') {
+    return copyRedirect(supabaseResponse, new URL('/feed', request.url))
+  }
+
   // Защита всех не-публичных маршрутов — редирект неавторизованных на /login
   if (!user && !isPublicPath) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return copyRedirect(supabaseResponse, new URL('/login', request.url))
   }
 
   return supabaseResponse

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 
+import { AuthProvider } from '@/features/auth/components/AuthProvider'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function AppLayout({
@@ -16,5 +17,17 @@ export default async function AppLayout({
     redirect('/login')
   }
 
-  return <>{children}</>
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session) {
+    redirect('/login')
+  }
+
+  return (
+    <AuthProvider user={user} session={session}>
+      {children}
+    </AuthProvider>
+  )
 }
