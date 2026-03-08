@@ -1,62 +1,8 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
-
-// Копирует куки из исходного ответа в ответ-редирект,
-// чтобы обновлённые токены сессии не терялись при редиректе
-function copyRedirect(source: NextResponse, url: URL): NextResponse {
-  const redirectResponse = NextResponse.redirect(url)
-  source.cookies.getAll().forEach(({ name, value, ...options }) => {
-    redirectResponse.cookies.set(name, value, options)
-  })
-  return redirectResponse
-}
+import { type NextRequest } from 'next/server'
+import { updateSession } from '@/lib/supabase/middleware'
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const pathname = request.nextUrl.pathname
-
-  // Публичные маршруты — не требуют авторизации
-  const publicPaths = ['/', '/login']
-  const isPublicPath =
-    publicPaths.includes(pathname) || pathname.startsWith('/auth/')
-
-  // Редирект авторизованного пользователя с /login на /feed
-  if (user && pathname === '/login') {
-    return copyRedirect(supabaseResponse, new URL('/feed', request.url))
-  }
-
-  // Защита всех не-публичных маршрутов — редирект неавторизованных на /login
-  if (!user && !isPublicPath) {
-    return copyRedirect(supabaseResponse, new URL('/login', request.url))
-  }
-
-  return supabaseResponse
+  return await updateSession(request)
 }
 
 export const config = {
