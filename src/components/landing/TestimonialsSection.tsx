@@ -30,11 +30,11 @@ export function TestimonialsSection() {
     <section className="bg-background px-5 py-16">
       <div className="mx-auto max-w-xl">
         <div className="mb-8 flex flex-col gap-2">
-          <p className="text-xs font-medium tracking-[0.2em] text-primary uppercase">
+          <p className="text-xs font-medium tracking-[0.3em] text-primary uppercase">
             Отзывы
           </p>
-          <h2 className="font-heading text-foreground text-balance text-2xl font-semibold leading-snug">
-            Что говорят участницы
+          <h2 className="font-serif text-foreground text-balance text-[clamp(2rem,8vw,3.5rem)] font-light leading-none uppercase">
+            Что говорят
           </h2>
         </div>
 
@@ -45,11 +45,10 @@ export function TestimonialsSection() {
               className="rounded-2xl border border-border bg-card p-5"
             >
               <div className="flex flex-col gap-4">
-                <p className="text-foreground text-sm leading-relaxed">
+                <p className="font-serif text-foreground text-lg font-light leading-snug italic">
                   {'"'}{t.text}{'"'}
                 </p>
                 <footer className="flex items-center gap-3">
-                  {/* Avatar placeholder with initials */}
                   <div
                     className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary"
                     aria-hidden
@@ -58,14 +57,14 @@ export function TestimonialsSection() {
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">
+                      <span className="text-xs font-medium tracking-[0.15em] uppercase text-foreground">
                         {t.name}
                       </span>
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary tracking-wide uppercase">
                         {t.badge}
                       </span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs tracking-[0.1em] uppercase text-muted-foreground">
                       {t.role}
                     </span>
                   </div>

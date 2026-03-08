@@ -28,11 +28,11 @@ export function BenefitsSection() {
     <section className="bg-background px-5 py-16">
       <div className="mx-auto max-w-xl">
         <div className="mb-10 flex flex-col gap-2">
-          <p className="text-xs font-medium tracking-[0.2em] text-primary uppercase">
+          <p className="text-xs font-medium tracking-[0.3em] text-primary uppercase">
             Что внутри
           </p>
-          <h2 className="font-heading text-foreground text-balance text-2xl font-semibold leading-snug">
-            Всё, что нужно, чтобы расти как креатор
+          <h2 className="font-serif text-foreground text-balance text-[clamp(2rem,8vw,3.5rem)] font-light leading-none uppercase">
+            Всё для роста
           </h2>
         </div>
 
@@ -45,10 +45,10 @@ export function BenefitsSection() {
                   <Icon className="size-5 text-primary" aria-hidden />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <h3 className="font-heading text-foreground text-base font-semibold">
+                  <h3 className="font-serif text-foreground text-xl font-light uppercase tracking-wide">
                     {benefit.title}
                   </h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">
+                  <p className="text-muted-foreground text-xs tracking-[0.1em] uppercase leading-relaxed">
                     {benefit.description}
                   </p>
                 </div>

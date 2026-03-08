@@ -32,14 +32,13 @@ export function HeroSection() {
         {/* Main text */}
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-3">
-            <p className="text-xs font-medium tracking-[0.25em] text-primary uppercase" style={{ color: 'oklch(0.75 0.1 35)' }}>
+            <p className="text-xs font-medium tracking-[0.3em] uppercase" style={{ color: 'oklch(0.75 0.1 35)' }}>
               Закрытый клуб
             </p>
-            <h1 className="font-heading text-primary-foreground text-balance text-4xl font-semibold leading-tight sm:text-5xl">
-              Твой контент —<br />
-              твоя профессия
+            <h1 className="font-serif text-primary-foreground text-balance text-[clamp(3rem,12vw,6rem)] font-light leading-none tracking-tight uppercase">
+              PRO<br />CONTENT
             </h1>
-            <p className="text-primary-foreground/70 text-base leading-relaxed max-w-xs">
+            <p className="text-primary-foreground/70 text-sm tracking-[0.15em] uppercase leading-relaxed max-w-xs">
               База знаний, живое комьюнити и оффлайн-встречи для создательниц контента в Словении.
             </p>
           </div>

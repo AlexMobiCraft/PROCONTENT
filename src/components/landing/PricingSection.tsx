@@ -9,13 +9,13 @@ export function PricingSection() {
     <section id="pricing" className="bg-muted/40 px-5 py-16">
       <div className="mx-auto max-w-xl">
         <div className="mb-8 flex flex-col gap-2">
-          <p className="text-xs font-medium tracking-[0.2em] text-primary uppercase">
+          <p className="text-xs font-medium tracking-[0.3em] text-primary uppercase">
             Вступление
           </p>
-          <h2 className="font-heading text-foreground text-balance text-2xl font-semibold leading-snug">
-            Один тариф — всё включено
+          <h2 className="font-serif text-foreground text-balance text-[clamp(2rem,8vw,3.5rem)] font-light leading-none uppercase">
+            Всё включено
           </h2>
-          <p className="text-muted-foreground text-sm leading-relaxed">
+          <p className="text-muted-foreground text-xs tracking-[0.1em] uppercase leading-relaxed">
             Никаких скрытых платежей. Отменить можно в любой момент.
           </p>
         </div>
@@ -26,14 +26,14 @@ export function PricingSection() {
             {/* Price */}
             <div className="flex flex-col gap-1">
               <div className="flex items-end gap-2">
-                <span className="font-heading text-foreground text-4xl font-bold">
+                <span className="font-serif text-foreground text-5xl font-light tracking-tight">
                   €29
                 </span>
-                <span className="mb-1 text-sm text-muted-foreground">
+                <span className="mb-1.5 text-xs tracking-[0.15em] uppercase text-muted-foreground">
                   / месяц
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs tracking-[0.1em] uppercase text-muted-foreground">
                 Или €290/год — 2 месяца бесплатно
               </p>
             </div>
