@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export function PricingSection() {
   return (
@@ -67,9 +68,12 @@ export function PricingSection() {
 
             {/* CTA */}
             <div className="flex flex-col gap-3">
-              <Button size="lg" className="w-full text-base font-medium" asChild>
-                <Link href="/login">Вступить сейчас</Link>
-              </Button>
+              <Link
+                href="/login"
+                className={cn(buttonVariants({ size: 'lg' }), 'w-full text-base font-medium')}
+              >
+                Вступить сейчас
+              </Link>
               <p className="text-center text-xs text-muted-foreground">
                 Безопасная оплата через Stripe. Отмена в 1 клик.
               </p>

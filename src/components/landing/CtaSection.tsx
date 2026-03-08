@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export function CtaSection() {
   return (
@@ -17,13 +18,15 @@ export function CtaSection() {
           </p>
         </div>
 
-        <Button
-          size="lg"
-          className="min-w-[200px] bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90"
-          asChild
+        <Link
+          href="/login"
+          className={cn(
+            buttonVariants({ size: 'lg' }),
+            'min-w-[200px] bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90'
+          )}
         >
-          <Link href="/login">Вступить в клуб</Link>
-        </Button>
+          Вступить в клуб
+        </Link>
 
         <p className="text-primary-foreground/40 text-xs">
           Уже участница?{' '}

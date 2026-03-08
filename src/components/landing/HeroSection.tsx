@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export function HeroSection() {
   return (
@@ -42,21 +43,24 @@ export function HeroSection() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <Button
-              size="lg"
-              className="w-full bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90"
-              asChild
+            <Link
+              href="#pricing"
+              className={cn(
+                buttonVariants({ size: 'lg' }),
+                'w-full bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90'
+              )}
             >
-              <Link href="#pricing">Вступить в клуб</Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="lg"
-              className="w-full text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10"
-              asChild
+              Вступить в клуб
+            </Link>
+            <Link
+              href="#preview"
+              className={cn(
+                buttonVariants({ variant: 'ghost', size: 'lg' }),
+                'w-full text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10'
+              )}
             >
-              <Link href="#preview">Посмотреть превью</Link>
-            </Button>
+              Посмотреть превью
+            </Link>
           </div>
         </div>
       </div>
