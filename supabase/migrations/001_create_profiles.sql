@@ -23,6 +23,7 @@ create policy "Пользователи обновляют только свой
   using (auth.uid() = id);
 
 -- Функция: автоматически создаёт профиль при регистрации
+-- ON CONFLICT гарантирует синхронизацию даже если профиль уже существует
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -30,7 +31,8 @@ security definer set search_path = public
 as $$
 begin
   insert into public.profiles (id, email)
-  values (new.id, new.email);
+  values (new.id, new.email)
+  on conflict (id) do update set email = excluded.email;
   return new;
 end;
 $$;

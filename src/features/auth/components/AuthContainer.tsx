@@ -20,7 +20,6 @@ export function AuthContainer() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [networkError, setNetworkError] = useState<string | null>(null)
-  const [otpKey, setOtpKey] = useState(0)
 
   const magicLinkError =
     searchParams.get('error') === 'auth_callback_error'
@@ -68,11 +67,11 @@ export function AuthContainer() {
       // чтобы заблокировать повторные нажатия на время роутинга
       setIsLoading(false)
       if (apiError.status === 422) {
-        // Ошибка токена (невалидный/просроченный) — inline под полем, поле очищается через key
+        // Ошибка токена (невалидный/просроченный) — inline под полем
+        // поле очищается автоматически в OTPVerificationForm через useEffect(error)
         setError(
           'Код неверный или просрочен. Проверьте письмо или запросите новый код.'
         )
-        setOtpKey((k) => k + 1)
       } else {
         // Системная ошибка
         setNetworkError('Что-то пошло не так. Попробуйте ещё раз.')
@@ -129,7 +128,6 @@ export function AuthContainer() {
         />
       ) : (
         <OTPVerificationForm
-          key={otpKey}
           email={email}
           onSubmit={handleOtpSubmit}
           onResend={handleResend}

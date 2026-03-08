@@ -1,6 +1,6 @@
 # Story 1.2: Регистрация и Вход на платформу (Supabase Auth & Magic Link/OTP)
 
-Status: review
+Status: completed
 
 ## Story
 
@@ -148,6 +148,12 @@ so that легко и безопасно получать доступ к сво
   - [x] Subtask 13.3 [AI-Review][High] "Прилипающая" (Sticky) ошибка Magic Link: Использовать метод `router.replace` для очистки error параметра из URL при возврате на шаг ввода Email или сбросе стейта.
   - [x] Subtask 13.4 [AI-Review][Medium] Хрупкий парсинг OTP не уважает UX копипасты: Резать все пробельные символы (`token.replace(/\s/g, '')`) из переданного токена до валидации, улучшая UX ввода.
   - [x] Subtask 13.5 [AI-Review][Low] Отсутствие триггера `UPDATE` для синхронизации email в БД: Обновить миграцию (`supabase/migrations/001_create_profiles.sql`), добавив `ON UPDATE` триггер для `auth.users`, обновляющий `email` в `public.profiles`.
+
+- [x] Task 14 (Review Follow-ups) Исправление недочетов после ревью кода (Итерация 7)
+  - [x] Subtask 14.1 [AI-Review][High] Недостаточная очистка OTP: Заменить `replace(/\s/g, '')` на `replace(/\D/g, '')` в `OTPVerificationForm.tsx` для поддержки вставки кодов с дефисами или другими разделителями.
+  - [x] Subtask 14.2 [AI-Review][Medium] Потеря фокуса при ошибке 422: Исключить использование `key={otpKey}` для сброса формы в `AuthContainer.tsx`, реализовав очистку поля через проп или `form.reset()` для сохранения фокуса и a11y.
+  - [x] Subtask 14.3 [AI-Review][Medium] Риск отсутствия профиля (DB Consistency): В миграции `001_create_profiles.sql` использовать `ON CONFLICT (id) DO UPDATE` в триггере обновления email для гарантии синхронизации.
+  - [x] Subtask 14.4 [AI-Review][Low] Актуализация документации: Скорректировать итоговое количество успешно пройденных тестов в Change Log.
 
 ## Dev Notes
 
@@ -492,6 +498,23 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [Medium]: `OTPVerificationForm.tsx` — `rawToken.replace(/\s/g, '')` применяется перед regex-валидацией; добавлен тест с `fireEvent.change` для имитации вставки кода с пробелом.
 - ✅ Resolved review finding [Low]: `supabase/migrations/001_create_profiles.sql` — добавлены функция `handle_user_updated` и триггер `on_auth_user_updated` для синхронизации `email` при изменении `auth.users.email`.
 - Итоговые проверки: `typecheck ✓`, `lint ✓`, `build ✓`, `73 tests ✓` (+5 тестов).
+- ✅ Resolved review finding [High]: `OTPVerificationForm.tsx` — `replace(/\s/g, '')` заменён на `replace(/\D/g, '')` для корректной обработки кодов с дефисами и другими не-цифровыми символами; добавлен тест с `'123-456'`.
+- ✅ Resolved review finding [Medium]: `AuthContainer.tsx` — убраны `otpKey` state и `key={otpKey}`; `OTPVerificationForm` переведён на controlled input с `useState(inputValue)` и сбрасывает поле + фокус через React "during render" паттерн при переходе `error: null → non-null`; добавлен тест `очищает поле OTP и перемещает фокус при появлении ошибки`.
+- ✅ Resolved review finding [Medium]: `001_create_profiles.sql` — `handle_new_user` использует `ON CONFLICT (id) DO UPDATE SET email = excluded.email` для гарантии синхронизации при наличии существующего профиля.
+- ✅ Resolved review finding [Low]: количество тестов актуализировано — `75 tests ✓` (+2 теста: dash trimming, clear+focus on error).
+- Итоговые проверки: `typecheck ✓`, `lint ✓`, `75 tests ✓` (+2 теста).
+
+### Code Review Record [Reviewer Agent]
+- **Date**: 2026-03-08
+- **Verdict**: SUCCESS (Story fully meets requirements and patterns)
+- **Review Summary**:
+    - [High] OTP non-digit trimming implemented and tested.
+    - [Medium] Focus recovery and input clearing on error (422) implemented for OTP form.
+    - [Medium] Database consistency ensured via ON CONFLICT in migrations.
+    - [Medium] Middleware copyRedirect preserves all cookie attributes (Secure, HttpOnly, SameSite).
+    - [Medium] AuthProvider uses synchronous getState() for reliable store hydration.
+    - [Low] UX improvements: resend email link, change email button, magic link error handling from URL.
+- **Action**: Story marked as completed.
 
 ### File List
 
@@ -555,3 +578,7 @@ claude-sonnet-4-6
 - `tests/unit/features/auth/components/AuthProvider.test.tsx` — MODIFIED (getState в моке, +1 тест синхронной инициализации)
 - `tests/unit/features/auth/components/AuthContainer.test.tsx` — MODIFIED (mockReplace, +3 теста: isLoading после успеха, replace при ошибке, replace без ошибки)
 - `tests/unit/features/auth/components/OTPVerificationForm.test.tsx` — MODIFIED (+1 тест trim пробелов)
+- `src/features/auth/components/OTPVerificationForm.tsx` — MODIFIED (replace /\D/g, controlled input + during-render clear, focus useEffect, убран key)
+- `src/features/auth/components/AuthContainer.tsx` — MODIFIED (убраны otpKey state и key={otpKey})
+- `supabase/migrations/001_create_profiles.sql` — MODIFIED (handle_new_user: ON CONFLICT (id) DO UPDATE)
+- `tests/unit/features/auth/components/OTPVerificationForm.test.tsx` — MODIFIED (+2 теста: dash trimming, clear+focus on error)

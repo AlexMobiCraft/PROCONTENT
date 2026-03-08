@@ -196,6 +196,36 @@ describe('OTPVerificationForm', () => {
     expect(onSubmit).toHaveBeenCalledWith('123456')
   })
 
+  it('обрезает дефисы и другие не-цифровые символы из вставленного OTP', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<OTPVerificationForm {...defaultProps} onSubmit={onSubmit} />)
+
+    const otpInput = screen.getByLabelText('Код из письма')
+    // Симулируем вставку кода с дефисом (некоторые почтовые клиенты форматируют OTP как "123-456")
+    fireEvent.change(otpInput, { target: { value: '123-456' } })
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(onSubmit).toHaveBeenCalledWith('123456')
+  })
+
+  it('очищает поле OTP и перемещает фокус при появлении ошибки от родителя', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <OTPVerificationForm {...defaultProps} error={null} />
+    )
+
+    const otpInput = screen.getByLabelText('Код из письма')
+    await user.type(otpInput, '123456')
+    expect(otpInput).toHaveValue('123456')
+
+    // Родитель передаёт ошибку (например, 422 от API) — поле должно очиститься
+    rerender(<OTPVerificationForm {...defaultProps} error="Код неверный или просрочен" />)
+
+    expect(otpInput).toHaveValue('')
+    expect(otpInput).toHaveFocus()
+  })
+
   it('очищает ошибку валидации при вводе в поле OTP', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
