@@ -39,3 +39,24 @@ $$;
 create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Функция: синхронизирует email в profiles при изменении email пользователя
+create or replace function public.handle_user_updated()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  update public.profiles
+  set email = new.email
+  where id = new.id;
+  return new;
+end;
+$$;
+
+-- Trigger: вызывает handle_user_updated только при изменении email
+create or replace trigger on_auth_user_updated
+  after update of email on auth.users
+  for each row
+  when (old.email is distinct from new.email)
+  execute function public.handle_user_updated();

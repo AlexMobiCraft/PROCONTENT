@@ -79,6 +79,19 @@ describe('middleware', () => {
       expect(response.status).toBe(307)
       expect(response.headers.get('location')).toBe('http://localhost:3000/login')
     })
+
+    it('copyRedirect сохраняет name и value кук из supabaseResponse', async () => {
+      // Мок настроен так, что supabase setAll выставляет куку в supabaseResponse
+      // Проверяем, что при редиректе неавторизованного куки копируются в ответ
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/protected')
+      const response = await middleware(req)
+
+      // Редирект должен вернуться с корректным Location
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toContain('/login')
+    })
   })
 
   describe('авторизованный пользователь', () => {

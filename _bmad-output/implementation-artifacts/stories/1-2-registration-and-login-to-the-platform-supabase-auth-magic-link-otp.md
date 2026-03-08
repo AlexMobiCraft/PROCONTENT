@@ -1,6 +1,6 @@
 # Story 1.2: Регистрация и Вход на платформу (Supabase Auth & Magic Link/OTP)
 
-Status: done
+Status: review
 
 ## Story
 
@@ -129,6 +129,25 @@ so that легко и безопасно получать доступ к сво
   - [x] Subtask 10.2 [AI-Review][Critical] Инициализация Zustand стора из серверной сессии. Создать `AuthProvider` (или аналогичный механизм), чтобы при успешной проверке сессии на сервере (например в `layout.tsx` для `(app)`) Zustand инициализировался на клиенте, если `user` отсутствует.
   - [x] Subtask 10.3 [AI-Review][High] Zustand-утечка при логауте. В `src/app/(app)/feed/page.tsx` при клике на "Выйти" вызвать `clearAuth()` из `useAuthStore()`.
   - [x] Subtask 10.4 [AI-Review][Medium] Мобильный UX. Добавить атрибут `autoComplete="one-time-code"` к полю ввода OTP в `src/features/auth/components/OTPVerificationForm.tsx` и `router.refresh()` при выходе (logout) для очистки серверных компонент.
+
+- [x] Task 11 (Review Follow-ups) Исправление недочетов после ревью кода (Итерация 4)
+  - [x] Subtask 11.1 [AI-Review][Medium] Нарушение DRY: Вынести создание серверного клиента в `src/app/auth/callback/route.ts` в функцию `createClient` из `@/lib/supabase/server`.
+  - [x] Subtask 11.2 [AI-Review][Medium] Риск рассинхронизации клиентской сессии: В `src/features/auth/components/AuthProvider.tsx` добавить проверку `if (!storeUser || storeUser.id !== user.id)`.
+  - [x] Subtask 11.3 [AI-Review][Low] Потенциальный Race Condition в роутере: В `src/app/(app)/feed/page.tsx` убрать вызов `router.refresh()` после `router.push()`.
+  - [x] Subtask 11.4 [AI-Review][Low] Вводящий в заблуждение прокидываемый пропс: Убрать неработающий пропс `error={error}` из `LoginForm` в `src/features/auth/components/AuthContainer.tsx`.
+
+- [x] Task 12 (Review Follow-ups) Исправление недочетов после ревью кода (Итерация 5)
+  - [x] Subtask 12.1 [AI-Review][Critical] Уязвимость потери атрибутов кук: Обновить функцию `copyRedirect` в `src/middleware.ts` для извлечения расширенных опций (`options`) или использования `request.cookies.getAll()` при передаче куки, сохраняя `HttpOnly`, `Secure` и `path` (см. `{ name, value, ...options }`).
+  - [x] Subtask 12.2 [AI-Review][High] Ошибка Magic Link игнорируется: В `src/app/(public)/login/page.tsx` (или внутри `AuthContainer` с `useSearchParams`) добавить обработку URL-параметра `?error=auth_callback_error` с показом сообщения "Ссылка недействительна. Запросите новый код".
+  - [x] Subtask 12.3 [AI-Review][Medium] Блокировка на шаге OTP: В `AuthContainer.tsx` добавить кнопку "Изменить email" (или Назад), которая сбрасывает состояние `setStep('email')`.
+  - [x] Subtask 12.4 [AI-Review][Low] Прилипающая ошибка валидации: В компонентах `LoginForm.tsx` и `OTPVerificationForm.tsx` добавить обработчик `onChange` для полей ввода (input), который вызывает `setValidationError(null)`.
+
+- [x] Task 13 (Review Follow-ups) Исправление недочетов после ревью кода (Итерация 6)
+  - [x] Subtask 13.1 [AI-Review][Critical] Состояние гонки при инициализации Zustand (Вспышка неавторизованного UI): Инициализировать store синхронно для избежания моргания пустого стейта при гидратации.
+  - [x] Subtask 13.2 [AI-Review][High] Race condition и дублирование запросов при успешном входе: Заблокировать кнопку после отправки на период роутинга (`router.push()`) или не отключать `isLoading` пока не произойдет редирект.
+  - [x] Subtask 13.3 [AI-Review][High] "Прилипающая" (Sticky) ошибка Magic Link: Использовать метод `router.replace` для очистки error параметра из URL при возврате на шаг ввода Email или сбросе стейта.
+  - [x] Subtask 13.4 [AI-Review][Medium] Хрупкий парсинг OTP не уважает UX копипасты: Резать все пробельные символы (`token.replace(/\s/g, '')`) из переданного токена до валидации, улучшая UX ввода.
+  - [x] Subtask 13.5 [AI-Review][Low] Отсутствие триггера `UPDATE` для синхронизации email в БД: Обновить миграцию (`supabase/migrations/001_create_profiles.sql`), добавив `ON UPDATE` триггер для `auth.users`, обновляющий `email` в `public.profiles`.
 
 ## Dev Notes
 
@@ -457,6 +476,22 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [High]: `clearAuth()` вызывается при логауте в `feed/page.tsx` — Zustand store очищается после `signOut()`.
 - ✅ Resolved review finding [Medium]: добавлен `autoComplete="one-time-code"` к OTP-полю; добавлен `router.refresh()` при логауте.
 - Итоговые проверки: `typecheck ✓`, `build ✓`, `58 tests ✓` (7 новых тестов).
+- ✅ Resolved review finding [Medium]: `route.ts` рефакторинг — inline createServerClient заменён на `createClient` из `@/lib/supabase/server` (DRY).
+- ✅ Resolved review finding [Medium]: `AuthProvider.tsx` — проверка изменена на `if (!storeUser || storeUser.id !== user.id)` для защиты от рассинхронизации при смене пользователя; добавлен тест.
+- ✅ Resolved review finding [Low]: `feed/page.tsx` — убран `router.refresh()` после `router.push('/login')`; тест обновлён.
+- ✅ Resolved review finding [Low]: `AuthContainer.tsx` — убран вводящий в заблуждение `error={error}` из LoginForm (заменён на `error={null}`).
+- Итоговые проверки: `typecheck ✓`, `lint ✓`, `build ✓`, `59 tests ✓` (+1 тест AuthProvider).
+- ✅ Resolved review finding [Critical]: `copyRedirect` в `middleware.ts` — `{ name, value }` заменено на `{ name, value, ...options }` для сохранения атрибутов `HttpOnly`, `Secure`, `path` при копировании кук в редирект-ответ.
+- ✅ Resolved review finding [High]: `AuthContainer.tsx` — добавлен `useSearchParams`; при `?error=auth_callback_error` показывается сообщение "Ссылка недействительна. Запросите новый код."
+- ✅ Resolved review finding [Medium]: `AuthContainer.tsx` + `OTPVerificationForm.tsx` — добавлена кнопка "Изменить email" (`onBack` пропс), при клике вызывается `setStep('email')` с очисткой ошибок.
+- ✅ Resolved review finding [Low]: `LoginForm.tsx` и `OTPVerificationForm.tsx` — добавлен `onChange={() => setValidationError(null)}` для сброса ошибки валидации при вводе.
+- Итоговые проверки: `typecheck ✓`, `lint ✓`, `build ✓`, `68 tests ✓` (+9 тестов).
+- ✅ Resolved review finding [Critical]: `AuthProvider.tsx` — убран `useEffect`, store инициализируется синхронно через `useAuthStore.getState()` прямо в теле компонента; мок в тестах обновлён для поддержки `getState`; добавлен тест синхронной инициализации.
+- ✅ Resolved review finding [High]: `AuthContainer.tsx` — `setIsLoading(false)` перенесён только в ветку ошибки; при успешной верификации кнопка остаётся задизейблена до размонтирования компонента.
+- ✅ Resolved review finding [High]: `AuthContainer.tsx` — в `handleBack()` добавлен `router.replace('/login')` при наличии `?error=...` в URL для очистки sticky ошибки Magic Link.
+- ✅ Resolved review finding [Medium]: `OTPVerificationForm.tsx` — `rawToken.replace(/\s/g, '')` применяется перед regex-валидацией; добавлен тест с `fireEvent.change` для имитации вставки кода с пробелом.
+- ✅ Resolved review finding [Low]: `supabase/migrations/001_create_profiles.sql` — добавлены функция `handle_user_updated` и триггер `on_auth_user_updated` для синхронизации `email` при изменении `auth.users.email`.
+- Итоговые проверки: `typecheck ✓`, `lint ✓`, `build ✓`, `73 tests ✓` (+5 тестов).
 
 ### File List
 
@@ -499,3 +534,24 @@ claude-sonnet-4-6
 - `tests/unit/features/auth/components/AuthProvider.test.tsx` — NEW (3 теста)
 - `tests/unit/app/feed/page.test.tsx` — NEW (2 теста: рендер + полный сценарий выхода)
 - `tests/unit/middleware.test.ts` — MODIFIED (+1 тест copyRedirect-редирект)
+- `src/app/auth/callback/route.ts` — MODIFIED (DRY: используется createClient из @/lib/supabase/server)
+- `src/features/auth/components/AuthProvider.tsx` — MODIFIED (проверка storeUser.id !== user.id)
+- `src/app/(app)/feed/page.tsx` — MODIFIED (убран router.refresh() после logout)
+- `src/features/auth/components/AuthContainer.tsx` — MODIFIED (error={null} вместо error={error} в LoginForm)
+- `tests/unit/features/auth/components/AuthProvider.test.tsx` — MODIFIED (+1 тест смены пользователя)
+- `tests/unit/app/feed/page.test.tsx` — MODIFIED (убрана проверка mockRefresh)
+- `src/middleware.ts` — MODIFIED (copyRedirect: `{ name, value, ...options }` сохраняет атрибуты кук)
+- `src/features/auth/components/AuthContainer.tsx` — MODIFIED (useSearchParams для magic link error, кнопка "Изменить email" через onBack)
+- `src/features/auth/components/OTPVerificationForm.tsx` — MODIFIED (onBack пропс + кнопка "Изменить email", onChange сброс validationError)
+- `src/features/auth/components/LoginForm.tsx` — MODIFIED (onChange сброс validationError)
+- `tests/unit/middleware.test.ts` — MODIFIED (+1 тест copyRedirect с опциями)
+- `tests/unit/features/auth/components/AuthContainer.test.tsx` — MODIFIED (мок useSearchParams, +3 теста: magic link error, no error, изменить email)
+- `tests/unit/features/auth/components/OTPVerificationForm.test.tsx` — MODIFIED (+4 теста: onBack рендер, без onBack, клик onBack, сброс ошибки на onChange)
+- `tests/unit/features/auth/components/LoginForm.test.tsx` — MODIFIED (+1 тест: сброс ошибки на onChange)
+- `src/features/auth/components/AuthProvider.tsx` — MODIFIED (синхронная инициализация через getState(), убран useEffect)
+- `src/features/auth/components/AuthContainer.tsx` — MODIFIED (setIsLoading(false) только при ошибке; router.replace в handleBack)
+- `src/features/auth/components/OTPVerificationForm.tsx` — MODIFIED (trim пробелов перед OTP-валидацией)
+- `supabase/migrations/001_create_profiles.sql` — MODIFIED (добавлены trigger on_auth_user_updated + handle_user_updated)
+- `tests/unit/features/auth/components/AuthProvider.test.tsx` — MODIFIED (getState в моке, +1 тест синхронной инициализации)
+- `tests/unit/features/auth/components/AuthContainer.test.tsx` — MODIFIED (mockReplace, +3 теста: isLoading после успеха, replace при ошибке, replace без ошибки)
+- `tests/unit/features/auth/components/OTPVerificationForm.test.tsx` — MODIFIED (+1 тест trim пробелов)

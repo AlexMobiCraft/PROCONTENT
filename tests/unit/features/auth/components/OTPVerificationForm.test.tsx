@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -153,5 +153,60 @@ describe('OTPVerificationForm', () => {
     await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     expect(onSubmit).toHaveBeenCalledWith('654321')
+  })
+
+  it('рендерит кнопку "Изменить email" когда передан onBack', () => {
+    const onBack = vi.fn()
+    render(<OTPVerificationForm {...defaultProps} onBack={onBack} />)
+
+    expect(
+      screen.getByRole('button', { name: 'Изменить email' })
+    ).toBeInTheDocument()
+  })
+
+  it('не рендерит кнопку "Изменить email" без пропа onBack', () => {
+    render(<OTPVerificationForm {...defaultProps} />)
+
+    expect(
+      screen.queryByRole('button', { name: 'Изменить email' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('вызывает onBack при клике на "Изменить email"', async () => {
+    const user = userEvent.setup()
+    const onBack = vi.fn()
+    render(<OTPVerificationForm {...defaultProps} onBack={onBack} />)
+
+    await user.click(screen.getByRole('button', { name: 'Изменить email' }))
+
+    expect(onBack).toHaveBeenCalledOnce()
+  })
+
+  it('обрезает пробелы из вставленного OTP (trim whitespace для UX копипасты)', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<OTPVerificationForm {...defaultProps} onSubmit={onSubmit} />)
+
+    const otpInput = screen.getByLabelText('Код из письма')
+    // Симулируем вставку кода с пробелом посередине (обходим maxLength через fireEvent)
+    fireEvent.change(otpInput, { target: { value: '123 456' } })
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    // Пробел вырезается — onSubmit вызывается с чистым кодом
+    expect(onSubmit).toHaveBeenCalledWith('123456')
+  })
+
+  it('очищает ошибку валидации при вводе в поле OTP', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<OTPVerificationForm {...defaultProps} onSubmit={onSubmit} />)
+
+    // Вызываем ошибку валидации
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    // Начинаем вводить — ошибка должна исчезнуть
+    await user.type(screen.getByLabelText('Код из письма'), '1')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

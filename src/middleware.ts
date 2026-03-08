@@ -5,8 +5,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 // чтобы обновлённые токены сессии не терялись при редиректе
 function copyRedirect(source: NextResponse, url: URL): NextResponse {
   const redirectResponse = NextResponse.redirect(url)
-  source.cookies.getAll().forEach(({ name, value }) => {
-    redirectResponse.cookies.set(name, value)
+  source.cookies.getAll().forEach(({ name, value, ...options }) => {
+    redirectResponse.cookies.set(name, value, options)
   })
   return redirectResponse
 }

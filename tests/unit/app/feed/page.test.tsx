@@ -12,14 +12,13 @@ vi.mock('@base-ui/react/button', () => ({
   }) => <button {...props}>{children}</button>,
 }))
 
-const { mockPush, mockRefresh, mockSignOut } = vi.hoisted(() => ({
+const { mockPush, mockSignOut } = vi.hoisted(() => ({
   mockPush: vi.fn(),
-  mockRefresh: vi.fn(),
   mockSignOut: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
+  useRouter: () => ({ push: mockPush }),
 }))
 
 vi.mock('@/features/auth/api/auth', () => ({
@@ -48,7 +47,7 @@ describe('FeedPage', () => {
     expect(screen.getByRole('button', { name: 'Выйти' })).toBeInTheDocument()
   })
 
-  it('при клике "Выйти" вызывает signOut, clearAuth, push и refresh', async () => {
+  it('при клике "Выйти" вызывает signOut, clearAuth и push', async () => {
     const user = userEvent.setup()
     render(<FeedPage />)
 
@@ -58,7 +57,6 @@ describe('FeedPage', () => {
       expect(mockSignOut).toHaveBeenCalledOnce()
       expect(mockClearAuth).toHaveBeenCalledOnce()
       expect(mockPush).toHaveBeenCalledWith('/login')
-      expect(mockRefresh).toHaveBeenCalledOnce()
     })
   })
 })
