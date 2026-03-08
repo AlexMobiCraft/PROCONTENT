@@ -1,16 +1,20 @@
 import type { Metadata } from 'next'
-import { Inter, DM_Sans } from 'next/font/google'
+import { Cormorant_Garamond, Barlow_Condensed } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({
-  variable: '--font-sans',
+// Editorial serif for large headings — high-contrast thin/thick strokes
+const cormorant = Cormorant_Garamond({
+  variable: '--font-heading',
   subsets: ['latin', 'cyrillic'],
+  weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
 })
 
-const dmSans = DM_Sans({
-  variable: '--font-heading',
-  subsets: ['latin'],
+// Condensed uppercase sans-serif for body / UI
+const barlow = Barlow_Condensed({
+  variable: '--font-sans',
+  subsets: ['latin', 'latin-ext'],
+  weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
 })
 
@@ -32,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ru" className={`${inter.variable} ${dmSans.variable}`}>
+    <html lang="ru" className={`${cormorant.variable} ${barlow.variable}`}>
       <body className="antialiased">{children}</body>
     </html>
   )
