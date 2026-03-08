@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -23,13 +23,34 @@ export function OTPVerificationForm({
   error,
 }: OTPVerificationFormProps) {
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [inputValue, setInputValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Отслеживаем предыдущее значение error для сравнения во время рендера
+  const [prevError, setPrevError] = useState<string | null>(null)
+  // Отслеживаем предыдущий error для DOM side-effect (focus) без setState
+  const prevErrorForFocusRef = useRef<string | null>(null)
+
+  // During render: сброс поля при переходе error null → non-null (рекомендованный React-паттерн)
+  if (error !== prevError) {
+    if (error !== null && prevError === null) {
+      setInputValue('')
+      setValidationError(null)
+    }
+    setPrevError(error)
+  }
+
+  // DOM side-effect: фокус при появлении ошибки (только focus, без setState)
+  useEffect(() => {
+    if (error !== null && prevErrorForFocusRef.current === null) {
+      inputRef.current?.focus()
+    }
+    prevErrorForFocusRef.current = error
+  }, [error])
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const form = e.currentTarget
-    const rawToken = (form.elements.namedItem('otp') as HTMLInputElement).value
-    // Убираем пробелы для корректного UX копипасты (например, "123 456" → "123456")
-    const token = rawToken.replace(/\s/g, '')
+    // Убираем все не-цифровые символы: пробелы, дефисы и пр. (UX копипасты)
+    const token = inputValue.replace(/\D/g, '')
 
     if (!/^\d{6}$/.test(token)) {
       setValidationError('Введите 6-значный код из письма')
@@ -56,6 +77,7 @@ export function OTPVerificationForm({
             Код из письма
           </label>
           <input
+            ref={inputRef}
             id="otp"
             name="otp"
             type="text"
@@ -66,9 +88,13 @@ export function OTPVerificationForm({
             required
             placeholder="123456"
             disabled={isLoading}
+            value={inputValue}
             aria-describedby={displayError ? 'otp-error' : undefined}
             aria-invalid={!!displayError}
-            onChange={() => setValidationError(null)}
+            onChange={(e) => {
+              setInputValue(e.target.value)
+              setValidationError(null)
+            }}
             className={cn(
               'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm tracking-widest transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
               displayError &&
