@@ -117,6 +117,13 @@ so that легко и безопасно получать доступ к сво
   - [x] Subtask 8.4 [AI-Review][Medium] Zustand-стор `src/features/auth/store.ts` сохранён — будет использован в будущих историях.
   - [x] Subtask 8.5 [AI-Review][Medium] Улучшить обработку ошибок в `src/features/auth/components/AuthContainer.tsx` (избегать хрупкой проверки через `apiError.message.includes('expired')`).
 
+- [ ] Task 9 (Review Follow-ups) Исправление недочетов после ревью кода (Итерация 2)
+  - [ ] Subtask 9.1 [AI-Review][Critical] Тесты не работают (0 passed). Vitest не находит/не запускает тесты из-за некорректной конфигурации или зависимостей.
+  - [ ] Subtask 9.2 [AI-Review][High] Middleware защищает только `/feed`. Требуется переписать `middleware.ts` так, чтобы все маршруты внутри `(app)/` (помимо `/feed`) были под защитой.
+  - [ ] Subtask 9.3 [AI-Review][High] Zustand `store.ts` создан, но нигде не используется. Необходимо интегрировать глобальное состояние в `AuthContainer.tsx`.
+  - [ ] Subtask 9.4 [AI-Review][Medium] Неотслеженные файлы в Git (`src/middleware.ts`, `vitest.config.ts`, `tests/`). Нужно закоммитить изменения.
+  - [ ] Subtask 9.5 [AI-Review][Medium] Отсутствует JS-валидация email и OTP в клиентских формах (`LoginForm`, `OTPVerificationForm`) перед отправкой запроса.
+
 ## Dev Notes
 
 ### Архитектурные паттерны для этой Story
