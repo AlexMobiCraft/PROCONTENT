@@ -6,7 +6,9 @@
       "Bash(npx shadcn@latest:*)",
       "Bash(npm run:*)",
       "Bash(test:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prettier:*)"
     ]
   }
 }

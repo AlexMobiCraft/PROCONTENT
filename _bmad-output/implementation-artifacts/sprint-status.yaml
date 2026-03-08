@@ -42,7 +42,7 @@ story_location: c:/Users/1/DEV/PROCONTENT/_bmad-output/implementation-artifacts
 development_status:
   epic-1: in-progress
   1-1-basic-landing-and-technical-foundation-infrastructure: done
-  1-2-registration-and-login-to-the-platform-supabase-auth-magic-link-otp: ready-for-dev
+  1-2-registration-and-login-to-the-platform-supabase-auth-magic-link-otp: review
   1-3-public-landing-landing-page-ui: backlog
   1-4-stripe-checkout-integration: backlog
   1-5-processing-stripe-webhooks-and-access-management: backlog
