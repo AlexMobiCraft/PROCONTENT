@@ -108,9 +108,11 @@ export function OTPVerificationForm({
           )}
         </div>
 
-        <Button type="submit" disabled={isLoading} className="self-center w-[240px]">
-          {isLoading ? 'Проверяем...' : 'Войти'}
-        </Button>
+        <div className="flex justify-center">
+          <Button type="submit" disabled={isLoading} className="w-[240px]">
+            {isLoading ? 'Проверяем...' : 'Войти'}
+          </Button>
+        </div>
       </form>
 
       <div className="flex items-center justify-between">

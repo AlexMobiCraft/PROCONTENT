@@ -63,9 +63,11 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
         )}
       </div>
 
-      <Button type="submit" disabled={isLoading} className="self-center w-[240px]">
-        {isLoading ? 'Отправляем...' : 'Получить код'}
-      </Button>
+      <div className="flex justify-center">
+        <Button type="submit" disabled={isLoading} className="w-[240px]">
+          {isLoading ? 'Отправляем...' : 'Получить код'}
+        </Button>
+      </div>
 
       <p className="text-muted-foreground text-center text-xs">
         Мы отправим ссылку на ваш email
