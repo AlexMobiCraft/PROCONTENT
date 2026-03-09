@@ -63,7 +63,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
         )}
       </div>
 
-      <Button type="submit" disabled={isLoading} className="mx-auto w-full max-w-[240px]">
+      <Button type="submit" disabled={isLoading} className="self-center w-[240px]">
         {isLoading ? 'Отправляем...' : 'Получить код'}
       </Button>
 
