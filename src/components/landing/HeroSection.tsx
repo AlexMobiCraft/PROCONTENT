@@ -7,14 +7,15 @@ export function HeroSection() {
   return (
     <section className="relative min-h-[100svh] overflow-hidden bg-foreground">
       {/* Background image */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 mx-auto w-full max-w-xl">
         <Image
           src="/images/hero-bg.jpg"
           alt="Создательница контента за работой"
           fill
-          className="object-cover object-center w-full"
+          className="object-cover object-center w-full opacity-60 mix-blend-luminosity"
           priority
         />
+        <div className="absolute inset-0 bg-gradient-to-b from-foreground/20 via-foreground/40 to-foreground/80" />
       </div>
 
       {/* Content */}
@@ -40,7 +41,7 @@ export function HeroSection() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center sm:items-center">
             {/* Primary CTA — тонкая рамка в цвете акцента */}
             <Link
               href="#pricing"
