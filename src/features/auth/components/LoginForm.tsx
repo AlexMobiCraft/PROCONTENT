@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface LoginFormProps {
@@ -64,9 +63,13 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
       </div>
 
       <div className="flex justify-center">
-        <Button type="submit" disabled={isLoading} className="w-[240px]">
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none w-[240px]"
+        >
           {isLoading ? 'Отправляем...' : 'Получить код'}
-        </Button>
+        </button>
       </div>
 
       <p className="text-muted-foreground text-center text-xs">
