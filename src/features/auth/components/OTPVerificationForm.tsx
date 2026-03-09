@@ -108,7 +108,7 @@ export function OTPVerificationForm({
           )}
         </div>
 
-        <Button type="submit" disabled={isLoading} className="w-full">
+        <Button type="submit" disabled={isLoading} className="mx-auto w-full max-w-[240px]">
           {isLoading ? 'Проверяем...' : 'Войти'}
         </Button>
       </form>
