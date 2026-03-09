@@ -21,14 +21,14 @@ export function HeroSection() {
       {/* Content */}
       <div className="relative flex min-h-[100svh] flex-col justify-between px-5 pb-10 pt-14">
         {/* Logo */}
-        <div>
+        <div className="mx-auto w-full max-w-xl">
           <span className="font-sans text-sm font-semibold tracking-[0.2em] text-primary-foreground/80 uppercase">
             PROCONTENT
           </span>
         </div>
 
         {/* Main text */}
-        <div className="flex flex-col gap-8">
+        <div className="mx-auto w-full max-w-xl flex flex-col gap-8">
           <div className="flex flex-col gap-3">
             <p className="text-xs font-sans font-medium tracking-[0.3em] uppercase" style={{ color: 'oklch(0.75 0.1 35)' }}>
               Закрытый клуб
