@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 
-import { Button } from '@/components/ui/button'
 import { signOut } from '@/features/auth/api/auth'
 import { useAuthStore } from '@/features/auth/store'
 
@@ -27,9 +26,12 @@ export default function FeedPage() {
         </p>
       </div>
 
-      <Button variant="outline" size="sm" onClick={handleSignOut}>
+      <button
+        onClick={handleSignOut}
+        className="inline-flex items-center justify-center border border-border px-6 py-2.5 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-muted"
+      >
         Выйти
-      </Button>
+      </button>
     </main>
   )
 }

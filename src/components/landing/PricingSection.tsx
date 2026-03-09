@@ -1,8 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
 export function PricingSection() {
   return (
@@ -72,7 +70,7 @@ export function PricingSection() {
             <div className="flex flex-col gap-3">
               <Link
                 href="/login"
-                className={cn(buttonVariants({ size: 'lg' }), 'w-full sm:w-auto sm:self-center text-base font-medium')}
+                className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 w-full sm:w-auto sm:self-center"
               >
                 Вступить сейчас
               </Link>
