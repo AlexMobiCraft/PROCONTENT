@@ -32,7 +32,7 @@ export function PricingSection() {
                 </span>
               </div>
               <p className="text-xs tracking-[0.1em] uppercase text-muted-foreground">
-                Или €290/год — 2 месяца бесплатно
+                {`Или €290/год \u2014 2 месяца бесплатно`}
               </p>
             </div>
 
