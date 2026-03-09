@@ -1,8 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
 export function CtaSection() {
   return (
@@ -22,10 +20,7 @@ export function CtaSection() {
 
         <Link
           href="/login"
-          className={cn(
-            buttonVariants({ size: 'lg' }),
-            'min-w-[200px] bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90'
-          )}
+          className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-primary-foreground transition-colors hover:bg-primary/20"
         >
           Вступить в клуб
         </Link>
