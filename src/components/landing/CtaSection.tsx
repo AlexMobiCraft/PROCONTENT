@@ -11,7 +11,7 @@ export function CtaSection() {
             Готова?
           </p>
           <h2 className="font-serif text-primary-foreground text-balance text-[clamp(2.5rem,10vw,5rem)] font-light leading-none uppercase">
-            Твоя стая ждёт
+            Твоё новое<br />окружение
           </h2>
           <p className="text-primary-foreground/60 text-xs tracking-[0.15em] uppercase leading-relaxed max-w-xs mx-auto">
             Присоединяйся к закрытому клубу создательниц контента и начни расти вместе.
