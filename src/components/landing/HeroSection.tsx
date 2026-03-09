@@ -12,10 +12,9 @@ export function HeroSection() {
           src="/images/hero-bg.jpg"
           alt="Создательница контента за работой"
           fill
-          className="object-contain object-top w-full"
+          className="object-cover object-center w-full"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-foreground/20 via-foreground/40 to-foreground/80" />
       </div>
 
       {/* Content */}
