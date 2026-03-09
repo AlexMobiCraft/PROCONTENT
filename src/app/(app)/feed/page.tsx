@@ -27,7 +27,7 @@ export default function FeedPage() {
         </p>
       </div>
 
-      <Button variant="outline" onClick={handleSignOut}>
+      <Button variant="outline" size="sm" onClick={handleSignOut}>
         Выйти
       </Button>
     </main>
