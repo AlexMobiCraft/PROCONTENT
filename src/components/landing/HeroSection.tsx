@@ -43,12 +43,12 @@ export function HeroSection() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href="#pricing"
               className={cn(
                 buttonVariants({ size: 'lg' }),
-                'w-full bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90'
+                'w-full sm:w-auto bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90'
               )}
             >
               Вступить в клуб
@@ -57,7 +57,7 @@ export function HeroSection() {
               href="#preview"
               className={cn(
                 buttonVariants({ variant: 'ghost', size: 'lg' }),
-                'w-full text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10'
+                'w-full sm:w-auto text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10'
               )}
             >
               Посмотреть превью

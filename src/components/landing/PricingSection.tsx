@@ -72,7 +72,7 @@ export function PricingSection() {
             <div className="flex flex-col gap-3">
               <Link
                 href="/login"
-                className={cn(buttonVariants({ size: 'lg' }), 'w-full text-base font-medium')}
+                className={cn(buttonVariants({ size: 'lg' }), 'w-full sm:w-auto sm:self-center text-base font-medium')}
               >
                 Вступить сейчас
               </Link>
