@@ -9,10 +9,10 @@ export function HeroSection() {
       {/* Background image */}
       <div className="absolute inset-0">
         <Image
-          src="/images/hero-bg.png"
+          src="/images/hero-bg.jpg"
           alt="Создательница контента за работой"
           fill
-          className="object-cover opacity-60 mix-blend-luminosity"
+          className="object-contain object-top w-full"
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-b from-foreground/20 via-foreground/40 to-foreground/80" />
