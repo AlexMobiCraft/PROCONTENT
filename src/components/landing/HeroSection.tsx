@@ -7,9 +7,9 @@ export function HeroSection() {
   return (
     <section className="relative min-h-[100svh] overflow-hidden bg-foreground">
       {/* Background image */}
-      <div className="absolute inset-0 mx-auto w-full max-w-xl">
+      <div className="absolute inset-0">
         <Image
-          src="/images/hero-bg.jpg"
+          src="/images/hero-bg.png"
           alt="Создательница контента за работой"
           fill
           className="object-cover object-center w-full opacity-60 mix-blend-luminosity"
