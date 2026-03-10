@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Cormorant_Garamond, Barlow_Condensed } from 'next/font/google'
 import './globals.css'
 
@@ -7,6 +7,7 @@ const cormorant = Cormorant_Garamond({
   variable: '--font-heading',
   subsets: ['latin', 'cyrillic'],
   weight: ['300', '400', '500', '600', '700'],
+  style: ['normal', 'italic'],
   display: 'swap',
 })
 
@@ -20,14 +21,21 @@ const barlow = Barlow_Condensed({
 
 export const metadata: Metadata = {
   title: {
-    default: 'PROCONTENT — Клуб создателей контента',
+    default: 'PROCONTENT — Закрытое сообщество',
     template: '%s | PROCONTENT',
   },
   description:
-    'Закрытый клуб для профессиональных создателей контента. Образовательные материалы, инсайты и сообщество.',
+    'Закрытый клуб для создательниц контента в Словении. База знаний, живое комьюнити и оффлайн-встречи.',
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
   ),
+  keywords: ['контент', 'комьюнити', 'UGC', 'Словения', 'creators'],
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#FDFBF7',
 }
 
 export default function RootLayout({
