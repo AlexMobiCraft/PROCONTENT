@@ -102,40 +102,19 @@ export function AuthContainer() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header — changes per step */}
-      {step === 'email' ? (
-        <div className="flex flex-col gap-1">
-          <p className="font-sans text-[10px] tracking-[0.3em] uppercase text-primary">
-            Доступ в клуб
-          </p>
-          <h1
-            className="font-serif font-light uppercase leading-none text-foreground"
-            style={{ fontSize: 'clamp(2.5rem, 8vw, 3rem)' }}
-          >
-            Войти
-          </h1>
-          <p className="font-sans text-xs tracking-[0.1em] uppercase text-muted-foreground mt-1">
-            Мы отправим код на ваш email
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-1">
-          <h1
-            className="font-serif font-light uppercase leading-none text-foreground"
-            style={{ fontSize: 'clamp(2.5rem, 8vw, 3rem)' }}
-          >
-            Введи код
-          </h1>
-          <p className="font-sans text-xs tracking-[0.1em] uppercase text-muted-foreground mt-1">
-            Отправили на {email}
-          </p>
-        </div>
-      )}
+      <div className="flex flex-col gap-1">
+        <h1 className="font-heading text-foreground text-2xl font-semibold">
+          Войти в клуб
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          Доступ по email — без паролей
+        </p>
+      </div>
 
       {(magicLinkError || networkError) && (
         <div
           role="alert"
-          className="border-destructive/30 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 font-sans text-xs uppercase tracking-[0.08em]"
+          className="border-destructive/20 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm"
         >
           {magicLinkError ?? networkError}
         </div>

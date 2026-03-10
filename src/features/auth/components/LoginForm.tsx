@@ -36,10 +36,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <label
-          htmlFor="email"
-          className="sr-only"
-        >
+        <label htmlFor="email" className="text-foreground text-sm font-medium">
           Email
         </label>
         <input
@@ -53,28 +50,31 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
           aria-invalid={!!displayError}
           onChange={() => setValidationError(null)}
           className={cn(
-            'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-primary/20 min-h-[44px] rounded-lg border px-4 py-3 text-sm font-sans transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
-            displayError && 'border-destructive focus:ring-destructive/20'
+            'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
+            displayError &&
+              'border-destructive focus:ring-destructive/20 focus:border-destructive'
           )}
         />
         {displayError && (
-          <p
-            id="email-error"
-            role="alert"
-            className="font-sans text-destructive text-xs uppercase tracking-[0.08em]"
-          >
+          <p id="email-error" role="alert" className="text-destructive text-sm">
             {displayError}
           </p>
         )}
       </div>
 
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="border border-primary font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground px-8 py-3 min-h-[44px] flex items-center justify-center hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:pointer-events-none w-full"
-      >
-        {isLoading ? 'Отправляем...' : 'Получить код'}
-      </button>
+      <div className="flex justify-center">
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none w-[240px]"
+        >
+          {isLoading ? 'Отправляем...' : 'Получить код'}
+        </button>
+      </div>
+
+      <p className="text-muted-foreground text-center text-xs">
+        Мы отправим ссылку на ваш email
+      </p>
     </form>
   )
 }
