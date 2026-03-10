@@ -1,13 +1,13 @@
 import type { Metadata } from 'next'
-import { HeroSection } from '@/components/landing/HeroSection'
-import { BenefitsSection } from '@/components/landing/BenefitsSection'
-import { PreviewPostsSection } from '@/components/landing/PreviewPostsSection'
-import { TestimonialsSection } from '@/components/landing/TestimonialsSection'
-import { PricingSection } from '@/components/landing/PricingSection'
-import { CtaSection } from '@/components/landing/CtaSection'
+import { HeroSection } from '@/features/landing/components/HeroSection'
+import { BenefitsSection } from '@/features/landing/components/BenefitsSection'
+import { PreviewPostsSection } from '@/features/landing/components/PreviewPostsSection'
+import { TestimonialsSection } from '@/features/landing/components/TestimonialsSection'
+import { PricingSection } from '@/features/landing/components/PricingSection'
+import { CtaSection } from '@/features/landing/components/CtaSection'
 
 export const metadata: Metadata = {
-  title: 'PROCONTENT — Закрытый клуб для создателей контента',
+  title: 'PROCONTENT — Закрытое сообщество для создательниц контента',
   description:
     'Закрытый клуб для профессиональных создательниц контента в Словении. База знаний, живое комьюнити и оффлайн-встречи.',
 }
