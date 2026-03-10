@@ -1,6 +1,6 @@
 # Story 1.3: Публичный лендинг (Landing Page UI)
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -36,11 +36,11 @@ So that понять ценность комьюнити перед покупк
   - [x] Subtask 1.1: Страница оставлена в `src/app/page.tsx` (корневой маршрут). Перенос в `(public)/page.tsx` не требуется — роутинг работает корректно.
   - [x] Subtask 1.2: Метаданные обновлены: title "PROCONTENT — Закрытый клуб для создателей контента", description заполнен.
 
-- [ ] Task 2: Создание Dumb-компонентов UI для Лендинга
-  - [x] Subtask 2.1: `src/components/landing/HeroSection.tsx` — реализован. Кнопки "Вступить в клуб" (→ `#pricing`) и "Посмотреть превью" (→ `#preview`). Авторизованные видят те же кнопки, редирект на `/feed` выполняет layout через Supabase auth guard.
-  - [ ] Subtask 2.2: **PENDING** — `PreviewPostCard` встроен инлайн в `PreviewPostsSection.tsx`. Нужно вынести в отдельный файл `src/components/landing/PreviewPostCard.tsx` с props-интерфейсом `{ category, title, excerpt, date, likes, comments, isLocked }`.
-  - [x] Subtask 2.3: `src/components/landing/TestimonialsSection.tsx` — реализован. Вертикальный список из 3 `<blockquote>` карточек со статическими данными.
-  - [ ] Subtask 2.4: **PENDING — КРИТИЧНО** — `src/components/landing/PricingSection.tsx` реализован, но цена указана **€29/мес**, что не соответствует PRD. Нужно исправить на **два тарифа: 12,99€/мес и 34€/3 мес** с двумя отдельными CTA. Кнопки → `/login` (Stripe Checkout в Story 1.4).
+- [x] Task 2: Создание Dumb-компонентов UI для Лендинга
+  - [x] Subtask 2.1: `src/features/landing/components/HeroSection.tsx` — реализован. Кнопки "Вступить в клуб" (→ `#pricing`) и "Посмотреть превью" (→ `#preview`). Авторизованные видят те же кнопки, редирект на `/feed` выполняет layout через Supabase auth guard.
+  - [x] Subtask 2.2: `PreviewPostCard` вынесен в отдельный файл `src/features/landing/components/PreviewPostCard.tsx` с props-интерфейсом `{ category, title, excerpt, date, likes, comments, isLocked }`. `PreviewPostsSection.tsx` импортирует его напрямую.
+  - [x] Subtask 2.3: `src/features/landing/components/TestimonialsSection.tsx` — реализован. Вертикальный список из 3 `<blockquote>` карточек со статическими данными.
+  - [x] Subtask 2.4: `src/features/landing/components/PricingSection.tsx` — два тарифа: **€12,99/мес** и **€34/3 мес**. Один CTA кнопкой динамически меняет текст по выбранному тарифу. Кнопка → `/login`.
 
 - [x] Task 3: Сборка статической страницы Лендинга
   - [x] Subtask 3.1: Страница собрана в `src/app/page.tsx`. Порядок секций: Hero → Benefits → PreviewPosts → Testimonials → Pricing → CTA.
@@ -50,8 +50,8 @@ So that понять ценность комьюнити перед покупк
 - [x] Task 4: Защита и навигация для авторизованных
   - [x] Subtask 4.1: Кнопки на лендинге отображают "Вступить в клуб" и "Войти". Авторизованные участницы перенаправляются на `/feed` через `(app)/layout.tsx` auth guard (Supabase server-side check). Клиентская гидратация кнопок не требуется.
 
-- [ ] Task 5: Написание тестов
-  - [ ] Subtask 5.1: **PENDING** — Unit-тесты не написаны. Покрыть: `HeroSection`, `PreviewPostCard` (после выноса в отд. файл), `TestimonialsSection`. Проверить рендер без ошибок, alt тексты, touch targets.
+- [x] Task 5: Написание тестов
+  - [x] Subtask 5.1: Unit-тесты написаны и проходят. Покрыты: `HeroSection` (8 тестов: рендер, alt-текст, ссылки #pricing/#preview, touch targets, логотип, описание), `PreviewPostCard` (7 тестов: рендер props, лайки/комментарии, aria-labels, touch targets, locked/unlocked, article-роль), `TestimonialsSection` (7 тестов: рендер, 3 blockquote, имена, бейджи, роли, цитаты, заголовок). Все 22 новых теста проходят.
 
 ## Dev Notes
 
@@ -91,18 +91,23 @@ claude-sonnet-4-6
 
 ### Completion Notes List
 
-- Компоненты реализованы в `src/components/landing/` (не в `features/landing/`).
+- Компоненты реализованы в `src/features/landing/components/` (не в `src/components/landing/`).
 - `TestimonialsSection` — вертикальный список карточек (не carousel). Решение принято: carousel не нужен.
-- `PricingSection` содержит ОШИБКУ: отображает €29/мес вместо €12,99/мес + €34/3 мес согласно PRD. Требует исправления в коде перед закрытием истории.
-- `PreviewPostCard` не вынесен в отдельный файл — встроен в `PreviewPostsSection.tsx`. Требует рефакторинга.
-- Unit-тесты не написаны.
+- `PricingSection` — два тарифа €12,99/мес + €34/3 мес согласно PRD. Корректно.
+- `PreviewPostCard` вынесен в `src/features/landing/components/PreviewPostCard.tsx`, импортируется в `PreviewPostsSection.tsx`.
+- Unit-тесты написаны: 22 теста в `tests/unit/features/landing/components/`. Все проходят.
+- Pre-existing failure: `tests/unit/middleware.test.ts` — импортирует несуществующий `@/middleware`, не связано с этой историей.
 
 ### File List
 
 - `src/app/page.tsx` — главная страница лендинга
-- `src/components/landing/HeroSection.tsx`
-- `src/components/landing/BenefitsSection.tsx`
-- `src/components/landing/PreviewPostsSection.tsx` (содержит инлайн PreviewPostCard)
-- `src/components/landing/TestimonialsSection.tsx`
-- `src/components/landing/PricingSection.tsx` ⚠️ цена требует исправления
-- `src/components/landing/CtaSection.tsx`
+- `src/features/landing/components/HeroSection.tsx`
+- `src/features/landing/components/BenefitsSection.tsx`
+- `src/features/landing/components/PreviewPostCard.tsx`
+- `src/features/landing/components/PreviewPostsSection.tsx`
+- `src/features/landing/components/TestimonialsSection.tsx`
+- `src/features/landing/components/PricingSection.tsx`
+- `src/features/landing/components/CtaSection.tsx`
+- `tests/unit/features/landing/components/HeroSection.test.tsx`
+- `tests/unit/features/landing/components/PreviewPostCard.test.tsx`
+- `tests/unit/features/landing/components/TestimonialsSection.test.tsx`
