@@ -23,7 +23,7 @@ const plans: Record<Plan, { label: string; price: string; per: string; sub?: str
   },
   quarterly: {
     label: '3 месяца',
-    price: '€34',
+    price: '€34,00',
     per: '/ 3 месяца',
     sub: '≈ €11,33 в месяц',
     badge: 'Экономия €4,97',
@@ -53,25 +53,20 @@ export function PricingSection() {
         </div>
 
         {/* Single unified card — price, plan toggle, features, cta */}
-        <div className="border border-border bg-card px-8 py-8 flex flex-col gap-6">
+        <div className="border border-border bg-card px-8 py-8 rounded-lg flex flex-col gap-6">
 
-          {/* Price display */}
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-baseline gap-2">
-              <span className="font-serif text-[clamp(2.8rem,10vw,4rem)] font-light leading-none text-foreground">
-                {active.price}
-              </span>
-              <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
-                {active.per}
-              </span>
-            </div>
-            {active.sub && (
-              <p className="text-xs text-muted-foreground">{active.sub}</p>
-            )}
+          {/* Price display — fixed height, no layout jump */}
+          <div className="flex items-baseline gap-2">
+            <span className="font-serif text-[clamp(2.8rem,10vw,4rem)] font-light leading-none text-foreground">
+              {active.price}
+            </span>
+            <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
+              {active.per}
+            </span>
           </div>
 
-          {/* Plan toggle — two buttons side by side */}
-          <div className="grid grid-cols-2 gap-0">
+          {/* Plan toggle — two buttons with gap */}
+          <div className="grid grid-cols-2 gap-3">
             {(Object.entries(plans) as [Plan, typeof plans[Plan]][]).map(([key, plan]) => {
               const isActive = selected === key
               return (
@@ -85,8 +80,6 @@ export function PricingSection() {
                     isActive
                       ? 'border-primary'
                       : 'border-border hover:border-foreground/30',
-                    // avoid double border between the two buttons
-                    key === 'quarterly' ? '-ml-px' : '',
                   ].join(' ')}
                 >
                   <div className="flex items-center gap-2">
@@ -102,6 +95,9 @@ export function PricingSection() {
                   <span className={['font-serif text-xl font-light leading-none', isActive ? 'text-foreground' : 'text-foreground/60'].join(' ')}>
                     {plan.price}
                   </span>
+                  {plan.sub && (
+                    <span className="text-[10px] text-muted-foreground mt-0.5">{plan.sub}</span>
+                  )}
                 </button>
               )
             })}
