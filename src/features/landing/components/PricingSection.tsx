@@ -60,10 +60,10 @@ export function PricingSection() {
                 onClick={() => setSelected(key)}
                 aria-pressed={isActive}
                 className={[
-                  'flex flex-col gap-3 rounded-2xl border p-5 text-left transition-colors cursor-pointer',
+                  'flex flex-col gap-3 border p-5 text-left transition-colors cursor-pointer',
                   isActive
-                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                    : 'border-border bg-card hover:border-primary/40',
+                    ? 'border-primary bg-card'
+                    : 'border-border bg-card hover:border-foreground/30',
                 ].join(' ')}
               >
                 <div className="flex flex-col gap-1">
@@ -72,7 +72,7 @@ export function PricingSection() {
                       {plan.label}
                     </p>
                     {plan.badge && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] tracking-wide uppercase text-primary">
+                      <span className="bg-primary/10 px-2 py-0.5 text-[10px] tracking-wide uppercase text-primary">
                         {plan.badge}
                       </span>
                     )}
@@ -96,12 +96,12 @@ export function PricingSection() {
                 {/* Selection indicator */}
                 <div
                   className={[
-                    'mt-auto flex h-4 w-4 items-center justify-center rounded-full border transition-colors',
+                    'mt-auto flex h-4 w-4 items-center justify-center border transition-colors',
                     isActive ? 'border-primary bg-primary' : 'border-border',
                   ].join(' ')}
                   aria-hidden
                 >
-                  {isActive && <span className="h-1.5 w-1.5 rounded-full bg-background" />}
+                  {isActive && <span className="h-1.5 w-1.5 bg-background" />}
                 </div>
               </button>
             )
