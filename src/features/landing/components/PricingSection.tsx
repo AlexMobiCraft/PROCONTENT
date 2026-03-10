@@ -27,26 +27,45 @@ const plans: Record<Plan, { label: string; integer: string; cents: string; per: 
     integer: '€34',
     cents: ',00',
     per: '/ 3 месяца',
-    sub: '≈ €11,33 в месяц',
+    sub: '≈ €11,33 / мес.',
     badge: 'Экономия €4,97',
   },
 }
 
+// Renders a price with consistent sizing: large integer, small superscript cents
+function PriceDisplay({
+  integer,
+  cents,
+  integerClass,
+  centsClass,
+}: {
+  integer: string
+  cents: string
+  integerClass: string
+  centsClass: string
+}) {
+  return (
+    <span className={integerClass}>
+      {integer}
+      <span className={centsClass}>{cents}</span>
+    </span>
+  )
+}
+
 export function PricingSection() {
   const [selected, setSelected] = useState<Plan>('quarterly')
-
   const active = plans[selected]
 
   return (
-    <section id="pricing" className="px-5 py-16">
+    <section id="pricing" className="px-4 py-16 sm:px-5">
       <div className="mx-auto max-w-xl">
 
-        {/* Section header — outside the card, like the reference */}
+        {/* Section header */}
         <div className="mb-6 flex flex-col gap-1.5">
           <p className="text-xs font-medium tracking-[0.3em] uppercase text-primary">
             Вступление
           </p>
-          <h2 className="font-serif text-foreground text-balance text-[clamp(2.2rem,9vw,4rem)] font-light leading-none uppercase">
+          <h2 className="font-serif text-foreground text-balance text-5xl sm:text-6xl font-light leading-none uppercase">
             Всё включено
           </h2>
           <p className="mt-1 text-[11px] tracking-[0.15em] uppercase text-muted-foreground">
@@ -54,20 +73,23 @@ export function PricingSection() {
           </p>
         </div>
 
-        {/* Single unified card — price, plan toggle, features, cta */}
-        <div className="border border-border bg-card px-8 py-8 rounded-lg flex flex-col gap-6">
+        {/* Unified card */}
+        <div className="rounded-lg border border-border bg-card px-5 py-6 sm:px-8 sm:py-8 flex flex-col gap-5">
 
-          {/* Price display — fixed height, no layout jump */}
+          {/* Price — fixed font sizes, no clamp, no layout shift */}
           <div className="flex items-baseline gap-2">
-            <span className="font-serif text-[clamp(2.8rem,10vw,4rem)] font-light leading-none text-foreground">
-              {active.integer}<span className="text-[0.45em] align-super">{active.cents}</span>
-            </span>
+            <PriceDisplay
+              integer={active.integer}
+              cents={active.cents}
+              integerClass="font-serif text-5xl font-light leading-none text-foreground"
+              centsClass="text-2xl align-super leading-none"
+            />
             <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
               {active.per}
             </span>
           </div>
 
-          {/* Plan toggle — two buttons with gap */}
+          {/* Plan toggle */}
           <div className="grid grid-cols-2 gap-3">
             {(Object.entries(plans) as [Plan, typeof plans[Plan]][]).map(([key, plan]) => {
               const isActive = selected === key
@@ -78,28 +100,29 @@ export function PricingSection() {
                   onClick={() => setSelected(key)}
                   aria-pressed={isActive}
                   className={[
-                    'flex flex-col gap-0.5 border px-4 py-3 text-left transition-colors cursor-pointer',
-                    isActive
-                      ? 'border-primary'
-                      : 'border-border hover:border-foreground/30',
+                    'flex flex-col gap-1 border px-3 py-3 text-left transition-colors cursor-pointer',
+                    isActive ? 'border-primary' : 'border-border hover:border-foreground/30',
                   ].join(' ')}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground">
-                      {plan.label}
-                    </span>
-                    {plan.badge && (
-                      <span className="bg-primary/10 px-1.5 py-px text-[9px] tracking-wide uppercase text-primary">
-                        {plan.badge}
-                      </span>
-                    )}
-                  </div>
-                  <span className={['font-serif text-xl font-light leading-none', isActive ? 'text-foreground' : 'text-foreground/60'].join(' ')}>
-                    {plan.integer}<span className="text-[0.6em] align-super">{plan.cents}</span>
+                  <span className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground leading-none">
+                    {plan.label}
                   </span>
-                  {plan.sub && (
-                    <span className="text-[10px] text-muted-foreground mt-0.5">{plan.sub}</span>
-                  )}
+                  <PriceDisplay
+                    integer={plan.integer}
+                    cents={plan.cents}
+                    integerClass={[
+                      'font-serif text-2xl font-light leading-none',
+                      isActive ? 'text-foreground' : 'text-foreground/60',
+                    ].join(' ')}
+                    centsClass="text-sm align-super leading-none"
+                  />
+                  {/* Sub-label and badge always reserve space to avoid height jump */}
+                  <span className="text-[10px] text-primary leading-none min-h-[12px]">
+                    {plan.badge ?? ''}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground leading-none min-h-[12px]">
+                    {plan.sub ?? ''}
+                  </span>
                 </button>
               )
             })}
