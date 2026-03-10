@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 
@@ -10,7 +13,15 @@ const features = [
   'Ответы автора в комментариях',
 ]
 
+type Plan = 'monthly' | 'quarterly'
+
+const plans: Record<Plan, { label: string; price: string; per: string; sub?: string; badge?: string }> = {
+  monthly: { label: 'Ежемесячно', price: '€12,99', per: '/ месяц' },
+  quarterly: { label: '3 месяца', price: '€34', per: '/ 3 месяца', sub: '≈ €11,33 в месяц', badge: 'Экономия €4,97' },
+}
+
 export function PricingSection() {
+  const [selected, setSelected] = useState<Plan>('quarterly')
   return (
     <section id="pricing" className="bg-muted/40 px-5 py-16">
       <div className="mx-auto max-w-xl">
@@ -28,60 +39,51 @@ export function PricingSection() {
         </div>
 
         {/* Two plan cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Plan 1 — Monthly */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
-            <div className="flex flex-col gap-1">
-              <p className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground">
-                Ежемесячно
-              </p>
-              <div className="flex items-end gap-1.5">
-                <span className="font-serif text-5xl font-light leading-none text-foreground">
-                  €12,99
-                </span>
-              </div>
-              <p className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
-                / месяц
-              </p>
-            </div>
-            <Link
-              href="/login"
-              className="inline-flex min-h-[44px] w-full items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10"
-            >
-              Вступить
-            </Link>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          {(Object.entries(plans) as [Plan, typeof plans[Plan]][]).map(([key, plan]) => {
+            const isActive = selected === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSelected(key)}
+                aria-pressed={isActive}
+                className={[
+                  'flex flex-col gap-3 rounded-2xl border p-5 text-left transition-colors cursor-pointer',
+                  isActive
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                    : 'border-border bg-card hover:border-primary/40',
+                ].join(' ')}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground">{plan.label}</p>
+                    {plan.badge && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] tracking-wide uppercase text-primary">{plan.badge}</span>
+                    )}
+                  </div>
+                  <span className={['font-serif text-4xl font-light leading-none', isActive ? 'text-foreground' : 'text-foreground/80'].join(' ')}>
+                    {plan.price}
+                  </span>
+                  <p className="text-[11px] tracking-[0.1em] uppercase text-muted-foreground">{plan.per}</p>
+                  {plan.sub && <p className="text-[10px] text-muted-foreground">{plan.sub}</p>}
+                </div>
+                <div className={['mt-auto flex h-4 w-4 items-center justify-center rounded-full border transition-colors', isActive ? 'border-primary bg-primary' : 'border-border'].join(' ')} aria-hidden>
+                  {isActive && <span className="h-1.5 w-1.5 rounded-full bg-background" />}
+                </div>
+              </button>
+            )
+          })}
+        </div>
 
-          {/* Plan 2 — 3 months (highlighted) */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-primary/30 bg-card p-5">
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <p className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground">
-                  3 месяца
-                </p>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] tracking-wide uppercase text-primary">
-                  Экономия €4,97
-                </span>
-              </div>
-              <div className="flex items-end gap-1.5">
-                <span className="font-serif text-5xl font-light leading-none text-foreground">
-                  €34
-                </span>
-              </div>
-              <p className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
-                / 3 месяца
-              </p>
-              <p className="text-[10px] text-muted-foreground">
-                ≈ €11,33 в месяц
-              </p>
-            </div>
-            <Link
-              href="/login"
-              className="inline-flex min-h-[44px] w-full items-center justify-center border border-primary bg-primary/5 px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/15"
-            >
-              Выбрать
-            </Link>
-          </div>
+        {/* CTA button */}
+        <div className="mt-4">
+          <Link
+            href="/login"
+            className="inline-flex min-h-[48px] w-full items-center justify-center border border-primary bg-primary/5 px-8 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/15"
+          >
+            {selected === 'quarterly' ? 'Вступить за €34 / 3 месяца' : 'Вступить за €12,99 / месяц'}
+          </Link>
         </div>
 
         {/* Features checklist — applies to both plans */}
