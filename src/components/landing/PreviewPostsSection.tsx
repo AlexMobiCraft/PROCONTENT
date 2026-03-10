@@ -143,7 +143,7 @@ export function PreviewPostsSection() {
             Загляни внутрь
           </h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            Каждую неделю — новые разборы, инсайты и практические гайды.
+            {'Каждую неделю \u2014 новые разборы, инсайты и практические гайды.'}
           </p>
         </div>
 
