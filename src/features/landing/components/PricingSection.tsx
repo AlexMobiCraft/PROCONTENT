@@ -15,15 +15,17 @@ const features = [
 
 type Plan = 'monthly' | 'quarterly'
 
-const plans: Record<Plan, { label: string; price: string; per: string; sub?: string; badge?: string }> = {
+const plans: Record<Plan, { label: string; price: string; priceShort: string; per: string; sub?: string; badge?: string }> = {
   monthly: {
     label: 'Ежемесячно',
     price: '€12,99',
+    priceShort: '€12,99',
     per: '/ месяц',
   },
   quarterly: {
     label: '3 месяца',
     price: '€34,00',
+    priceShort: '€34',
     per: '/ 3 месяца',
     sub: '≈ €11,33 / мес.',
     badge: 'Экономия €4,97',
@@ -86,7 +88,7 @@ export function PricingSection() {
                       'font-serif text-2xl font-light leading-none',
                       isActive ? 'text-foreground' : 'text-foreground/60',
                     ].join(' ')}>
-                    {plan.price}
+                    {plan.priceShort}
                   </span>
                   {/* Sub-label and badge always reserve space to avoid height jump */}
                   <span className="text-[10px] text-primary leading-none min-h-[12px]">
