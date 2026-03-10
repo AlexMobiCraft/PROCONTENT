@@ -58,7 +58,7 @@ export function PricingSection() {
 
           {/* Price — single string, fixed size, no superscript */}
           <div className="flex items-baseline gap-2">
-            <span className="font-serif text-5xl font-light leading-none text-foreground">
+            <span className="font-serif text-5xl font-light leading-none text-foreground [font-variant-numeric:lining-nums_tabular-nums]">
               {active.price}
             </span>
             <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
@@ -85,7 +85,7 @@ export function PricingSection() {
                     {plan.label}
                   </span>
                   <span className={[
-                      'font-serif text-2xl font-light leading-none',
+                      'font-serif text-2xl font-light leading-none [font-variant-numeric:lining-nums_tabular-nums]',
                       isActive ? 'text-foreground' : 'text-foreground/60',
                     ].join(' ')}>
                     {plan.priceShort}
