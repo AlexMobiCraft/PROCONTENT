@@ -152,25 +152,29 @@ PROCONTENT — это закрытая платная веб-платформа 
 
 ### Design System Choice
 
-**Tailwind CSS + Headless UI (например, shadcn/ui)**
-Для PROCONTENT мы выбираем компонентный подход на базе утилитарного CSS-фреймворка (Tailwind CSS) в связке с headless-компонентами (shadcn/ui или аналог под выбранный JS-фреймворк). Мы осознанно отказываемся от тяжеловесных готовых UI-библиотек (вроде Material Design или Ant Design).
+**Next.js (App Router) + Tailwind CSS v4 + shadcn/ui**
+PROCONTENT реализован как Next.js SPA с App Router, Tailwind CSS v4 (с `@import 'tailwindcss'`), и headless-компонентами shadcn/ui. Стилизация использует CSS-переменные в формате `oklch()` для точного управления цветом. Проект осознанно отказывается от тяжеловесных готовых UI-библиотек (вроде Material Design или Ant Design).
 
 ### Rationale for Selection
 
-- **Уникальный "нативный" вид (Uniqueness):** Нам нужно воссоздать паттерны Instagram/TikTok (чистый интерфейс, акцент на контент). Тяжелые UI-фреймворки имеют свой ярко выраженный стиль, с которым придется бороться. Tailwind позволяет легко собрать нужный "невидимый" дизайн.
-- **Скорость для соло-разработчика:** Headless-компонентами (shadcn/ui) дают готовые, доступные (accessible) сложные элементы (модальные окна, дропдауны, скелетоны), которые копируются в проект и стилизуются под наши нужды за минуты.
-- **Производительность (Performance):** Zero-runtime CSS (Tailwind) и минимальный размер бандла критически важны для достижения наших нефункциональных требований (NFR): LCP ≤ 2.5 сек и TTI ≤ 4 сек на мобильных устройствах с 3G-сетью.
+- **Уникальный editorial/fashion вид:** Вместо стандартного "уютного" интерфейса реализован модный editorial стиль — condensed uppercase sans-serif для UI, контрастный serif для заголовков, обильный letter-spacing. Tailwind позволяет точно выстроить этот визуальный язык без борьбы с готовыми UI-фреймворками.
+- **Скорость для соло-разработчика:** shadcn/ui даёт готовые, доступные (accessible) базовые элементы (Button и др.), которые копируются в проект и стилизуются под наши нужды за минуты.
+- **Производительность (Performance):** Zero-runtime CSS (Tailwind v4) и минимальный размер бандла критически важны для достижения наших нефункциональных требований (NFR): LCP ≤ 2.5 сек и TTI ≤ 4 сек на мобильных устройствах с 3G-сетью.
 
 ### Implementation Approach
 
-- **Mobile-First Breakpoints:** Разработка базовых стилей ведется строго под мобильные экраны (375px/390px). Десктопная версия (от 768px и выше) реализуется через прогрессивное улучшение (например, превращение нижнего таб-бара в боковое меню), а не перестройку карточек контента.
-- **Токены дизайна (Design Tokens):** Использование CSS-переменных для управления цветами (светлая/тёмная тема), радиусами скругления и типографикой для обеспечения абсолютного визуального единообразия.
+- **Mobile-First Breakpoints:** Разработка базовых стилей ведется строго под мобильные экраны (375px/390px). Десктопная версия (от 768px и выше) реализуется через прогрессивное улучшение.
+- **Токены дизайна (Design Tokens):** CSS-переменные в формате `oklch()` (например, `--primary: oklch(0.56 0.1 35)`) для управления цветами, `--radius` для скруглений, `--font-sans` и `--font-heading` для типографики. Поддержка светлой и тёмной тем через класс `.dark`.
+- **Утилитарные CSS-хелперы:** `.scrollbar-hide` для скрытия скроллбара в горизонтальных фильтрах, `.pb-safe` для safe area на устройствах с вырезом.
 
 ### Customization Strategy
 
-- **Типографика:** Использование чистых, современных sans-serif шрифтов с высокой читаемостью на смартфонах, которые поддерживают дружелюбную и "свою" эмоциональную тональность.
-- **Микро-взаимодействия (Micro-interactions):** Активное использование состояний `:active` и CSS-транзиций для кнопок и карточек, чтобы имитировать мгновенный тактильный отклик нативного приложения (сжатие кнопки при тапе).
-- **Специфичные компоненты:** Кастомная реализация критически важных элементов (Bottom Navigation Bar и скроллящихся горизонтальных "таблеток" рубрик), так как от их эргономики зависит успех основной персоны (Анны).
+- **Типографика (реализовано):**
+  - **UI / Body:** `Barlow Condensed` (Google Fonts) — condensed sans-serif с weights 300–700. Используется для кнопок, навигации, мелкого текста. Все UI-элементы — `uppercase` с `tracking-[0.15em]`–`tracking-[0.3em]`.
+  - **Headings / Editorial:** `Cormorant Garamond` (Google Fonts) — элегантный контрастный serif с тонкими/толстыми штрихами. Используется для крупных заголовков на лендинге и в карточках контента. Weights: 300 (light) — 700 (bold).
+  - Оба шрифта подключены через `next/font/google` с `display: 'swap'` и поддержкой подмножества `cyrillic`.
+- **Микро-взаимодействия (Micro-interactions):** CSS-транзиции `transition-colors` на кнопках и интерактивных элементах. Hover-эффекты через полупрозрачные состояния (`hover:bg-primary/10`, `hover:bg-primary/20`).
+- **Специфичные компоненты:** Кастомная реализация Bottom Navigation Bar (`MobileNav`), горизонтальных фильтров-таблеток (`CategoryScroll`) и карточек контента (`PostCard`).
 
 ## 2. Core User Experience
 
@@ -213,31 +217,49 @@ PROCONTENT — это закрытая платная веб-платформа 
 
 ### Color System
 
-**Концепция: "Теплый минимализм" (Warm Minimalism)**
-Палитра должна передавать ощущение "уютной кофейни", быть эстетичной, но не перетягивать внимание с самого контента (фото и видео авторов).
+**Концепция: "Тёплый минимализм" (Warm Minimalism) — реализовано в oklch()**
+Палитра передаёт ощущение премиальности и фокуса на контенте, не перетягивая внимание.
 
-- **Background (Фоны):** Отказ от чистого белого (`#FFFFFF`) и глухого черного. Используем теплые оттенки белого (например, Alabaster или Cream: `#FAFAFA`, `#FDFBF7`) для снижения нагрузки на глаза и создания ощущения "премиальности".
-- **Primary Accent (Главный акцент):** Приглушенный, "природный" цвет, который ассоциируется с ростом и спокойствием. Например, приглушенный терракотовый (Muted Terracotta), теплый персиковый или мягкий шалфейный (Sage Green). Этот цвет используется только для целевых действий (кнопка оплаты, отправка комментария).
-- **Typography Colors:** Глубокий темно-серый или серо-коричневый (Dark Charcoal) вместо чистого черного `#000000` для основного текста — это делает чтение более комфортным.
-- **Semantic Colors:** Мягкие версии системных цветов (Success, Error, Warning), чтобы даже сообщения об ошибках не выглядели агрессивно.
+- **Background (Фоны):** Тёплый кремовый `oklch(0.993 0.006 90)` (~`#FDFBF7`) — отказ от чистого белого `#FFFFFF`. Создаёт ощущение "бумаги".
+- **Primary Accent:** Muted Terracotta `oklch(0.56 0.1 35)` — приглушенный терракотовый. Используется для акцентных элементов: активные фильтры-таблетки, бейджи рубрик, состояние лайка, ring/focus.
+- **Foreground (Текст):** Dark Charcoal Warm `oklch(0.22 0.01 60)` (~`#2C2924`) — тёплый тёмно-серый вместо чистого `#000`.
+- **Muted Foreground:** `oklch(0.52 0.012 60)` — для вторичного текста (даты, подписи, placeholder).
+- **Borders:** `oklch(0.91 0.01 80)` — тёплые тонкие линии отделения.
+- **Destructive:** `oklch(0.58 0.18 27)` — мягкий красный для ошибок валидации.
+- **Dark Theme:** Поддержка через класс `.dark` с нейтральными oklch-значениями (grayscale). Primary в тёмной теме — стандартный светлый `oklch(0.87 0 0)`.
+
+**Инверсные зоны лендинга:** Hero-секция и CTA-секция используют `bg-foreground` (тёмный фон), создавая драматический контраст. Текст переключается на `text-primary-foreground`. Акцентный цвет для мелких лейблов: `oklch(0.75 0.1 35)` (инлайн style).
 
 ### Typography System
 
-- **Primary Typeface (UI & Body):** Системные шрифты (San Francisco для iOS, Roboto для Android) или чистые геометрические гротески (например, *Inter*, *DM Sans*, *Plus Jakarta Sans*). Они обеспечивают максимальную читаемость на мелких экранах и идеальны для UI-элементов.
-- **Secondary Typeface (Headings & Accents):** Для заголовков на лендинге и карточек онбординга можно использовать более выразительный шрифт (современный гротеск с характером или даже элегантный serif), чтобы добавить бренду индивидуальности (например, *Playfair Display* или *Lout).*
-- **Иерархия:** Четкий контраст размеров. Крупные заголовки (H1: 28-32px на мобайле), читаемый базовый текст (Body: 16px) с увеличенным межстрочным интервалом (1.5) для легкости восприятия.
+- **Primary Typeface (UI & Body): Barlow Condensed** — condensed sans-serif от Google Fonts. Weights: 300–700. Подмножества: `latin`, `latin-ext`. CSS-переменная: `--font-sans`.
+  - Применение: все UI-элементы, кнопки (`.font-sans text-xs tracking-[0.2em] uppercase`), мелкий текст (`.text-xs tracking-[0.1em] uppercase`), лейблы.
+  - Характер: модный, "fashion", вытянутый — создаёт ощущение editorial/magazine.
+- **Secondary Typeface (Headings): Cormorant Garamond** — контрастный serif от Google Fonts. Weights: 300–700. Подмножества: `latin`, `cyrillic`. CSS-переменная: `--font-heading`.
+  - Применение: крупные заголовки на лендинге (`.font-serif`), заголовки в карточках постов (`.font-heading`).
+  - Характер: элегантный, утончённый, с контрастом тонких и толстых штрихов.
+- **Иерархия (реализованные размеры):**
+  - H1 (Hero): `clamp(3rem, 12vw, 6rem)` — `font-light leading-none uppercase`
+  - H2 (Секции): `clamp(2rem, 8vw, 3.5rem)` — `font-light leading-none uppercase`
+  - H2 CTA: `clamp(2.5rem, 10vw, 5rem)` — `font-light leading-none uppercase`
+  - Заголовки карточек: `text-base font-semibold leading-snug` (font-heading)
+  - Body text: `text-sm leading-relaxed`
+  - UI labels: `text-xs tracking-[0.15em]–[0.3em] uppercase`
+  - Nav labels: `text-[10px] font-medium tracking-wide`
 
 ### Spacing & Layout Foundation
 
-- **Базовая сетка (8pt Grid):** Использование отступов, кратных 8 (8, 16, 24, 32px), что обеспечит математическую гармонию и легкость верстки в Tailwind.
-- **Воздух (White Space):** Обильное использование пустого пространства. Контент не должен "задыхаться". Карточки постов разделяются щедрыми отступами (от 24px), чтобы визуально разделить информационные блоки.
-- **Контейнеры:** На мобильных устройствах контент растягивается на всю ширину (с безопасными полями в 16px по краям), карточки могут иметь минимальное скругление (rounded-xl, ~12-16px) для мягкости.
+- **Базовая сетка (4/8pt Grid):** Отступы через Tailwind: `gap-1` (4px), `gap-2` (8px), `gap-3` (12px), `gap-4` (16px), `gap-6` (24px), `gap-8` (32px). Внутренние отступы: `px-4`/`px-5` (16/20px), `py-5`/`py-16` (20/64px).
+- **Контейнеры:** `max-w-xl` (36rem / 576px) для контентных секций лендинга. На мобильных — полная ширина с `px-5` (20px).
+- **Воздух (White Space):** Секции лендинга — `py-16` (64px). Разделение карточек в ленте — через `border-b border-border` вместо возвышения (flat design). Карточки на лендинге — `rounded-2xl` (16px radius).
+- **Скругления:** Базовый `--radius: 0.75rem` (12px). Используются производные: `radius-sm`…`radius-4xl`. Карточки: `rounded-2xl`. Аватары/бейджи: `rounded-full`. Inputs: `rounded-lg`.
 
 ### Accessibility Considerations
 
-- **Контрастность:** Все текстовые элементы должны проходить проверку контрастности WCAG 2.1 Level AA (не менее 4.5:1 для обычного текста). Серый текст не должен быть слишком светлым.
-- **Размер областей нажатия (Touch Targets):** Все интерактивные элементы (кнопки, иконки лайков/комментариев, "таблетки" рубрик) должны иметь минимальный размер 44x44 CSS пикселей для безошибочного попадания пальцем.
-- **Focus States:** Явно видимые состояния фокуса для десктопной навигации клавиатурой (обязательно для NFR).
+- **Контрастность:** Все текстовые элементы проходят проверку WCAG 2.1 Level AA (4.5:1+). Использование oklch обеспечивает перцептуально точный контроль контраста.
+- **Touch Targets (реализовано):** Все интерактивные элементы используют `min-h-[44px] min-w-[44px]` — кнопки лайка, комментария, навигации, опций поста, фильтры, auth-формы.
+- **ARIA-атрибуты (реализовано):** `aria-label` на навигации, кнопках, иконках. `aria-pressed` на фильтрах и лайках. `aria-current="page"` в навигации. `role="alert"` на сообщениях об ошибках. `aria-invalid` на формах.
+- **Focus States:** `focus:ring-2 focus:ring-ring/50 focus:outline-none` на полях ввода. `outline-ring/50` глобально через `@layer base`.
 
 ## Design Direction Decision
 
@@ -261,9 +283,10 @@ PROCONTENT — это закрытая платная веб-платформа 
 
 ### Implementation Approach
 
-- **Карточки контента:** Унифицированный компонент `PostCard`, который адаптируется под тип контента (видео-плеер, галерея изображений, текстовое превью).
-- **Sticky Header:** Фильтры рубрик жестко закрепляются под основным Header-ом при скролле вниз, чтобы пользователь мог сменить контекст в любую секунду.
-- **Micro-interactions:** Использование легких анимаций (transition) на кнопках лайков и при добавлении комментариев для создания ощущения мгновенного отклика (Optimistic UI), что характерно для нативных приложений.
+- **Карточки контента (реализовано):** Компонент `PostCard` (`src/components/feed/PostCard.tsx`) — flat-дизайн с `border-b` разделителем. Включает header (аватар, имя, бейдж "Автор", категория, дата), контент (заголовок + excerpt), бейдж типа (Видео/Фото), footer (лайк + комментарий). Optimistic UI для лайков реализован через локальный state.
+- **Skeleton Loading (реализовано):** `PostCardSkeleton` — компонент скелетонной загрузки с `animate-pulse`, повторяющий структуру PostCard (аватар, строки текста, кнопки).
+- **Sticky Pill Filters (реализовано):** Компонент `CategoryScroll` (`src/components/feed/CategoryScroll.tsx`) — 7 рубрик: Все, #insight, #разборы, #съёмка, #reels, #бренды, Тема месяца. Active: `bg-primary text-primary-foreground`, Default: `bg-muted text-muted-foreground`. Скроллбар скрыт через `scrollbarWidth: 'none'`.
+- **Micro-interactions:** `transition-colors` на всех интерактивных элементах. Hover-состояния через полупрозрачность (`hover:bg-primary/10`). Кнопка лайка переключает fill иконки-сердечка.
 
 ## User Journey Flows
 
@@ -335,106 +358,123 @@ graph TD
 
 ## Component Strategy
 
-### Design System Components
+### Design System Components (shadcn/ui)
 
-**Используем из коробки (shadcn/ui):**
-- **Buttons (Кнопки):** Primary, Secondary, Ghost (для действий вроде лайка), Outline.
-- **Inputs & Forms:** Поля ввода для создания постов, написания комментариев и логина.
-- **Dialog / Drawer:** Для модальных окон (например, подтверждение отмены подписки). Для мобильной версии Drawer (шторка снизу) предпочтительнее модального окна по центру.
-- **Skeleton:** Для отображения состояния загрузки контента (ленты, результатов поиска), чтобы мимикрировать под нативные приложения.
-- **Dropdown Menu:** Для управления настройками профиля и выбора рубрик в админ-панели.
-- **Avatar:** Стандартный компонент аватара с fallback-инициалами.
-- **Toast / Sonner:** Для всплывающих уведомлений ("Ссылка скопирована", "Пост опубликован").
-- **ErrorBoundary:** Обертка для изоляции ошибок рендеринга отдельных компонентов (чтобы падение одного блока не ломало всю SPA).
-- **Infinite Scroll Wrapper:** Базовый компонент для управления подгрузкой данных и памятью при долгом скролле ленты.
+**Из shadcn/ui установлен:**
+- **Button** (`src/components/ui/button.tsx`) — базовый компонент кнопки с вариантами. Однако в проекте кнопки преимущественно реализованы инлайн-стилями в editorial-стиле: `border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase` (outline-стиль с тонкой рамкой).
 
-### Custom Components
+**Планируется установить по мере необходимости:**
+- Dialog / Drawer, Skeleton (кастомный уже есть), Dropdown Menu, Avatar (реализован кастомно), Toast / Sonner.
 
-Эти компоненты являются ядром нашего продукта и не могут быть взяты "из коробки" без существенной доработки.
+### Custom Components (реализовано)
 
-#### 1. Content Card (PostCard)
-**Purpose:** Универсальная единица контента в ленте.
-**Anatomy:**
-- *Header:* Тег рубрики, Дата, Иконка формата (текст/видео), Кнопка "Опции" (...).
-- *Media Block:* Зона для видеоплеера, галереи или акцентного текстового превью (использует `LazyMediaWrapper`). Максимальная высота ограничена (например, 70vh), чтобы пост не занимал больше одного экрана.
-- *Content:* Заголовок, превью текста (до 3 строк) с кнопкой "Читать далее".
-- *Footer (Social):* Кнопка лайка, Кнопка комментария со счетчиком.
+#### 1. Content Card — `PostCard` (`src/components/feed/PostCard.tsx`)
+**Назначение:** Универсальная единица контента в ленте.
+**Структура (реализована):**
+- *Header:* Аватар (инициалы, `rounded-full bg-primary/20`) → Имя автора + бейдж "Автор" (`bg-primary/10 text-primary`) → Категория (`bg-muted rounded-full`) + дата → Кнопка опций (вертикальное троеточие, `min-h-[44px] min-w-[44px]`).
+- *Content:* Заголовок (`font-heading text-base font-semibold text-balance`), превью текста (`text-sm text-muted-foreground line-clamp-3`).
+- *Type Badge:* Иконка + текст "Видео" или "Фото" для не-текстовых постов.
+- *Footer (Social):* Кнопка лайка (сердечко с Optimistic UI — переключение `fill`/`stroke`, `text-primary` при активации), Кнопка комментария (со счётчиком). Обе — `min-h-[44px] min-w-[44px]`.
+**Props:** `PostCardData` (id, category, title, excerpt, date, likes, comments, author, imageUrl?, type).
+**Skeleton:** `PostCardSkeleton` — `animate-pulse` скелетон, повторяющий анатомию карточки.
 
-#### 2. LazyMediaWrapper (Утилита)
-**Purpose:** Отложенная загрузка тяжелых медиафайлов (фото/видео) с использованием `IntersectionObserver`.
-**Anatomy:** Контейнер-плейсхолдер, который заменяется на реальный медиа-элемент только при приближении к viewport (для достижения NFR LCP ≤ 2.5s).
+#### 2. Sticky Pill Filters — `CategoryScroll` (`src/components/feed/CategoryScroll.tsx`)
+**Назначение:** Быстрая фильтрация архива постов.
+**Рубрики (реализованы):** Все, #insight, #разборы, #съёмка, #reels, #бренды, Тема месяца.
+**Стили:** Default: `bg-muted text-muted-foreground`, Active: `bg-primary text-primary-foreground`. Горизонтальный скролл без скроллбара. `min-h-[44px]` на каждой таблетке. `aria-pressed` для accessibility.
 
-#### 3. Sticky Pill Filters (CategoryScroll)
-**Purpose:** Быстрая навигация и фильтрация архива постов.
-**Anatomy:** Горизонтально скроллящийся контейнер (без скроллбара) с кнопками-таблетками.
-**States:** Default (светло-серый фон), Active (Primary акцентный фон, белый текст).
+#### 3. Bottom Navigation Bar — `MobileNav` (`src/components/navigation/MobileNav.tsx`)
+**Назначение:** Главная навигация для мобильного вида.
+**Вкладки (реализованы):** Лента (`/feed`), Поиск (`/search`), Профиль (`/profile`). 3 иконки с двумя состояниями каждая (outline inactive / filled active).
+**Стили:** `fixed bottom-0 z-20 border-t bg-background/95 backdrop-blur-sm pb-safe`. Active: `text-primary`, Inactive: `text-muted-foreground`. Каждый элемент: `min-h-[60px]`. `aria-label` на каждой ссылке, `aria-current="page"` на активной.
 
-#### 4. Comment Thread (DiscussionNode)
-**Purpose:** Отображение обсуждений с контекстом статуса участника.
-**Anatomy:** Аватар, Бейдж статуса (Новичок/Автор), Имя, Текст, Кнопка "Ответить".
-**Architecture Note:** Ограничение 1 уровня вложенности реализуется как плоский список с визуальным отступом (flat list with padding), избегая сложной рекурсии в стейт-менеджменте.
+#### 4. Landing Sections (6 компонентов в `src/components/landing/`)
 
-#### 5. Bottom Navigation Bar (MobileNav)
-**Purpose:** Главная навигация для мобильного вида.
-**Anatomy:** 3-4 иконки (Лента, Поиск, Профиль).
-**States:** Inactive (серый), Active (Primary цвет + возможно, более толстая иконка).
+- **HeroSection:** Полноэкранный hero (`min-h-[100svh]`) с фоновым фото (`/images/hero-bg.png`) через `next/image`, overlay gradient (`from-foreground/20 via-foreground/40 to-foreground/80`), инвертированная тема (`bg-foreground`, `text-primary-foreground`). Заголовок PRO/CONTENT — `font-serif clamp(3rem,12vw,6rem)`. Две CTA-кнопки: outline primary + outline ghost.
+- **BenefitsSection:** 4 карточки преимуществ (Lucide-иконки: BookOpen, Users, Zap, Archive). Заголовки: `font-serif text-xl uppercase`. Описания: `text-xs tracking-[0.1em] uppercase`.
+- **PreviewPostsSection:** 3 превью-карточки контента (`rounded-2xl border bg-card p-5`). Открытый / заблокированный контент (gradient fade + badge "Для участниц" с иконкой замка). Social counters (лайки, комменты).
+- **TestimonialsSection:** 3 отзыва в `<blockquote>` с аватарами-инициалами, бейджами статуса ("Опытная"/"Участница"), font-serif italic для цитат.
+- **PricingSection:** Две карточки тарифов: **€12,99/месяц** и **€34/3 месяца** (≈€11,33/мес, экономия €4,97). Чек-лист (6 пунктов) общий для обоих планов. CTA: две outline primary кнопки → `/login` (Stripe Checkout — Story 1.4). ⚠️ Текущая реализация содержит ошибку (€29) — требует исправления.
+- **CtaSection:** Финальная секция с инвертированной темой (`bg-foreground`), крупный заголовок serif, CTA-кнопка + ссылка "Уже участница? Войти".
+
+#### 5. Auth Flow (реализован в `src/features/auth/`)
+
+- **AuthContainer** (`src/features/auth/components/AuthContainer.tsx`): Контейнер авторизации с двумя шагами: email → OTP-код. State machine: `'email' | 'otp'`. Обработка ошибок: сетевые (alert banner) и валидационные (inline). Интеграция с Supabase OTP и Zustand store.
+- **LoginForm**: Поле email с инлайн-валидацией (native `validity`). Кнопка "Получить код" (outline primary, `w-[240px]`). Подсказка: "Мы отправим ссылку на ваш email".
+- **OTPVerificationForm**: Поле ввода 6-значного кода (`inputMode="numeric"`, `autoComplete="one-time-code"`). Автофокус при ошибке. Кнопка "Войти" + "Отправить повторно" + "Изменить email". Optimistic: `isLoading` остаётся `true` после успеха до перенаправления.
+- **LoginPage** (`src/app/(public)/login/page.tsx`): Server-side проверка авторизации — если user уже авторизован, redirect на `/feed`. Layout: `min-h-screen items-center justify-center max-w-sm`.
+
+#### 6. Comment Thread — DiscussionNode (не реализован)
+**Статус:** Планируется в Phase 2.
+**Описание:** Аватар, Бейдж статуса (Новичок/Автор), Имя, Текст, Кнопка "Ответить". Ограничение 1 уровня вложенности (flat list + padding).
 
 ### Component Implementation Strategy
 
-1. **Mobile-First Data Fetching:** Компоненты, такие как `PostCard`, должны быть готовы рендериться с частичными данными, показывая `Skeleton` для медиафайлов, пока они грузятся.
-2. **Абстракция логики:** Визуальное представление (UI) должно быть строго отделено от бизнес-логики (API вызовы). Компоненты вроде `PostCard` должны быть "глупыми" (dumb components), получая данные через props.
-3. **Touch-Ready:** Все интерактивные элементы в кастомных компонентах должны строго соблюдать правило 44x44px минимальной области нажатия.
+1. **Стиль кнопок (editorial outline):** Все CTA-кнопки в проекте — outline-стиль: `border border-primary`, без заливки, текст `uppercase tracking-[0.2em]`. Hover: `bg-primary/10`. Это сознательный отход от «filled primary» для создания модного editorial-ощущения.
+2. **Аватары:** Реализованы инлайн (без компонента Avatar из shadcn/ui) — `rounded-full bg-primary/20` с инициалами (`text-xs font-semibold text-primary`).
+3. **Touch-Ready:** Все интерактивные элементы строго соблюдают `min-h-[44px] min-w-[44px]`.
+4. **Абстракция логики:** `PostCard` — presentational component, получает данные через props. Auth-логика вынесена в `features/auth/`.
 
 ### Implementation Roadmap
 
-**Phase 1 - Core (Для запуска MVP)**
-- `MobileNav` (Навигация)
-- `PostCard` (Отображение контента в ленте)
-- `CategoryScroll` (Фильтрация ленты)
+**Phase 1 - Core (✅ реализовано)**
+- ✅ `MobileNav` — навигация (3 вкладки)
+- ✅ `PostCard` + `PostCardSkeleton` — карточка контента с Optimistic UI лайками
+- ✅ `CategoryScroll` — фильтры-таблетки (7 рубрик)
+- ✅ Landing Page — 6 секций (Hero, Benefits, PreviewPosts, Testimonials, Pricing, CTA)
+- ✅ Auth Flow — email → OTP-код через Supabase
+- ✅ Feed Page (placeholder) — заглушка с кнопкой выхода
 
-**Phase 2 - Engagement (Для удержания)**
+**Phase 2 - Engagement (планируется)**
 - `DiscussionNode` (Дерево комментариев)
 - `Bottom Sheet` (Шторка для написания комментария / поиска)
+- Полноценная Feed-страница с реальными данными
 
 **Phase 3 - Admin & Growth**
 - Форма создания поста (Admin)
 - `UserBadge` / Статусы в профиле (Геймификация)
+- Onboarding-экран после оплаты
 
 ## UX Consistency Patterns
 
-### Button Hierarchy
+### Button Hierarchy (реализовано)
 
-Для обеспечения предсказуемости действий Анны, мы устанавливаем строгую иерархию кнопок:
+В проекте принят **editorial outline** стиль кнопок вместо заливки:
 
-- **Primary Button (Главное действие):** Залитая акцентным цветом (Warm Terracotta/Sage). Только одна на экран. *Примеры: "Оплатить подписку", "Опубликовать комментарий", "Вступить в WhatsApp".*
-- **Secondary Button (Вторичное действие):** Outline (с обводкой) или светло-серый фон. *Примеры: "Редактировать профиль", "Отмена".*
-- **Ghost/Icon Button:** Без фона, только иконка. *Примеры: Сердечко (лайк), Иконка комментария, Навигация в Bottom Bar.*
-- **Touch Target:** Минимальный размер любой кликабельной области — 44x44px. Расстояние между двумя кнопками — не менее 8px.
+- **Primary CTA (Главное действие):** Outline с рамкой акцентного цвета: `border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase`. Hover: `bg-primary/10`. Текст: `text-foreground` или `text-primary-foreground` (на тёмных секциях). *Примеры: "Вступить в клуб", "Вступить сейчас", "Получить код", "Войти".*
+- **Secondary CTA:** Outline с полупрозрачной рамкой: `border border-primary-foreground/30 text-primary-foreground/60`. Hover: `border-primary-foreground/60`. *Пример: "Посмотреть превью" на Hero.*
+- **Ghost/Icon Button:** Без фона и рамки, только иконка. `min-h-[44px] min-w-[44px] rounded-lg`. *Примеры: Сердечко (лайк), Иконка комментария, вертикальное троеточие (опции).*
+- **Text Link:** `text-primary underline-offset-4 hover:underline`. *Пример: "Отправить повторно" в OTP-форме.*
+- **Active Filter Pill:** `bg-primary text-primary-foreground rounded-full`. *Пример: активная таблетка в CategoryScroll.*
+- **Touch Target:** `min-h-[44px] min-w-[44px]` на всех интерактивных элементах.
 
-### Feedback Patterns
+### Feedback Patterns (частично реализовано)
 
-Пользователь всегда должен понимать, что происходит, без прерывания своего флоу:
+- **Optimistic Updates (реализовано):** Лайки в `PostCard` — мгновенная смена `fill`/`stroke` иконки сердечка + инкремент/декремент счётчика через локальный state.
+- **Error Alerts (реализовано):** Сетевые ошибки auth — `border-destructive/20 bg-destructive/10 text-destructive rounded-lg border px-4 py-3` с `role="alert"`.
+- **Inline Validation (реализовано):** Ошибки валидации полей — `text-destructive text-sm` под полем, `border-destructive` на input, `aria-invalid`.
+- **Loading States (реализовано):** Кнопки: `disabled:opacity-50 disabled:pointer-events-none` + текст "Отправляем..."/"Проверяем...". Skeleton: `PostCardSkeleton` с `animate-pulse`.
+- **Toast Notifications (планируется):** Sonner — для будущих уведомлений ("Ссылка скопирована", "Пост опубликован").
 
-- **Optimistic Updates:** Лайки и отправка комментариев отображаются мгновенно (сердечко закрашивается сразу). Если запрос к API падает, тихо откатываем стейт и показываем Toast.
-- **Toast Notifications (Sonner):** Всплывающие снизу уведомления, исчезающие через 3 секунды. Используются для некритичных событий ("Ссылка скопирована", "Настройки сохранены").
-- **Skeleton Loading:** Вместо крутящихся лоадеров используем мерцающие серые блоки (skeletons), повторяющие форму ожидаемого контента. Это снижает психологическое ожидание загрузки.
-
-### Form Patterns
+### Form Patterns (реализовано)
 
 Формы сведены к абсолютному минимуму:
 
-- **Авторизация:** Magic Link (ссылка на email) вместо паролей, чтобы избавить Анну от необходимости запоминать еще один пароль.
-- **Инлайн-валидация:** Проверка email'а на лету, кнопка submit становится активной только когда все поля заполнены корректно.
+- **Авторизация (реализовано):** OTP-код (6-значный числовой код на email через Supabase) вместо паролей. Двухшаговый flow: email → OTP.
+- **Инлайн-валидация (реализовано):** Проверка email через `validity.valueMissing` / `validity.typeMismatch`. OTP: regex `^\d{6}$` с автоочисткой не-цифровых символов для удобства копирования. Автофокус на поле при ошибке.
+- **Auth UX (реализовано):** При ошибке OTP поле очищается и получает фокус автоматически. `isLoading` сохраняется после успешной верификации до redirect (блокировка повторных нажатий). URL-ошибки обратного вызова (`?error=auth_callback_error`) отображаются как alert.
 
-### Navigation Patterns
+### Navigation Patterns (реализовано)
 
-- **Mobile Bottom Bar:** Единственный способ перемещения между глобальными разделами (Лента, Поиск, Профиль). Отказ от "Гамбургер-меню".
-- **Infinite Scroll:** Лента подгружается автоматически при скролле вниз (через IntersectionObserver). Не используем пагинацию (кнопки "Страница 1, 2").
-- **BottomSheet Navigation:** Глубокие переходы (например, открыть настройки профиля или написать длинный комментарий) открываются в шторке поверх текущего экрана, чтобы легко вернуться назад свайпом вниз.
+- **Mobile Bottom Bar (реализовано):** `MobileNav` — `fixed bottom-0`, 3 вкладки (Лента, Поиск, Профиль). `backdrop-blur-sm bg-background/95` для полупрозрачности. `pb-safe` для устройств с вырезом.
+- **Infinite Scroll (планируется):** Feed-страница пока в режиме заглушки.
+- **BottomSheet Navigation (планируется):** Для комментариев и настроек.
 
 ### Additional Patterns
 
-- **Empty States (Пустые состояния):** Если поиск по архиву ничего не дал, показываем дружелюбную графику и предлагаем сбросить фильтры или написать вопрос в WhatsApp комьюнити. Никогда не оставляем пользователя на пустом экране без вариантов действий.
+- **Empty States (частично реализовано):** Feed-страница: "Скоро здесь появится контент" + кнопка "Выйти". Полноценные empty states с графикой — планируется.
+- **Server-Side Auth Guard (реализовано):** `(app)/layout.tsx` проверяет сессию Supabase, redirect на `/login` если не авторизован. `(public)/login/page.tsx` — redirect на `/feed` если уже авторизован.
+- **Route Groups:** `(app)` — закрытая зона (требует auth), `(public)` — открытая зона (лендинг, логин).
 
 ## Responsive Design & Accessibility
 
