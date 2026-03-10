@@ -90,12 +90,14 @@ export function PricingSection() {
                   ].join(' ')}>
                     {plan.price}
                   </span>
-                  {/* Fixed-height rows so both buttons stay the same height */}
-                  <span className="text-[10px] text-primary leading-none min-h-[12px]">
-                    {plan.badge ?? ''}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground leading-none min-h-[12px]">
-                    {plan.sub ?? ''}
+                  {/* Sub + badge on same row, always reserve height */}
+                  <span className="flex items-center gap-1.5 min-h-[14px]">
+                    {plan.sub && (
+                      <span className="text-[10px] text-muted-foreground leading-none">{plan.sub}</span>
+                    )}
+                    {plan.badge && (
+                      <span className="text-[10px] text-primary leading-none">{plan.badge}</span>
+                    )}
                   </span>
                 </button>
               )
