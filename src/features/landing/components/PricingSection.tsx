@@ -15,15 +15,17 @@ const features = [
 
 type Plan = 'monthly' | 'quarterly'
 
-const plans: Record<Plan, { label: string; price: string; per: string; sub?: string; badge?: string }> = {
+const plans: Record<Plan, { label: string; integer: string; cents: string; per: string; sub?: string; badge?: string }> = {
   monthly: {
     label: 'Ежемесячно',
-    price: '€12,99',
+    integer: '€12',
+    cents: ',99',
     per: '/ месяц',
   },
   quarterly: {
     label: '3 месяца',
-    price: '€34,00',
+    integer: '€34',
+    cents: ',00',
     per: '/ 3 месяца',
     sub: '≈ €11,33 в месяц',
     badge: 'Экономия €4,97',
@@ -58,7 +60,7 @@ export function PricingSection() {
           {/* Price display — fixed height, no layout jump */}
           <div className="flex items-baseline gap-2">
             <span className="font-serif text-[clamp(2.8rem,10vw,4rem)] font-light leading-none text-foreground">
-              {active.price}
+              {active.integer}<span className="text-[0.45em] align-super">{active.cents}</span>
             </span>
             <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
               {active.per}
@@ -93,7 +95,7 @@ export function PricingSection() {
                     )}
                   </div>
                   <span className={['font-serif text-xl font-light leading-none', isActive ? 'text-foreground' : 'text-foreground/60'].join(' ')}>
-                    {plan.price}
+                    {plan.integer}<span className="text-[0.6em] align-super">{plan.cents}</span>
                   </span>
                   {plan.sub && (
                     <span className="text-[10px] text-muted-foreground mt-0.5">{plan.sub}</span>
