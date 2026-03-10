@@ -1,4 +1,4 @@
-import { PreviewPostCard } from '@/features/landing/components/PreviewPostCard'
+import { PreviewPostCard } from './PreviewPostCard'
 
 const previewPosts = [
   {
