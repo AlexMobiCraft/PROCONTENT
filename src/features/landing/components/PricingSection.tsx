@@ -35,11 +35,9 @@ export function PricingSection() {
               <p className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground">
                 Ежемесячно
               </p>
-              <div className="flex items-end gap-1.5">
-                <span className="font-serif text-5xl font-light leading-none text-foreground">
-                  €12,99
-                </span>
-              </div>
+              <span className="font-serif text-5xl font-light leading-none text-foreground">
+                €12,99
+              </span>
               <p className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
                 / месяц
               </p>
@@ -63,11 +61,9 @@ export function PricingSection() {
                   Экономия €4,97
                 </span>
               </div>
-              <div className="flex items-end gap-1.5">
-                <span className="font-serif text-5xl font-light leading-none text-foreground">
-                  €34
-                </span>
-              </div>
+              <span className="font-serif text-5xl font-light leading-none text-foreground">
+                €34
+              </span>
               <p className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
                 / 3 месяца
               </p>
