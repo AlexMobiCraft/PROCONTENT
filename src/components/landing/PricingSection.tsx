@@ -49,17 +49,17 @@ export function PricingSection() {
                 onClick={() => setSelected(key)}
                 aria-pressed={isActive}
                 className={[
-                  'flex flex-col gap-3 rounded-2xl border p-5 text-left transition-colors cursor-pointer',
+                  'flex flex-col gap-3 border p-5 text-left transition-colors cursor-pointer',
                   isActive
-                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                    : 'border-border bg-card hover:border-primary/40',
+                    ? 'border-primary bg-card'
+                    : 'border-border bg-card hover:border-foreground/30',
                 ].join(' ')}
               >
                 <div className="flex flex-col gap-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground">{plan.label}</p>
                     {plan.badge && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] tracking-wide uppercase text-primary">{plan.badge}</span>
+                      <span className="bg-primary/10 px-2 py-0.5 text-[10px] tracking-wide uppercase text-primary">{plan.badge}</span>
                     )}
                   </div>
                   <span className={['font-serif text-4xl font-light leading-none', isActive ? 'text-foreground' : 'text-foreground/80'].join(' ')}>
@@ -68,8 +68,8 @@ export function PricingSection() {
                   <p className="text-[11px] tracking-[0.1em] uppercase text-muted-foreground">{plan.per}</p>
                   {plan.sub && <p className="text-[10px] text-muted-foreground">{plan.sub}</p>}
                 </div>
-                <div className={['mt-auto flex h-4 w-4 items-center justify-center rounded-full border transition-colors', isActive ? 'border-primary bg-primary' : 'border-border'].join(' ')} aria-hidden>
-                  {isActive && <span className="h-1.5 w-1.5 rounded-full bg-background" />}
+                <div className={['mt-auto flex h-4 w-4 items-center justify-center border transition-colors', isActive ? 'border-primary bg-primary' : 'border-border'].join(' ')} aria-hidden>
+                  {isActive && <span className="h-1.5 w-1.5 bg-background" />}
                 </div>
               </button>
             )
