@@ -1,6 +1,6 @@
 # Story 1.3: Публичный лендинг (Landing Page UI)
 
-Status: review
+Status: done
 
 ## Story
 

@@ -6,10 +6,12 @@ vi.mock('next/image', () => ({
   default: ({
     src,
     alt,
+    fill,
+    priority,
     ...props
-  }: { src: string; alt: string; [key: string]: unknown }) => (
+  }: { src: string; alt: string; fill?: boolean; priority?: boolean; [key: string]: unknown }) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} {...props} />
+    <img src={src} alt={alt} data-fill={fill} data-priority={priority} {...props} />
   ),
 }))
 

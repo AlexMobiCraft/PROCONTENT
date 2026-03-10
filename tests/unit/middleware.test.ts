@@ -13,7 +13,7 @@ vi.mock('@supabase/ssr', () => ({
   }),
 }))
 
-import { middleware } from '@/middleware'
+import { updateSession } from '@/lib/supabase/middleware'
 
 describe('middleware', () => {
   beforeEach(() => {
@@ -27,7 +27,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
 
       const req = new NextRequest('http://localhost:3000/feed')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       expect(response.status).toBe(307)
       expect(response.headers.get('location')).toBe('http://localhost:3000/login')
@@ -37,7 +37,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
 
       const req = new NextRequest('http://localhost:3000/profile')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       expect(response.status).toBe(307)
       expect(response.headers.get('location')).toBe('http://localhost:3000/login')
@@ -47,7 +47,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
 
       const req = new NextRequest('http://localhost:3000/login')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       expect(response.status).not.toBe(307)
     })
@@ -56,7 +56,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
 
       const req = new NextRequest('http://localhost:3000/auth/callback')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       expect(response.status).not.toBe(307)
     })
@@ -65,7 +65,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
 
       const req = new NextRequest('http://localhost:3000/')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       expect(response.status).not.toBe(307)
     })
@@ -76,7 +76,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
 
       const req = new NextRequest('http://localhost:3000/dashboard')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       expect(response.status).toBe(307)
       expect(response.headers.get('location')).toBe('http://localhost:3000/login')
@@ -88,7 +88,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
 
       const req = new NextRequest('http://localhost:3000/protected')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       // Редирект должен вернуться с корректным Location
       expect(response.status).toBe(307)
@@ -103,7 +103,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
 
       const req = new NextRequest('http://localhost:3000/login')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       expect(response.status).toBe(307)
       expect(response.headers.get('location')).toBe('http://localhost:3000/feed')
@@ -113,7 +113,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
 
       const req = new NextRequest('http://localhost:3000/feed')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       expect(response.status).not.toBe(307)
     })
@@ -122,7 +122,7 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
 
       const req = new NextRequest('http://localhost:3000/auth/callback')
-      const response = await middleware(req)
+      const response = await updateSession(req)
 
       expect(response.status).not.toBe(307)
     })
