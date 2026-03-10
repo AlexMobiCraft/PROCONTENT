@@ -15,17 +15,15 @@ const features = [
 
 type Plan = 'monthly' | 'quarterly'
 
-const plans: Record<Plan, { label: string; price: string; priceShort: string; per: string; sub?: string; badge?: string }> = {
+const plans: Record<Plan, { label: string; price: string; per: string; sub?: string; badge?: string }> = {
   monthly: {
     label: 'Ежемесячно',
     price: '€12,99',
-    priceShort: '€12,99',
     per: '/ месяц',
   },
   quarterly: {
     label: '3 месяца',
     price: '€34,00',
-    priceShort: '€34',
     per: '/ 3 месяца',
     sub: '≈ €11,33 / мес.',
     badge: 'Экономия €4,97',
@@ -77,20 +75,22 @@ export function PricingSection() {
                   onClick={() => setSelected(key)}
                   aria-pressed={isActive}
                   className={[
-                    'flex flex-col gap-1 border px-3 py-3 text-left transition-colors cursor-pointer',
+                    'flex flex-col gap-1.5 border px-3 py-3 text-left transition-colors cursor-pointer',
                     isActive ? 'border-primary' : 'border-border hover:border-foreground/30',
                   ].join(' ')}
                 >
+                  {/* Period label */}
                   <span className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground leading-none">
                     {plan.label}
                   </span>
+                  {/* Price */}
                   <span className={[
-                      'font-serif text-2xl font-light leading-none [font-variant-numeric:lining-nums_tabular-nums]',
-                      isActive ? 'text-foreground' : 'text-foreground/60',
-                    ].join(' ')}>
-                    {plan.priceShort}
+                    'font-serif text-lg font-light leading-none [font-variant-numeric:lining-nums_tabular-nums]',
+                    isActive ? 'text-foreground' : 'text-foreground/60',
+                  ].join(' ')}>
+                    {plan.price}
                   </span>
-                  {/* Sub-label and badge always reserve space to avoid height jump */}
+                  {/* Fixed-height rows so both buttons stay the same height */}
                   <span className="text-[10px] text-primary leading-none min-h-[12px]">
                     {plan.badge ?? ''}
                   </span>
