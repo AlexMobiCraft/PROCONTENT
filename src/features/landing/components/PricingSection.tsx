@@ -15,41 +15,19 @@ const features = [
 
 type Plan = 'monthly' | 'quarterly'
 
-const plans: Record<Plan, { label: string; integer: string; cents: string; per: string; sub?: string; badge?: string }> = {
+const plans: Record<Plan, { label: string; price: string; per: string; sub?: string; badge?: string }> = {
   monthly: {
     label: 'Ежемесячно',
-    integer: '€12',
-    cents: ',99',
+    price: '€12,99',
     per: '/ месяц',
   },
   quarterly: {
     label: '3 месяца',
-    integer: '€34',
-    cents: ',00',
+    price: '€34,00',
     per: '/ 3 месяца',
     sub: '≈ €11,33 / мес.',
     badge: 'Экономия €4,97',
   },
-}
-
-// Renders a price with consistent sizing: large integer, small superscript cents
-function PriceDisplay({
-  integer,
-  cents,
-  integerClass,
-  centsClass,
-}: {
-  integer: string
-  cents: string
-  integerClass: string
-  centsClass: string
-}) {
-  return (
-    <span className={integerClass}>
-      {integer}
-      <span className={centsClass}>{cents}</span>
-    </span>
-  )
 }
 
 export function PricingSection() {
@@ -76,14 +54,11 @@ export function PricingSection() {
         {/* Unified card */}
         <div className="rounded-lg border border-border bg-card px-5 py-6 sm:px-8 sm:py-8 flex flex-col gap-5">
 
-          {/* Price — fixed font sizes, no clamp, no layout shift */}
+          {/* Price — single string, fixed size, no superscript */}
           <div className="flex items-baseline gap-2">
-            <PriceDisplay
-              integer={active.integer}
-              cents={active.cents}
-              integerClass="font-serif text-5xl font-light leading-none text-foreground"
-              centsClass="text-2xl align-super leading-none"
-            />
+            <span className="font-serif text-5xl font-light leading-none text-foreground">
+              {active.price}
+            </span>
             <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
               {active.per}
             </span>
@@ -107,15 +82,12 @@ export function PricingSection() {
                   <span className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground leading-none">
                     {plan.label}
                   </span>
-                  <PriceDisplay
-                    integer={plan.integer}
-                    cents={plan.cents}
-                    integerClass={[
+                  <span className={[
                       'font-serif text-2xl font-light leading-none',
                       isActive ? 'text-foreground' : 'text-foreground/60',
-                    ].join(' ')}
-                    centsClass="text-sm align-super leading-none"
-                  />
+                    ].join(' ')}>
+                    {plan.price}
+                  </span>
                   {/* Sub-label and badge always reserve space to avoid height jump */}
                   <span className="text-[10px] text-primary leading-none min-h-[12px]">
                     {plan.badge ?? ''}
