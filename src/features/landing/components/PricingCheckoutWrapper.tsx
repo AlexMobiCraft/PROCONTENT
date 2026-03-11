@@ -1,22 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { PricingSection } from './PricingSection'
+import { toast } from 'sonner'
 import { startCheckout } from '../api/checkout'
+import { PricingSection } from './PricingSection'
 
 export function PricingCheckoutWrapper() {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
-  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   async function handleCheckout(plan: 'monthly' | 'quarterly') {
     setIsCheckoutLoading(true)
-    setCheckoutError(null)
 
     try {
       const url = await startCheckout(plan)
       window.location.href = url
     } catch (error) {
-      setCheckoutError(
+      toast.error(
         error instanceof Error
           ? error.message
           : 'Не удалось начать оформление. Попробуйте снова.'
@@ -25,11 +24,5 @@ export function PricingCheckoutWrapper() {
     }
   }
 
-  return (
-    <PricingSection
-      onCheckout={handleCheckout}
-      isLoading={isCheckoutLoading}
-      errorMessage={checkoutError}
-    />
-  )
+  return <PricingSection onCheckout={handleCheckout} isLoading={isCheckoutLoading} />
 }

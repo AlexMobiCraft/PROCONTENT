@@ -119,6 +119,13 @@ so that оформить подписку через надёжный шлюз S
     - Тест: ошибочный ответ → показывается inline-сообщение об ошибке
     - Тест: кнопка с `aria-disabled` или `disabled` атрибутом во время загрузки
 
+### Review Follow-ups (AI)
+- [x] [AI-Review][High] Исправить AC 5: реализовать системное Toast-уведомление (например, через `sonner`) вместо inline-ошибки [src/features/landing/components/PricingCheckoutWrapper.tsx:19]
+- [x] [AI-Review][Medium] Добавить логирование ошибок (`console.error`) в `catch` блоках [src/app/api/checkout/route.ts:9]
+- [x] [AI-Review][Medium] Добавить проверку наличия Environment Variables для Stripe Price ID [src/app/api/checkout/route.ts:19]
+- [x] [AI-Review][Medium] Избегать Type Casting (`url!`) в клиентском API-хелпере [src/features/landing/api/checkout.ts:14]
+- [x] [AI-Review][Medium] Добавить недостающие тесты для Smart-контейнера `PricingCheckoutWrapper.tsx`
+
 ## Dev Notes
 
 ### Критически важный контекст (предыдущие истории)
@@ -269,6 +276,11 @@ claude-sonnet-4-6
 - Task 3: Создан `src/app/api/checkout/route.ts` — POST handler без `'use client'`. Валидация plan, try/catch для JSON-парсинга и Stripe-ошибок. Буквальная шаблонная строка `{CHECKOUT_SESSION_ID}` для Stripe.
 - Task 4: `page.tsx` — Server Component, поэтому состояние и обработчик вынесены в `PricingCheckoutWrapper.tsx` (новый Client Component). `PricingSection` стал Dumb Component с props `onCheckout`, `isLoading`, `errorMessage`. Inline error state вместо `sonner` (не установлен; тесты ожидают `role="alert"` — inline подход).
 - Task 5: 12 тестов (5 route + 7 PricingSection). Все 109 тестов проходят. TypeScript: 0 ошибок.
+- ✅ Resolved review finding [High]: Установлен `sonner@^2`, добавлен `<Toaster />` в layout.tsx, `PricingCheckoutWrapper` использует `toast.error()` вместо inline-ошибки, `errorMessage` prop удалён из `PricingSection`.
+- ✅ Resolved review finding [Medium]: Добавлен `console.error` в оба `catch` блока `route.ts`.
+- ✅ Resolved review finding [Medium]: Добавлена проверка `if (!priceId)` с возвратом 500 до вызова Stripe.
+- ✅ Resolved review finding [Medium]: Удалён `url!` в `checkout.ts` — заменён явной проверкой `if (!data.url)`.
+- ✅ Resolved review finding [Medium]: Создан `PricingCheckoutWrapper.test.tsx` — 5 тестов (loading state, redirect, toast.error, кнопка разблокируется, fallback toast). Итого: 113 тестов, 0 ошибок TypeScript.
 
 ### File List
 
@@ -282,5 +294,13 @@ claude-sonnet-4-6
 - `src/features/landing/components/PricingCheckoutWrapper.tsx` (создан)
 - `src/features/landing/components/PricingSection.tsx` (модифицирован)
 - `src/app/page.tsx` (модифицирован)
-- `tests/unit/app/api/checkout/route.test.ts` (создан)
-- `tests/unit/features/landing/components/PricingSection.checkout.test.tsx` (создан)
+- `tests/unit/app/api/checkout/route.test.ts` (модифицирован — добавлен тест missing Price ID env)
+- `tests/unit/features/landing/components/PricingSection.checkout.test.tsx` (модифицирован — удалены тесты errorMessage)
+- `tests/unit/features/landing/components/PricingCheckoutWrapper.test.tsx` (создан)
+- `package.json` (модифицирован — добавлен `sonner`)
+- `package-lock.json` (модифицирован)
+- `src/app/layout.tsx` (модифицирован — добавлен `<Toaster />`)
+- `src/features/landing/components/PricingCheckoutWrapper.tsx` (модифицирован — toast вместо inline-ошибки)
+- `src/features/landing/components/PricingSection.tsx` (модифицирован — удалён prop `errorMessage`)
+- `src/features/landing/api/checkout.ts` (модифицирован — убран `url!`, добавлена явная проверка)
+- `src/app/api/checkout/route.ts` (модифицирован — console.error + проверка env Price ID)

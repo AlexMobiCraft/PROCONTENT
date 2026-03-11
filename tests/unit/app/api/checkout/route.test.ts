@@ -95,4 +95,15 @@ describe('POST /api/checkout', () => {
     expect(response.status).toBe(500)
     expect(data).toHaveProperty('error')
   })
+
+  it('возвращает 500 если отсутствует env-переменная Price ID', async () => {
+    delete process.env.STRIPE_MONTHLY_PRICE_ID
+
+    const response = await POST(makeRequest({ plan: 'monthly' }))
+    const data = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(data).toHaveProperty('error')
+    expect(mockSessionsCreate).not.toHaveBeenCalled()
+  })
 })

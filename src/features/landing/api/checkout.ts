@@ -11,5 +11,9 @@ export async function startCheckout(plan: 'monthly' | 'quarterly'): Promise<stri
     throw new Error(data.error ?? 'Не удалось начать оформление. Попробуйте снова.')
   }
 
-  return data.url!
+  if (!data.url) {
+    throw new Error('Не удалось начать оформление. Попробуйте снова.')
+  }
+
+  return data.url
 }

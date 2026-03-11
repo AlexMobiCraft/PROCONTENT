@@ -32,10 +32,9 @@ const plans: Record<Plan, { label: string; price: string; per: string; sub?: str
 interface PricingSectionProps {
   onCheckout: (plan: 'monthly' | 'quarterly') => void
   isLoading: boolean
-  errorMessage?: string | null
 }
 
-export function PricingSection({ onCheckout, isLoading, errorMessage }: PricingSectionProps) {
+export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
   const [selected, setSelected] = useState<Plan>('quarterly')
   const active = plans[selected]
 
@@ -129,11 +128,6 @@ export function PricingSection({ onCheckout, isLoading, errorMessage }: PricingS
             >
               {isLoading ? 'Загрузка...' : 'Вступить сейчас'}
             </button>
-            {errorMessage && (
-              <p role="alert" className="text-[11px] text-destructive text-center">
-                {errorMessage}
-              </p>
-            )}
             <p className="text-[11px] text-muted-foreground text-center">
               Безопасная оплата через Stripe · Отмена в 1 клик.
             </p>

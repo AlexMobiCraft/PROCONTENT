@@ -21,6 +21,11 @@ export async function POST(request: Request) {
       ? process.env.STRIPE_MONTHLY_PRICE_ID
       : process.env.STRIPE_QUARTERLY_PRICE_ID
 
+  if (!priceId) {
+    console.error(`[checkout] Отсутствует переменная окружения для тарифа: ${plan}`)
+    return NextResponse.json({ error: 'Конфигурация тарифа недоступна' }, { status: 500 })
+  }
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -32,7 +37,8 @@ export async function POST(request: Request) {
     })
 
     return NextResponse.json({ url: session.url }, { status: 200 })
-  } catch {
+  } catch (error) {
+    console.error('[checkout] Ошибка Stripe при создании сессии:', error)
     return NextResponse.json({ error: 'Ошибка при создании сессии' }, { status: 500 })
   }
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Cormorant_Garamond, Barlow_Condensed } from 'next/font/google'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 // Editorial serif for large headings — high-contrast thin/thick strokes
@@ -37,7 +38,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className={`${cormorant.variable} ${barlow.variable}`}>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <Toaster richColors position="top-center" />
+      </body>
     </html>
   )
 }
