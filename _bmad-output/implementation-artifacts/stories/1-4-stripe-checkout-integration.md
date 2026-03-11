@@ -1,6 +1,6 @@
 # Story 1.4: Интеграция Stripe Checkout
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -42,9 +42,9 @@ so that оформить подписку через надёжный шлюз S
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Установка Stripe SDK и настройка окружения** (AC: 1)
-  - [ ] Subtask 1.1: Установить пакет `npm install stripe` (server-side SDK, последняя стабильная версия)
-  - [ ] Subtask 1.2: Добавить в `.env.local` переменные:
+- [x] **Task 1: Установка Stripe SDK и настройка окружения** (AC: 1)
+  - [x] Subtask 1.1: Установить пакет `npm install stripe` (server-side SDK, последняя стабильная версия)
+  - [x] Subtask 1.2: Добавить в `.env.local` переменные:
     ```
     STRIPE_SECRET_KEY=sk_test_...
     STRIPE_MONTHLY_PRICE_ID=price_...
@@ -52,11 +52,11 @@ so that оформить подписку через надёжный шлюз S
     NEXT_PUBLIC_SITE_URL=http://localhost:3000
     ```
     ⚠️ `STRIPE_SECRET_KEY` — без префикса `NEXT_PUBLIC_`, иначе это критическая уязвимость безопасности
-  - [ ] Subtask 1.3: Добавить те же ключи в `.env.example` с placeholder-значениями (без реальных ключей)
-  - [ ] Subtask 1.4: Добавить в `next.config.mjs` переменную `NEXT_PUBLIC_SITE_URL` в `env` config (если требуется)
+  - [x] Subtask 1.3: Добавить те же ключи в `.env.example` с placeholder-значениями (без реальных ключей)
+  - [x] Subtask 1.4: Добавить в `next.config.mjs` переменную `NEXT_PUBLIC_SITE_URL` в `env` config (если требуется)
 
-- [ ] **Task 2: Создание Stripe helper** (AC: 1)
-  - [ ] Subtask 2.1: Создать `src/lib/stripe/index.ts` — инициализация Stripe-клиента:
+- [x] **Task 2: Создание Stripe helper** (AC: 1)
+  - [x] Subtask 2.1: Создать `src/lib/stripe/index.ts` — инициализация Stripe-клиента:
     ```typescript
     import Stripe from 'stripe'
 
@@ -67,8 +67,8 @@ so that оформить подписку через надёжный шлюз S
     ```
     ⚠️ Этот файл ТОЛЬКО для серверного использования. Никогда не импортировать в `'use client'` компоненты.
 
-- [ ] **Task 3: Создание Route Handler для Checkout** (AC: 1, 2, 3, 4, 5)
-  - [ ] Subtask 3.1: Создать `src/app/api/checkout/route.ts`:
+- [x] **Task 3: Создание Route Handler для Checkout** (AC: 1, 2, 3, 4, 5)
+  - [x] Subtask 3.1: Создать `src/app/api/checkout/route.ts`:
     - Метод: `POST`
     - Тело запроса: `{ plan: 'monthly' | 'quarterly' }`
     - Парсинг тела: обернуть `request.json()` в try/catch — при ошибке парсинга (невалидный JSON, отсутствие `Content-Type: application/json`) → вернуть 400 с сообщением `'Некорректный формат запроса'`
@@ -87,32 +87,32 @@ so that оформить подписку через надёжный шлюз S
       ```
     - Вернуть: `NextResponse.json({ url: session.url }, { status: 200 })`
     - Обёрнуть в try/catch: при ошибке Stripe → `NextResponse.json({ error: 'Ошибка при создании сессии' }, { status: 500 })`
-  - [ ] Subtask 3.2: Убедиться, что файл НЕ имеет `'use client'` директивы (Route Handlers — серверный код)
+  - [x] Subtask 3.2: Убедиться, что файл НЕ имеет `'use client'` директивы (Route Handlers — серверный код)
 
-- [ ] **Task 4: Обновление архитектуры лендинга — подключение Checkout (Smart/Dumb)** (AC: 1, 2, 5, 6)
-  - [ ] Subtask 4.1: Создать API helper `src/features/landing/api/checkout.ts` (или добавить функцию সরাসরি в `src/app/page.tsx`):
+- [x] **Task 4: Обновление архитектуры лендинга — подключение Checkout (Smart/Dumb)** (AC: 1, 2, 5, 6)
+  - [x] Subtask 4.1: Создать API helper `src/features/landing/api/checkout.ts` (или добавить функцию সরাসরি в `src/app/page.tsx`):
     - Функция делает вызов `fetch` к `POST /api/checkout` с `{ plan }`.
     - При ошибке выбрасывает `Error` с сообщением от сервера.
-  - [ ] Subtask 4.2: Обновить Smart-контейнер лендинга (`src/app/page.tsx`):
+  - [x] Subtask 4.2: Обновить Smart-контейнер лендинга (`src/app/page.tsx`):
     - Добавить состояние (в самом верху компонента, если он `"use client"`, или вынести логику в оболочку-контейнер): `const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)`.
     - Создать handler `handleCheckout(plan)`: вызывает API (Subtask 4.1), делает `window.location.href = url` при успехе.
     - При возникновении ошибки (в блоке `catch()`) вызвать глобальный toast (например, из библиотеки sonner): `toast.error('Не удалось начать оформление. Попробуйте снова.')` и сбросить загрузку.
     - Передать `isCheckoutLoading` и `handleCheckout` как props вниз в `PricingSection`.
-  - [ ] Subtask 4.3: Обновить Dumb UI `src/features/landing/components/PricingSection.tsx` (или `src/components/landing/PricingSection.tsx` в зависимости от того, как реализована Story 1.3):
+  - [x] Subtask 4.3: Обновить Dumb UI `src/features/landing/components/PricingSection.tsx` (или `src/components/landing/PricingSection.tsx` в зависимости от того, как реализована Story 1.3):
     - Добавить принимаемые properties: `{ onCheckout: (plan: 'monthly' | 'quarterly') => void, isLoading: boolean }`.
     - Заменить `<Link href="/login">` на `<button>` с `onClick={() => onCheckout(selected)}` и `disabled={isLoading}`.
     - Сохранить все существующие классы кнопки + добавить `disabled:opacity-50 disabled:cursor-not-allowed`.
     - Кнопка в disabled-состоянии должна показывать текст "Загрузка..." или добавлять spinner. Проверить сохранение размера `min-h-[48px]`.
 
-- [ ] **Task 5: Написание тестов** (AC: 1, 5)
-  - [ ] Subtask 5.1: Создать `tests/unit/app/api/checkout/route.test.ts`:
+- [x] **Task 5: Написание тестов** (AC: 1, 5)
+  - [x] Subtask 5.1: Создать `tests/unit/app/api/checkout/route.test.ts`:
     - Mock `stripe.checkout.sessions.create` через jest.mock/vi.mock
     - Тест: `POST { plan: 'monthly' }` → returns `{ url: 'https://checkout.stripe.com/...' }` со статусом 200
     - Тест: `POST { plan: 'quarterly' }` → использует `STRIPE_QUARTERLY_PRICE_ID`
     - Тест: `POST { plan: 'invalid' }` → returns 400
     - Тест: невалидный JSON в теле запроса → returns 400
     - Тест: Stripe выбрасывает ошибку → returns 500
-  - [ ] Subtask 5.2: Создать `tests/unit/features/landing/components/PricingSection.checkout.test.tsx`:
+  - [x] Subtask 5.2: Создать `tests/unit/features/landing/components/PricingSection.checkout.test.tsx`:
     - Mock `fetch` через `vi.fn()` или `jest.fn()`
     - Тест: клик на кнопку → кнопка переходит в disabled во время загрузки
     - Тест: успешный ответ `{ url: '...' }` → `window.location.href` установлен
@@ -260,6 +260,27 @@ claude-sonnet-4-6
 
 ### Debug Log References
 
+Исправление hoisting: заменил `const mockSessionsCreate = vi.fn()` на `vi.hoisted(() => vi.fn())` в route.test.ts — стандартная Vitest практика для фабрик `vi.mock`.
+
 ### Completion Notes List
 
+- Task 1: Установлен `stripe@20.4.1`. Переменные добавлены в `.env.local` и `.env.example`. `next.config.ts` не требовал изменений (NEXT_PUBLIC_ переменные автоматически доступны).
+- Task 2: Создан `src/lib/stripe/index.ts` с apiVersion `2026-02-25.clover` (из `node_modules/stripe/cjs/apiVersion.js`).
+- Task 3: Создан `src/app/api/checkout/route.ts` — POST handler без `'use client'`. Валидация plan, try/catch для JSON-парсинга и Stripe-ошибок. Буквальная шаблонная строка `{CHECKOUT_SESSION_ID}` для Stripe.
+- Task 4: `page.tsx` — Server Component, поэтому состояние и обработчик вынесены в `PricingCheckoutWrapper.tsx` (новый Client Component). `PricingSection` стал Dumb Component с props `onCheckout`, `isLoading`, `errorMessage`. Inline error state вместо `sonner` (не установлен; тесты ожидают `role="alert"` — inline подход).
+- Task 5: 12 тестов (5 route + 7 PricingSection). Все 109 тестов проходят. TypeScript: 0 ошибок.
+
 ### File List
+
+- `package.json` (модифицирован — добавлен `stripe@20.4.1`)
+- `package-lock.json` (модифицирован)
+- `.env.local` (модифицирован — добавлены Stripe переменные)
+- `.env.example` (модифицирован — добавлены Stripe переменные-placeholders)
+- `src/lib/stripe/index.ts` (создан)
+- `src/app/api/checkout/route.ts` (создан)
+- `src/features/landing/api/checkout.ts` (создан)
+- `src/features/landing/components/PricingCheckoutWrapper.tsx` (создан)
+- `src/features/landing/components/PricingSection.tsx` (модифицирован)
+- `src/app/page.tsx` (модифицирован)
+- `tests/unit/app/api/checkout/route.test.ts` (создан)
+- `tests/unit/features/landing/components/PricingSection.checkout.test.tsx` (создан)

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { Check } from 'lucide-react'
 
 const features = [
@@ -30,7 +29,13 @@ const plans: Record<Plan, { label: string; price: string; per: string; sub?: str
   },
 }
 
-export function PricingSection() {
+interface PricingSectionProps {
+  onCheckout: (plan: 'monthly' | 'quarterly') => void
+  isLoading: boolean
+  errorMessage?: string | null
+}
+
+export function PricingSection({ onCheckout, isLoading, errorMessage }: PricingSectionProps) {
   const [selected, setSelected] = useState<Plan>('quarterly')
   const active = plans[selected]
 
@@ -116,12 +121,19 @@ export function PricingSection() {
 
           {/* CTA */}
           <div className="flex flex-col items-center gap-3">
-            <Link
-              href="/login"
-              className="inline-flex min-h-[48px] w-full items-center justify-center border border-primary bg-transparent px-8 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10"
+            <button
+              type="button"
+              onClick={() => onCheckout(selected)}
+              disabled={isLoading}
+              className="inline-flex min-h-[48px] w-full items-center justify-center border border-primary bg-transparent px-8 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Вступить сейчас
-            </Link>
+              {isLoading ? 'Загрузка...' : 'Вступить сейчас'}
+            </button>
+            {errorMessage && (
+              <p role="alert" className="text-[11px] text-destructive text-center">
+                {errorMessage}
+              </p>
+            )}
             <p className="text-[11px] text-muted-foreground text-center">
               Безопасная оплата через Stripe · Отмена в 1 клик.
             </p>
