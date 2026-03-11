@@ -19,21 +19,13 @@ import { PricingCheckoutWrapper } from '@/features/landing/components/PricingChe
 const mockStartCheckout = vi.mocked(startCheckout)
 
 describe('PricingCheckoutWrapper', () => {
-  const originalLocation = window.location
-
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'location', {
-      value: { href: '' },
-      writable: true,
-    })
+    vi.stubGlobal('location', { href: '' })
   })
 
   afterEach(() => {
-    Object.defineProperty(window, 'location', {
-      value: originalLocation,
-      writable: true,
-    })
+    vi.unstubAllGlobals()
   })
 
   it('кнопка переходит в disabled во время загрузки', async () => {

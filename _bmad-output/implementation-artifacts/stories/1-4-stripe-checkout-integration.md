@@ -1,6 +1,6 @@
 # Story 1.4: Интеграция Stripe Checkout
 
-Status: review
+Status: done
 
 ## Story
 
@@ -317,6 +317,7 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [Low]: PricingSection.tsx — `animate-pulse` на тексте "Загрузка...".
 - ✅ Resolved review finding [Low]: Subtask 1.4 — исправлено `next.config.mjs` → `next.config.ts` (реальный файл в проекте).
 - ✅ Resolved review finding [Low]: route.ts — добавлена явная проверка `!('plan' in body)` перед кастингом. Добавлен тест на `{}` payload. Итого: 118 тестов, 0 ошибок TypeScript.
+- ✅ Resolved code-review finding [Critical]: Ручное заполнение ключей Stripe в `.env.local` пользователем. Успешный `npm install sonner` исправил сломанный тест. Все тесты проходят (100%).
 
 ### File List
 

@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 
+type Plan = 'monthly' | 'quarterly'
+
+function isPlan(value: unknown): value is Plan {
+  return value === 'monthly' || value === 'quarterly'
+}
+
 export async function POST(request: Request) {
   let body: unknown
 
@@ -20,7 +26,7 @@ export async function POST(request: Request) {
 
   const { plan } = body as { plan: unknown }
 
-  if (plan !== 'monthly' && plan !== 'quarterly') {
+  if (!isPlan(plan)) {
     return NextResponse.json({ error: 'Некорректный тариф' }, { status: 400 })
   }
 
