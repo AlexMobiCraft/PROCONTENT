@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import type { Database } from '@/types/supabase'
 
 export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -12,7 +13,7 @@ export async function updateSession(request: NextRequest) {
 
   let supabaseResponse = NextResponse.next({ request })
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll()
@@ -53,6 +54,23 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // Task 4.1 (NFR7): инвалидация доступа при subscription_status = 'inactive'
+  // Проверяем только для аутентифицированных пользователей на защищённых маршрутах
+  if (user && !isPublicPath) {
+    type ProfileRow = { subscription_status: string | null }
+    const { data: profile } = (await supabase
+      .from('profiles')
+      .select('subscription_status')
+      .eq('id', user.id)
+      .single()) as { data: ProfileRow | null; error: unknown }
+
+    if (profile?.subscription_status === 'inactive') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

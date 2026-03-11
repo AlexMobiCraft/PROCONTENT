@@ -1,15 +1,20 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetUser } = vi.hoisted(() => ({
-  mockGetUser: vi.fn(),
-}))
+const { mockGetUser, mockSingle, mockEq, mockSelect, mockFrom } = vi.hoisted(() => {
+  const mockSingle = vi.fn()
+  const mockEq = vi.fn().mockReturnThis()
+  const mockSelect = vi.fn()
+  const mockFrom = vi.fn()
+  return { mockGetUser: vi.fn(), mockSingle, mockEq, mockSelect, mockFrom }
+})
 
 vi.mock('@supabase/ssr', () => ({
   createServerClient: () => ({
     auth: {
       getUser: mockGetUser,
     },
+    from: mockFrom,
   }),
 }))
 
@@ -20,6 +25,12 @@ describe('middleware', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
+
+    // По умолчанию: пользователь с активной подпиской
+    mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+    mockEq.mockReturnValue({ single: mockSingle })
+    mockSelect.mockReturnValue({ eq: mockEq })
+    mockFrom.mockReturnValue({ select: mockSelect })
   })
 
   describe('неавторизованный пользователь', () => {
@@ -124,6 +135,52 @@ describe('middleware', () => {
       const req = new NextRequest('http://localhost:3000/auth/callback')
       const response = await updateSession(req)
 
+      expect(response.status).not.toBe(307)
+    })
+  })
+
+  describe('управление доступом по subscription_status (NFR7, Task 4.1)', () => {
+    const mockUser = { id: 'user-123', email: 'test@example.com' }
+
+    it('редиректит на / при subscription_status = inactive', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/')
+    })
+
+    it('пропускает пользователя с active подпиской', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('пропускает пользователя с null subscription_status (новый, не привязан)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: null } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('не проверяет подписку на публичных маршрутах (/)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
+
+      const req = new NextRequest('http://localhost:3000/')
+      const response = await updateSession(req)
+
+      // На публичных маршрутах аутентифицированный пользователь не редиректится
       expect(response.status).not.toBe(307)
     })
   })
