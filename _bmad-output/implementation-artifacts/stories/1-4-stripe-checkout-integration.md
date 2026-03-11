@@ -32,8 +32,9 @@ so that оформить подписку через надёжный шлюз S
 5. **Given** Route Handler `POST /api/checkout` получает некорректный тариф или возникает ошибка Stripe
    **When** запрос обрабатывается
    **Then** возвращается HTTP 400/500 с понятным сообщением
-   **And** клиент показывает Toast с ошибкой ("Не удалось начать оформление. Попробуйте снова.")
+   **And** клиент показывает inline-сообщение об ошибке под кнопкой ("Не удалось начать оформление. Попробуйте снова.")
    **And** кнопка разблокируется для повторной попытки
+   **And** при повторном нажатии предыдущее сообщение об ошибке сбрасывается
 
 6. **Given** кнопка "Вступить сейчас" нажата
    **When** идёт загрузка (ожидание ответа от `/api/checkout`)
@@ -61,7 +62,7 @@ so that оформить подписку через надёжный шлюз S
     import Stripe from 'stripe'
 
     export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2025-XX-XX', // использовать актуальную версию API из SDK
+      apiVersion: '...', // Определить актуальную apiVersion из установленного пакета stripe (проверить node_modules/stripe/package.json, types или CHANGELOG.md)
       typescript: true,
     })
     ```
@@ -71,6 +72,7 @@ so that оформить подписку через надёжный шлюз S
   - [ ] Subtask 3.1: Создать `src/app/api/checkout/route.ts`:
     - Метод: `POST`
     - Тело запроса: `{ plan: 'monthly' | 'quarterly' }`
+    - Парсинг тела: обернуть `request.json()` в try/catch — при ошибке парсинга (невалидный JSON, отсутствие `Content-Type: application/json`) → вернуть 400 с сообщением `'Некорректный формат запроса'`
     - Валидация: если `plan` не `monthly` или `quarterly` → вернуть 400
     - Выбор Price ID: `plan === 'monthly' ? process.env.STRIPE_MONTHLY_PRICE_ID : process.env.STRIPE_QUARTERLY_PRICE_ID`
     - Создание сессии:
@@ -106,7 +108,8 @@ so that оформить подписку через надёжный шлюз S
           const data = await res.json()
           if (!res.ok || !data.url) throw new Error(data.error || 'Неизвестная ошибка')
           window.location.href = data.url
-        } catch {
+        } catch (error) {
+          console.error('Checkout error:', error)
           setCheckoutError('Не удалось начать оформление. Попробуйте снова.')
           setIsLoading(false)
         }
@@ -124,6 +127,7 @@ so that оформить подписку через надёжный шлюз S
     - Тест: `POST { plan: 'monthly' }` → returns `{ url: 'https://checkout.stripe.com/...' }` со статусом 200
     - Тест: `POST { plan: 'quarterly' }` → использует `STRIPE_QUARTERLY_PRICE_ID`
     - Тест: `POST { plan: 'invalid' }` → returns 400
+    - Тест: невалидный JSON в теле запроса → returns 400
     - Тест: Stripe выбрасывает ошибку → returns 500
   - [ ] Subtask 5.2: Создать `tests/unit/features/landing/components/PricingSection.checkout.test.tsx`:
     - Mock `fetch` через `vi.fn()` или `jest.fn()`
@@ -236,6 +240,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000  # Уже должна быть из 
 - **НЕ устанавливать** `@stripe/stripe-js` — он нужен только для Stripe Elements (кастомные формы оплаты). Для Checkout Redirect достаточно server-side `stripe`
 - **НЕ добавлять** `customer_email` в `sessions.create` — посетительница ещё не авторизована, Stripe сам запросит email
 - **НЕ менять** дизайн PricingSection — только поведение кнопки
+- **НЕ реализовывать** rate limiting для Route Handler — будет добавлен в отдельной истории
 
 ### Тестовый фреймворк
 
