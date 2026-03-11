@@ -32,9 +32,8 @@ so that оформить подписку через надёжный шлюз S
 5. **Given** Route Handler `POST /api/checkout` получает некорректный тариф или возникает ошибка Stripe
    **When** запрос обрабатывается
    **Then** возвращается HTTP 400/500 с понятным сообщением
-   **And** клиент показывает inline-сообщение об ошибке под кнопкой ("Не удалось начать оформление. Попробуйте снова.")
+   **And** клиент показывает системное Toast-уведомление об ошибке ("Не удалось начать оформление. Попробуйте снова.")
    **And** кнопка разблокируется для повторной попытки
-   **And** при повторном нажатии предыдущее сообщение об ошибке сбрасывается
 
 6. **Given** кнопка "Вступить сейчас" нажата
    **When** идёт загрузка (ожидание ответа от `/api/checkout`)
@@ -90,36 +89,20 @@ so that оформить подписку через надёжный шлюз S
     - Обёрнуть в try/catch: при ошибке Stripe → `NextResponse.json({ error: 'Ошибка при создании сессии' }, { status: 500 })`
   - [ ] Subtask 3.2: Убедиться, что файл НЕ имеет `'use client'` директивы (Route Handlers — серверный код)
 
-- [ ] **Task 4: Обновление `PricingSection` — подключение Checkout** (AC: 1, 2, 5, 6)
-  - [ ] Subtask 4.1: Обновить `src/features/landing/components/PricingSection.tsx`:
-    - Добавить состояние: `const [isLoading, setIsLoading] = useState(false)`
-    - Добавить состояние: `const [checkoutError, setCheckoutError] = useState<string | null>(null)`
-    - Создать async handler `handleCheckout`:
-      ```typescript
-      async function handleCheckout() {
-        setIsLoading(true)
-        setCheckoutError(null)
-        try {
-          const res = await fetch('/api/checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan: selected }),
-          })
-          const data = await res.json()
-          if (!res.ok || !data.url) throw new Error(data.error || 'Неизвестная ошибка')
-          window.location.href = data.url
-        } catch (error) {
-          console.error('Checkout error:', error)
-          setCheckoutError('Не удалось начать оформление. Попробуйте снова.')
-          setIsLoading(false)
-        }
-      }
-      ```
-    - Заменить `<Link href="/login">` на `<button>` с `onClick={handleCheckout}` и `disabled={isLoading}`
-    - Кнопка в disabled-состоянии: визуальный индикатор (например, текст меняется на "Загрузка..." или spinner)
-    - При наличии `checkoutError` — показать ошибку под кнопкой в виде inline-текста (не Toast, так как это в рамках формы)
-  - [ ] Subtask 4.2: Сохранить все существующие классы кнопки + добавить `disabled:opacity-50 disabled:cursor-not-allowed`
-  - [ ] Subtask 4.3: Проверить, что `min-h-[48px]` у кнопки не изменился (NFR14)
+- [ ] **Task 4: Обновление архитектуры лендинга — подключение Checkout (Smart/Dumb)** (AC: 1, 2, 5, 6)
+  - [ ] Subtask 4.1: Создать API helper `src/features/landing/api/checkout.ts` (или добавить функцию সরাসরি в `src/app/page.tsx`):
+    - Функция делает вызов `fetch` к `POST /api/checkout` с `{ plan }`.
+    - При ошибке выбрасывает `Error` с сообщением от сервера.
+  - [ ] Subtask 4.2: Обновить Smart-контейнер лендинга (`src/app/page.tsx`):
+    - Добавить состояние (в самом верху компонента, если он `"use client"`, или вынести логику в оболочку-контейнер): `const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)`.
+    - Создать handler `handleCheckout(plan)`: вызывает API (Subtask 4.1), делает `window.location.href = url` при успехе.
+    - При возникновении ошибки (в блоке `catch()`) вызвать глобальный toast (например, из библиотеки sonner): `toast.error('Не удалось начать оформление. Попробуйте снова.')` и сбросить загрузку.
+    - Передать `isCheckoutLoading` и `handleCheckout` как props вниз в `PricingSection`.
+  - [ ] Subtask 4.3: Обновить Dumb UI `src/features/landing/components/PricingSection.tsx` (или `src/components/landing/PricingSection.tsx` в зависимости от того, как реализована Story 1.3):
+    - Добавить принимаемые properties: `{ onCheckout: (plan: 'monthly' | 'quarterly') => void, isLoading: boolean }`.
+    - Заменить `<Link href="/login">` на `<button>` с `onClick={() => onCheckout(selected)}` и `disabled={isLoading}`.
+    - Сохранить все существующие классы кнопки + добавить `disabled:opacity-50 disabled:cursor-not-allowed`.
+    - Кнопка в disabled-состоянии должна показывать текст "Загрузка..." или добавлять spinner. Проверить сохранение размера `min-h-[48px]`.
 
 - [ ] **Task 5: Написание тестов** (AC: 1, 5)
   - [ ] Subtask 5.1: Создать `tests/unit/app/api/checkout/route.test.ts`:
@@ -140,11 +123,10 @@ so that оформить подписку через надёжный шлюз S
 
 ### Критически важный контекст (предыдущие истории)
 
-**Story 1.3 (done):** `PricingSection` уже реализован в `src/features/landing/components/PricingSection.tsx`.
-- Использует `useState<Plan>('quarterly')` для выбора тарифа
-- CTA кнопка сейчас: `<Link href="/login">Вступить сейчас</Link>` — **нужно заменить на `<button>`**
-- Компонент уже `'use client'` — добавление `useState(isLoading)` не требует изменений директивы
-- Не менять внешний вид кнопки — только поведение onClick
+**Story 1.3 (done):** `PricingSection` уже реализован. Следует определить его путь (вероятнее всего `src/features/landing/components/PricingSection.tsx` или `src/components/landing/PricingSection.tsx`).
+- Компонент использует `useState` для выбора тарифа: `monthly` vs `quarterly`.
+- CTA кнопка сейчас ссылается на `/login` — **меняем на тег `<button>`**.
+- **ОБНОВЛЕНИЕ АРХИТЕКТУРЫ:** `PricingSection` переходит в разряд полностью Dumb (представление). Вся бизнес-логика (`fetch` и Toasts) и стейт `isLoading` выносятся в Smart Component: `src/app/page.tsx` или специально созданный клиентский враппер-секцию лендинга, в зависимости от того, как сейчас собран лендинг. Ошибка из `fetch` будет вызывать Toast.
 
 **Story 1.2 (done):** Паттерн API-функций в `src/features/auth/api/auth.ts` — вызовы из клиентских компонентов без useEffect (inline async handlers). Придерживаться того же паттерна.
 
@@ -170,16 +152,19 @@ so that оформить подписку через надёжный шлюз S
 ```
 src/
 ├── app/
-│   └── api/
-│       └── checkout/
-│           └── route.ts          # NEW — POST handler
+│   ├── api/
+│   │   └── checkout/
+│   │       └── route.ts          # NEW — POST handler
+│   └── page.tsx                  # MODIFY — Smart Container (управляет логикой isCheckoutLoading)
 ├── lib/
 │   └── stripe/
 │       └── index.ts              # NEW — Stripe client singleton
-└── features/
+└── features/ (или components/landing/)
     └── landing/
+        ├── api/
+        │   └── checkout.ts       # NEW — Клиентский fetch helper-сервис (опция)
         └── components/
-            └── PricingSection.tsx # MODIFY — подключить checkout
+            └── PricingSection.tsx # MODIFY — переводится в Dumb Component (props onCheckout, isLoading)
 tests/
 └── unit/
     ├── app/
@@ -216,8 +201,8 @@ tests/
 
 ### Обработка ошибок
 
-Паттерн из architecture.md:
-- **Системные ошибки** (сетевые, сбой Stripe API) → inline-сообщение об ошибке под кнопкой (не Toast, так как это пользовательское действие в рамках одного компонента)
+Паттерн из architecture.md (Strict Enforcement):
+- **Системные ошибки** (сетевые, сбой Stripe API, возврат 400/500 от `/api/checkout`) → Обязательный вызов глобального уведомления Toast (например `toast.error('...')`). Вызов `/api/checkout` — это чистая системная мутация API, мы НЕ используем инлайн-сообщения локального стейта компонента.
 - Кнопка должна разблокироваться после ошибки, чтобы пользователь мог повторить попытку
 - `window.location.href` используется для редиректа на Stripe Checkout (не `router.push()` — это внешний URL)
 
