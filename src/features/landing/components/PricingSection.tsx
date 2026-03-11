@@ -69,15 +69,16 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
           </div>
 
           {/* Plan toggle */}
-          <div className="grid grid-cols-2 gap-3">
+          <div role="radiogroup" aria-label="Выберите тариф" className="grid grid-cols-2 gap-3">
             {(Object.entries(plans) as [Plan, typeof plans[Plan]][]).map(([key, plan]) => {
               const isActive = selected === key
               return (
                 <button
                   key={key}
                   type="button"
+                  role="radio"
                   onClick={() => setSelected(key)}
-                  aria-pressed={isActive}
+                  aria-checked={isActive}
                   className={[
                     'flex flex-col gap-1.5 border px-3 py-3 text-left transition-colors cursor-pointer',
                     isActive ? 'border-primary' : 'border-border hover:border-foreground/30',

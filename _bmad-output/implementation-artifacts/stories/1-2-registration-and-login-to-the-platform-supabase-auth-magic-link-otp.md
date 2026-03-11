@@ -341,7 +341,8 @@ await supabase.auth.signInWithOtp({
   email,
   options: {
     shouldCreateUser: true,
-    // emailRedirectTo только для Magic Link (если используется)
+    // Вы можете передавать emailRedirectTo, если используете стандартный механизм, 
+    // но рекомендуемый подход для Magic Links: использовать /auth/confirm с token_hash
     emailRedirectTo: `${window.location.origin}/auth/callback`,
   },
 })
@@ -353,6 +354,12 @@ const { error } = await supabase.auth.verifyOtp({
   type: 'email',
 })
 ```
+
+**Обработка Magic Links (PKCE URL-encoding bug fix /auth/confirm):**
+Для Magic Links Supabase в электронных почтах почтовые клиенты могут выполнять нежелательный URL-encoding символов `&` и `=`.
+Вместо стандартного редиректа на `{{ .ConfirmationURL }}`, в `Email Templates` (Dashboard) необходимо использовать прямую ссылку:
+`<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">Войти</a>`
+Которая будет обработана через Route Handler `src/app/auth/confirm/route.ts`.
 
 **Важно:** В Supabase Dashboard → Authentication → Email → настроить:
 - "Enable Email OTP" = true (для 6-значных кодов вместо Magic Link)

@@ -283,10 +283,11 @@ procontent/
 ### Integration Points
 
 **Data Flow (Authentication -> Content):**
-1. Stripe Webhook обновляет статус подписки в таблице `users` и `auth.users` (metadata) в Supabase.
-2. При входе в `(app)/layout.tsx` проверяется сессия Supabase через `client.ts`.
-3. Если подписка неактивна, пользователь редиректится на Paywall (`src/features/auth/components/Paywall.tsx`).
-4. Если активна, монтируется `FeedContainer`, который запрашивает данные напрямую из Supabase.
+1. При использовании Magic Links почтовые клиенты иногда ломают URL-строку (URL-encoding). Чтобы избежать ошибок "Verify requires a verification type", Magic Links направляются **не** на дефолтный `/auth/v1/verify`, а на кастомный Route Handler `src/app/auth/confirm/route.ts` через `token_hash` и `type`.
+2. Stripe Webhook обновляет статус подписки в таблице `users` и `auth.users` (metadata) в Supabase.
+3. При входе в `(app)/layout.tsx` проверяется сессия Supabase через `client.ts` и `server.ts`.
+4. Если подписка неактивна, пользователь редиректится на Paywall (`src/features/auth/components/Paywall.tsx`).
+5. Если активна, монтируется `FeedContainer`, который запрашивает данные напрямую из Supabase.
 
 ## Architecture Validation Results
 

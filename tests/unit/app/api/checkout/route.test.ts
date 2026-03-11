@@ -106,4 +106,15 @@ describe('POST /api/checkout', () => {
     expect(data).toHaveProperty('error')
     expect(mockSessionsCreate).not.toHaveBeenCalled()
   })
+
+  it('возвращает 500 если отсутствует NEXT_PUBLIC_SITE_URL', async () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL
+
+    const response = await POST(makeRequest({ plan: 'monthly' }))
+    const data = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(data).toHaveProperty('error')
+    expect(mockSessionsCreate).not.toHaveBeenCalled()
+  })
 })

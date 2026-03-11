@@ -126,6 +126,14 @@ so that оформить подписку через надёжный шлюз S
 - [x] [AI-Review][Medium] Избегать Type Casting (`url!`) в клиентском API-хелпере [src/features/landing/api/checkout.ts:14]
 - [x] [AI-Review][Medium] Добавить недостающие тесты для Smart-контейнера `PricingCheckoutWrapper.tsx`
 
+### Review Follow-ups (Code Review)
+- [x] [AI-Review][High] Исправить потенциальный баг с отсутствующим `process.env.NEXT_PUBLIC_SITE_URL` при генерации URL [src/app/api/checkout/route.ts:33]
+- [x] [AI-Review][High] Добавить try/catch обработку `await response.json()` на случай падения сервера с 500 HTML [src/features/landing/api/checkout.ts:8]
+- [x] [AI-Review][Medium] Добавить валидацию и Throw Error при отсутствии `STRIPE_SECRET_KEY` при инициализации [src/lib/stripe/index.ts:3]
+- [x] [AI-Review][Medium] Добавить тест на проверку граничного условия отсутствия `NEXT_PUBLIC_SITE_URL` [tests/unit/app/api/checkout/route.test.ts]
+- [x] [AI-Review][Low] Использовать `role="radio"` и `role="radiogroup"` вместо кнопок для выбора тарифа [src/features/landing/components/PricingSection.tsx:76]
+- [x] [AI-Review][Low] Улучшить обработку чисто сетевых `TypeError` ошибок у fetch [src/features/landing/api/checkout.ts:11]
+
 ## Dev Notes
 
 ### Критически важный контекст (предыдущие истории)
@@ -281,6 +289,12 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [Medium]: Добавлена проверка `if (!priceId)` с возвратом 500 до вызова Stripe.
 - ✅ Resolved review finding [Medium]: Удалён `url!` в `checkout.ts` — заменён явной проверкой `if (!data.url)`.
 - ✅ Resolved review finding [Medium]: Создан `PricingCheckoutWrapper.test.tsx` — 5 тестов (loading state, redirect, toast.error, кнопка разблокируется, fallback toast). Итого: 113 тестов, 0 ошибок TypeScript.
+- ✅ Resolved code-review finding [High]: Добавлена проверка `NEXT_PUBLIC_SITE_URL` в `route.ts` до вызова Stripe — возврат 500 при отсутствии. Добавлен тест в `route.test.ts`. `route.ts` теперь использует переменную `siteUrl` вместо `process.env.*` напрямую в строке.
+- ✅ Resolved code-review finding [High]: `checkout.ts` — обёрнут `fetch` в try/catch (сетевые `TypeError`), `response.json()` в отдельный try/catch (500 HTML-ответ от сервера). 114 тестов, 0 ошибок TypeScript.
+- ✅ Resolved code-review finding [Medium]: `stripe/index.ts` — явная проверка `STRIPE_SECRET_KEY` с `throw new Error(...)` до инициализации Stripe. Быстрый сбой при неверной конфигурации.
+- ✅ Resolved code-review finding [Medium]: Добавлен тест `возвращает 500 если отсутствует NEXT_PUBLIC_SITE_URL` в `route.test.ts`. Всего 114 тестов.
+- ✅ Resolved code-review finding [Low]: Тогл тарифов в `PricingSection.tsx` — `role="radiogroup"` на обёртке, `role="radio"` + `aria-checked` на кнопках вместо `aria-pressed`.
+- ✅ Resolved code-review finding [Low]: `checkout.ts` — сетевые ошибки (`TypeError` от fetch) пойманы отдельным try/catch с user-friendly сообщением.
 
 ### File List
 
@@ -303,4 +317,4 @@ claude-sonnet-4-6
 - `src/features/landing/components/PricingCheckoutWrapper.tsx` (модифицирован — toast вместо inline-ошибки)
 - `src/features/landing/components/PricingSection.tsx` (модифицирован — удалён prop `errorMessage`)
 - `src/features/landing/api/checkout.ts` (модифицирован — убран `url!`, добавлена явная проверка)
-- `src/app/api/checkout/route.ts` (модифицирован — console.error + проверка env Price ID)
+- `src/app/api/checkout/route.ts` (модифицирован — console.error + проверка env Price ID + проверка NEXT_PUBLIC_SITE_URL)
