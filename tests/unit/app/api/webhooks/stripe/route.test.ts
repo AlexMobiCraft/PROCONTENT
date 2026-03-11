@@ -378,6 +378,37 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       expect(mockUpdate).toHaveBeenCalledWith({ subscription_status: 'inactive' })
     })
+
+    // [AI-Review][High] Fix: двухшаговое удаление — сначала по subscription_id, потом customer_id
+    it('делает строгое обновление по stripe_subscription_id первым шагом (High fix)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeSubscriptionEvent('customer.subscription.deleted')
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // Первый шаг — строго по subscription_id
+      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      // Второй шаг — fallback по customer_id
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+    })
+
+    // [AI-Review][Medium] Fix: не падает при undefined customerId (PostgREST undefined fix)
+    it('не падает если customer в подписке undefined (customerId guard)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeSubscriptionEvent('customer.subscription.deleted', {
+          customer: undefined,
+        })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      // Только первый шаг (subscription_id), customer_id пропускается
+      expect(response.status).toBe(200)
+      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
+    })
   })
 
   describe('customer.subscription.updated', () => {

@@ -69,7 +69,8 @@ export async function updateSession(request: NextRequest) {
 
     if (cachedStatus !== undefined) {
       // Кеш есть — используем сохранённый статус без запроса к БД
-      if (cachedStatus === 'inactive') {
+      // [AI-Review][Critical] Fix: блокируем и canceled статус (AC2/NFR7)
+      if (cachedStatus === 'inactive' || cachedStatus === 'canceled') {
         const url = request.nextUrl.clone()
         url.pathname = '/'
         return NextResponse.redirect(url)
@@ -79,16 +80,27 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Кеша нет — делаем запрос к БД
-    type ProfileRow = { subscription_status: string | null }
-    const { data: profile } = (await supabase
+    // Fix [AI-Review][Medium]: тип выводится из Database generic createServerClient<Database>,
+    // исключая ручной cast. При изменении схемы TypeScript сразу укажет на несоответствие.
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('subscription_status')
       .eq('id', user.id)
-      .single()) as { data: ProfileRow | null; error: unknown }
+      .single()
+
+    // [AI-Review][Medium] Fix: Fail-Secure — блокируем при ошибке БД (NFR7)
+    // Fix [AI-Review][Low]: userId в логе для точной диагностики
+    if (profileError) {
+      console.error('[middleware] Ошибка получения профиля для userId:', user.id, profileError)
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
 
     const status = profile?.subscription_status ?? 'none'
 
-    if (status === 'inactive') {
+    // [AI-Review][Critical] Fix: блокируем и canceled статус (AC2/NFR7)
+    if (status === 'inactive' || status === 'canceled') {
       const url = request.nextUrl.clone()
       url.pathname = '/'
       return NextResponse.redirect(url)

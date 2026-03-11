@@ -7,12 +7,16 @@ import type { Database } from '@/types/supabase'
 // Типизированный объект обновления профиля (без any)
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
 
-// Fix [AI-Review][Low]: createClient<Database> устраняет any в типе SupabaseAdmin
+// Fix [AI-Review][Low]: явные параметры и guard-проверки вместо ! assertions
 function createAdminClient() {
-  return createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !key) {
+    throw new Error('[webhook] Missing Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)')
+  }
+
+  return createClient<Database>(url, key)
 }
 
 // Admin-клиент Supabase с Service Role Key (обходит RLS).
@@ -132,7 +136,14 @@ async function handleInvoicePaymentSucceeded(
 }
 
 // Task 3.3: customer.subscription.deleted
-// Переводим пользователя в inactive. Поиск по subscription_id ИЛИ customer_id (идемпотентно).
+// Переводим пользователя в inactive.
+// [AI-Review][High] Fix: двухшаговое обновление вместо OR:
+//   1) строгая проверка по stripe_subscription_id (primary key события)
+//   2) fallback по stripe_customer_id только если customerId определён
+// [AI-Review][Medium] Fix: customerId проверяется перед использованием (PostgREST undefined guard)
+// Примечание [Low]: Stripe не имеет события 'customer.subscription.canceled'.
+//   AC2 упоминает 'canceled' как состояние, но в реальности Stripe шлёт 'customer.subscription.deleted'.
+//   При отмене с cancel_at_period_end — событие 'customer.subscription.updated' (обрабатывается в handleSubscriptionUpdated).
 async function handleSubscriptionDeleted(
   subscription: Stripe.Subscription,
   supabase: SupabaseAdmin
@@ -142,17 +153,31 @@ async function handleSubscriptionDeleted(
       ? subscription.customer
       : subscription.customer?.id
 
+  // Шаг 1: строгое обновление по stripe_subscription_id
   const { error } = await supabase
     .from('profiles')
     .update({ subscription_status: 'inactive' })
-    .or(
-      `stripe_subscription_id.eq.${subscription.id},stripe_customer_id.eq.${customerId}`
-    )
+    .eq('stripe_subscription_id', subscription.id)
 
   if (error) {
     throw new Error(
-      `[webhook] Ошибка обновления профиля (subscription.deleted): ${error.message}`
+      `[webhook] Ошибка обновления профиля (subscription.deleted via subscription_id): ${error.message}`
     )
+  }
+
+  // Шаг 2: fallback по stripe_customer_id (только если customerId определён)
+  // Страхует случай, когда subscription_id ещё не привязан к профилю
+  if (customerId) {
+    const { error: fallbackError } = await supabase
+      .from('profiles')
+      .update({ subscription_status: 'inactive' })
+      .eq('stripe_customer_id', customerId)
+
+    if (fallbackError) {
+      throw new Error(
+        `[webhook] Ошибка обновления профиля (subscription.deleted via customer_id): ${fallbackError.message}`
+      )
+    }
   }
 }
 
@@ -217,8 +242,8 @@ async function handleInvoicePaymentFailed(
 }
 
 export async function POST(request: Request) {
-  // Task 5.3: проверяем наличие секрета
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+
   if (!webhookSecret) {
     console.error('[webhook] STRIPE_WEBHOOK_SECRET не настроен')
     return NextResponse.json({ error: 'Конфигурация webhook недоступна' }, { status: 500 })
@@ -247,10 +272,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Невалидная подпись webhook' }, { status: 400 })
   }
 
-  // Task 5.4: admin-клиент с Service Role Key (обходит RLS для записи в profiles)
-  const supabase = createAdminClient()
-
   try {
+    // Task 5.4: admin-клиент с Service Role Key (обходит RLS для записи в profiles)
+    // Fix [AI-Review][Low]: ошибка конфигурации перехватывается явно
+    const supabase = createAdminClient()
+
     // Task 2.4: операции Update идемпотентны по stripe_subscription_id / stripe_customer_id (NFR18)
     switch (event.type) {
       case 'checkout.session.completed':

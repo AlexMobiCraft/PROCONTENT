@@ -222,5 +222,47 @@ describe('middleware', () => {
       // На публичных маршрутах аутентифицированный пользователь не редиректится
       expect(response.status).not.toBe(307)
     })
+
+    // [AI-Review][Critical] Fix: middleware должен блокировать `canceled` статус (AC2/NFR7)
+    it('редиректит на / при subscription_status = canceled', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'canceled' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/')
+    })
+
+    // [AI-Review][Medium] Fix: Fail-Secure — при ошибке БД блокируем доступ
+    it('редиректит на /login при ошибке БД (fail-secure, NFR7)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: null, error: { message: 'DB unavailable' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+    })
+  })
+
+  describe('кеш __sub_status — расширенные проверки', () => {
+    const mockUser = { id: 'user-123', email: 'test@example.com' }
+
+    // [AI-Review][Critical] Fix: кеш canceled должен блокировать доступ
+    it('редиректит без запроса к БД при кеше canceled', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: '__sub_status=canceled' },
+      })
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/')
+      expect(mockFrom).not.toHaveBeenCalled()
+    })
   })
 })

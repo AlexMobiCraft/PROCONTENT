@@ -1,6 +1,11 @@
 # Story 1.5: Обработка Stripe Webhooks и управление доступом
 
-Status: in-progress
+Status: done
+
+- [x] Implementation complete
+- [x] Tests passing
+- [x] Code review resolved
+- [x] Ready for next story
 
 ## Story
 
@@ -38,9 +43,9 @@ so that система могла автоматически выдавать д
 ## Tasks / Subtasks
 
 - [x] **Task 1: Настройка базы данных Supabase** (AC: 1, 2, 5)
-  - [x] Subtask 1.1: Создать SQL-скрипт/миграцию для добавления полей подписки в таблицу пользователей (например, `public.users`). Необходимо: `subscription_status` (enum: 'active', 'inactive', 'canceled'), `stripe_customer_id` (string), `stripe_subscription_id` (string), `current_period_end` (timestamptz).
+  - [x] Subtask 1.1: Создать SQL-скрипт/миграцию для добавления полей подписки в таблицу профилей (например, `public.profiles`). Необходимо: `subscription_status` (enum: 'active', 'inactive', 'canceled'), `stripe_customer_id` (string), `stripe_subscription_id` (string), `current_period_end` (timestamptz).
   - [x] Subtask 1.2: Обновить сгенерированные типы TypeScript (`src/types/supabase.ts`) или вручную добавить нужные эндпоинты, убедившись в использовании паттерна `snake_case` (в соответствии с архитектурными решениями).
-  - [x] Subtask 1.3: Настроить RLS политики: webhook (через Service Role Key) имеет право обновлять эти поля `users`, а обычный пользователь может только делать SELECT своих собственных записей (для проверки доступа).
+  - [x] Subtask 1.3: Настроить RLS политики: webhook (через Service Role Key) имеет право обновлять эти поля `profiles`, а обычный пользователь может только делать SELECT своих собственных записей (для проверки доступа).
 
 - [x] **Task 2: Реализация основы Stripe Webhook Route Handler** (AC: 1, 3, 4)
   - [x] Subtask 2.1: Создать Route Handler `src/app/api/webhooks/stripe/route.ts` (POST-обработчик).
@@ -49,14 +54,14 @@ so that система могла автоматически выдавать д
   - [x] Subtask 2.4: Реализовать идемпотентность (NFR18). Операции с БД (Update/Upsert) должны опираться на уникальный ID подписки или клиента из Stripe.
 
 - [x] **Task 3: Обработка специфических событий Stripe** (AC: 1, 2, 5)
-  - [x] Subtask 3.1: Обрабатывать событие `checkout.session.completed`. Сохранять `stripe_customer_id` и `stripe_subscription_id`. Примечание: так как сессия создается *ДО* авторизации, связывать запись нужно по email (из `session.customer_details.email`), обновляя таблицу `users`, если такой email уже зарегистрирован, либо ожидать, что Story 1.7 (Onboarding) завершит привязку при регистрации. В рамках текущей задачи - написать функцию `handleCheckoutSessionCompleted`, выполняющую обновление БД (Supabase), если пользователь найден по email.
+  - [x] Subtask 3.1: Обрабатывать событие `checkout.session.completed`. Сохранять `stripe_customer_id` and `stripe_subscription_id`. Примечание: так как сессия создается *ДО* авторизации, связывать запись нужно по email (из `session.customer_details.email`), обновляя таблицу `profiles`, если такой email уже зарегистрирован, либо ожидать, что Story 1.7 (Onboarding) завершит привязку при регистрации. В рамках текущей задачи - написать функцию `handleCheckoutSessionCompleted`, выполняющую обновление БД (Supabase), если пользователь найден по email.
   - [x] Subtask 3.2: Обрабатывать событие `invoice.payment_succeeded`. Продлевать/обновлять `current_period_end` у соответствующего пользователя.
   - [x] Subtask 3.3: Обрабатывать событие `customer.subscription.deleted`. Находить пользователя по `stripe_subscription_id` или `stripe_customer_id` и переводить `subscription_status` в `inactive`. (AC: 2)
   - [x] Subtask 3.4: Обрабатывать событие `customer.subscription.updated`. Отслеживать поле `cancel_at_period_end`.
   - [x] Subtask 3.5: Возвращать `200 OK` для неизвестных/необрабатываемых событий Stripe, чтобы предотвратить повторные отправки (retries).
 
 - [x] **Task 4: Реализация принудительной инвалидации сессии (NFR7)** (AC: 2)
-  - [x] Subtask 4.1: Определить архитектурный паттерн для отключения пользователя. Один вариант: В `customer.subscription.deleted`, если вы используете `supabase.auth.admin.deleteUser` (радикально, но эффективно). Другой: создать `middleware.ts` (Next.js), который будет проверять статус подписки по API/Cookies и редиректить с `(app)/*` на `/login` при `inactive`. Т.к. NFR7 требует инвалидации за 60 секунд, проще всего проверять статус подписки (из `public.users`) при входе в `layout.tsx` или в Middleware. Сделать реализацию ограничения доступа (отключить сессию/доступ) при статусе `inactive`.
+  - [x] Subtask 4.1: Определить архитектурный паттерн для отключения пользователя. Один вариант: В `customer.subscription.deleted`, если вы используете `supabase.auth.admin.deleteUser` (радикально, но эффективно). Другой: создать `middleware.ts` (Next.js), который будет проверять статус подписки по API/Cookies и редиректить с `(app)/*` на `/login` при `inactive`. Т.к. NFR7 требует инвалидации за 60 секунд, проще всего проверять статус подписки (из `public.profiles`) при входе в `layout.tsx` или в Middleware. Сделать реализацию ограничения доступа (отключить сессию/доступ) при статусе `inactive`.
 
 - [x] **Task 5: Логирование и конфигурация** (AC: 4)
   - [x] Subtask 5.1: При ошибке внутри webhook обработчика логировать ошибку (`console.error`) для администраторов (NFR19).
@@ -71,7 +76,7 @@ so that система могла автоматически выдавать д
 
 ### Критически важный контекст
 - **Story 1.4:** В `api/checkout` Stripe Checkout сессия создается с `mode: 'subscription'`. Пользователь заходит на Stripe, вводит email, оплачивает. Когда придет вебхук `checkout.session.completed`, у нас **будет `customer_email` от Stripe**. Пользователя в Supabase Auth может еще не быть (так как регистрация/вход через OTP, и он мог еще не регистрироваться).
-- **Связка пользователя и подписки:** Если пользователь с таким email уже есть в `public.users`, вебхук должен обновить его статус и привязать `stripe_customer_id`. Если пользователя еще нет, вебхук МОЖЕТ проигнорировать (в этом случае в Story 1.7 "Onboarding" при регистрации мы сами сможем дернуть Stripe/Supabase и привязать статус на основе возвращенного `session_id`). Тем не менее, вебхук обязан корректно обновить существующего пользователя.
+- **Связка пользователя и подписки:** Если пользователь с таким email уже есть в `public.profiles`, вебхук должен обновить его статус и привязать `stripe_customer_id`. Если пользователя еще нет, вебхук МОЖЕТ проигнорировать (в этом случае в Story 1.7 "Onboarding" при регистрации мы сами сможем дернуть Stripe/Supabase и привязать статус на основе возвращенного `session_id`). Тем не менее, вебхук обязан корректно обновить существующего пользователя.
 - NFR7 (Инвалидация <60 секунд при неуплате/отмене): Если сработает webhook на удаление подписки, БД (Supabase) получает флаг `inactive`. Текущее решение требует проверки подписки! В Next.js можно проверять `subscription_status` на серверных/клиентских рутах перед рендером контента.
 - **[AI-Review][Medium] Влияние кеша Middleware (30s) на ручные изменения статуса админом:** Middleware кеширует `subscription_status` в httpOnly cookie `__sub_status` с TTL=30s. Это означает, что если администратор вручную изменяет `subscription_status` пользователя в Supabase (например, с `active` на `inactive`), пользователь продолжит иметь доступ ещё до 30 секунд (пока кеш не истечёт). Это **соответствует NFR7** (инвалидация в течение 60 секунд), так как 30s < 60s. Кеш **не применяется** к статусу `inactive` (не кешируется), поэтому деградация обратно в `active` не кешируется. Если требуется немедленная инвалидация (< 30s) при ручных действиях, администратор должен использовать `supabase.auth.admin.signOut(userId)` для принудительного выхода.
 
@@ -156,6 +161,14 @@ const supabaseAdmin = createClient(
 - ✅ Resolved [Low]: добавлен тест идемпотентности `payment_failed` на уже `inactive` профиле.
 - Добавлено 3 новых теста (1 + fallback invoice + payment_failed repeat). TypeCheck: ✅. Все 145 тестов: ✅ 100% pass.
 
+#### Адресованы Review Follow-ups (2026-03-11) — Раунд 3 (Final Fixes)
+- ✅ Resolved [Critical]: Middleware — добавлена проверка `canceled` статуса в условие блокировки и в кеш-проверку (AC2/NFR7).
+- ✅ Resolved [High]: `handleSubscriptionDeleted` — переход от OR-условие к двухшаговому подходу: строгая проверка по `stripe_subscription_id`, потом fallback по `stripe_customer_id`.
+- ✅ Resolved [Medium]: Fail-Open в Middleware — явный перехват `profileError` с fail-secure редиректом на `/login`.
+- ✅ Resolved [Medium]: Guard для `customerId` перед использованием в fallback (устраняет `.eq.undefined`).
+- ✅ Resolved [Low]: Задокументирована терминология в комментарии к `handleSubscriptionDeleted` — Stripe не имеет `customer.subscription.canceled`, используется `customer.subscription.deleted`.
+- Добавлено 5 новых тестов (3 для route + 2 для middleware). TypeCheck: ✅. Все 150 тестов: ✅ 100% pass.
+
 ### Review Follow-ups (AI)
 - [x] [AI-Review][Medium] Устранить риск Race Condition в `handleCheckoutSessionCompleted`: перейти к использованию `stripe_customer_id` как основного ключа после первичной привязки. [src/app/api/webhooks/stripe/route.ts:45]
 - [x] [AI-Review][Medium] Оптимизировать Middleware: рассмотреть кеширование `subscription_status` в сессии/JWT для избежания повторных запросов к БД на каждый переход. [src/lib/supabase/middleware.ts:63]
@@ -166,11 +179,15 @@ const supabaseAdmin = createClient(
 - [x] [AI-Review][Medium] Задокументировать в Dev Notes влияние кеша Middleware (30s) на ручные изменения статуса админом (NFR7). [src/lib/supabase/middleware.ts:68]
 - [x] [AI-Review][Low] Усилить типизацию `SupabaseAdmin` в `route.ts`, заменив `any` на `SupabaseClient<Database>`. [src/app/api/webhooks/stripe/route.ts:13]
 - [x] [AI-Review][Low] Добавить тест на повторную неудачу платежа (`payment_failed`) для уже `inactive` профилей. [tests/unit/app/api/webhooks/stripe/route.test.ts]
-- [ ] [AI-Review][Critical] Обход блокировки в Middleware (AC2 / NFR7 нарушены): `middleware.ts` проверяет статус `inactive`, но не проверяет `canceled`. Обновить проверку статуса на `inactive` или `canceled`. [src/lib/supabase/middleware.ts:91]
-- [ ] [AI-Review][High] Логическая уязвимость при удалении подписки (AC2 / Race Condition): `handleSubscriptionDeleted` использует OR-условие (`stripe_subscription_id` ИЛИ `stripe_customer_id`). Разделить на строгую проверку по `stripe_subscription_id`, либо добавить проверку актуальности текущей подписки при поиске по `customer_id`. [src/app/api/webhooks/stripe/route.ts:149]
-- [ ] [AI-Review][Medium] "Fail-Open" уязвимость в Middleware (NFR7): Если БД недоступна (profile undefined), `status` становится `'none'`, и пользователь получает доступ. Обработать ошибку явно (например, блокировать при undefined, если была ошибка БД). [src/lib/supabase/middleware.ts:89]
-- [ ] [AI-Review][Medium] Поломка PostgREST синтаксиса при undefined: В `handleSubscriptionDeleted` переменная `customerId` может быть `undefined`, что приведет к `.eq.undefined` в строке запроса. Использовать параметризованные условия или проверять `customerId` перед добавлением в `or`. [src/app/api/webhooks/stripe/route.ts:149]
-- [ ] [AI-Review][Low] Некорректная терминология в AC: AC2 строго упоминает `customer.subscription.canceled` но Stripe работает с `customer.subscription.deleted`. Задокументировать различие в Dev Notes. [src/app/api/webhooks/stripe/route.ts:134]
+- [x] [AI-Review][Critical] Обход блокировки в Middleware (AC2 / NFR7 нарушены): `middleware.ts` проверяет статус `inactive`, но не проверяет `canceled`. Обновить проверку статуса на `inactive` или `canceled`. [src/lib/supabase/middleware.ts:91]
+- [x] [AI-Review][High] Логическая уязвимость при удалении подписки (AC2 / Race Condition): `handleSubscriptionDeleted` использует OR-условие (`stripe_subscription_id` ИЛИ `stripe_customer_id`). Разделить на строгую проверку по `stripe_subscription_id`, либо добавить проверку актуальности текущей подписки при поиске по `customer_id`. [src/app/api/webhooks/stripe/route.ts:149]
+- [x] [AI-Review][Medium] "Fail-Open" уязвимость в Middleware (NFR7): Если БД недоступна (profile undefined), `status` становится `'none'`, и пользователь получает доступ. Обработать ошибку явно (например, блокировать при undefined, если была ошибка БД). [src/lib/supabase/middleware.ts:89]
+- [x] [AI-Review][Medium] Поломка PostgREST синтаксиса при undefined: В `handleSubscriptionDeleted` переменная `customerId` может быть `undefined`, что приведет к `.eq.undefined` в строке запроса. Использовать параметризованные условия или проверять `customerId` перед добавлением в `or`. [src/app/api/webhooks/stripe/route.ts:149]
+- [x] [AI-Review][Low] Некорректная терминология в AC: AC2 строго упоминает `customer.subscription.canceled` но Stripe работает с `customer.subscription.deleted`. Задокументировать различие в Dev Notes. [src/app/api/webhooks/stripe/route.ts:134]
+- [x] [AI-Review][Medium] Документация: Синхронизировать упоминания `public.users` в тексте истории с фактической таблицей `public.profiles`. [Story 1.5 Docs]
+- [x] [AI-Review][Medium] Middleware: Обеспечить стабильность `select('subscription_status')` при возможных изменениях схемы профиля в будущем. [src/lib/supabase/middleware.ts:86]
+- [x] [AI-Review][Low] Логирование: Добавить `userId` в сообщение об ошибке БД в Middleware для точной диагностики. [src/lib/supabase/middleware.ts:92]
+- [x] [AI-Review][Low] Code Style: Рассмотреть замену `!` assertions на явные guard-проверки для всех переменных окружения в начале `route.ts`. [src/app/api/webhooks/stripe/route.ts]
 
 ## File List
 
@@ -189,6 +206,8 @@ const supabaseAdmin = createClient(
 - 2026-03-11: Адресованы все 4 Review Follow-ups: Race Condition fix в checkout handler, кеш subscription_status в middleware (30s TTL), типизация ProfileUpdate, event.id в логах. 142 теста: 100% pass.
 - 2026-03-11: Проведен Adversarial Review. Выявлено 5 новых замечаний (1 High, 2 Medium, 2 Low). Статус изменен на 'in-progress'.
 - 2026-03-11: Адресованы все 5 замечаний Adversarial Review: OR-fallback в invoice handler, warn при 0 строках, документация кеша, SupabaseClient<Database>, тест идемпотентности payment_failed. 145 тестов: 100% pass.
+- 2026-03-11: Адресованы все 5 финальных замечаний: canceled-статус в Middleware (Critical), двухшаговое удаление подписки (High), fail-secure при ошибке БД (Medium), guard customerId (Medium), документация терминологии (Low). 150 тестов: 100% pass.
+- 2026-03-11: Выполнены косметические правки: синхронизация имен таблиц (users -> profiles), добавление userId в логи middleware, явные guard-проверки env vars в webhook route.
 
 ## Completion Status
 
