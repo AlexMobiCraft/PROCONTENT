@@ -139,6 +139,45 @@ describe('middleware', () => {
     })
   })
 
+  describe('кеш subscription_status (__sub_status cookie)', () => {
+    const mockUser = { id: 'user-123', email: 'test@example.com' }
+
+    it('пропускает без запроса к БД при кеше active', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: '__sub_status=active' },
+      })
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+      expect(mockFrom).not.toHaveBeenCalled()
+    })
+
+    it('редиректит без запроса к БД при кеше inactive', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: '__sub_status=inactive' },
+      })
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/')
+      expect(mockFrom).not.toHaveBeenCalled()
+    })
+
+    it('делает запрос к БД при отсутствии кеша', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      await updateSession(req)
+
+      expect(mockFrom).toHaveBeenCalledWith('profiles')
+    })
+  })
+
   describe('управление доступом по subscription_status (NFR7, Task 4.1)', () => {
     const mockUser = { id: 'user-123', email: 'test@example.com' }
 

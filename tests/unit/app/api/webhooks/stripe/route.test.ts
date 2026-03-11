@@ -24,19 +24,40 @@ const {
   mockUpdate,
   mockOr,
   mockCreateClient,
+  mockSelectAfterEq,
 } = vi.hoisted(() => {
   const mockSingle = vi.fn()
   const mockOr = vi.fn()
-  const mockEq = vi.fn().mockReturnThis()
   const mockSelect = vi.fn()
   const mockUpdate = vi.fn()
   const mockFrom = vi.fn()
+
+  // mockSelectAfterEq: используется для цепочки .update().eq().select('id')
+  const mockSelectAfterEq = vi.fn()
+
+  // mockEq: thenable + chainable с .select() чтобы поддерживать:
+  //   await supabase.from(...).update(...).eq(...)           — прямое await
+  //   await supabase.from(...).update(...).eq(...).select()  — chain с select
+  const mockEq = vi.fn().mockImplementation(() => {
+    const result = Promise.resolve({ error: null })
+    Object.assign(result, { select: mockSelectAfterEq })
+    return result
+  })
 
   const mockCreateClient = vi.fn(() => ({
     from: mockFrom,
   }))
 
-  return { mockFrom, mockSelect, mockEq, mockSingle, mockUpdate, mockOr, mockCreateClient }
+  return {
+    mockFrom,
+    mockSelect,
+    mockEq,
+    mockSingle,
+    mockUpdate,
+    mockOr,
+    mockCreateClient,
+    mockSelectAfterEq,
+  }
 })
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -103,6 +124,7 @@ function makeInvoiceEvent(
     data: {
       object: {
         // В Stripe API 2026: subscription_id живёт в parent.subscription_details.subscription
+        customer: 'cus_123',
         parent: {
           subscription_details: { subscription: 'sub_123' },
         },
@@ -122,11 +144,16 @@ describe('POST /api/webhooks/stripe', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service_role_key_test'
 
-    // Настраиваем цепочку supabase.from().update().eq() → success
-    const mockEqResult = { error: null }
-    const mockOrResult = { error: null }
-    mockEq.mockResolvedValue(mockEqResult)
-    mockOr.mockResolvedValue(mockOrResult)
+    // mockEq: thenable + chainable с .select() (поддерживает оба паттерна использования)
+    mockEq.mockImplementation(() => {
+      const result = Promise.resolve({ error: null })
+      Object.assign(result, { select: mockSelectAfterEq })
+      return result
+    })
+    // mockSelectAfterEq: по умолчанию возвращает найденную строку
+    mockSelectAfterEq.mockResolvedValue({ data: [{ id: 'profile-1' }], error: null })
+
+    mockOr.mockResolvedValue({ error: null })
     mockUpdate.mockReturnValue({ eq: mockEq, or: mockOr })
     mockFrom.mockReturnValue({ update: mockUpdate })
   })
@@ -174,7 +201,7 @@ describe('POST /api/webhooks/stripe', () => {
   // AC3, NFR18: повторная обработка идентичного события — нет дублирования (update идемпотентен)
   it('обрабатывает повторный webhook идемпотентно (не падает)', async () => {
     mockConstructEvent.mockReturnValue(makeCheckoutEvent())
-    mockEq.mockResolvedValue({ error: null })
+    // Не переопределяем mockEq — beforeEach уже настроил правильную цепочку с .select()
 
     const req1 = await POST(makeRequest('{}'))
     const req2 = await POST(makeRequest('{}'))
@@ -246,6 +273,33 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockEq).toHaveBeenCalledWith('email', 'user@example.com')
     })
 
+    it('пробует обновить по stripe_customer_id перед email (Race Condition fix)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // Первый шаг — обновление по stripe_customer_id (идемпотентность при retry)
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      // Второй шаг — первичная привязка по email
+      expect(mockEq).toHaveBeenCalledWith('email', 'user@example.com')
+    })
+
+    it('логирует event.id при ошибке обработки события', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent()) // id = 'evt_checkout_123'
+      mockEq.mockResolvedValueOnce({ error: { message: 'БД недоступна' } })
+
+      await POST(makeRequest('{}'))
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[webhook] Ошибка обработки события:',
+        'evt_checkout_123',
+        expect.any(Error)
+      )
+      consoleSpy.mockRestore()
+    })
+
     it('не падает если email отсутствует в сессии', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeCheckoutEvent({ customer_details: { email: null } })
@@ -257,10 +311,28 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       expect(mockUpdate).not.toHaveBeenCalled()
     })
+
+    it('логирует warn если профиль не найден по email (0 строк обновлено)', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
+      // Первый mockEq (customer_id) → ок
+      // Second call goes to mockSelectAfterEq via .select()
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null }) // 0 rows found by email
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '[webhook] checkout.session.completed: профиль не найден по email'
+        )
+      )
+      consoleSpy.mockRestore()
+    })
   })
 
   describe('invoice.payment_succeeded', () => {
-    it('обновляет статус и current_period_end (AC1, Task 3.2)', async () => {
+    it('обновляет статус и current_period_end через OR-фильтр (AC1, Task 3.2)', async () => {
       mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_succeeded'))
 
       const response = await POST(makeRequest('{}'))
@@ -270,9 +342,28 @@ describe('POST /api/webhooks/stripe', () => {
         expect.objectContaining({
           subscription_status: 'active',
           current_period_end: expect.any(String),
+          stripe_subscription_id: 'sub_123',
         })
       )
-      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      // Fix [High]: использует .or() с обоими условиями
+      expect(mockOr).toHaveBeenCalledWith(
+        'stripe_subscription_id.eq.sub_123,stripe_customer_id.eq.cus_123'
+      )
+    })
+
+    it('fallback по customer_id когда subscription_id не привязан (event ordering fix)', async () => {
+      // Симулируем invoice, пришедший до checkout.session.completed (нет subscription)
+      mockConstructEvent.mockReturnValueOnce(
+        makeInvoiceEvent('invoice.payment_succeeded', {
+          parent: { subscription_details: { subscription: null } },
+        })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // Только customer_id в OR-фильтре (subscription_id недоступен)
+      expect(mockOr).toHaveBeenCalledWith('stripe_customer_id.eq.cus_123')
     })
   })
 
@@ -336,6 +427,22 @@ describe('POST /api/webhooks/stripe', () => {
         expect.stringContaining('[webhook] invoice.payment_failed:'),
         expect.any(String)
       )
+      consoleSpy.mockRestore()
+    })
+
+    it('повторный payment_failed для уже inactive профиля не падает (NFR18 идемпотентность)', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      // Оба вызова возвращают одно и то же событие
+      mockConstructEvent.mockReturnValue(makeInvoiceEvent('invoice.payment_failed'))
+
+      const res1 = await POST(makeRequest('{}'))
+      const res2 = await POST(makeRequest('{}'))
+
+      expect(res1.status).toBe(200)
+      expect(res2.status).toBe(200)
+      // Оба обновления выполнены (update идемпотентен — same data, same row)
+      expect(mockUpdate).toHaveBeenCalledTimes(2)
+      expect(mockUpdate).toHaveBeenCalledWith({ subscription_status: 'inactive' })
       consoleSpy.mockRestore()
     })
   })

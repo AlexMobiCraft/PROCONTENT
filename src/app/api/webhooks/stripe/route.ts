@@ -2,22 +2,29 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { stripe } from '@/lib/stripe'
 import type Stripe from 'stripe'
+import type { Database } from '@/types/supabase'
 
-// Admin-клиент Supabase с Service Role Key (обходит RLS).
-// Не используем Database generic чтобы избежать конфликтов типов Supabase JS v2.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SupabaseAdmin = ReturnType<typeof createAdminClient>
+// Типизированный объект обновления профиля (без any)
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
 
+// Fix [AI-Review][Low]: createClient<Database> устраняет any в типе SupabaseAdmin
 function createAdminClient() {
-  return createClient(
+  return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
 
+// Admin-клиент Supabase с Service Role Key (обходит RLS).
+// SupabaseClient<Database> — полная типизация без any.
+type SupabaseAdmin = ReturnType<typeof createAdminClient>
+
 // Task 3.1: checkout.session.completed
 // Привязываем stripe_customer_id / stripe_subscription_id к профилю по email,
 // если пользователь уже зарегистрирован (иначе Story 1.7 завершит привязку).
+// Fix [AI-Review][Medium]: двухшаговое обновление устраняет Race Condition при retry-событиях:
+//   1) По stripe_customer_id (идемпотентно для последующих retries после первой привязки)
+//   2) По email (первичная привязка, когда stripe_customer_id ещё не установлен в БД)
 async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session,
   supabase: SupabaseAdmin
@@ -35,47 +42,87 @@ async function handleCheckoutSessionCompleted(
     return
   }
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      stripe_customer_id: customerId ?? null,
-      stripe_subscription_id: subscriptionId ?? null,
-      subscription_status: 'active',
-    })
-    .eq('email', email)
+  const updateData: ProfileUpdate = {
+    stripe_customer_id: customerId ?? null,
+    stripe_subscription_id: subscriptionId ?? null,
+    subscription_status: 'active',
+  }
 
-  if (error) {
-    throw new Error(`[webhook] Ошибка обновления профиля (checkout.completed): ${error.message}`)
+  // Шаг 1: обновляем по stripe_customer_id (no-op при первом вызове, корректен при retry)
+  if (customerId) {
+    const { error } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('stripe_customer_id', customerId)
+
+    if (error) {
+      throw new Error(
+        `[webhook] Ошибка обновления профиля (checkout.completed via customer_id): ${error.message}`
+      )
+    }
+  }
+
+  // Шаг 2: первичная привязка по email (устанавливает stripe_customer_id при первом вызове)
+  // Fix [AI-Review][Medium]: .select('id') позволяет обнаружить 0 обновлённых строк
+  const { data: updatedProfiles, error: emailError } = await supabase
+    .from('profiles')
+    .update(updateData)
+    .eq('email', email)
+    .select('id')
+
+  if (emailError) {
+    throw new Error(
+      `[webhook] Ошибка обновления профиля (checkout.completed via email): ${emailError.message}`
+    )
+  }
+
+  if (!updatedProfiles || updatedProfiles.length === 0) {
+    console.warn(
+      `[webhook] checkout.session.completed: профиль не найден по email ${email}. Ожидание Story 1.7 для привязки.`
+    )
   }
 }
 
 // Task 3.2: invoice.payment_succeeded
 // Продлеваем/обновляем current_period_end и подтверждаем active-статус.
 // В Stripe API 2026: subscription ID лежит в invoice.parent.subscription_details.subscription
+// Fix [AI-Review][High]: OR-фильтр по subscription_id + customer_id решает race condition:
+//   invoice.payment_succeeded может прийти до checkout.session.completed,
+//   когда stripe_subscription_id ещё не записан в БД → fallback на stripe_customer_id.
 async function handleInvoicePaymentSucceeded(
   invoice: Stripe.Invoice,
   supabase: SupabaseAdmin
 ) {
   const subRef = invoice.parent?.subscription_details?.subscription
   const subscriptionId = typeof subRef === 'string' ? subRef : subRef?.id
+  const customerId =
+    typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id ?? null
 
-  if (!subscriptionId) return
+  if (!subscriptionId && !customerId) return
 
   const periodEndTs = invoice.lines?.data?.[0]?.period?.end
   const currentPeriodEnd = periodEndTs
     ? new Date(periodEndTs * 1000).toISOString()
     : null
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const update: Record<string, any> = { subscription_status: 'active' }
+  const update: ProfileUpdate = { subscription_status: 'active' }
   if (currentPeriodEnd) {
     update.current_period_end = currentPeriodEnd
   }
+  // Устанавливаем subscription_id если ещё не записан (handles late event binding)
+  if (subscriptionId) {
+    update.stripe_subscription_id = subscriptionId
+  }
+
+  // OR-фильтр: subscription_id (основной) ИЛИ customer_id (fallback при нарушении порядка)
+  const conditions: string[] = []
+  if (subscriptionId) conditions.push(`stripe_subscription_id.eq.${subscriptionId}`)
+  if (customerId) conditions.push(`stripe_customer_id.eq.${customerId}`)
 
   const { error } = await supabase
     .from('profiles')
     .update(update)
-    .eq('stripe_subscription_id', subscriptionId)
+    .or(conditions.join(','))
 
   if (error) {
     throw new Error(
@@ -129,8 +176,7 @@ async function handleSubscriptionUpdated(
     status = 'inactive'
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const update: Record<string, any> = { subscription_status: status }
+  const update: ProfileUpdate = { subscription_status: status }
   if (periodEnd) {
     update.current_period_end = periodEnd
   }
@@ -239,8 +285,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true }, { status: 200 })
   } catch (error) {
-    // Task 5.1 + 5.2: логируем ошибку, возвращаем 500 для Stripe retry (AC4, NFR19)
-    console.error('[webhook] Ошибка обработки события:', error)
+    // Task 5.1 + 5.2: логируем ошибку с event.id, возвращаем 500 для Stripe retry (AC4, NFR19)
+    // Fix [AI-Review][Low]: добавлен event.id для трассировки конкретного события в логах
+    console.error('[webhook] Ошибка обработки события:', event.id, error)
     return NextResponse.json({ error: 'Ошибка обработки webhook' }, { status: 500 })
   }
 }

@@ -2,6 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { Database } from '@/types/supabase'
 
+// Fix [AI-Review][Medium]: кеш subscription_status в httpOnly cookie (30s TTL).
+// Исключает запрос к БД на каждый переход, сохраняя NFR7 (инвалидация <60s).
+const SUBSCRIPTION_CACHE_COOKIE = '__sub_status'
+const SUBSCRIPTION_CACHE_TTL = 30 // seconds
+
 export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -59,6 +64,21 @@ export async function updateSession(request: NextRequest) {
   // Task 4.1 (NFR7): инвалидация доступа при subscription_status = 'inactive'
   // Проверяем только для аутентифицированных пользователей на защищённых маршрутах
   if (user && !isPublicPath) {
+    // Сначала проверяем кеш (избегаем запрос к БД при каждом переходе)
+    const cachedStatus = request.cookies.get(SUBSCRIPTION_CACHE_COOKIE)?.value
+
+    if (cachedStatus !== undefined) {
+      // Кеш есть — используем сохранённый статус без запроса к БД
+      if (cachedStatus === 'inactive') {
+        const url = request.nextUrl.clone()
+        url.pathname = '/'
+        return NextResponse.redirect(url)
+      }
+      // Кеш говорит active/none — пропускаем
+      return supabaseResponse
+    }
+
+    // Кеша нет — делаем запрос к БД
     type ProfileRow = { subscription_status: string | null }
     const { data: profile } = (await supabase
       .from('profiles')
@@ -66,11 +86,21 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single()) as { data: ProfileRow | null; error: unknown }
 
-    if (profile?.subscription_status === 'inactive') {
+    const status = profile?.subscription_status ?? 'none'
+
+    if (status === 'inactive') {
       const url = request.nextUrl.clone()
       url.pathname = '/'
       return NextResponse.redirect(url)
     }
+
+    // Кешируем статус в httpOnly cookie (TTL = 30s, не кешируем inactive)
+    supabaseResponse.cookies.set(SUBSCRIPTION_CACHE_COOKIE, status, {
+      maxAge: SUBSCRIPTION_CACHE_TTL,
+      httpOnly: true,
+      sameSite: 'strict',
+      path: '/',
+    })
   }
 
   return supabaseResponse
