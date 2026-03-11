@@ -10,6 +10,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Некорректный формат запроса' }, { status: 400 })
   }
 
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'Некорректный формат запроса' }, { status: 400 })
+  }
+
+  if (!('plan' in (body as object))) {
+    return NextResponse.json({ error: 'Некорректный формат запроса' }, { status: 400 })
+  }
+
   const { plan } = body as { plan: unknown }
 
   if (plan !== 'monthly' && plan !== 'quarterly') {
@@ -26,11 +34,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Конфигурация тарифа недоступна' }, { status: 500 })
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-  if (!siteUrl) {
+  const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  if (!rawSiteUrl) {
     console.error('[checkout] Отсутствует переменная окружения NEXT_PUBLIC_SITE_URL')
     return NextResponse.json({ error: 'Конфигурация сервера недоступна' }, { status: 500 })
   }
+  const siteUrl = rawSiteUrl.replace(/\/$/, '')
 
   try {
     const session = await stripe.checkout.sessions.create({

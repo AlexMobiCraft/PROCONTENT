@@ -117,4 +117,56 @@ describe('POST /api/checkout', () => {
     expect(data).toHaveProperty('error')
     expect(mockSessionsCreate).not.toHaveBeenCalled()
   })
+
+  it('возвращает 400 при null в теле запроса', async () => {
+    const request = new Request('http://localhost/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'null',
+    })
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data).toHaveProperty('error')
+    expect(mockSessionsCreate).not.toHaveBeenCalled()
+  })
+
+  it('возвращает 400 при пустом массиве в теле запроса', async () => {
+    const request = new Request('http://localhost/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '[]',
+    })
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data).toHaveProperty('error')
+    expect(mockSessionsCreate).not.toHaveBeenCalled()
+  })
+
+  it('возвращает 400 при отсутствии поля plan в теле запроса', async () => {
+    const response = await POST(makeRequest({}))
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data).toHaveProperty('error')
+    expect(mockSessionsCreate).not.toHaveBeenCalled()
+  })
+
+  it('нормализует NEXT_PUBLIC_SITE_URL с trailing slash', async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000/'
+    mockSessionsCreate.mockResolvedValueOnce({ url: 'https://checkout.stripe.com/test' })
+
+    const response = await POST(makeRequest({ plan: 'monthly' }))
+
+    expect(response.status).toBe(200)
+    expect(mockSessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success_url: 'http://localhost:3000/onboarding?session_id={CHECKOUT_SESSION_ID}',
+        cancel_url: 'http://localhost:3000/#pricing',
+      })
+    )
+  })
 })

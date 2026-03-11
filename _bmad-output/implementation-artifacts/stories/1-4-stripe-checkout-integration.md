@@ -53,7 +53,7 @@ so that оформить подписку через надёжный шлюз S
     ```
     ⚠️ `STRIPE_SECRET_KEY` — без префикса `NEXT_PUBLIC_`, иначе это критическая уязвимость безопасности
   - [x] Subtask 1.3: Добавить те же ключи в `.env.example` с placeholder-значениями (без реальных ключей)
-  - [x] Subtask 1.4: Добавить в `next.config.mjs` переменную `NEXT_PUBLIC_SITE_URL` в `env` config (если требуется)
+  - [x] Subtask 1.4: Добавить в `next.config.ts` переменную `NEXT_PUBLIC_SITE_URL` в `env` config (если требуется)
 
 - [x] **Task 2: Создание Stripe helper** (AC: 1)
   - [x] Subtask 2.1: Создать `src/lib/stripe/index.ts` — инициализация Stripe-клиента:
@@ -125,6 +125,11 @@ so that оформить подписку через надёжный шлюз S
 - [x] [AI-Review][Medium] Добавить проверку наличия Environment Variables для Stripe Price ID [src/app/api/checkout/route.ts:19]
 - [x] [AI-Review][Medium] Избегать Type Casting (`url!`) в клиентском API-хелпере [src/features/landing/api/checkout.ts:14]
 - [x] [AI-Review][Medium] Добавить недостающие тесты для Smart-контейнера `PricingCheckoutWrapper.tsx`
+- [x] [AI-Review][Medium] UX Inconsistency: Изменить `href="/login"` на `href="#pricing"` в CtaSection.tsx [src/features/landing/components/CtaSection.tsx:26-30]
+- [x] [AI-Review][Medium] Potential URL Malformation: Использовать `new URL()` или проверку слеша в `NEXT_PUBLIC_SITE_URL` [src/app/api/checkout/route.ts:43-44]
+- [x] [AI-Review][Low] A11y: Реализовать мягкую анимацию пульсации текста "Загрузка..." [src/features/landing/components/PricingSection.tsx:154]
+- [x] [AI-Review][Low] Redundant Claim: Исправить неточность в Subtask 1.4 относительно next.config.ts [_bmad-output/implementation-artifacts/stories/1-4-stripe-checkout-integration.md:56]
+- [x] [AI-Review][Low] Strict Payload Validation: Улучшить типизированную проверку наличия `plan` перед кастингом [src/app/api/checkout/route.ts:13-17]
 
 ### Review Follow-ups (Code Review)
 - [x] [AI-Review][High] Исправить потенциальный баг с отсутствующим `process.env.NEXT_PUBLIC_SITE_URL` при генерации URL [src/app/api/checkout/route.ts:33]
@@ -133,6 +138,12 @@ so that оформить подписку через надёжный шлюз S
 - [x] [AI-Review][Medium] Добавить тест на проверку граничного условия отсутствия `NEXT_PUBLIC_SITE_URL` [tests/unit/app/api/checkout/route.test.ts]
 - [x] [AI-Review][Low] Использовать `role="radio"` и `role="radiogroup"` вместо кнопок для выбора тарифа [src/features/landing/components/PricingSection.tsx:76]
 - [x] [AI-Review][Low] Улучшить обработку чисто сетевых `TypeError` ошибок у fetch [src/features/landing/api/checkout.ts:11]
+- [x] [AI-Review][High] Предотвратить сбой сервера (500) при `null` Payload (ошибка TypeError при деструктуризации) [src/app/api/checkout/route.ts:13]
+- [x] [AI-Review][Medium] Исправить опечатку `price_price_1...` в конфигурации тарифа Stripe [.env.local:12]
+- [x] [AI-Review][Medium] Реализовать управление фокусом через клавиатуру для кнопок-радио (A11y) [src/features/landing/components/PricingSection.tsx:72]
+- [x] [AI-Review][Medium] Удалить устаревший параметр `typescript: true` при инициализации Stripe [src/lib/stripe/index.ts:10]
+- [x] [AI-Review][Low] Добавить тесты валидации на крайние случаи JSON (null, пустой массив) [tests/unit/app/api/checkout/route.test.ts]
+- [x] [AI-Review][Low] Рассмотреть добавление защиты от Rate Limit атак для публичного API [src/app/api/checkout/route.ts]
 
 ## Dev Notes
 
@@ -295,6 +306,17 @@ claude-sonnet-4-6
 - ✅ Resolved code-review finding [Medium]: Добавлен тест `возвращает 500 если отсутствует NEXT_PUBLIC_SITE_URL` в `route.test.ts`. Всего 114 тестов.
 - ✅ Resolved code-review finding [Low]: Тогл тарифов в `PricingSection.tsx` — `role="radiogroup"` на обёртке, `role="radio"` + `aria-checked` на кнопках вместо `aria-pressed`.
 - ✅ Resolved code-review finding [Low]: `checkout.ts` — сетевые ошибки (`TypeError` от fetch) пойманы отдельным try/catch с user-friendly сообщением.
+- ✅ Resolved code-review finding [High]: `route.ts` — добавлена проверка `null`/non-object/array payload перед деструктуризацией, предотвращает TypeError; возвращает 400.
+- ✅ Resolved code-review finding [Medium]: `.env.local` — исправлена опечатка `price_price_1...` → `price_1T9ibHRuz3HsBVSwoZwQA16R` для `STRIPE_QUARTERLY_PRICE_ID`.
+- ✅ Resolved code-review finding [Medium]: `PricingSection.tsx` — реализован roving tabindex + onKeyDown handler (ArrowUp/Down/Left/Right) для `role="radiogroup"`. Focus управляется через `useRef`.
+- ✅ Resolved code-review finding [Medium]: `stripe/index.ts` — удалён устаревший параметр `typescript: true`.
+- ✅ Resolved code-review finding [Low]: `route.test.ts` — добавлены 2 теста на крайние JSON случаи: `null` payload → 400, `[]` payload → 400. Итого: 116 тестов, 0 ошибок TypeScript.
+- ✅ Deferred code-review finding [Low]: Rate Limit protection — рассмотрено, отложено до отдельной истории (согласно DevNotes).
+- ✅ Resolved review finding [Medium]: CtaSection.tsx — `href="/login"` → `href="#pricing"` для кнопки "Вступить в клуб". Ссылка "Войти" сохранена как `/login`.
+- ✅ Resolved review finding [Medium]: route.ts — добавлен `siteUrl.replace(/\/$/, '')` для нормализации trailing slash в `NEXT_PUBLIC_SITE_URL`. Добавлен тест с trailing slash. Итого: 118 тестов.
+- ✅ Resolved review finding [Low]: PricingSection.tsx — `animate-pulse` на тексте "Загрузка...".
+- ✅ Resolved review finding [Low]: Subtask 1.4 — исправлено `next.config.mjs` → `next.config.ts` (реальный файл в проекте).
+- ✅ Resolved review finding [Low]: route.ts — добавлена явная проверка `!('plan' in body)` перед кастингом. Добавлен тест на `{}` payload. Итого: 118 тестов, 0 ошибок TypeScript.
 
 ### File List
 
@@ -315,6 +337,13 @@ claude-sonnet-4-6
 - `package-lock.json` (модифицирован)
 - `src/app/layout.tsx` (модифицирован — добавлен `<Toaster />`)
 - `src/features/landing/components/PricingCheckoutWrapper.tsx` (модифицирован — toast вместо inline-ошибки)
-- `src/features/landing/components/PricingSection.tsx` (модифицирован — удалён prop `errorMessage`)
+- `src/features/landing/components/PricingSection.tsx` (модифицирован — удалён prop `errorMessage`; keyboard navigation A11y)
 - `src/features/landing/api/checkout.ts` (модифицирован — убран `url!`, добавлена явная проверка)
-- `src/app/api/checkout/route.ts` (модифицирован — console.error + проверка env Price ID + проверка NEXT_PUBLIC_SITE_URL)
+- `src/app/api/checkout/route.ts` (модифицирован — console.error + проверка env Price ID + проверка NEXT_PUBLIC_SITE_URL + null/array payload guard)
+- `src/lib/stripe/index.ts` (модифицирован — удалён `typescript: true`)
+- `.env.local` (модифицирован — исправлена опечатка STRIPE_QUARTERLY_PRICE_ID)
+- `tests/unit/app/api/checkout/route.test.ts` (модифицирован — +2 теста: null и [] payload)
+- `src/features/landing/components/CtaSection.tsx` (модифицирован — href="/login" → href="#pricing" для CTA)
+- `src/app/api/checkout/route.ts` (модифицирован — trailing slash нормализация siteUrl + strict plan presence check)
+- `src/features/landing/components/PricingSection.tsx` (модифицирован — animate-pulse на тексте загрузки)
+- `tests/unit/app/api/checkout/route.test.ts` (модифицирован — +2 теста: {} payload и trailing slash URL)

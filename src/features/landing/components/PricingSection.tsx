@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 
 const features = [
@@ -37,6 +37,27 @@ interface PricingSectionProps {
 export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
   const [selected, setSelected] = useState<Plan>('quarterly')
   const active = plans[selected]
+  const planKeys = Object.keys(plans) as Plan[]
+  const buttonRefs = useRef<Partial<Record<Plan, HTMLButtonElement | null>>>({})
+
+  const handleRadioKeyDown = (e: React.KeyboardEvent, key: Plan) => {
+    const currentIndex = planKeys.indexOf(key)
+    let nextIndex: number | null = null
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      e.preventDefault()
+      nextIndex = (currentIndex + 1) % planKeys.length
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault()
+      nextIndex = (currentIndex - 1 + planKeys.length) % planKeys.length
+    }
+
+    if (nextIndex !== null) {
+      const nextKey = planKeys[nextIndex]
+      setSelected(nextKey)
+      buttonRefs.current[nextKey]?.focus()
+    }
+  }
 
   return (
     <section id="pricing" className="px-4 py-16 sm:px-5">
@@ -75,9 +96,12 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
               return (
                 <button
                   key={key}
+                  ref={(el) => { buttonRefs.current[key] = el }}
                   type="button"
                   role="radio"
                   onClick={() => setSelected(key)}
+                  onKeyDown={(e) => handleRadioKeyDown(e, key)}
+                  tabIndex={isActive ? 0 : -1}
                   aria-checked={isActive}
                   className={[
                     'flex flex-col gap-1.5 border px-3 py-3 text-left transition-colors cursor-pointer',
@@ -127,7 +151,11 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
               disabled={isLoading}
               className="inline-flex min-h-[48px] w-full items-center justify-center border border-primary bg-transparent px-8 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isLoading ? 'Загрузка...' : 'Вступить сейчас'}
+              {isLoading ? (
+                <span className="animate-pulse">Загрузка...</span>
+              ) : (
+                'Вступить сейчас'
+              )}
             </button>
             <p className="text-[11px] text-muted-foreground text-center">
               Безопасная оплата через Stripe · Отмена в 1 клик.

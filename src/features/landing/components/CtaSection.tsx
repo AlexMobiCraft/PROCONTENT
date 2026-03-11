@@ -23,7 +23,7 @@ export function CtaSection() {
         </div>
 
         <Link
-          href="/login"
+          href="#pricing"
           className="inline-flex min-h-[44px] items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-primary-foreground transition-colors hover:bg-primary/20"
         >
           Вступить в клуб
