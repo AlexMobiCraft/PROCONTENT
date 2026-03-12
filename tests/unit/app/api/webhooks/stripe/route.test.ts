@@ -24,8 +24,10 @@ const {
   mockSingle,
   mockUpdate,
   mockOr,
+  mockOrChain,
   mockCreateClient,
   mockSelectAfterEq,
+  mockRpc,
 } = vi.hoisted(() => {
   const mockSingle = vi.fn()
   const mockOr = vi.fn()
@@ -39,18 +41,31 @@ const {
   // mockIs: финальный await в цепочке .eq(...).is(...)
   const mockIs = vi.fn().mockResolvedValue({ error: null })
 
-  // mockEq: thenable + chainable с .select() и .is() чтобы поддерживать:
-  //   await supabase.from(...).update(...).eq(...)            — прямое await
-  //   await supabase.from(...).update(...).eq(...).select()   — chain с select
-  //   await supabase.from(...).update(...).eq(...).is(...)    — chain с is (fallback guard)
-  const mockEq = vi.fn().mockImplementation(() => {
-    const result = Promise.resolve({ error: null })
-    Object.assign(result, { select: mockSelectAfterEq, is: mockIs })
+  // mockOrChain: используется для цепочки .eq(...).or(...).select('id')
+  // Fix [AI-Review][High] Round 8: guard от stale payment_failed вебхуков
+  const mockOrChain = vi.fn().mockImplementation(() => {
+    const result = Promise.resolve({ data: [{ id: 'profile-1' }], error: null })
+    Object.assign(result, { select: mockSelectAfterEq })
     return result
   })
 
+  // mockEq: thenable + chainable с .select(), .is() и .or() чтобы поддерживать:
+  //   await supabase.from(...).update(...).eq(...)               — прямое await
+  //   await supabase.from(...).update(...).eq(...).select()      — chain с select
+  //   await supabase.from(...).update(...).eq(...).is(...)       — chain с is (fallback guard)
+  //   await supabase.from(...).update(...).eq(...).or(...).select() — chain с or (period_end guard)
+  const mockEq = vi.fn().mockImplementation(() => {
+    const result = Promise.resolve({ error: null })
+    Object.assign(result, { select: mockSelectAfterEq, is: mockIs, or: mockOrChain })
+    return result
+  })
+
+  // Fix [AI-Review][Critical] Round 8: мок supabase.rpc для O(1) поиска user по email через Postgres RPC
+  const mockRpc = vi.fn()
+
   const mockCreateClient = vi.fn(() => ({
     from: mockFrom,
+    rpc: mockRpc,
   }))
 
   return {
@@ -61,8 +76,10 @@ const {
     mockSingle,
     mockUpdate,
     mockOr,
+    mockOrChain,
     mockCreateClient,
     mockSelectAfterEq,
+    mockRpc,
   }
 })
 
@@ -151,10 +168,13 @@ describe('POST /api/webhooks/stripe', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service_role_key_test'
 
-    // mockEq: thenable + chainable с .select() и .is() (поддерживает все паттерны использования)
+    // mockEq: thenable + chainable с .select(), .is() и .or() чтобы поддерживать:
+    //   await ...eq(...).select()      — chain с select
+    //   await ...eq(...).is(...)       — chain с is (fallback guard)
+    //   await ...eq(...).or(...).select() — chain с or (period_end guard, Round 8)
     mockEq.mockImplementation(() => {
       const result = Promise.resolve({ error: null })
-      Object.assign(result, { select: mockSelectAfterEq, is: mockIs })
+      Object.assign(result, { select: mockSelectAfterEq, is: mockIs, or: mockOrChain })
       return result
     })
     mockIs.mockResolvedValue({ error: null })
@@ -162,8 +182,16 @@ describe('POST /api/webhooks/stripe', () => {
     mockSelectAfterEq.mockResolvedValue({ data: [{ id: 'profile-1' }], error: null })
 
     mockOr.mockResolvedValue({ error: null })
+    mockOrChain.mockImplementation(() => {
+      const result = Promise.resolve({ data: [{ id: 'profile-1' }], error: null })
+      Object.assign(result, { select: mockSelectAfterEq })
+      return result
+    })
     mockUpdate.mockReturnValue({ eq: mockEq, or: mockOr })
     mockFrom.mockReturnValue({ update: mockUpdate })
+
+    // Fix [AI-Review][Critical] Round 8: дефолтный мок RPC — пользователь найден по email (O(1) поиск)
+    mockRpc.mockResolvedValue({ data: 'auth-user-id', error: null })
   })
 
   // AC1, AC4: валидная подпись — успешная обработка
@@ -221,7 +249,8 @@ describe('POST /api/webhooks/stripe', () => {
   // AC4, NFR19: ошибка БД → 500 (Stripe начнёт retry)
   it('возвращает 500 при ошибке БД во время обработки события', async () => {
     mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
-    mockEq.mockResolvedValueOnce({ error: { message: 'БД недоступна' } })
+    // Симулируем ошибку БД в шаге 1 checkout через .select('id')
+    mockSelectAfterEq.mockResolvedValueOnce({ data: null, error: { message: 'БД недоступна' } })
 
     const response = await POST(makeRequest('{}'))
 
@@ -282,8 +311,11 @@ describe('POST /api/webhooks/stripe', () => {
   })
 
   describe('checkout.session.completed', () => {
-    it('обновляет профиль пользователя по email (AC1)', async () => {
+    // Fix [AI-Review][Critical] Round 8: шаг 2 теперь использует RPC (O(1)) вместо listUsers
+    it('обновляет профиль по user ID из auth.users если step 1 не нашёл профиль (AC1)', async () => {
       mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
+      // Шаг 1 (customer_id) не нашёл строк → переходим к RPC lookup
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
 
       const response = await POST(makeRequest('{}'))
 
@@ -296,19 +328,36 @@ describe('POST /api/webhooks/stripe', () => {
           subscription_status: 'active',
         })
       )
-      expect(mockEq).toHaveBeenCalledWith('email', 'user@example.com')
+      // Шаг 2: O(1) lookup через RPC → eq('id', userId)
+      expect(mockRpc).toHaveBeenCalledWith('get_auth_user_id_by_email', { p_email: 'user@example.com' })
+      expect(mockEq).toHaveBeenCalledWith('id', 'auth-user-id')
     })
 
-    it('пробует обновить по stripe_customer_id перед email (Race Condition fix)', async () => {
+    // Fix [AI-Review][Critical] Round 6: ранний выход если шаг 1 нашёл профиль
+    it('обновляет по stripe_customer_id в шаге 1, не вызывает RPC если профиль найден (Data Corruption fix)', async () => {
       mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
+      // mockSelectAfterEq по умолчанию возвращает строку → ранний выход после шага 1
 
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      // Первый шаг — обновление по stripe_customer_id (идемпотентность при retry)
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
-      // Второй шаг — первичная привязка по email
-      expect(mockEq).toHaveBeenCalledWith('email', 'user@example.com')
+      // Шаг 2 (RPC lookup) НЕ должен вызываться — ранний выход
+      expect(mockRpc).not.toHaveBeenCalled()
+    })
+
+    it('вызывает RPC lookup если профиль не найден по stripe_customer_id (шаг 2)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
+      // Шаг 1 возвращает 0 строк → переходим к шагу 2 (RPC)
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      // Fix [AI-Review][Critical] Round 8: O(1) RPC вместо listUsers({page, perPage})
+      expect(mockRpc).toHaveBeenCalledWith('get_auth_user_id_by_email', { p_email: 'user@example.com' })
+      expect(mockEq).toHaveBeenCalledWith('id', 'auth-user-id')
     })
 
     it('логирует event.id при ошибке обработки события', async () => {
@@ -364,19 +413,40 @@ describe('POST /api/webhooks/stripe', () => {
       )
     })
 
-    it('логирует warn если профиль не найден по email (0 строк обновлено)', async () => {
+    it('логирует warn если пользователь не найден в auth.users по email (RPC вернул null)', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
-      // Первый mockEq (customer_id) → ок
-      // Second call goes to mockSelectAfterEq via .select()
-      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null }) // 0 rows found by email
+      // Шаг 1 (customer_id) → 0 строк → переходим к шагу 2
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+      // Fix [AI-Review][Critical] Round 8: RPC вернул null → пользователь не найден
+      mockRpc.mockResolvedValueOnce({ data: null, error: null })
 
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          '[webhook] checkout.session.completed: профиль не найден по email'
+          '[webhook] checkout.session.completed: пользователь не найден в auth.users по email'
+        )
+      )
+      consoleSpy.mockRestore()
+    })
+
+    it('логирует warn если профиль не найден в public.profiles для userId из auth.users (0 строк)', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
+      // Шаг 1 (customer_id) → 0 строк
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+      // auth.users вернул пользователя → шаг 2
+      // profiles.update().eq('id', ...).select('id') → 0 строк
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '[webhook] checkout.session.completed: профиль не найден для userId'
         )
       )
       consoleSpy.mockRestore()
@@ -384,9 +454,10 @@ describe('POST /api/webhooks/stripe', () => {
   })
 
   describe('invoice.payment_succeeded', () => {
-    // Fix [AI-Review][High]: двухшаговый подход вместо OR-фильтра
-    it('обновляет статус и current_period_end двухшаговым подходом (AC1, Task 3.2)', async () => {
+    // Fix [AI-Review][High]: двухшаговый подход; Fix [AI-Review][Medium] Round 6: ранний выход
+    it('обновляет статус и current_period_end по stripe_subscription_id (шаг 1, AC1, Task 3.2)', async () => {
       mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_succeeded'))
+      // mockSelectAfterEq по умолчанию возвращает строку → ранний выход
 
       const response = await POST(makeRequest('{}'))
 
@@ -398,9 +469,20 @@ describe('POST /api/webhooks/stripe', () => {
           stripe_subscription_id: 'sub_123',
         })
       )
-      // Шаг 1: строгое обновление по subscription_id
+      // Только шаг 1 — subscription_id найден, шаг 2 не нужен
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
-      // Шаг 2: fallback по customer_id только при stripe_subscription_id IS NULL
+      expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
+    })
+
+    it('fallback по customer_id если шаг 1 не нашёл строк (Double Update fix)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_succeeded'))
+      // Шаг 1 возвращает 0 строк → переходим к fallback
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
       expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
     })
@@ -458,19 +540,33 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockUpdate).toHaveBeenCalledWith({ subscription_status: 'inactive' })
     })
 
-    // [AI-Review][High] Fix: двухшаговое удаление — сначала по subscription_id, потом customer_id
-    // [AI-Review][High] Fix Round 4: fallback применяется только при stripe_subscription_id IS NULL
-    it('делает строгое обновление по stripe_subscription_id первым шагом, fallback с IS NULL guard', async () => {
+    // Fix [AI-Review][Medium] Round 6: ранний выход если шаг 1 нашёл строку
+    it('обновляет по stripe_subscription_id в шаге 1, не вызывает fallback если найден', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeSubscriptionEvent('customer.subscription.deleted')
       )
+      // mockSelectAfterEq по умолчанию возвращает строку → ранний выход
 
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      // Первый шаг — строго по subscription_id (без IS NULL — обновляет конкретную подписку)
+      expect(mockUpdate).toHaveBeenCalledWith({ subscription_status: 'inactive' })
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
-      // Второй шаг — fallback по customer_id только для профилей без subscription_id
+      expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
+    })
+
+    // [AI-Review][High] Fix: fallback с IS NULL guard когда шаг 1 не нашёл строку
+    it('fallback по customer_id с IS NULL guard если шаг 1 не нашёл строку (AC2)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeSubscriptionEvent('customer.subscription.deleted')
+      )
+      // Шаг 1 возвращает 0 строк → fallback
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
       expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
     })
@@ -493,6 +589,23 @@ describe('POST /api/webhooks/stripe', () => {
   })
 
   describe('customer.subscription.updated', () => {
+    // Fix [AI-Review][High] Round 8: trialing = пробный период, пользователь имеет активный доступ
+    it('сохраняет active для подписки со статусом trialing (Trial users fix, Round 8)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeSubscriptionEvent('customer.subscription.updated', {
+          status: 'trialing',
+          cancel_at_period_end: false,
+        })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+    })
+
     it('сохраняет active при cancel_at_period_end=true (AC5)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeSubscriptionEvent('customer.subscription.updated', {
@@ -524,20 +637,74 @@ describe('POST /api/webhooks/stripe', () => {
         expect.objectContaining({ subscription_status: 'canceled' })
       )
     })
+
+    // Fix [AI-Review][High] Round 6: fallback если subscription.updated пришёл до checkout.session.completed
+    it('fallback по customer_id если subscription_id не привязан (Race Condition fix)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeSubscriptionEvent('customer.subscription.updated')
+      )
+      // Шаг 1 возвращает 0 строк → fallback
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+    })
   })
 
   describe('invoice.payment_failed', () => {
-    it('переводит в inactive и логирует ошибку (AC2)', async () => {
+    it('переводит в inactive, сбрасывает current_period_end и логирует ошибку (AC2)', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_failed'))
 
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      expect(mockUpdate).toHaveBeenCalledWith({ subscription_status: 'inactive' })
+      // Fix [AI-Review][Medium] Round 7: current_period_end сбрасывается при неуплате
+      expect(mockUpdate).toHaveBeenCalledWith({
+        subscription_status: 'inactive',
+        current_period_end: null,
+      })
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('[webhook] invoice.payment_failed:'),
         expect.any(String)
+      )
+      consoleSpy.mockRestore()
+    })
+
+    // Fix [AI-Review][Medium] Round 6: fallback если payment_failed пришёл до checkout.session.completed
+    it('fallback по customer_id если subscription_id не привязан (Race Condition fix, AC2)', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(
+        makeInvoiceEvent('invoice.payment_failed', {
+          parent: { subscription_details: { subscription: null } },
+        })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // Только шаг 2 (нет subscription_id): customer_id с .is() guard
+      expect(mockEq).not.toHaveBeenCalledWith('stripe_subscription_id', expect.anything())
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+      consoleSpy.mockRestore()
+    })
+
+    // Fix [AI-Review][High] Round 8: guard от stale payment_failed вебхуков
+    it('вызывает .or() guard для current_period_end при payment_failed (Race Condition Round 8)', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_failed'))
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // Проверяем что .or() был вызван с защитным условием period_end
+      expect(mockOrChain).toHaveBeenCalledWith(
+        expect.stringContaining('current_period_end.is.null')
       )
       consoleSpy.mockRestore()
     })
@@ -554,7 +721,11 @@ describe('POST /api/webhooks/stripe', () => {
       expect(res2.status).toBe(200)
       // Оба обновления выполнены (update идемпотентен — same data, same row)
       expect(mockUpdate).toHaveBeenCalledTimes(2)
-      expect(mockUpdate).toHaveBeenCalledWith({ subscription_status: 'inactive' })
+      // Fix [AI-Review][Medium] Round 7: current_period_end сбрасывается при неуплате
+      expect(mockUpdate).toHaveBeenCalledWith({
+        subscription_status: 'inactive',
+        current_period_end: null,
+      })
       consoleSpy.mockRestore()
     })
   })

@@ -164,7 +164,8 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/')
+      // Fix [AI-Review][Medium] Round 7: редирект на /inactive (семантический маршрут)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
       expect(mockFrom).not.toHaveBeenCalled()
     })
 
@@ -217,7 +218,7 @@ describe('middleware', () => {
   describe('управление доступом по subscription_status (NFR7, Task 4.1)', () => {
     const mockUser = { id: 'user-123', email: 'test@example.com' }
 
-    it('редиректит на / при subscription_status = inactive', async () => {
+    it('редиректит на /inactive при subscription_status = inactive', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
 
@@ -225,7 +226,8 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/')
+      // Fix [AI-Review][Medium] Round 7: редирект на /inactive (семантический маршрут)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
     })
 
     it('пропускает пользователя с active подпиской', async () => {
@@ -260,7 +262,7 @@ describe('middleware', () => {
     })
 
     // [AI-Review][Critical] Fix: middleware должен блокировать `canceled` статус (AC2/NFR7)
-    it('редиректит на / при subscription_status = canceled', async () => {
+    it('редиректит на /inactive при subscription_status = canceled', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: { subscription_status: 'canceled' } })
 
@@ -268,7 +270,8 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/')
+      // Fix [AI-Review][Medium] Round 7: редирект на /inactive (семантический маршрут)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
     })
 
     // [AI-Review][Medium] Fix: Fail-Secure — при ошибке БД блокируем доступ
@@ -303,6 +306,36 @@ describe('middleware', () => {
   describe('кеш __sub_status — расширенные проверки', () => {
     const mockUser = { id: 'user-123', email: 'test@example.com' }
 
+    // Fix [AI-Review][High] Round 6: кешируем inactive/canceled в редиректе, чтобы не бить в БД повторно
+    it('устанавливает __sub_status cookie при редиректе с inactive статуса (DDOS fix)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      // Fix [AI-Review][Medium] Round 7: редирект теперь на /inactive
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
+      // Кеш должен быть установлен на redirect-ответе
+      const cachedCookie = response.cookies.get('__sub_status')
+      expect(cachedCookie?.value).toBe('user-123:inactive')
+    })
+
+    it('устанавливает __sub_status cookie при редиректе с canceled статуса (DDOS fix)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'canceled' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      // Fix [AI-Review][Medium] Round 7: редирект теперь на /inactive
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
+      const cachedCookie = response.cookies.get('__sub_status')
+      expect(cachedCookie?.value).toBe('user-123:canceled')
+    })
+
     // [AI-Review][Critical] Fix: кеш canceled должен блокировать доступ
     it('редиректит без запроса к БД при кеше canceled (формат userId:status)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
@@ -313,7 +346,22 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/')
+      // Fix [AI-Review][Medium] Round 7: редирект теперь на /inactive
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
+      expect(mockFrom).not.toHaveBeenCalled()
+    })
+
+    // Fix [AI-Review][Medium] Round 7: /inactive — публичный маршрут, не проверяем подписку
+    it('пропускает аутентифицированного пользователя на /inactive без проверки подписки', async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'user-123', email: 'test@example.com' } },
+      })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+      // /inactive — publicPath, проверки подписки не должно быть
       expect(mockFrom).not.toHaveBeenCalled()
     })
   })

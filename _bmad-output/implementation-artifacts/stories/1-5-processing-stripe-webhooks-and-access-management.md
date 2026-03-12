@@ -1,6 +1,6 @@
 # Story 1.5: Обработка Stripe Webhooks и управление доступом
 
-Status: review
+Status: in-progress
 
 - [x] Implementation complete
 - [x] Tests passing
@@ -77,6 +77,35 @@ so that система могла автоматически выдавать д
 - [x] [AI-Review][High] Уязвимость Checkout Session — добавить проверку `session.mode === 'subscription'` перед применением статуса `active`. [src/app/api/webhooks/stripe/route.ts:44]
 - [x] [AI-Review][Medium] Хрупкое извлечение `current_period_end` в Инвойсе — искать первую строку (line item) с `type === 'subscription'` для точного извлечения времени. [src/app/api/webhooks/stripe/route.ts:108]
 - [x] [AI-Review][Low] Слепое игнорирование неизвестных событий (Unhandled event types) — залогировать `event.type` в default блоке для помощи в дебаге. [src/app/api/webhooks/stripe/route.ts:329]
+
+### Review Follow-ups (AI) - Round 6 (Adversarial)
+- [x] [AI-Review][Critical] Утеря Auth-куки при редиректах в Middleware — возвращать `NextResponse.redirect` с куками из `supabaseResponse` (через явный copy), чтобы не терять обновляемые auth токены. [src/lib/supabase/middleware.ts:114]
+- [x] [AI-Review][Critical] Перетирание чужих аккаунтов (Data Corruption) — в `handleCheckoutSessionCompleted` добавить ранний выход если профиль был успешно обновлён по `customerId` на шаге 1, чтобы не привязывать подписку к чужому email. [src/app/api/webhooks/stripe/route.ts:75]
+- [x] [AI-Review][High] DDOS БД неактивными пользователями — в `middleware.ts` кешировать статус "inactive" / "canceled" перед редиректом, чтобы исключить запросы к БД на каждый переход. [src/lib/supabase/middleware.ts:120]
+- [x] [AI-Review][High] Race Condition (customer.subscription.updated / invoice.payment_failed) — добавить fallback с обновлением по `stripe_customer_id` или `email`, если webhook пришел до `checkout.session.completed`. [src/app/api/webhooks/stripe/route.ts:245]
+- [x] [AI-Review][Medium] Безусловные двойные запросы (Double Updates) — модифицировать `handleInvoicePaymentSucceeded` и `handleSubscriptionDeleted` с использованием `.select('id')` для обхода fallback запроса при успешном Шаге 1. [src/app/api/webhooks/stripe/route.ts:148]
+- [x] [AI-Review][Medium] Обработчик Payment Failed не имеет fallback — переиспользовать логику с fallback для события `invoice.payment_failed`. [src/app/api/webhooks/stripe/route.ts:265]
+
+### Review Follow-ups (AI) - Round 7 (Adversarial)
+- [x] [AI-Review][High] Story vs Git Discrepancy (Ложные заявления об изменениях) — В File List указано 4 файла (`supabase/migrations/002_add_subscription_fields.sql`, `src/types/supabase.ts`, `.env.example`, `.env.local`), которых нет в git diff и на staging. Необходимо восстановить или закоммитить изменения.
+- [x] [AI-Review][High] Next.js Middleware Wiring — `src/middleware.ts` не вызывает `updateSession`, поэтому логика блокировки доступа из `src/lib/supabase/middleware.ts` абсолютно неактивна. Необходимо подключить `updateSession` в корневом `middleware.ts`.
+- [x] [AI-Review][High] Слепое предположение колонки email — Исправить `eq('email', email)` в `handleCheckoutSessionCompleted`, так как email по умолчанию находится в `auth.users`, а не в `public.profiles`. [src/app/api/webhooks/stripe/route.ts]
+- [x] [AI-Review][Medium] Риск Infinite Redirect Loop для Inactive Users — Добавить fallback-маршрут (например, `/inactive`) вместо `/` для редиректа Inactive юзеров для избежания цикла редиректов. [src/lib/supabase/middleware.ts]
+- [x] [AI-Review][Medium] Семантика полей при неоплате (Payment Failed) — Очищать (устанавливать null или ставить в прошедшее время) `current_period_end` при Invoice Payment Failed, чтобы избежать логических ошибок отображения на UI. [src/app/api/webhooks/stripe/route.ts]
+
+### Review Follow-ups (AI) - Round 8 (Adversarial)
+- [x] [AI-Review][Critical] Критический отказ масштабируемости auth.admin.listUsers — Заменить загрузку всего списка пользователей на Postgres-функцию (RPC) или другой подход прямого поиска по email на стороне БД. [src/app/api/webhooks/stripe/route.ts:84]
+- [x] [AI-Review][High] Мгновенная блокировка Trial-подписок (Сбой бизнес-логики) — Обработать статус подписки 'trialing' как 'active', чтобы не блокировать доступ законным пользователям на пробном периоде. [src/app/api/webhooks/stripe/route.ts:273]
+- [x] [AI-Review][High] Race Condition при invoice.payment_failed — Не перезаписывать статус в inactive слепо; добавить защиту от задержек вебхуков со стороны Stripe для недопущения ложных блокировок. [src/app/api/webhooks/stripe/route.ts:335]
+- [x] [AI-Review][Medium] Уязвимость к регистру email — Использовать toLowerCase() перед сравнением email адреса в handleCheckoutSessionCompleted. [src/app/api/webhooks/stripe/route.ts:95]
+
+### Review Follow-ups (AI) - Round 9 (Adversarial)
+- [ ] [AI-Review][Critical] Обход Paywall через Cookie (Спуфинг кеша) — Кеш `__sub_status` нельзя доверять клиенту в открытом виде, так как содержимое можно изменить вручную через DevTools (подставив `[user.id]:active`). Следует использовать криптографически подписанные JWT или зашифрованные куки для хранения статуса с учетом NFR7. [src/lib/supabase/middleware.ts:134]
+- [ ] [AI-Review][High] Потеря данных инвойса при переподписке — Слишком строгий guard `.is('stripe_subscription_id', null)` для fallback-обновлений не позволяет инвойсам обновлять данные старых аккаунтов, повторно купивших подписку, что приведет к ложным `current_period_end`. Необходимо изменить логику fallback. [src/app/api/webhooks/stripe/route.ts:181]
+- [ ] [AI-Review][High] Fail-Open при отсутствии Env-переменных — Блок `if (!supabaseUrl || !supabaseAnonKey)` применяет прозрачный `return NextResponse.next()` вместо fail-secure блокировки маршрута. [src/lib/supabase/middleware.ts:26]
+- [ ] [AI-Review][Medium] Доступ для "none" пользователей (Нестрогий Authorization) — Status `'none'` (null в БД) пропускается без блокировки. Авторизация должна переходить на white-list подход, разрешая только `'active'` или `'trialing'`. [src/lib/supabase/middleware.ts:125]
+- [ ] [AI-Review][Medium] UX Dead-End на /inactive — Отсутствует логика вытаскивания пользователя со страницы `/inactive` (если оплата пришла во время нахождения на ней). Требуется добавить проверку `isPublicPath` и принудительный редирект для `active` юзеров в `feed`. [src/lib/supabase/middleware.ts:58]
+
 
 ## Dev Notes
 
@@ -220,9 +249,12 @@ const supabaseAdmin = createClient(
 ## File List
 
 - `supabase/migrations/002_add_subscription_fields.sql` — SQL миграция полей подписки
+- `supabase/migrations/003_add_rpc_functions.sql` — Postgres RPC `get_auth_user_id_by_email` (Round 8)
 - `src/types/supabase.ts` — добавлены поля подписки + тип `SubscriptionStatus`
 - `src/app/api/webhooks/stripe/route.ts` — новый Route Handler (Tasks 2, 3, 5)
-- `src/lib/supabase/middleware.ts` — добавлена проверка subscription_status (Task 4)
+- `src/lib/supabase/middleware.ts` — добавлена проверка subscription_status (Task 4); /inactive как публичный маршрут (Round 7)
+- `src/middleware.ts` — корневой middleware, вызывает updateSession (Round 7 — Middleware Wiring fix)
+- `src/app/inactive/page.tsx` — страница для неактивных пользователей (Round 7)
 - `.env.example` — добавлены `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`
 - `.env.local` — добавлены placeholder-значения новых переменных
 - `tests/unit/app/api/webhooks/stripe/route.test.ts` — unit-тесты webhook (Task 6)
@@ -238,6 +270,21 @@ const supabaseAdmin = createClient(
 - 2026-03-11: Выполнены косметические правки: синхронизация имен таблиц (users -> profiles), добавление userId в логи middleware, явные guard-проверки env vars в webhook route.
 - 2026-03-11: Адресованы все 5 замечаний Round 4: привязка кеша к user.id (Critical), IS NULL guard в handleSubscriptionDeleted (High), двухшаговый подход в handleInvoicePaymentSucceeded (High), документирование ограничений API 2026 (Medium), fallback guards во всех вебхуках (Low). 152 теста: 100% pass.
 - 2026-03-12: Адресованы все 4 замечания Round 5: бесконечный цикл редиректов в Middleware (Critical), session.mode check в checkout handler (High), type==='subscription' для period_end (Medium), логирование unhandled events (Low). 157 тестов: 100% pass.
+- 2026-03-12: Адресованы все 6 замечаний Round 6: `redirectWithCookies` helper для сохранения auth-куки (Critical), ранний выход в checkout по customerId (Critical), кеш inactive/canceled в редиректе (High), fallback по customer_id в handleSubscriptionUpdated и handleInvoicePaymentFailed (High), `.select('id')` + ранний выход в handleInvoicePaymentSucceeded/handleSubscriptionDeleted (Medium), fallback в handleInvoicePaymentFailed (Medium). 164 теста: 100% pass.
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 7 (Adversarial)
+- ✅ Resolved [High] (verified): Git Discrepancy — все 4 файла (`002_add_subscription_fields.sql`, `src/types/supabase.ts`, `.env.example`, `.env.local`) уже отслеживаются git и содержат корректный контент. Претензия ревьюера была ошибочной.
+- ✅ Resolved [High]: Next.js Middleware Wiring — создан `src/middleware.ts` с вызовом `updateSession`. Логика блокировки теперь активна.
+- ✅ Resolved [High]: Blind Email Column Assumption — `handleCheckoutSessionCompleted` шаг 2 теперь использует `supabase.auth.admin.listUsers()` для поиска пользователя в `auth.users` по email, затем обновляет `profiles` по user ID.
+- ✅ Resolved [Medium]: Infinite Redirect Loop Risk — добавлен `/inactive` в `isPublicPath`, редиректы inactive/canceled теперь идут на `/inactive` вместо `/`. Создана минимальная страница `src/app/inactive/page.tsx`.
+- ✅ Resolved [Medium]: Payment Failed Semantics — `handleInvoicePaymentFailed` теперь сбрасывает `current_period_end: null` при неуплате.
+- Обновлено 2 файла тестов: добавлен `mockListUsers` для auth.admin, обновлены ожидания checkout тестов (email → userId), обновлены все тесты редиректов (/ → /inactive), добавлен тест `/inactive` как публичного маршрута.
+- TypeCheck: ✅ 0 ошибок. Все 166 тестов: ✅ 100% pass.
+- 2026-03-12: Проведен Adversarial Review (Round 7). Добавлено 5 новых замечаний (3 High, 2 Medium). Статус изменен на 'in-progress'.
+- 2026-03-12: Адресованы все 5 замечаний Round 7: созданы src/middleware.ts (Critical Wiring Fix), auth.admin.listUsers() вместо profiles.email в checkout handler (High), /inactive маршрут + публичный путь для inactive users (Medium), current_period_end: null при payment_failed (Medium), git discrepancy подтверждён resolved (High — файлы в git). Добавлено 3 новых теста. TypeCheck: ✅. Все 166 тестов: ✅ 100% pass.
+- 2026-03-12: Проведен Adversarial Review (Round 8). Добавлено 4 новых замечания (1 Critical, 2 High, 1 Medium). Статус изменен на 'in-progress'.
+- 2026-03-12: Адресованы все 4 замечания Round 8: Postgres RPC `get_auth_user_id_by_email` вместо auth.admin.listUsers (Critical + Medium toLowerCase в SQL), trialing→active в subscription.updated (High), .or() guard для period_end в invoice.payment_failed (High). Добавлено 2 новых теста. TypeCheck: ✅. Все 168 тестов: ✅ 100% pass.
+- 2026-03-12: Проведен Adversarial Review (Round 9). Добавлено 5 новых замечаний (1 Critical, 2 High, 2 Medium). Статус возвращен в 'in-progress'.
 
 ## Completion Status
 

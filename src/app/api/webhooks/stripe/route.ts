@@ -29,6 +29,8 @@ type SupabaseAdmin = ReturnType<typeof createAdminClient>
 // Fix [AI-Review][Medium]: двухшаговое обновление устраняет Race Condition при retry-событиях:
 //   1) По stripe_customer_id (идемпотентно для последующих retries после первой привязки)
 //   2) По email (первичная привязка, когда stripe_customer_id ещё не установлен в БД)
+// Fix [AI-Review][Critical] Round 6: ранний выход после шага 1, если профиль найден —
+//   предотвращает перезапись чужого аккаунта с совпадающим email.
 async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session,
   supabase: SupabaseAdmin
@@ -60,35 +62,60 @@ async function handleCheckoutSessionCompleted(
 
   // Шаг 1: обновляем по stripe_customer_id (no-op при первом вызове, корректен при retry)
   if (customerId) {
-    const { error } = await supabase
+    const { data: updatedByCustomerId, error } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('stripe_customer_id', customerId)
+      .select('id')
 
     if (error) {
       throw new Error(
         `[webhook] Ошибка обновления профиля (checkout.completed via customer_id): ${error.message}`
       )
     }
+
+    // Ранний выход: профиль найден по customerId — не рискуем перетереть чужой аккаунт по email
+    if (updatedByCustomerId && updatedByCustomerId.length > 0) return
   }
 
-  // Шаг 2: первичная привязка по email (устанавливает stripe_customer_id при первом вызове)
-  // Fix [AI-Review][Medium]: .select('id') позволяет обнаружить 0 обновлённых строк
-  const { data: updatedProfiles, error: emailError } = await supabase
+  // Шаг 2: O(1) поиск в auth.users через Postgres RPC (case-insensitive lower() в SQL).
+  // Fix [AI-Review][Critical] Round 8: замена auth.admin.listUsers — загружала весь список
+  //   пользователей в память и не масштабируется при росте базы.
+  // Fix [AI-Review][Medium] Round 8: lower() в SQL функции обеспечивает case-insensitive сравнение.
+  const { data: userId, error: authLookupError } = await supabase.rpc(
+    'get_auth_user_id_by_email',
+    { p_email: email }
+  )
+
+  if (authLookupError) {
+    throw new Error(
+      `[webhook] Ошибка поиска пользователя в auth.users: ${authLookupError.message}`
+    )
+  }
+
+  if (!userId) {
+    console.warn(
+      `[webhook] checkout.session.completed: пользователь не найден в auth.users по email ${email}. Ожидание Story 1.7 для привязки.`
+    )
+    return
+  }
+
+  // Обновляем профиль по user ID (не по email — более надёжно)
+  const { data: updatedProfiles, error: profileError } = await supabase
     .from('profiles')
     .update(updateData)
-    .eq('email', email)
+    .eq('id', userId)
     .select('id')
 
-  if (emailError) {
+  if (profileError) {
     throw new Error(
-      `[webhook] Ошибка обновления профиля (checkout.completed via email): ${emailError.message}`
+      `[webhook] Ошибка обновления профиля (checkout.completed via user id): ${profileError.message}`
     )
   }
 
   if (!updatedProfiles || updatedProfiles.length === 0) {
     console.warn(
-      `[webhook] checkout.session.completed: профиль не найден по email ${email}. Ожидание Story 1.7 для привязки.`
+      `[webhook] checkout.session.completed: профиль не найден для userId ${userId} (email: ${email}).`
     )
   }
 }
@@ -100,6 +127,7 @@ async function handleCheckoutSessionCompleted(
 //   OR-фильтр мог перезаписывать данные новой подписки старыми инвойсами.
 //   Шаг 1: строгое обновление по subscription_id (primary key)
 //   Шаг 2: fallback по customer_id ТОЛЬКО если stripe_subscription_id ещё не привязан (IS NULL)
+// Fix [AI-Review][Medium] Round 6: ранний выход если шаг 1 нашёл строку — избегаем двойного обновления
 async function handleInvoicePaymentSucceeded(
   invoice: Stripe.Invoice,
   supabase: SupabaseAdmin
@@ -133,16 +161,20 @@ async function handleInvoicePaymentSucceeded(
 
   // Шаг 1: строгое обновление по stripe_subscription_id (основной ключ)
   if (subscriptionId) {
-    const { error } = await supabase
+    const { data: updatedBySub, error } = await supabase
       .from('profiles')
       .update(update)
       .eq('stripe_subscription_id', subscriptionId)
+      .select('id')
 
     if (error) {
       throw new Error(
         `[webhook] Ошибка обновления профиля (invoice.payment_succeeded via subscription_id): ${error.message}`
       )
     }
+
+    // Ранний выход если строка найдена — избегаем двойного обновления
+    if (updatedBySub && updatedBySub.length > 0) return
   }
 
   // Шаг 2: fallback по stripe_customer_id только для профилей без привязанного subscription_id.
@@ -169,6 +201,7 @@ async function handleInvoicePaymentSucceeded(
 //   1) строгая проверка по stripe_subscription_id (primary key события)
 //   2) fallback по stripe_customer_id только если customerId определён
 // [AI-Review][Medium] Fix: customerId проверяется перед использованием (PostgREST undefined guard)
+// [AI-Review][Medium] Fix Round 6: ранний выход если шаг 1 нашёл строку — избегаем двойного обновления
 // Примечание [Low]: Stripe не имеет события 'customer.subscription.canceled'.
 //   AC2 упоминает 'canceled' как состояние, но в реальности Stripe шлёт 'customer.subscription.deleted'.
 //   При отмене с cancel_at_period_end — событие 'customer.subscription.updated' (обрабатывается в handleSubscriptionUpdated).
@@ -182,16 +215,20 @@ async function handleSubscriptionDeleted(
       : subscription.customer?.id
 
   // Шаг 1: строгое обновление по stripe_subscription_id
-  const { error } = await supabase
+  const { data: updatedBySub, error } = await supabase
     .from('profiles')
     .update({ subscription_status: 'inactive' })
     .eq('stripe_subscription_id', subscription.id)
+    .select('id')
 
   if (error) {
     throw new Error(
       `[webhook] Ошибка обновления профиля (subscription.deleted via subscription_id): ${error.message}`
     )
   }
+
+  // Ранний выход если строка найдена — избегаем двойного обновления
+  if (updatedBySub && updatedBySub.length > 0) return
 
   // Шаг 2: fallback по stripe_customer_id только если stripe_subscription_id ещё не привязан.
   // Fix [AI-Review][High]: .is('stripe_subscription_id', null) предотвращает случайную отмену
@@ -214,10 +251,17 @@ async function handleSubscriptionDeleted(
 // Task 3.4: customer.subscription.updated
 // Если cancel_at_period_end = true — доступ сохраняется (AC5) до cancel_at.
 // Если подписка реально завершена — ставим inactive/canceled.
+// Fix [AI-Review][High] Round 6: добавлен fallback по stripe_customer_id (Race Condition fix).
+//   subscription.updated может прийти до checkout.session.completed (нет subscription_id в профиле).
 async function handleSubscriptionUpdated(
   subscription: Stripe.Subscription,
   supabase: SupabaseAdmin
 ) {
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : subscription.customer?.id
+
   // Примечание [AI-Review][Medium]: запрос использовать subscription.current_period_end,
   // однако в Stripe API 2026-02-25.clover это поле отсутствует на типе Subscription.
   // Согласно Dev Notes: в новом API используется cancel_at вместо current_period_end.
@@ -226,7 +270,8 @@ async function handleSubscriptionUpdated(
   const periodEnd = cancelAt ? new Date(cancelAt * 1000).toISOString() : null
 
   let status: 'active' | 'inactive' | 'canceled'
-  if (subscription.status === 'active') {
+  // Fix [AI-Review][High] Round 8: trialing = пробный период, пользователь имеет активный доступ
+  if (subscription.status === 'active' || subscription.status === 'trialing') {
     status = 'active'
   } else if (subscription.status === 'canceled') {
     status = 'canceled'
@@ -239,38 +284,94 @@ async function handleSubscriptionUpdated(
     update.current_period_end = periodEnd
   }
 
-  const { error } = await supabase
+  // Шаг 1: обновление по stripe_subscription_id
+  const { data: updatedBySub, error } = await supabase
     .from('profiles')
     .update(update)
     .eq('stripe_subscription_id', subscription.id)
+    .select('id')
 
   if (error) {
     throw new Error(
       `[webhook] Ошибка обновления профиля (subscription.updated): ${error.message}`
     )
   }
+
+  if (updatedBySub && updatedBySub.length > 0) return
+
+  // Шаг 2: fallback по stripe_customer_id если subscription_id ещё не привязан в профиле
+  if (customerId) {
+    const { error: fallbackError } = await supabase
+      .from('profiles')
+      .update(update)
+      .eq('stripe_customer_id', customerId)
+      .is('stripe_subscription_id', null)
+
+    if (fallbackError) {
+      throw new Error(
+        `[webhook] Ошибка обновления профиля (subscription.updated via customer_id): ${fallbackError.message}`
+      )
+    }
+  }
 }
 
 // Task 3.3 (дополнительно): invoice.payment_failed
 // Переводим в inactive, чтобы заблокировать доступ (AC2).
+// Fix [AI-Review][Medium] Round 6: добавлен fallback по stripe_customer_id (Race Condition fix).
+//   payment_failed может прийти до checkout.session.completed (нет subscription_id в профиле).
+// Fix [AI-Review][Medium] Round 7: сбрасываем current_period_end в null при неуплате —
+//   подписка больше не активна, оставлять дату окончания периода вводит UI в заблуждение.
 async function handleInvoicePaymentFailed(
   invoice: Stripe.Invoice,
   supabase: SupabaseAdmin
 ) {
   const subRef = invoice.parent?.subscription_details?.subscription
   const subscriptionId = typeof subRef === 'string' ? subRef : subRef?.id
+  const customerId =
+    typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id ?? null
 
-  if (!subscriptionId) return
+  if (!subscriptionId && !customerId) return
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ subscription_status: 'inactive' })
-    .eq('stripe_subscription_id', subscriptionId)
+  const failedUpdate: ProfileUpdate = {
+    subscription_status: 'inactive',
+    current_period_end: null, // Сбрасываем — оплаченный период истёк
+  }
 
-  if (error) {
-    throw new Error(
-      `[webhook] Ошибка обновления профиля (invoice.payment_failed): ${error.message}`
-    )
+  // Шаг 1: обновление по stripe_subscription_id.
+  // Fix [AI-Review][High] Round 8: guard от stale webhooks с задержкой Stripe.
+  //   Обновляем в inactive только если period_end уже истёк или не установлен.
+  //   Если period_end в будущем → более свежий invoice.payment_succeeded уже продлил период.
+  const nowIso = new Date().toISOString()
+  if (subscriptionId) {
+    const { data: updatedBySub, error } = await supabase
+      .from('profiles')
+      .update(failedUpdate)
+      .eq('stripe_subscription_id', subscriptionId)
+      .or(`current_period_end.is.null,current_period_end.lte.${nowIso}`)
+      .select('id')
+
+    if (error) {
+      throw new Error(
+        `[webhook] Ошибка обновления профиля (invoice.payment_failed via subscription_id): ${error.message}`
+      )
+    }
+
+    if (updatedBySub && updatedBySub.length > 0) return
+  }
+
+  // Шаг 2: fallback по stripe_customer_id только для профилей без привязанного subscription_id
+  if (customerId) {
+    const { error: fallbackError } = await supabase
+      .from('profiles')
+      .update(failedUpdate)
+      .eq('stripe_customer_id', customerId)
+      .is('stripe_subscription_id', null)
+
+    if (fallbackError) {
+      throw new Error(
+        `[webhook] Ошибка обновления профиля (invoice.payment_failed via customer_id): ${fallbackError.message}`
+      )
+    }
   }
 }
 

@@ -7,6 +7,16 @@ import type { Database } from '@/types/supabase'
 const SUBSCRIPTION_CACHE_COOKIE = '__sub_status'
 const SUBSCRIPTION_CACHE_TTL = 30 // seconds
 
+// [AI-Review][Critical] Fix Round 6: копируем куки из supabaseResponse в редирект,
+// чтобы не терять обновляемые auth токены (Supabase может обновить refresh token в getUser).
+function redirectWithCookies(url: URL, supabaseResponse: NextResponse): NextResponse {
+  const redirectResponse = NextResponse.redirect(url)
+  supabaseResponse.cookies.getAll().forEach(({ name, value, ...options }) => {
+    redirectResponse.cookies.set(name, value, options)
+  })
+  return redirectResponse
+}
+
 export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -45,20 +55,21 @@ export async function updateSession(request: NextRequest) {
   const isPublicPath =
     pathname === '/' ||
     pathname === '/login' ||
+    pathname === '/inactive' || // Fix [AI-Review][Medium] Round 7: fallback маршрут для неактивных
     pathname.startsWith('/auth/')
 
   // Redirect authenticated user away from /login
   if (user && pathname === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/feed'
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, supabaseResponse)
   }
 
   // Redirect unauthenticated users away from protected routes
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, supabaseResponse)
   }
 
   // Task 4.1 (NFR7): инвалидация доступа при subscription_status = 'inactive'
@@ -76,9 +87,11 @@ export async function updateSession(request: NextRequest) {
       if (cachedUserId === user.id) {
         // Кеш принадлежит текущему пользователю — используем без запроса к БД
         if (cachedStatus === 'inactive' || cachedStatus === 'canceled') {
+          // Fix [AI-Review][Medium] Round 7: редиректим на /inactive (семантический маршрут),
+          // а не на / — чтобы избежать будущих loop-рисков и дать пользователю понятную страницу.
           const url = request.nextUrl.clone()
-          url.pathname = '/'
-          return NextResponse.redirect(url)
+          url.pathname = '/inactive'
+          return redirectWithCookies(url, supabaseResponse)
         }
         // Кеш говорит active/none — пропускаем
         return supabaseResponse
@@ -104,16 +117,27 @@ export async function updateSession(request: NextRequest) {
       console.error('[middleware] Ошибка получения профиля для userId:', user.id, profileError)
       const url = request.nextUrl.clone()
       url.pathname = '/'
-      return NextResponse.redirect(url)
+      return redirectWithCookies(url, supabaseResponse)
     }
 
     const status = profile?.subscription_status ?? 'none'
 
     // [AI-Review][Critical] Fix: блокируем и canceled статус (AC2/NFR7)
     if (status === 'inactive' || status === 'canceled') {
+      // Fix [AI-Review][Medium] Round 7: редиректим на /inactive (семантический маршрут),
+      // а не на / — более понятно для пользователя и безопаснее с точки зрения будущих loop-рисков.
       const url = request.nextUrl.clone()
-      url.pathname = '/'
-      return NextResponse.redirect(url)
+      url.pathname = '/inactive'
+      // [AI-Review][High] Fix Round 6: кешируем inactive/canceled перед редиректом,
+      // чтобы не делать запрос к БД на каждый последующий переход неактивного пользователя.
+      const redirectResponse = redirectWithCookies(url, supabaseResponse)
+      redirectResponse.cookies.set(SUBSCRIPTION_CACHE_COOKIE, `${user.id}:${status}`, {
+        maxAge: SUBSCRIPTION_CACHE_TTL,
+        httpOnly: true,
+        sameSite: 'strict',
+        path: '/',
+      })
+      return redirectResponse
     }
 
     // Кешируем статус в httpOnly cookie (TTL = 30s, формат: "userId:status")
