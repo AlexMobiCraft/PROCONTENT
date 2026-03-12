@@ -1,6 +1,6 @@
 # Story 1.5: Обработка Stripe Webhooks и управление доступом
 
-Status: review
+Status: in-progress
 
 - [x] Implementation complete
 - [x] Tests passing
@@ -130,10 +130,23 @@ so that система могла автоматически выдавать д
 - [x] [AI-Review][High] Потеря обновлений подписки при переподписке — в `handleSubscriptionUpdated` и `handleSubscriptionDeleted` fallback использует строгую проверку `.is('stripe_subscription_id', null)`, теряя актуальные вебхуки, если checkout.completed задержан. [src/app/api/webhooks/stripe/route.ts:284]
 - [x] [AI-Review][High] Потенциальная потеря stripe_customer_id — в `handleCheckoutSessionCompleted` поля `stripe_customer_id` и `stripe_subscription_id` сбрасываются в `null`. Следует формировать `updateData` динамически, без ключей с `null`. [src/app/api/webhooks/stripe/route.ts:71]
 ### Review Follow-ups (AI) - Round 14 (Adversarial)
-- [ ] [AI-Review][Critical] Уничтожение легитимных подписок при переподписке (Data Corruption). Из-за уязвимости OR-guard (or('stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscriptionId}')) вебхуки от старой подписки могут перезаписывать активный профиль с новой подпиской как inactive. Требуется исправить логику fallback. [src/app/api/webhooks/stripe/route.ts]
-- [ ] [AI-Review][High] Утечка подписок при unpaid Checkout. Ранний выход при payment_status !== 'paid' предотвращает привязку stripe_customer_id и stripe_subscription_id к профилю. Последующий invoice.payment_succeeded не найдет пользователя по customer_id. Привязка ID должна происходить независимо от статуса оплаты. [src/app/api/webhooks/stripe/route.ts:46]
-- [ ] [AI-Review][Medium] Потеря данных при Race Condition профиля. `handleCheckoutSessionCompleted` обновляет профиль по userId через `.update('profiles')`. Если триггер на `auth.users` еще не создал запись в `public.profiles`, update ничего не обновит и данные Stripe потеряются. [src/app/api/webhooks/stripe/route.ts:118]
-- [ ] [AI-Review][Medium] Оптимизация инвалидации кеша на /inactive. При переходе с /inactive на /feed кука удаляется, что вызывает лишний DB lookup при следующем запросе. Нужно создавать новую куку со статусом 'active' прямо при редиректе. [src/lib/supabase/middleware.ts:192]
+- [x] [AI-Review][Critical] Уничтожение легитимных подписок при переподписке (Data Corruption). Из-за уязвимости OR-guard (or('stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscriptionId}')) вебхуки от старой подписки могут перезаписывать активный профиль с новой подпиской как inactive. Требуется исправить логику fallback. [src/app/api/webhooks/stripe/route.ts]
+- [x] [AI-Review][High] Утечка подписок при unpaid Checkout. Ранний выход при payment_status !== 'paid' предотвращает привязку stripe_customer_id и stripe_subscription_id к профилю. Последующий invoice.payment_succeeded не найдет пользователя по customer_id. Привязка ID должна происходить независимо от статуса оплаты. [src/app/api/webhooks/stripe/route.ts:46]
+- [x] [AI-Review][Medium] Потеря данных при Race Condition профиля. `handleCheckoutSessionCompleted` обновляет профиль по userId через `.update('profiles')`. Если триггер на `auth.users` еще не создал запись в `public.profiles`, update ничего не обновит и данные Stripe потеряются. [src/app/api/webhooks/stripe/route.ts:118]
+- [x] [AI-Review][Medium] Оптимизация инвалидации кеша на /inactive. При переходе с /inactive на /feed кука удаляется, что вызывает лишний DB lookup при следующем запросе. Нужно создавать новую куку со статусом 'active' прямо при редиректе. [src/lib/supabase/middleware.ts:192]
+
+### Review Follow-ups (AI) - Round 15 (Adversarial)
+- [x] [AI-Review][Critical] Уязвимость отмены при переподписке (False Cancellation Lockout). Откатить fallback-гвард с strict `is.null` на безопасный для вебхуков отмены. [src/app/api/webhooks/stripe/route.ts]
+- [x] [AI-Review][High] Уязвимость уникального ключа при Upsert (Auth Trigger Collision). Добавить обработку `ON CONFLICT DO UPDATE` для защиты от сбоя триггера регистрации профиля. [src/app/api/webhooks/stripe/route.ts:148]
+- [x] [AI-Review][Medium] Производительность Middleware (Избыточный импорт крипто-ключа). Вынести `importHmacKey` в глобальную область, чтобы не импортировать ключ на каждый парсинг токена в Edge. [src/lib/supabase/middleware.ts:15]
+- [x] [AI-Review][Medium] Семантическое несоответствие статусов (Trialing Logic Spread). Исключить перезапись статуса `trialing` в базу как `active` или синхронизировать модель данных с Stripe. [src/app/api/webhooks/stripe/route.ts:348]
+
+### Review Follow-ups (AI) - Round 16 (Adversarial)
+- [ ] [AI-Review][Critical] Уязвимость привязки аккаунта по Email (Account Takeover / Privilege Escalation) — Обработчик `handleCheckoutSessionCompleted` слепо доверяет email. Использовать `client_reference_id` для привязки. [src/app/api/webhooks/stripe/route.ts:109]
+- [ ] [AI-Review][Critical] Race Condition с Auth Trigger (Потеря данных Stripe) — При отсутствии профиля обработчик выполняет `.upsert` (Шаг 2). Триггер в БД может вызвать конфликт.  [src/app/api/webhooks/stripe/route.ts:151]
+- [ ] [AI-Review][High] SQL Injection / Небезопасная конкатенация в PostgREST фильтрах — Во всех fallback-запросах используется небезопасная строковая интерполяция `.or(...)`. [src/app/api/webhooks/stripe/route.ts:324]
+- [ ] [AI-Review][Medium] Хрупкое извлечение current_period_end в Invoice — Fallback берет первую позицию инвойса, что может ошибочно истечь разовую позицию как подписку. [src/app/api/webhooks/stripe/route.ts:202]
+- [ ] [AI-Review][Medium] Несогласованность контекста куков в Middleware — redirectWithCookies слепо копирует куки, что может привести к state-дрифтингу или потере кеша. [src/lib/supabase/middleware.ts:214]
 
 ## Dev Notes
 
@@ -207,6 +220,20 @@ const supabaseAdmin = createClient(
 - ✅ Resolved [High]: `handleSubscriptionDeleted` и `handleSubscriptionUpdated` fallback — аналогичный OR-guard вместо IS NULL. Сценарий задержки checkout.completed вбольше не приводит к потере вебхуков для переподписки.
 - ✅ Resolved [High]: `handleCheckoutSessionCompleted` `updateData` теперь формируется динамически: ключи `stripe_customer_id`/`stripe_subscription_id` добавляются только если значение не null/undefined. Ранее поля сбрасывались в null (потеря сохранённых IDs).
 - Добавлено 5 новых тестов (2 deleted + 1 updated + 1 failed OR-guard + 1 checkout dynamic update). TypeCheck: ✅. Все 203 теста: ✅ 100% pass.
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 15 (Adversarial)
+- ✅ Resolved [Critical]: Fallback guard в handleSubscriptionDeleted, handleSubscriptionUpdated и handleInvoicePaymentFailed заменён с strict IS NULL на EQ-OR guard (`stripe_subscription_id.is.null,stripe_subscription_id.eq.${sub.id}`). IS NULL был слишком строг: отмена sub_old не могла достичь профиля через fallback, если checkout уже записал sub_old. EQ guard безопасен: профили с sub_new не затрагиваются (sub_new != sub_old).
+- ✅ Resolved [High]: Auth Trigger Collision — при ошибке upsert в handleCheckoutSessionCompleted добавлен retry с plain .update(). Триггер на auth.users мог создать профиль между .update() (0 строк) и .upsert(), вызвав unique constraint violation. Retry находит созданный профиль и обновляет его.
+- ✅ Resolved [Medium]: CryptoKey кешируется глобально через `getHmacKey()`. Edge Runtime больше не вызывает `importKey` на каждый вызов hmacSign/parseCacheToken. Кеш привязан к secret — при смене ключа пересоздаётся.
+- ✅ Resolved [Medium]: `handleSubscriptionUpdated` теперь сохраняет 'trialing' в БД как есть (не перезаписывает в 'active'). Middleware уже поддерживает whitelist active/trialing. UI может различать trial и полную подписку.
+- Добавлен 1 новый тест (upsert collision retry), обновлено 5 существующих тестов (fallback guards IS NULL → EQ-OR, trialing → trialing). TypeCheck: ✅. Все 206 тестов: ✅ 100% pass.
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 14 (Adversarial)
+- ✅ Resolved [Critical]: OR-guard в fallback `handleSubscriptionDeleted`, `handleSubscriptionUpdated`, `handleInvoicePaymentFailed` заменён на IS NULL guard. OR-guard вызывал Data Corruption: задержанные события sub_old находили профили с sub_new (sub_new.neq.sub_old → TRUE) и переводили их в inactive. IS NULL затрагивает только профили без subscription_id (checkout ещё не обработан).
+- ✅ Resolved [High]: Ранний выход при `payment_status !== 'paid'` в `handleCheckoutSessionCompleted` перенесён ПОСЛЕ привязки IDs. IDs (`stripe_customer_id`, `stripe_subscription_id`) теперь записываются в профиль независимо от статуса оплаты. `subscription_status = 'active'` устанавливается только при confirmed payment. Это гарантирует, что `invoice.payment_succeeded` найдёт пользователя по customer_id.
+- ✅ Resolved [Medium]: Добавлен upsert-fallback в `handleCheckoutSessionCompleted` (Step 2): если `.update()` нашёл 0 строк (триггер на auth.users не успел создать profile), выполняется `.upsert({ id: userId, email, ...updateData }, { onConflict: 'id' })` — данные Stripe не теряются.
+- ✅ Resolved [Medium]: `/inactive` → `/feed` редирект теперь создаёт новую подписанную куку с active/trialing статусом вместо удаления куки. Лишний DB lookup при следующем запросе к /feed устранён.
+- Добавлено 2 новых теста, обновлено 6 существующих (OR-guard → IS NULL, unpaid checkout IDs, /inactive cache). TypeCheck: ✅. Все 205 тестов: ✅ 100% pass.
 
 #### Адресованы Review Follow-ups (2026-03-12) — Раунд 12 (Adversarial)
 - ✅ Resolved [Critical]: Утечка выручки (Бесплатный доступ). Проверять `session.payment_status === 'paid' || session.payment_status === 'no_payment_required'` в `handleCheckoutSessionCompleted`, чтобы избежать выдачи доступа до фактической оплаты.
@@ -354,10 +381,12 @@ const supabaseAdmin = createClient(
 - 2026-03-12: Адресованы все 5 замечаний Round 11: stripe_subscription_id в fallback handleInvoicePaymentSucceeded (Critical — Resubscription Leaked State), maybeSingle() вместо single() в middleware (High — Auth-Profile Race), current_period_end fallback при апгрейде тарифа (Medium), try/catch в createCacheToken (Medium), удалён хардкод 'none' (Low). Добавлено 4 теста, обновлён 1. TypeCheck: ✅. Все 196 тестов: ✅ 100% pass.
 - 2026-03-12: Адресованы все 4 замечания Round 12: payment_status guard handleInvoicePaymentFailed (Critical — утечка выручки), ранний выход если нет subscriptionId (High), timing-safe HMAC verify (Medium), явность потока в handleInvoicePaymentFailed (Low). Добавлено 5 тестов. TypeCheck: ✅. Все 201 тест: ✅ 100% pass.
 - 2026-03-12: Адресованы все 3 замечания Round 13: OR-guard вместо IS NULL в handleInvoicePaymentFailed fallback в сценарии переподписки (Critical), OR-guard в handleSubscriptionDeleted / handleSubscriptionUpdated fallback (High), динамический updateData в checkout handler без null-ключей (High). Добавлено 5 новых тестов. TypeCheck: ✅. Все 203 теста: ✅ 100% pass.
+- 2026-03-12: Адресованы все 4 замечания Round 14: IS NULL guard вместо OR-guard во всех fallback-обработчиках (Critical — Data Corruption защита), привязка IDs до payment_status-check в checkout handler (High), upsert-fallback при Race Condition профиля (Medium), active cookie на /inactive→/feed редиректе (Medium). Обновлено 6 тестов, добавлено 2 новых. TypeCheck: ✅. Все 205 тестов: ✅ 100% pass.
+- 2026-03-12: Адресованы все 4 замечания Round 15: EQ-OR guard вместо strict IS NULL в fallback всех cancellation handlers (Critical — False Cancellation Lockout), retry update при upsert collision с auth trigger (High), глобальный кеш CryptoKey в middleware (Medium), trialing сохраняется в БД как есть (Medium). Добавлен 1 тест, обновлено 5. TypeCheck: ✅. Все 206 тестов: ✅ 100% pass.
 
 ## Completion Status
 
 - [x] Implementation complete
 - [x] Tests passing
-- [x] Code review resolved
+- [ ] Code review resolved
 - [ ] Ready for next story

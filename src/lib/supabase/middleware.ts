@@ -23,9 +23,24 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
   )
 }
 
+// Fix [AI-Review][Medium] Round 15: кешируем CryptoKey глобально.
+// importKey — тяжёлая операция (decode + validate). В Edge Runtime
+// каждый вызов hmacSign/parseCacheToken импортировал ключ заново.
+// Кеш хранит Promise<CryptoKey> привязанный к secret — при смене secret ключ пересоздаётся.
+let _cachedHmacKey: { secret: string; key: Promise<CryptoKey> } | null = null
+
+function getHmacKey(secret: string): Promise<CryptoKey> {
+  if (_cachedHmacKey && _cachedHmacKey.secret === secret) {
+    return _cachedHmacKey.key
+  }
+  const keyPromise = importHmacKey(secret)
+  _cachedHmacKey = { secret, key: keyPromise }
+  return keyPromise
+}
+
 async function hmacSign(data: string, secret: string): Promise<string> {
   const encoder = new TextEncoder()
-  const key = await importHmacKey(secret)
+  const key = await getHmacKey(secret)
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(data))
   const bytes = new Uint8Array(sig)
   let binary = ''
@@ -73,7 +88,7 @@ export async function parseCacheToken(
   // Fix [AI-Review][Medium] Round 10: try/catch вокруг crypto.subtle сохраняется — защита от глобального DoS.
   try {
     const encoder = new TextEncoder()
-    const key = await importHmacKey(secret)
+    const key = await getHmacKey(secret)
 
     // Декодируем base64url-подпись обратно в ArrayBuffer
     const sigPad = sigB64.replace(/-/g, '+').replace(/_/g, '/').padEnd(
@@ -191,8 +206,20 @@ export async function updateSession(request: NextRequest) {
         const url = request.nextUrl.clone()
         url.pathname = '/feed'
         const redirectResponse = redirectWithCookies(url, supabaseResponse)
-        // Инвалидируем стейлый кеш, чтобы /feed не перебросил обратно на /inactive
-        redirectResponse.cookies.delete(SUBSCRIPTION_CACHE_COOKIE)
+        // Fix [AI-Review][Medium] Round 14: создаём новую куку с актуальным active/trialing статусом.
+        // Удаление куки приводило к лишнему DB lookup при следующем запросе к /feed.
+        // DB-запрос уже выполнен выше — используем результат для создания нового кеш-токена.
+        const activeToken = await createCacheToken(user.id, status ?? 'active')
+        if (activeToken) {
+          redirectResponse.cookies.set(SUBSCRIPTION_CACHE_COOKIE, activeToken, {
+            maxAge: SUBSCRIPTION_CACHE_TTL,
+            httpOnly: true,
+            sameSite: 'strict',
+            path: '/',
+          })
+        } else {
+          redirectResponse.cookies.delete(SUBSCRIPTION_CACHE_COOKIE)
+        }
         return redirectResponse
       }
     }

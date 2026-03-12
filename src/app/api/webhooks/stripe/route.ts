@@ -49,20 +49,6 @@ async function handleCheckoutSessionCompleted(
     return
   }
 
-  // Fix [AI-Review][Critical] Round 12: утечка выручки — выдаём доступ только при фактической оплате.
-  // Stripe может вызвать checkout.session.completed до получения оплаты (payment_status = 'unpaid')
-  // в случае банковских переводов, 3DS pending и т.п. Активируем подписку только при:
-  //   'paid'                 — платёж прошёл
-  //   'no_payment_required'  — бесплатный пробный период (trial), оплата не требовалась
-  const paymentStatus = session.payment_status
-  if (paymentStatus !== 'paid' && paymentStatus !== 'no_payment_required') {
-    console.log(
-      '[webhook] checkout.session.completed: пропускаем, payment_status не paid:',
-      paymentStatus
-    )
-    return
-  }
-
   if (!email) {
     console.error('[webhook] checkout.session.completed: отсутствует email клиента')
     return
@@ -71,9 +57,32 @@ async function handleCheckoutSessionCompleted(
   // Fix [AI-Review][High] Round 13: формируем updateData динамически.
   // Если customerId или subscriptionId отсутствуют — НЕ включаем ключ в объект обновления.
   // Иначе запись null перезаписывает ранее сохранённые данные (потеря stripe_customer_id / stripe_subscription_id).
-  const updateData: ProfileUpdate = { subscription_status: 'active' }
+  // Fix [AI-Review][High] Round 14: IDs записываются независимо от payment_status.
+  // Прежний ранний выход при payment_status != 'paid' блокировал запись IDs в профиль.
+  // Без IDs последующий invoice.payment_succeeded не находил пользователя по customer_id → утечка подписки.
+  // Теперь: IDs всегда записываются; subscription_status = 'active' — только при подтверждённой оплате.
+  const updateData: ProfileUpdate = {}
   if (customerId) updateData.stripe_customer_id = customerId
   if (subscriptionId) updateData.stripe_subscription_id = subscriptionId
+
+  // Fix [AI-Review][Critical] Round 12: утечка выручки — активируем подписку только при фактической оплате.
+  // Stripe может вызвать checkout.session.completed до получения оплаты (payment_status = 'unpaid')
+  // в случае банковских переводов, 3DS pending и т.п. IDs привязываем всегда, active — только при paid.
+  const paymentStatus = session.payment_status
+  if (paymentStatus === 'paid' || paymentStatus === 'no_payment_required') {
+    updateData.subscription_status = 'active'
+  } else {
+    console.log(
+      '[webhook] checkout.session.completed: привязываем IDs без активации, payment_status:',
+      paymentStatus
+    )
+  }
+
+  // Нечего обновлять (нет IDs и не оплачено)
+  if (Object.keys(updateData).length === 0) {
+    console.warn('[webhook] checkout.session.completed: нет данных для обновления')
+    return
+  }
 
   // Шаг 1: обновляем по stripe_customer_id (no-op при первом вызове, корректен при retry)
   if (customerId) {
@@ -129,9 +138,34 @@ async function handleCheckoutSessionCompleted(
   }
 
   if (!updatedProfiles || updatedProfiles.length === 0) {
+    // Fix [AI-Review][Medium] Round 14: триггер на auth.users мог не успеть создать запись в profiles.
+    // .update() нашёл 0 строк — пробуем upsert чтобы не потерять данные Stripe.
     console.warn(
-      `[webhook] checkout.session.completed: профиль не найден для userId ${userId} (email: ${email}).`
+      `[webhook] checkout.session.completed: профиль не найден для userId ${userId} (email: ${email}). Пробуем upsert.`
     )
+    // email гарантирован строкой (прошёл null-guard выше). ProfileUpdate — Update-тип с опциональными
+    // полями; приводим к Insert-типу чтобы удовлетворить требование NOT NULL на email при upsert.
+    type ProfileInsert = Database['public']['Tables']['profiles']['Insert']
+    const { error: upsertError } = await supabase
+      .from('profiles')
+      .upsert(
+        { id: userId, email: email, ...updateData } as ProfileInsert,
+        { onConflict: 'id' }
+      )
+    // Fix [AI-Review][High] Round 15: Auth Trigger Collision — триггер мог создать профиль
+    // между нашим .update() (0 строк) и .upsert(). Уникальный ключ на email/id вызывает
+    // ошибку 23505. Retry с plain update: профиль теперь точно существует.
+    if (upsertError) {
+      const { error: retryError } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', userId)
+      if (retryError) {
+        console.warn(
+          `[webhook] checkout: upsert+retry профиля не удался для userId ${userId}: ${upsertError.message} → ${retryError.message}`
+        )
+      }
+    }
   }
 }
 
@@ -275,12 +309,11 @@ async function handleSubscriptionDeleted(
   if (updatedBySub && updatedBySub.length > 0) return
 
   // Шаг 2: fallback по stripe_customer_id.
-  // Fix [AI-Review][High] Round 13: заменяем .is(null) на OR-guard аналогично invoice.payment_succeeded.
-  // При переподписке профиль имеет sub_old ≠ null. Вебхук subscription.deleted для sub_new
-  // приходит до checkout.session.completed → Шаг 1 (sub_new) не найдёт строку.
-  // С IS NULL guard Шаг 2 тоже пропустит профиль → пользователь остаётся active ошибочно.
-  // OR guard (IS NULL OR NEQ sub.id) захватывает профили с любым sub_id кроме текущего подтверждённого.
-  // Это безопасно: если профиль уже имеет sub_new (checkout.completed успел) → Шаг 1 найдёт строку → ранний выход.
+  // Fix [AI-Review][Critical] Round 15: EQ-OR guard вместо strict IS NULL.
+  // IS NULL был слишком строг — отмена sub_old не могла достичь профиля, у которого
+  // stripe_subscription_id = sub_old (checkout уже записал), если Step 1 промахнулся
+  // (напр. Row не вернулась из-за network glitch). EQ guard (eq.sub_old) безопасен:
+  // профили с sub_new (sub_new != sub_old) не затрагиваются → нет Data Corruption.
   if (customerId) {
     const fallbackQuery = supabase
       .from('profiles')
@@ -288,7 +321,7 @@ async function handleSubscriptionDeleted(
       .eq('stripe_customer_id', customerId)
 
     const { error: fallbackError } = await fallbackQuery.or(
-      `stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscription.id}`
+      `stripe_subscription_id.is.null,stripe_subscription_id.eq.${subscription.id}`
     )
 
     if (fallbackError) {
@@ -323,10 +356,15 @@ async function handleSubscriptionUpdated(
   const periodEndTs = cancelAt ?? rawCurrentPeriodEnd
   const periodEnd = periodEndTs ? new Date(periodEndTs * 1000).toISOString() : null
 
-  let status: 'active' | 'inactive' | 'canceled'
-  // Fix [AI-Review][High] Round 8: trialing = пробный период, пользователь имеет активный доступ
-  if (subscription.status === 'active' || subscription.status === 'trialing') {
+  // Fix [AI-Review][Medium] Round 15: сохраняем 'trialing' в БД как есть,
+  // а не перезаписываем в 'active'. Middleware уже поддерживает whitelist active/trialing.
+  // Хранение точного статуса синхронизирует модель данных с Stripe и позволяет
+  // UI различать trial и полную подписку.
+  let status: 'active' | 'inactive' | 'canceled' | 'trialing'
+  if (subscription.status === 'active') {
     status = 'active'
+  } else if (subscription.status === 'trialing') {
+    status = 'trialing'
   } else if (subscription.status === 'canceled') {
     status = 'canceled'
   } else {
@@ -354,9 +392,10 @@ async function handleSubscriptionUpdated(
   if (updatedBySub && updatedBySub.length > 0) return
 
   // Шаг 2: fallback по stripe_customer_id.
-  // Fix [AI-Review][High] Round 13: OR-guard вместо IS NULL — аналогично subscription.deleted.
-  // При задержке checkout.completed профиль имеет sub_old → IS NULL guard пропустит обновление.
-  // OR guard обновляет профили с sub.id = null ИЛИ sub_old ≠ subscription.id.
+  // Fix [AI-Review][Critical] Round 15: EQ-OR guard вместо strict IS NULL (см. handleSubscriptionDeleted).
+  // IS NULL блокировал subscription.updated для sub_new при задержке checkout.completed:
+  // профиль имеет sub_old (не null), IS NULL не срабатывает → обновление потеряно.
+  // EQ guard (eq.sub.id) затрагивает только профили с ЭТОЙ подпиской или без подписки → безопасно.
   if (customerId) {
     const fallbackQuery = supabase
       .from('profiles')
@@ -364,7 +403,7 @@ async function handleSubscriptionUpdated(
       .eq('stripe_customer_id', customerId)
 
     const { error: fallbackError } = await fallbackQuery.or(
-      `stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscription.id}`
+      `stripe_subscription_id.is.null,stripe_subscription_id.eq.${subscription.id}`
     )
 
     if (fallbackError) {
@@ -424,23 +463,21 @@ async function handleInvoicePaymentFailed(
   }
 
   // Шаг 2: fallback по stripe_customer_id.
-  // Fix [AI-Review][Critical] Round 13: OR-guard вместо IS NULL.
-  // При переподписке профиль имеет sub_old ≠ null. invoice.payment_failed для нового sub_new
-  // с задержкой checkout.completed → Шаг 1 (sub_new) не найдёт строку.
-  // IS NULL guard в Шаге 2 тоже пропустит профиль → пользователь остаётся active несмотря на неуплату.
-  // OR guard: (sub_id IS NULL OR sub_id ≠ subscriptionId) — захватывает профили с устаревшим sub_id.
-  // Это безопасно: если у профиля уже sub_new (checkout успел) → Шаг 1 найдёт → ранний выход до сюда.
+  // Fix [AI-Review][Critical] Round 15: EQ-OR guard при наличии subscriptionId, IS NULL без него.
+  // Strict IS NULL блокировал легитимные payment_failed для sub_old, если checkout уже записал sub_old.
+  // EQ guard (eq.${subscriptionId}) затрагивает только профили с ЭТОЙ подпиской или без → безопасно.
+  // Профили с другим sub_id (sub_new) не затрагиваются → нет Data Corruption.
   if (customerId) {
     const fallbackQuery = supabase
       .from('profiles')
       .update(failedUpdate)
       .eq('stripe_customer_id', customerId)
 
-    const { error: fallbackError } = subscriptionId
-      ? await fallbackQuery.or(
-          `stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscriptionId}`
+    const { error: fallbackError } = await (subscriptionId
+      ? fallbackQuery.or(
+          `stripe_subscription_id.is.null,stripe_subscription_id.eq.${subscriptionId}`
         )
-      : await fallbackQuery.is('stripe_subscription_id', null)
+      : fallbackQuery.is('stripe_subscription_id', null))
 
     if (fallbackError) {
       throw new Error(

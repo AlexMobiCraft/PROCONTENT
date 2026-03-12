@@ -487,7 +487,8 @@ describe('middleware', () => {
       expect(response.status).not.toBe(307)
     })
 
-    it('удаляет стейлый кеш при редиректе active пользователя с /inactive', async () => {
+    // Fix [AI-Review][Medium] Round 14: создаём новую active куку вместо удаления
+    it('устанавливает новую active куку при редиректе с /inactive на /feed (Round 14 Medium)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
 
@@ -495,9 +496,11 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      // Стейлый inactive-кеш должен быть удалён чтобы /feed не сделал re-redirect
+      expect(response.headers.get('location')).toBe('http://localhost:3000/feed')
+      // Fix Round 14: создаём новую подписанную куку с active-статусом — не удаляем.
+      // Это предотвращает лишний DB lookup при следующем запросе к /feed.
       const cachedCookie = response.cookies.get('__sub_status')
-      expect(cachedCookie?.value).toBeFalsy()
+      expect(cachedCookie?.value).toMatch(/^user-123:active:.+/)
     })
 
     it('проверяет подписку через DB при посещении /inactive (не только кеш)', async () => {
