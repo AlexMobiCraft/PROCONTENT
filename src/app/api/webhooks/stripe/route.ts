@@ -90,9 +90,10 @@ async function handleCheckoutSessionCompleted(
 // Task 3.2: invoice.payment_succeeded
 // Продлеваем/обновляем current_period_end и подтверждаем active-статус.
 // В Stripe API 2026: subscription ID лежит в invoice.parent.subscription_details.subscription
-// Fix [AI-Review][High]: OR-фильтр по subscription_id + customer_id решает race condition:
-//   invoice.payment_succeeded может прийти до checkout.session.completed,
-//   когда stripe_subscription_id ещё не записан в БД → fallback на stripe_customer_id.
+// Fix [AI-Review][High]: двухшаговый подход вместо OR-фильтра.
+//   OR-фильтр мог перезаписывать данные новой подписки старыми инвойсами.
+//   Шаг 1: строгое обновление по subscription_id (primary key)
+//   Шаг 2: fallback по customer_id ТОЛЬКО если stripe_subscription_id ещё не привязан (IS NULL)
 async function handleInvoicePaymentSucceeded(
   invoice: Stripe.Invoice,
   supabase: SupabaseAdmin
@@ -118,20 +119,35 @@ async function handleInvoicePaymentSucceeded(
     update.stripe_subscription_id = subscriptionId
   }
 
-  // OR-фильтр: subscription_id (основной) ИЛИ customer_id (fallback при нарушении порядка)
-  const conditions: string[] = []
-  if (subscriptionId) conditions.push(`stripe_subscription_id.eq.${subscriptionId}`)
-  if (customerId) conditions.push(`stripe_customer_id.eq.${customerId}`)
+  // Шаг 1: строгое обновление по stripe_subscription_id (основной ключ)
+  if (subscriptionId) {
+    const { error } = await supabase
+      .from('profiles')
+      .update(update)
+      .eq('stripe_subscription_id', subscriptionId)
 
-  const { error } = await supabase
-    .from('profiles')
-    .update(update)
-    .or(conditions.join(','))
+    if (error) {
+      throw new Error(
+        `[webhook] Ошибка обновления профиля (invoice.payment_succeeded via subscription_id): ${error.message}`
+      )
+    }
+  }
 
-  if (error) {
-    throw new Error(
-      `[webhook] Ошибка обновления профиля (invoice.payment_succeeded): ${error.message}`
-    )
+  // Шаг 2: fallback по stripe_customer_id только для профилей без привязанного subscription_id.
+  // Fix [AI-Review][High]: .is('stripe_subscription_id', null) предотвращает перезапись
+  // данных новой подписки инвойсами от предыдущей.
+  if (customerId) {
+    const { error: fallbackError } = await supabase
+      .from('profiles')
+      .update(update)
+      .eq('stripe_customer_id', customerId)
+      .is('stripe_subscription_id', null)
+
+    if (fallbackError) {
+      throw new Error(
+        `[webhook] Ошибка обновления профиля (invoice.payment_succeeded via customer_id): ${fallbackError.message}`
+      )
+    }
   }
 }
 
@@ -165,13 +181,15 @@ async function handleSubscriptionDeleted(
     )
   }
 
-  // Шаг 2: fallback по stripe_customer_id (только если customerId определён)
-  // Страхует случай, когда subscription_id ещё не привязан к профилю
+  // Шаг 2: fallback по stripe_customer_id только если stripe_subscription_id ещё не привязан.
+  // Fix [AI-Review][High]: .is('stripe_subscription_id', null) предотвращает случайную отмену
+  // новой подписки при замене подписок (когда у профиля уже есть новый subscription_id).
   if (customerId) {
     const { error: fallbackError } = await supabase
       .from('profiles')
       .update({ subscription_status: 'inactive' })
       .eq('stripe_customer_id', customerId)
+      .is('stripe_subscription_id', null)
 
     if (fallbackError) {
       throw new Error(
@@ -188,6 +206,9 @@ async function handleSubscriptionUpdated(
   subscription: Stripe.Subscription,
   supabase: SupabaseAdmin
 ) {
+  // Примечание [AI-Review][Medium]: запрос использовать subscription.current_period_end,
+  // однако в Stripe API 2026-02-25.clover это поле отсутствует на типе Subscription.
+  // Согласно Dev Notes: в новом API используется cancel_at вместо current_period_end.
   // cancel_at — когда подписка реально закончится (если cancel_at_period_end=true)
   const cancelAt = subscription.cancel_at
   const periodEnd = cancelAt ? new Date(cancelAt * 1000).toISOString() : null

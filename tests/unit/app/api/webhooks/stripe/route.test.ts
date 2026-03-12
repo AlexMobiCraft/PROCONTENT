@@ -20,6 +20,7 @@ const {
   mockFrom,
   mockSelect,
   mockEq,
+  mockIs,
   mockSingle,
   mockUpdate,
   mockOr,
@@ -35,12 +36,16 @@ const {
   // mockSelectAfterEq: используется для цепочки .update().eq().select('id')
   const mockSelectAfterEq = vi.fn()
 
-  // mockEq: thenable + chainable с .select() чтобы поддерживать:
-  //   await supabase.from(...).update(...).eq(...)           — прямое await
-  //   await supabase.from(...).update(...).eq(...).select()  — chain с select
+  // mockIs: финальный await в цепочке .eq(...).is(...)
+  const mockIs = vi.fn().mockResolvedValue({ error: null })
+
+  // mockEq: thenable + chainable с .select() и .is() чтобы поддерживать:
+  //   await supabase.from(...).update(...).eq(...)            — прямое await
+  //   await supabase.from(...).update(...).eq(...).select()   — chain с select
+  //   await supabase.from(...).update(...).eq(...).is(...)    — chain с is (fallback guard)
   const mockEq = vi.fn().mockImplementation(() => {
     const result = Promise.resolve({ error: null })
-    Object.assign(result, { select: mockSelectAfterEq })
+    Object.assign(result, { select: mockSelectAfterEq, is: mockIs })
     return result
   })
 
@@ -52,6 +57,7 @@ const {
     mockFrom,
     mockSelect,
     mockEq,
+    mockIs,
     mockSingle,
     mockUpdate,
     mockOr,
@@ -144,12 +150,13 @@ describe('POST /api/webhooks/stripe', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service_role_key_test'
 
-    // mockEq: thenable + chainable с .select() (поддерживает оба паттерна использования)
+    // mockEq: thenable + chainable с .select() и .is() (поддерживает все паттерны использования)
     mockEq.mockImplementation(() => {
       const result = Promise.resolve({ error: null })
-      Object.assign(result, { select: mockSelectAfterEq })
+      Object.assign(result, { select: mockSelectAfterEq, is: mockIs })
       return result
     })
+    mockIs.mockResolvedValue({ error: null })
     // mockSelectAfterEq: по умолчанию возвращает найденную строку
     mockSelectAfterEq.mockResolvedValue({ data: [{ id: 'profile-1' }], error: null })
 
@@ -332,7 +339,8 @@ describe('POST /api/webhooks/stripe', () => {
   })
 
   describe('invoice.payment_succeeded', () => {
-    it('обновляет статус и current_period_end через OR-фильтр (AC1, Task 3.2)', async () => {
+    // Fix [AI-Review][High]: двухшаговый подход вместо OR-фильтра
+    it('обновляет статус и current_period_end двухшаговым подходом (AC1, Task 3.2)', async () => {
       mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_succeeded'))
 
       const response = await POST(makeRequest('{}'))
@@ -345,10 +353,11 @@ describe('POST /api/webhooks/stripe', () => {
           stripe_subscription_id: 'sub_123',
         })
       )
-      // Fix [High]: использует .or() с обоими условиями
-      expect(mockOr).toHaveBeenCalledWith(
-        'stripe_subscription_id.eq.sub_123,stripe_customer_id.eq.cus_123'
-      )
+      // Шаг 1: строгое обновление по subscription_id
+      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      // Шаг 2: fallback по customer_id только при stripe_subscription_id IS NULL
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
     })
 
     it('fallback по customer_id когда subscription_id не привязан (event ordering fix)', async () => {
@@ -362,8 +371,10 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      // Только customer_id в OR-фильтре (subscription_id недоступен)
-      expect(mockOr).toHaveBeenCalledWith('stripe_customer_id.eq.cus_123')
+      // Только шаг 2 (subscription_id недоступен): customer_id с .is() guard
+      expect(mockEq).not.toHaveBeenCalledWith('stripe_subscription_id', expect.anything())
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
     })
   })
 
@@ -380,7 +391,8 @@ describe('POST /api/webhooks/stripe', () => {
     })
 
     // [AI-Review][High] Fix: двухшаговое удаление — сначала по subscription_id, потом customer_id
-    it('делает строгое обновление по stripe_subscription_id первым шагом (High fix)', async () => {
+    // [AI-Review][High] Fix Round 4: fallback применяется только при stripe_subscription_id IS NULL
+    it('делает строгое обновление по stripe_subscription_id первым шагом, fallback с IS NULL guard', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeSubscriptionEvent('customer.subscription.deleted')
       )
@@ -388,10 +400,11 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      // Первый шаг — строго по subscription_id
+      // Первый шаг — строго по subscription_id (без IS NULL — обновляет конкретную подписку)
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
-      // Второй шаг — fallback по customer_id
+      // Второй шаг — fallback по customer_id только для профилей без subscription_id
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
     })
 
     // [AI-Review][Medium] Fix: не падает при undefined customerId (PostgREST undefined fix)

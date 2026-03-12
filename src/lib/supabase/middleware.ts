@@ -64,19 +64,26 @@ export async function updateSession(request: NextRequest) {
   // Task 4.1 (NFR7): инвалидация доступа при subscription_status = 'inactive'
   // Проверяем только для аутентифицированных пользователей на защищённых маршрутах
   if (user && !isPublicPath) {
-    // Сначала проверяем кеш (избегаем запрос к БД при каждом переходе)
-    const cachedStatus = request.cookies.get(SUBSCRIPTION_CACHE_COOKIE)?.value
+    // Fix [AI-Review][Critical]: кеш привязан к user.id (формат: "userId:status").
+    // Предотвращает использование стейлого кеша при перелогине другого пользователя в том же браузере.
+    const cachedValue = request.cookies.get(SUBSCRIPTION_CACHE_COOKIE)?.value
 
-    if (cachedStatus !== undefined) {
-      // Кеш есть — используем сохранённый статус без запроса к БД
-      // [AI-Review][Critical] Fix: блокируем и canceled статус (AC2/NFR7)
-      if (cachedStatus === 'inactive' || cachedStatus === 'canceled') {
-        const url = request.nextUrl.clone()
-        url.pathname = '/'
-        return NextResponse.redirect(url)
+    if (cachedValue !== undefined) {
+      const separatorIndex = cachedValue.indexOf(':')
+      const cachedUserId = separatorIndex >= 0 ? cachedValue.slice(0, separatorIndex) : ''
+      const cachedStatus = separatorIndex >= 0 ? cachedValue.slice(separatorIndex + 1) : ''
+
+      if (cachedUserId === user.id) {
+        // Кеш принадлежит текущему пользователю — используем без запроса к БД
+        if (cachedStatus === 'inactive' || cachedStatus === 'canceled') {
+          const url = request.nextUrl.clone()
+          url.pathname = '/'
+          return NextResponse.redirect(url)
+        }
+        // Кеш говорит active/none — пропускаем
+        return supabaseResponse
       }
-      // Кеш говорит active/none — пропускаем
-      return supabaseResponse
+      // Кеш принадлежит другому пользователю — игнорируем, делаем запрос к БД
     }
 
     // Кеша нет — делаем запрос к БД
@@ -106,8 +113,8 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // Кешируем статус в httpOnly cookie (TTL = 30s, не кешируем inactive)
-    supabaseResponse.cookies.set(SUBSCRIPTION_CACHE_COOKIE, status, {
+    // Кешируем статус в httpOnly cookie (TTL = 30s, формат: "userId:status")
+    supabaseResponse.cookies.set(SUBSCRIPTION_CACHE_COOKIE, `${user.id}:${status}`, {
       maxAge: SUBSCRIPTION_CACHE_TTL,
       httpOnly: true,
       sameSite: 'strict',

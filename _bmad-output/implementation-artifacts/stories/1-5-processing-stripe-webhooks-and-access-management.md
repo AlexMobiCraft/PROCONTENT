@@ -1,6 +1,6 @@
 # Story 1.5: Обработка Stripe Webhooks и управление доступом
 
-Status: done
+Status: review
 
 - [x] Implementation complete
 - [x] Tests passing
@@ -169,6 +169,21 @@ const supabaseAdmin = createClient(
 - ✅ Resolved [Low]: Задокументирована терминология в комментарии к `handleSubscriptionDeleted` — Stripe не имеет `customer.subscription.canceled`, используется `customer.subscription.deleted`.
 - Добавлено 5 новых тестов (3 для route + 2 для middleware). TypeCheck: ✅. Все 150 тестов: ✅ 100% pass.
 
+#### Адресованы Review Follow-ups (2026-03-11) — Раунд 4 (Code Review)
+- ✅ Resolved [Critical]: Middleware — кеш `__sub_status` теперь хранится в формате `userId:status`. При чтении кеша проверяется соответствие `userId` текущему пользователю; кеш другого пользователя игнорируется → запрос к БД.
+- ✅ Resolved [High]: `handleSubscriptionDeleted` — fallback по `stripe_customer_id` теперь применяется только при `.is('stripe_subscription_id', null)`, предотвращая отмену новой подписки при замене.
+- ✅ Resolved [High]: `handleInvoicePaymentSucceeded` — OR-фильтр заменён на двухшаговый подход: шаг 1 по `stripe_subscription_id`, шаг 2 fallback по `stripe_customer_id` только при `.is('stripe_subscription_id', null)`.
+- ✅ Resolved [Medium]: `handleSubscriptionUpdated` — `current_period_end` недоступно на типе `Stripe.Subscription` в API 2026-02-25.clover (подтверждено TypeScript). Согласно Dev Notes, в новом API `cancel_at` является корректным полем. Добавлен поясняющий комментарий в код.
+- ✅ Resolved [Low]: `.is('stripe_subscription_id', null)` добавлен во все fallback-обновления (handleSubscriptionDeleted и handleInvoicePaymentSucceeded).
+- Добавлено 2 новых теста в middleware.test.ts (cross-user cache security). TypeCheck: ✅. Все 152 теста: ✅ 100% pass.
+
+### Review Follow-ups (AI) - Round 4 (Code Review)
+- [x] [AI-Review][Critical] Уязвимость безопасности в Middleware: привязать кеш куки `__sub_status` к `user.id`, так как текущая реализация позволяет обход прав доступа при перелогине разных пользователей в одном браузере. [src/lib/supabase/middleware.ts:86]
+- [x] [AI-Review][High] Риск удаления активной подписки: В `handleSubscriptionDeleted` fallback по `stripe_customer_id` должен применяться только если у профиля `stripe_subscription_id` еще не установлен (is null), чтобы избежать отключения доступа при замене подписок. [src/app/api/webhooks/stripe/route.ts:168]
+- [x] [AI-Review][High] Старые инвойсы перезаписывают новую подписку: В `handleInvoicePaymentSucceeded` `OR` фильтр с `stripe_customer_id` должен применяться только для профилей, где `stripe_subscription_id` равен null, чтобы избежать перезаписи данных новой подписки старыми инвойсами. [src/app/api/webhooks/stripe/route.ts:121]
+- [x] [AI-Review][Medium] Неполное обновление `current_period_end`: В `handleSubscriptionUpdated` устанавливать конец периода из `subscription.current_period_end`, а не только полагаться на `cancel_at`, чтобы корректно обрабатывать регулярные обновления тарифа. [src/app/api/webhooks/stripe/route.ts:191]
+- [x] [AI-Review][Low] Избыточные обновления БД: Использовать `.is('stripe_subscription_id', null)` в fallback-обновлениях во всех вебхуках для более строгой фильтрации. [src/app/api/webhooks/stripe/route.ts]
+
 ### Review Follow-ups (AI)
 - [x] [AI-Review][Medium] Устранить риск Race Condition в `handleCheckoutSessionCompleted`: перейти к использованию `stripe_customer_id` как основного ключа после первичной привязки. [src/app/api/webhooks/stripe/route.ts:45]
 - [x] [AI-Review][Medium] Оптимизировать Middleware: рассмотреть кеширование `subscription_status` в сессии/JWT для избежания повторных запросов к БД на каждый переход. [src/lib/supabase/middleware.ts:63]
@@ -208,6 +223,7 @@ const supabaseAdmin = createClient(
 - 2026-03-11: Адресованы все 5 замечаний Adversarial Review: OR-fallback в invoice handler, warn при 0 строках, документация кеша, SupabaseClient<Database>, тест идемпотентности payment_failed. 145 тестов: 100% pass.
 - 2026-03-11: Адресованы все 5 финальных замечаний: canceled-статус в Middleware (Critical), двухшаговое удаление подписки (High), fail-secure при ошибке БД (Medium), guard customerId (Medium), документация терминологии (Low). 150 тестов: 100% pass.
 - 2026-03-11: Выполнены косметические правки: синхронизация имен таблиц (users -> profiles), добавление userId в логи middleware, явные guard-проверки env vars в webhook route.
+- 2026-03-11: Адресованы все 5 замечаний Round 4: привязка кеша к user.id (Critical), IS NULL guard в handleSubscriptionDeleted (High), двухшаговый подход в handleInvoicePaymentSucceeded (High), документирование ограничений API 2026 (Medium), fallback guards во всех вебхуках (Low). 152 теста: 100% pass.
 
 ## Completion Status
 

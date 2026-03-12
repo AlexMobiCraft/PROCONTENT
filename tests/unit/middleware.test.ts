@@ -142,11 +142,12 @@ describe('middleware', () => {
   describe('кеш subscription_status (__sub_status cookie)', () => {
     const mockUser = { id: 'user-123', email: 'test@example.com' }
 
-    it('пропускает без запроса к БД при кеше active', async () => {
+    // Fix [AI-Review][Critical]: кеш теперь хранится в формате "userId:status"
+    it('пропускает без запроса к БД при кеше active (формат userId:status)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
 
       const req = new NextRequest('http://localhost:3000/feed', {
-        headers: { Cookie: '__sub_status=active' },
+        headers: { Cookie: '__sub_status=user-123:active' },
       })
       const response = await updateSession(req)
 
@@ -154,11 +155,11 @@ describe('middleware', () => {
       expect(mockFrom).not.toHaveBeenCalled()
     })
 
-    it('редиректит без запроса к БД при кеше inactive', async () => {
+    it('редиректит без запроса к БД при кеше inactive (формат userId:status)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
 
       const req = new NextRequest('http://localhost:3000/feed', {
-        headers: { Cookie: '__sub_status=inactive' },
+        headers: { Cookie: '__sub_status=user-123:inactive' },
       })
       const response = await updateSession(req)
 
@@ -174,6 +175,41 @@ describe('middleware', () => {
       const req = new NextRequest('http://localhost:3000/feed')
       await updateSession(req)
 
+      expect(mockFrom).toHaveBeenCalledWith('profiles')
+    })
+
+    // Fix [AI-Review][Critical]: кеш другого пользователя должен игнорироваться
+    it('игнорирует кеш и делает запрос к БД если userId не совпадает', async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'user-456', email: 'other@example.com' } },
+      })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      // Кеш принадлежит user-123, текущий пользователь — user-456
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: '__sub_status=user-123:active' },
+      })
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+      // Кеш проигнорирован — был обращение к БД
+      expect(mockFrom).toHaveBeenCalledWith('profiles')
+    })
+
+    it('не позволяет кешу inactive другого пользователя заблокировать текущего', async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: 'user-456', email: 'other@example.com' } },
+      })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      // Кеш с inactive принадлежит user-123, текущий пользователь user-456 с active
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: '__sub_status=user-123:inactive' },
+      })
+      const response = await updateSession(req)
+
+      // user-456 active — не должен быть заблокирован чужим кешем
+      expect(response.status).not.toBe(307)
       expect(mockFrom).toHaveBeenCalledWith('profiles')
     })
   })
@@ -252,11 +288,11 @@ describe('middleware', () => {
     const mockUser = { id: 'user-123', email: 'test@example.com' }
 
     // [AI-Review][Critical] Fix: кеш canceled должен блокировать доступ
-    it('редиректит без запроса к БД при кеше canceled', async () => {
+    it('редиректит без запроса к БД при кеше canceled (формат userId:status)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
 
       const req = new NextRequest('http://localhost:3000/feed', {
-        headers: { Cookie: '__sub_status=canceled' },
+        headers: { Cookie: '__sub_status=user-123:canceled' },
       })
       const response = await updateSession(req)
 
