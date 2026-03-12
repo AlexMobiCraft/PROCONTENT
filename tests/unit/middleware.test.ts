@@ -688,4 +688,30 @@ describe('middleware', () => {
       expect(result).toBeNull()
     })
   })
+
+  // Fix [AI-Review][Medium] Round 16: redirectWithCookies не копирует __sub_status из supabaseResponse
+  describe('redirectWithCookies — исключение кеш-куки (Round 16)', () => {
+    const mockUser = { id: 'user-123', email: 'test@example.com' }
+
+    it('при кеш-редиректе на /inactive не устанавливает __sub_status в ответе (Round 16 Medium)', async () => {
+      // Пользователь с подписанным кешем none → редирект через кеш (без DB lookup)
+      const noneToken = await makeSignedCookie('user-123', 'none')
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: `__sub_status=${noneToken}` },
+      })
+      const response = await updateSession(req)
+
+      // Редирект через кеш
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
+      // Fix Round 16: redirectWithCookies не копирует __sub_status из supabaseResponse.
+      // В кеш-ветке (нет DB lookup) новая кука не устанавливается — она не должна появиться в ответе.
+      const cachedCookie = response.cookies.get('__sub_status')
+      expect(cachedCookie).toBeUndefined()
+      // DB не вызывался — это чистый кеш-редирект
+      expect(mockFrom).not.toHaveBeenCalled()
+    })
+  })
 })

@@ -111,9 +111,14 @@ export async function parseCacheToken(
 
 // [AI-Review][Critical] Fix Round 6: копируем куки из supabaseResponse в редирект,
 // чтобы не терять обновляемые auth токены (Supabase может обновить refresh token в getUser).
+// Fix [AI-Review][Medium] Round 16: исключаем SUBSCRIPTION_CACHE_COOKIE из копирования.
+// Слепое копирование кеш-куки из supabaseResponse могло привести к state-дрифтингу:
+// устаревший статус из предыдущего цикла мог переопределить новый, явно установленный вызывающим.
+// Кеш-куку устанавливают вызывающие функции явно — это их ответственность.
 function redirectWithCookies(url: URL, supabaseResponse: NextResponse): NextResponse {
   const redirectResponse = NextResponse.redirect(url)
   supabaseResponse.cookies.getAll().forEach(({ name, value, ...options }) => {
+    if (name === SUBSCRIPTION_CACHE_COOKIE) return
     redirectResponse.cookies.set(name, value, options)
   })
   return redirectResponse

@@ -1,11 +1,11 @@
 # Story 1.5: Обработка Stripe Webhooks и управление доступом
 
-Status: in-progress
+Status: review
 
 - [x] Implementation complete
 - [x] Tests passing
-- [ ] Code review resolved
-- [ ] Ready for next story
+- [x] Code review resolved
+- [x] Ready for next story
 
 ## Story
 
@@ -142,11 +142,11 @@ so that система могла автоматически выдавать д
 - [x] [AI-Review][Medium] Семантическое несоответствие статусов (Trialing Logic Spread). Исключить перезапись статуса `trialing` в базу как `active` или синхронизировать модель данных с Stripe. [src/app/api/webhooks/stripe/route.ts:348]
 
 ### Review Follow-ups (AI) - Round 16 (Adversarial)
-- [ ] [AI-Review][Critical] Уязвимость привязки аккаунта по Email (Account Takeover / Privilege Escalation) — Обработчик `handleCheckoutSessionCompleted` слепо доверяет email. Использовать `client_reference_id` для привязки. [src/app/api/webhooks/stripe/route.ts:109]
-- [ ] [AI-Review][Critical] Race Condition с Auth Trigger (Потеря данных Stripe) — При отсутствии профиля обработчик выполняет `.upsert` (Шаг 2). Триггер в БД может вызвать конфликт.  [src/app/api/webhooks/stripe/route.ts:151]
-- [ ] [AI-Review][High] SQL Injection / Небезопасная конкатенация в PostgREST фильтрах — Во всех fallback-запросах используется небезопасная строковая интерполяция `.or(...)`. [src/app/api/webhooks/stripe/route.ts:324]
-- [ ] [AI-Review][Medium] Хрупкое извлечение current_period_end в Invoice — Fallback берет первую позицию инвойса, что может ошибочно истечь разовую позицию как подписку. [src/app/api/webhooks/stripe/route.ts:202]
-- [ ] [AI-Review][Medium] Несогласованность контекста куков в Middleware — redirectWithCookies слепо копирует куки, что может привести к state-дрифтингу или потере кеша. [src/lib/supabase/middleware.ts:214]
+- [x] [AI-Review][Critical] Уязвимость привязки аккаунта по Email (Account Takeover / Privilege Escalation) — Обработчик `handleCheckoutSessionCompleted` слепо доверяет email. Использовать `client_reference_id` для привязки. [src/app/api/webhooks/stripe/route.ts:109]
+- [x] [AI-Review][Critical] Race Condition с Auth Trigger (Потеря данных Stripe) — При отсутствии профиля обработчик выполняет `.upsert` (Шаг 2). Триггер в БД может вызвать конфликт.  [src/app/api/webhooks/stripe/route.ts:151]
+- [x] [AI-Review][High] SQL Injection / Небезопасная конкатенация в PostgREST фильтрах — Во всех fallback-запросах используется небезопасная строковая интерполяция `.or(...)`. [src/app/api/webhooks/stripe/route.ts:324]
+- [x] [AI-Review][Medium] Хрупкое извлечение current_period_end в Invoice — Fallback берет первую позицию инвойса, что может ошибочно истечь разовую позицию как подписку. [src/app/api/webhooks/stripe/route.ts:202]
+- [x] [AI-Review][Medium] Несогласованность контекста куков в Middleware — redirectWithCookies слепо копирует куки, что может привести к state-дрифтингу или потере кеша. [src/lib/supabase/middleware.ts:214]
 
 ## Dev Notes
 
@@ -220,6 +220,14 @@ const supabaseAdmin = createClient(
 - ✅ Resolved [High]: `handleSubscriptionDeleted` и `handleSubscriptionUpdated` fallback — аналогичный OR-guard вместо IS NULL. Сценарий задержки checkout.completed вбольше не приводит к потере вебхуков для переподписки.
 - ✅ Resolved [High]: `handleCheckoutSessionCompleted` `updateData` теперь формируется динамически: ключи `stripe_customer_id`/`stripe_subscription_id` добавляются только если значение не null/undefined. Ранее поля сбрасывались в null (потеря сохранённых IDs).
 - Добавлено 5 новых тестов (2 deleted + 1 updated + 1 failed OR-guard + 1 checkout dynamic update). TypeCheck: ✅. Все 203 теста: ✅ 100% pass.
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 16 (Adversarial)
+- ✅ Resolved [Critical]: Account Takeover via Email — `handleCheckoutSessionCompleted` теперь приоритетно использует `client_reference_id` (Step 0): update по ID → upsert по ID без email (тип cast `as unknown as ProfileInsert`) → retry update. Email-поиск применяется только при отсутствии `client_reference_id`. Исключение email из upsert устраняет конфликт уникального ключа при нормализации регистра.
+- ✅ Resolved [Critical]: Race Condition с Auth Trigger — upsert в Step 0 при ошибке конфликта выполняет retry `.update()`. Аналогично Step 2 (Round 15), но без email — только Stripe-данные.
+- ✅ Resolved [High]: SQL Injection / unsafe `.or()` — все fallback-запросы переписаны с `.or(string)` на два независимых запроса (`.is('stripe_subscription_id', null)` + `.neq()`/`.eq()`), результаты объединяются кодом. Строковая интерполяция устранена.
+- ✅ Resolved [Medium]: Хрупкое `current_period_end` — удалён fallback на первую строку инвойса. `periodEndTs` берётся только из строки с `type === 'subscription'`; без такой строки поле не обновляется.
+- ✅ Resolved [Medium]: Cookie state-drift в `redirectWithCookies` — добавлено явное исключение `SUBSCRIPTION_CACHE_COOKIE` из копирования. Кеш-куку устанавливают вызывающие функции явно.
+- Добавлено 3 новых теста (client_reference_id, upsert без email, period_end без subscription-строки), 1 тест middleware (cookie exclusion). Обновлено 7 существующих тестов (OR-guard → IS/NEQ/EQ). TypeCheck: ✅. Все 210 тестов: ✅ 100% pass.
 
 #### Адресованы Review Follow-ups (2026-03-12) — Раунд 15 (Adversarial)
 - ✅ Resolved [Critical]: Fallback guard в handleSubscriptionDeleted, handleSubscriptionUpdated и handleInvoicePaymentFailed заменён с strict IS NULL на EQ-OR guard (`stripe_subscription_id.is.null,stripe_subscription_id.eq.${sub.id}`). IS NULL был слишком строг: отмена sub_old не могла достичь профиля через fallback, если checkout уже записал sub_old. EQ guard безопасен: профили с sub_new не затрагиваются (sub_new != sub_old).
@@ -383,10 +391,11 @@ const supabaseAdmin = createClient(
 - 2026-03-12: Адресованы все 3 замечания Round 13: OR-guard вместо IS NULL в handleInvoicePaymentFailed fallback в сценарии переподписки (Critical), OR-guard в handleSubscriptionDeleted / handleSubscriptionUpdated fallback (High), динамический updateData в checkout handler без null-ключей (High). Добавлено 5 новых тестов. TypeCheck: ✅. Все 203 теста: ✅ 100% pass.
 - 2026-03-12: Адресованы все 4 замечания Round 14: IS NULL guard вместо OR-guard во всех fallback-обработчиках (Critical — Data Corruption защита), привязка IDs до payment_status-check в checkout handler (High), upsert-fallback при Race Condition профиля (Medium), active cookie на /inactive→/feed редиректе (Medium). Обновлено 6 тестов, добавлено 2 новых. TypeCheck: ✅. Все 205 тестов: ✅ 100% pass.
 - 2026-03-12: Адресованы все 4 замечания Round 15: EQ-OR guard вместо strict IS NULL в fallback всех cancellation handlers (Critical — False Cancellation Lockout), retry update при upsert collision с auth trigger (High), глобальный кеш CryptoKey в middleware (Medium), trialing сохраняется в БД как есть (Medium). Добавлен 1 тест, обновлено 5. TypeCheck: ✅. Все 206 тестов: ✅ 100% pass.
+- 2026-03-12: Адресованы все 5 замечаний Round 16: client_reference_id Step 0 в checkout handler (Critical — Account Takeover), upsert без email + retry (Critical — Auth Trigger Race), two-query fallback вместо .or() строк (High — SQL Injection), period_end только из type=subscription строки (Medium), исключение __sub_status из redirectWithCookies (Medium). Добавлено 4 теста, обновлено 7. TypeCheck: ✅. Все 210 тестов: ✅ 100% pass. Статус: review.
 
 ## Completion Status
 
 - [x] Implementation complete
 - [x] Tests passing
-- [ ] Code review resolved
-- [ ] Ready for next story
+- [x] Code review resolved
+- [x] Ready for next story
