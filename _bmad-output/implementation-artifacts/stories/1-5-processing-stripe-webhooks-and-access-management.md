@@ -4,8 +4,8 @@ Status: review
 
 - [x] Implementation complete
 - [x] Tests passing
-- [x] Code review resolved
-- [x] Ready for next story
+- [ ] Code review resolved
+- [ ] Ready for next story
 
 ## Story
 
@@ -71,6 +71,12 @@ so that система могла автоматически выдавать д
 
 - [x] **Task 6: Базовое тестирование Webhook Handler**
   - [x] Subtask 6.1: Написать unit test(s) для `src/app/api/webhooks/stripe/route.ts` проверяющий поведение при валидной подписи, невалидной подписи, необрабатываемом событии, и проверку 500 ошибки при неудаче с БД.
+
+### Review Follow-ups (AI) - Round 5 (Adversarial)
+- [x] [AI-Review][Critical] Бесконечный цикл редиректов в Middleware (Infinite Redirect Loop) — если БД недоступна, авторизованный юзер перекидывается на `/login`, откуда обратно на защищенный роут из-за логики на строке 52. [src/lib/supabase/middleware.ts:104]
+- [x] [AI-Review][High] Уязвимость Checkout Session — добавить проверку `session.mode === 'subscription'` перед применением статуса `active`. [src/app/api/webhooks/stripe/route.ts:44]
+- [x] [AI-Review][Medium] Хрупкое извлечение `current_period_end` в Инвойсе — искать первую строку (line item) с `type === 'subscription'` для точного извлечения времени. [src/app/api/webhooks/stripe/route.ts:108]
+- [x] [AI-Review][Low] Слепое игнорирование неизвестных событий (Unhandled event types) — залогировать `event.type` в default блоке для помощи в дебаге. [src/app/api/webhooks/stripe/route.ts:329]
 
 ## Dev Notes
 
@@ -169,6 +175,13 @@ const supabaseAdmin = createClient(
 - ✅ Resolved [Low]: Задокументирована терминология в комментарии к `handleSubscriptionDeleted` — Stripe не имеет `customer.subscription.canceled`, используется `customer.subscription.deleted`.
 - Добавлено 5 новых тестов (3 для route + 2 для middleware). TypeCheck: ✅. Все 150 тестов: ✅ 100% pass.
 
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 5 (Adversarial)
+- ✅ Resolved [Critical]: Middleware — бесконечный цикл при ошибке БД устранён: редирект на `/` вместо `/login` (auth user на `/` не редиректится на `/feed`).
+- ✅ Resolved [High]: `handleCheckoutSessionCompleted` — добавлена проверка `session.mode !== 'subscription'` с ранним выходом; `makeCheckoutEvent` обновлён с `mode: 'subscription'` по умолчанию.
+- ✅ Resolved [Medium]: `handleInvoicePaymentSucceeded` — `period_end` теперь извлекается из строки с `type === 'subscription'`, fallback на первую строку при отсутствии.
+- ✅ Resolved [Low]: default блок switch — логирует `event.type` для дебага.
+- Добавлено 5 новых тестов (2 middleware + 3 route). TypeCheck: ✅. Все 157 тестов: ✅ 100% pass.
+
 #### Адресованы Review Follow-ups (2026-03-11) — Раунд 4 (Code Review)
 - ✅ Resolved [Critical]: Middleware — кеш `__sub_status` теперь хранится в формате `userId:status`. При чтении кеша проверяется соответствие `userId` текущему пользователю; кеш другого пользователя игнорируется → запрос к БД.
 - ✅ Resolved [High]: `handleSubscriptionDeleted` — fallback по `stripe_customer_id` теперь применяется только при `.is('stripe_subscription_id', null)`, предотвращая отмену новой подписки при замене.
@@ -224,10 +237,11 @@ const supabaseAdmin = createClient(
 - 2026-03-11: Адресованы все 5 финальных замечаний: canceled-статус в Middleware (Critical), двухшаговое удаление подписки (High), fail-secure при ошибке БД (Medium), guard customerId (Medium), документация терминологии (Low). 150 тестов: 100% pass.
 - 2026-03-11: Выполнены косметические правки: синхронизация имен таблиц (users -> profiles), добавление userId в логи middleware, явные guard-проверки env vars в webhook route.
 - 2026-03-11: Адресованы все 5 замечаний Round 4: привязка кеша к user.id (Critical), IS NULL guard в handleSubscriptionDeleted (High), двухшаговый подход в handleInvoicePaymentSucceeded (High), документирование ограничений API 2026 (Medium), fallback guards во всех вебхуках (Low). 152 теста: 100% pass.
+- 2026-03-12: Адресованы все 4 замечания Round 5: бесконечный цикл редиректов в Middleware (Critical), session.mode check в checkout handler (High), type==='subscription' для period_end (Medium), логирование unhandled events (Low). 157 тестов: 100% pass.
 
 ## Completion Status
 
 - [x] Implementation complete
 - [x] Tests passing
-- [x] Code review resolved
-- [x] Ready for next story
+- [ ] Code review resolved
+- [ ] Ready for next story

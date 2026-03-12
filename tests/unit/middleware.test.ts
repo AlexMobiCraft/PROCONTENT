@@ -272,7 +272,9 @@ describe('middleware', () => {
     })
 
     // [AI-Review][Medium] Fix: Fail-Secure — при ошибке БД блокируем доступ
-    it('редиректит на /login при ошибке БД (fail-secure, NFR7)', async () => {
+    // [AI-Review][Critical] Fix Round 5: редиректим на / (не /login) чтобы избежать бесконечного цикла
+    // /login с авторизованным юзером → /feed → ошибка БД → /login → loop. Редирект на / ломает цикл.
+    it('редиректит на / при ошибке БД (fail-secure, без бесконечного цикла, NFR7)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: null, error: { message: 'DB unavailable' } })
 
@@ -280,7 +282,21 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+      expect(response.headers.get('location')).toBe('http://localhost:3000/')
+    })
+
+    it('не попадает в бесконечный цикл при ошибке БД (ошибка → /, не /login → /feed)', async () => {
+      // При ошибке БД — редирект на /, а не на /login.
+      // / — isPublicPath, auth user на / не редиректится обратно на /feed (только /login триггерит redirect к /feed).
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: null, error: { message: 'DB unavailable' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      // Редирект должен идти на /, а не на /login
+      expect(response.headers.get('location')).not.toContain('/login')
+      expect(response.headers.get('location')).toBe('http://localhost:3000/')
     })
   })
 

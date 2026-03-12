@@ -41,6 +41,12 @@ async function handleCheckoutSessionCompleted(
       ? session.subscription
       : session.subscription?.id
 
+  // Fix [AI-Review][High] Round 5: только подписки — разовые платежи не активируют подписку
+  if (session.mode !== 'subscription') {
+    console.log('[webhook] checkout.session.completed: пропускаем, mode не subscription:', session.mode)
+    return
+  }
+
   if (!email) {
     console.error('[webhook] checkout.session.completed: отсутствует email клиента')
     return
@@ -105,7 +111,13 @@ async function handleInvoicePaymentSucceeded(
 
   if (!subscriptionId && !customerId) return
 
-  const periodEndTs = invoice.lines?.data?.[0]?.period?.end
+  // Fix [AI-Review][Medium] Round 5: ищем строку с type==='subscription' для точного period_end.
+  // type отсутствует в Stripe TypeScript типах для API 2026-02-25.clover — используем type cast.
+  // Если нет subscription-строки — fallback на первую (совместимость с тестовыми моками без type).
+  const subscriptionLine = invoice.lines?.data?.find(
+    (line) => (line as unknown as { type?: string }).type === 'subscription'
+  )
+  const periodEndTs = subscriptionLine?.period?.end ?? invoice.lines?.data?.[0]?.period?.end
   const currentPeriodEnd = periodEndTs
     ? new Date(periodEndTs * 1000).toISOString()
     : null
@@ -326,7 +338,9 @@ export async function POST(request: Request) {
         break
 
       // Task 3.5: неизвестные события — 200 OK, чтобы Stripe не делал retry
+      // Fix [AI-Review][Low] Round 5: логируем тип для помощи в дебаге
       default:
+        console.log('[webhook] Игнорируем необрабатываемое событие:', event.type)
         break
     }
 

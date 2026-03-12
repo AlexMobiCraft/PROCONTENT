@@ -93,6 +93,7 @@ function makeCheckoutEvent(overrides = {}): import('stripe').default.Event {
       object: {
         customer: 'cus_123',
         subscription: 'sub_123',
+        mode: 'subscription', // [AI-Review][High] Round 5: mode обязателен для активации подписки
         customer_details: { email: 'user@example.com' },
         ...overrides,
       },
@@ -230,6 +231,7 @@ describe('POST /api/webhooks/stripe', () => {
   })
 
   // Task 3.5: неизвестное событие → 200 (без retry)
+  // [AI-Review][Low] Fix Round 5: теперь логирует event.type в default блоке
   it('возвращает 200 для неизвестного типа события', async () => {
     mockConstructEvent.mockReturnValueOnce({
       id: 'evt_unknown',
@@ -240,6 +242,23 @@ describe('POST /api/webhooks/stripe', () => {
     const response = await POST(makeRequest('{}'))
 
     expect(response.status).toBe(200)
+  })
+
+  it('логирует тип необрабатываемого события в default блоке', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    mockConstructEvent.mockReturnValueOnce({
+      id: 'evt_unknown',
+      type: 'payment_intent.created',
+      data: { object: {} },
+    } as unknown as import('stripe').default.Event)
+
+    await POST(makeRequest('{}'))
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[webhook] Игнорируем необрабатываемое событие:',
+      'payment_intent.created'
+    )
+    consoleSpy.mockRestore()
   })
 
   // Task 5: отсутствует STRIPE_WEBHOOK_SECRET → 500
@@ -319,6 +338,32 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockUpdate).not.toHaveBeenCalled()
     })
 
+    // [AI-Review][High] Fix Round 5: session.mode должен быть 'subscription'
+    it('не обновляет профиль если session.mode не subscription (AC1 защита)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ mode: 'payment' })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // Нет обновления профиля для разовых платежей
+      expect(mockUpdate).not.toHaveBeenCalled()
+    })
+
+    it('обновляет профиль если session.mode === subscription', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ mode: 'subscription' })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+    })
+
     it('логирует warn если профиль не найден по email (0 строк обновлено)', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
@@ -358,6 +403,29 @@ describe('POST /api/webhooks/stripe', () => {
       // Шаг 2: fallback по customer_id только при stripe_subscription_id IS NULL
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
       expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+    })
+
+    // [AI-Review][Medium] Fix Round 5: ищем строку с type==='subscription' для точного period_end
+    it('использует period.end из строки с type=subscription, а не первой строки (AC1)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeInvoiceEvent('invoice.payment_succeeded', {
+          lines: {
+            data: [
+              { type: 'invoiceitem', period: { end: 9999999999 } }, // не subscription — должен быть проигнорирован
+              { type: 'subscription', period: { end: 1800000000 } }, // верный period_end
+            ],
+          },
+        })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          current_period_end: new Date(1800000000 * 1000).toISOString(),
+        })
+      )
     })
 
     it('fallback по customer_id когда subscription_id не привязан (event ordering fix)', async () => {

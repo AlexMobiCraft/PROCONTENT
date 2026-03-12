@@ -97,10 +97,13 @@ export async function updateSession(request: NextRequest) {
 
     // [AI-Review][Medium] Fix: Fail-Secure — блокируем при ошибке БД (NFR7)
     // Fix [AI-Review][Low]: userId в логе для точной диагностики
+    // Fix [AI-Review][Critical] Round 5: редиректим на / (не /login), чтобы избежать бесконечного цикла:
+    //   /login + auth user → /feed (line 51) → ошибка БД → /login → loop.
+    //   / — isPublicPath, auth user на / не редиректится на /feed.
     if (profileError) {
       console.error('[middleware] Ошибка получения профиля для userId:', user.id, profileError)
       const url = request.nextUrl.clone()
-      url.pathname = '/login'
+      url.pathname = '/'
       return NextResponse.redirect(url)
     }
 
