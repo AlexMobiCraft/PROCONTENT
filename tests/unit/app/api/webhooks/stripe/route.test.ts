@@ -2,26 +2,29 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 // --- Моки подняты до импортов ---
 
-const { mockConstructEvent, mockWebhooks } = vi.hoisted(() => {
+const { mockConstructEvent, mockWebhooks, mockListLineItems } = vi.hoisted(() => {
   const mockConstructEvent = vi.fn()
+  const mockListLineItems = vi.fn()
   return {
     mockConstructEvent,
+    mockListLineItems,
     mockWebhooks: { constructEvent: mockConstructEvent },
   }
 })
 
 vi.mock('@/lib/stripe', () => ({
   stripe: {
+    invoices: {
+      listLineItems: mockListLineItems,
+    },
     webhooks: mockWebhooks,
   },
 }))
 
 const {
   mockFrom,
-  mockSelect,
   mockEq,
   mockIs,
-  mockSingle,
   mockUpdate,
   mockOr,
   mockOrChain,
@@ -30,12 +33,12 @@ const {
   mockRpc,
   mockUpsert,
   mockNeq,
+  mockGetUserById,
 } = vi.hoisted(() => {
-  const mockSingle = vi.fn()
   const mockOr = vi.fn()
-  const mockSelect = vi.fn()
   const mockUpdate = vi.fn()
   const mockFrom = vi.fn()
+  const mockGetUserById = vi.fn()
   // Fix [AI-Review][Medium] Round 14: мок для upsert (fallback при отсутствии профиля)
   const mockUpsert = vi.fn().mockResolvedValue({ error: null })
 
@@ -74,16 +77,19 @@ const {
   const mockRpc = vi.fn()
 
   const mockCreateClient = vi.fn(() => ({
+    auth: {
+      admin: {
+        getUserById: mockGetUserById,
+      },
+    },
     from: mockFrom,
     rpc: mockRpc,
   }))
 
   return {
     mockFrom,
-    mockSelect,
     mockEq,
     mockIs,
-    mockSingle,
     mockUpdate,
     mockOr,
     mockOrChain,
@@ -92,6 +98,7 @@ const {
     mockRpc,
     mockUpsert,
     mockNeq,
+    mockGetUserById,
   }
 })
 
@@ -100,15 +107,25 @@ vi.mock('@supabase/supabase-js', () => ({
 }))
 
 import { POST } from '@/app/api/webhooks/stripe/route'
+import { resetStripeWebhookRateLimitStore } from '@/lib/stripe/webhook-rate-limit'
+
+const DEFAULT_PERIOD_END_TS = 1800000000
+const UPGRADED_PERIOD_END_TS = 1900000000
+const NON_SUBSCRIPTION_PERIOD_END_TS = 9999999999
 
 // --- Фабрики тестовых данных ---
 
-function makeRequest(body: string, signature = 'valid-signature') {
+function makeRequest(
+  body: string,
+  signature = 'valid-signature',
+  extraHeaders: Record<string, string> = {}
+) {
   return new Request('http://localhost/api/webhooks/stripe', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'stripe-signature': signature,
+      ...extraHeaders,
     },
     body,
   })
@@ -143,7 +160,7 @@ function makeSubscriptionEvent(
         id: 'sub_123',
         customer: 'cus_123',
         status: 'active',
-        current_period_end: 1800000000,
+        current_period_end: UPGRADED_PERIOD_END_TS,
         cancel_at_period_end: false,
         ...overrides,
       },
@@ -161,11 +178,16 @@ function makeInvoiceEvent(
     data: {
       object: {
         // В Stripe API 2026: subscription_id живёт в parent.subscription_details.subscription
+        id: 'in_123',
         customer: 'cus_123',
+        status: 'paid',
         parent: {
           subscription_details: { subscription: 'sub_123' },
         },
-        lines: { data: [{ period: { end: 1800000000 } }] },
+        lines: {
+          data: [{ id: 'line_1', type: 'subscription', period: { end: DEFAULT_PERIOD_END_TS } }],
+          has_more: false,
+        },
         ...overrides,
       },
     },
@@ -180,6 +202,9 @@ describe('POST /api/webhooks/stripe', () => {
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test'
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service_role_key_test'
+    process.env.STRIPE_WEBHOOK_RATE_LIMIT_MAX = '60'
+    process.env.STRIPE_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS = '60'
+    resetStripeWebhookRateLimitStore()
 
     // mockEq: thenable + chainable с .select(), .is() и .or() чтобы поддерживать:
     //   await ...eq(...).select()      — chain с select
@@ -203,6 +228,8 @@ describe('POST /api/webhooks/stripe', () => {
     })
     mockUpdate.mockReturnValue({ eq: mockEq, or: mockOr })
     mockUpsert.mockResolvedValue({ error: null })
+    mockGetUserById.mockResolvedValue({ data: { user: { email: 'auth-user@example.com' } }, error: null })
+    mockListLineItems.mockResolvedValue({ data: [], has_more: false })
     mockFrom.mockReturnValue({ update: mockUpdate, upsert: mockUpsert })
 
     // Fix [AI-Review][Critical] Round 8: дефолтный мок RPC — пользователь найден по email (O(1) поиск)
@@ -259,6 +286,31 @@ describe('POST /api/webhooks/stripe', () => {
 
     expect(req1.status).toBe(200)
     expect(req2.status).toBe(200)
+  })
+
+  it('возвращает 429 если один IP превышает webhook rate limit', async () => {
+    process.env.STRIPE_WEBHOOK_RATE_LIMIT_MAX = '2'
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_unknown',
+      type: 'some.unknown.event',
+      data: { object: {} },
+    } as unknown as import('stripe').default.Event)
+
+    const firstResponse = await POST(
+      makeRequest('{}', 'valid-signature', { 'x-forwarded-for': '203.0.113.10' })
+    )
+    const secondResponse = await POST(
+      makeRequest('{}', 'valid-signature', { 'x-forwarded-for': '203.0.113.10' })
+    )
+    const thirdResponse = await POST(
+      makeRequest('{}', 'valid-signature', { 'x-forwarded-for': '203.0.113.10' })
+    )
+
+    expect(firstResponse.status).toBe(200)
+    expect(secondResponse.status).toBe(200)
+    expect(thirdResponse.status).toBe(429)
+    expect(thirdResponse.headers.get('Retry-After')).toBe('60')
+    expect(mockConstructEvent).toHaveBeenCalledTimes(2)
   })
 
   // AC4, NFR19: ошибка БД → 500 (Stripe начнёт retry)
@@ -542,6 +594,23 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockUpdate).toHaveBeenCalledTimes(3)
     })
 
+    it('возвращает 500 если upsert fallback и retry update не сохранили профиль (Round 19 High)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
+      // Шаг 1 (customer_id) → 0 строк
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+      // Шаг 2 (userId) → 0 строк → upsert fallback
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+      // upsert падает → retry update
+      mockUpsert.mockResolvedValueOnce({ error: { message: 'duplicate key value', code: '23505' } })
+      // retry update отрабатывает без DB error, но не сохраняет ни одной строки → fail-loud
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(500)
+      expect(mockUpdate).toHaveBeenCalledTimes(3)
+    })
+
     // Fix [AI-Review][High] Round 14: проверяем что IDs привязываются при unpaid (дополнительный тест)
     it('invoice.payment_succeeded находит пользователя по customer_id после unpaid checkout (High Round 14)', async () => {
       // Сценарий: checkout пришёл с payment_status='unpaid', IDs привязаны (Fix Round 14)
@@ -582,7 +651,7 @@ describe('POST /api/webhooks/stripe', () => {
     it('обновляет статус и current_period_end по stripe_subscription_id (шаг 1, AC1, Task 3.2)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeInvoiceEvent('invoice.payment_succeeded', {
-          lines: { data: [{ type: 'subscription', period: { end: 1800000000 } }] },
+          lines: { data: [{ type: 'subscription', period: { end: DEFAULT_PERIOD_END_TS } }] },
         })
       )
       // mockSelectAfterEq по умолчанию возвращает строку → ранний выход
@@ -600,6 +669,20 @@ describe('POST /api/webhooks/stripe', () => {
       // Только шаг 1 — subscription_id найден, шаг 2 не нужен
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
+    })
+
+    it('игнорирует invoice.payment_succeeded если invoice.status не paid (Round 17 Medium)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeInvoiceEvent('invoice.payment_succeeded', {
+          status: 'open',
+        })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).not.toHaveBeenCalled()
+      expect(mockListLineItems).not.toHaveBeenCalled()
     })
 
     // [AI-Review][High] Fix Round 9: fallback захватывает профили с null ИЛИ устаревшим sub_id
@@ -626,8 +709,8 @@ describe('POST /api/webhooks/stripe', () => {
         makeInvoiceEvent('invoice.payment_succeeded', {
           lines: {
             data: [
-              { type: 'invoiceitem', period: { end: 9999999999 } }, // не subscription — должен быть проигнорирован
-              { type: 'subscription', period: { end: 1800000000 } }, // верный period_end
+              { type: 'invoiceitem', period: { end: NON_SUBSCRIPTION_PERIOD_END_TS } }, // не subscription — должен быть проигнорирован
+              { type: 'subscription', period: { end: DEFAULT_PERIOD_END_TS } }, // верный period_end
             ],
           },
         })
@@ -638,9 +721,32 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          current_period_end: new Date(1800000000 * 1000).toISOString(),
+          current_period_end: new Date(DEFAULT_PERIOD_END_TS * 1000).toISOString(),
         })
       )
+    })
+
+    it('не делает доп. запрос в Stripe и логирует warn если subscription-строка не попала в первую страницу (Round 19 Critical)', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(
+        makeInvoiceEvent('invoice.payment_succeeded', {
+          lines: {
+            data: [{ id: 'line_1', type: 'invoiceitem', period: { end: NON_SUBSCRIPTION_PERIOD_END_TS } }],
+            has_more: true,
+          },
+        })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockListLineItems).not.toHaveBeenCalled()
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[webhook] invoice.payment_succeeded: subscription line item не найден на первой странице, current_period_end будет пропущен:',
+        'in_123'
+      )
+      expect(mockUpdate.mock.calls[0]?.[0]).not.toHaveProperty('current_period_end')
+      consoleSpy.mockRestore()
     })
 
     it('fallback по customer_id когда subscription_id отсутствует — ранний выход (Round 12 High fix)', async () => {
@@ -709,6 +815,7 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockUpdate).toHaveBeenCalledWith({
         subscription_status: 'inactive',
         current_period_end: null,
+        stripe_subscription_id: null,
       })
     })
 
@@ -725,6 +832,7 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockUpdate).toHaveBeenCalledWith({
         subscription_status: 'inactive',
         current_period_end: null,
+        stripe_subscription_id: null,
       })
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
@@ -844,7 +952,7 @@ describe('POST /api/webhooks/stripe', () => {
           status: 'active',
           cancel_at: null,
           cancel_at_period_end: false,
-          current_period_end: 1900000000, // актуальная дата конца периода (не cancel_at)
+          current_period_end: UPGRADED_PERIOD_END_TS, // актуальная дата конца периода (не cancel_at)
         })
       )
 
@@ -854,7 +962,7 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           subscription_status: 'active',
-          current_period_end: new Date(1900000000 * 1000).toISOString(),
+          current_period_end: new Date(UPGRADED_PERIOD_END_TS * 1000).toISOString(),
         })
       )
     })
@@ -995,7 +1103,7 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockRpc).not.toHaveBeenCalled()
     })
 
-    it('upsert по client_reference_id не включает email (избегаем конфликт ключа, Critical Round 16)', async () => {
+    it('upsert по client_reference_id использует canonical email из auth.users (Round 17 Critical)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeCheckoutEvent({ client_reference_id: 'known-user-id' })
       )
@@ -1005,14 +1113,10 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
+      expect(mockGetUserById).toHaveBeenCalledWith('known-user-id')
       expect(mockUpsert).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'known-user-id' }),
+        expect.objectContaining({ id: 'known-user-id', email: 'auth-user@example.com' }),
         { onConflict: 'id' }
-      )
-      // Email НЕ должен включаться в upsert при client_reference_id пути
-      expect(mockUpsert).not.toHaveBeenCalledWith(
-        expect.objectContaining({ email: expect.anything() }),
-        expect.anything()
       )
     })
   })
@@ -1025,7 +1129,7 @@ describe('POST /api/webhooks/stripe', () => {
           lines: {
             data: [
               // Только разовые позиции — нет строки type=subscription
-              { type: 'invoiceitem', period: { end: 9999999999 } },
+              { type: 'invoiceitem', period: { end: NON_SUBSCRIPTION_PERIOD_END_TS } },
             ],
           },
         })

@@ -1,21 +1,17 @@
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetUser, mockSingle, mockEq, mockSelect, mockFrom } = vi.hoisted(() => {
+const { mockGetUser, mockSingle, mockEq, mockSelect, mockFrom, mockCreateServerClient } = vi.hoisted(() => {
   const mockSingle = vi.fn()
   const mockEq = vi.fn().mockReturnThis()
   const mockSelect = vi.fn()
   const mockFrom = vi.fn()
-  return { mockGetUser: vi.fn(), mockSingle, mockEq, mockSelect, mockFrom }
+  const mockCreateServerClient = vi.fn()
+  return { mockGetUser: vi.fn(), mockSingle, mockEq, mockSelect, mockFrom, mockCreateServerClient }
 })
 
 vi.mock('@supabase/ssr', () => ({
-  createServerClient: () => ({
-    auth: {
-      getUser: mockGetUser,
-    },
-    from: mockFrom,
-  }),
+  createServerClient: mockCreateServerClient,
 }))
 
 import { updateSession, createCacheToken, parseCacheToken } from '@/lib/supabase/middleware'
@@ -49,6 +45,8 @@ describe('middleware', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
+    delete process.env.AUTH_SUCCESS_REDIRECT_PATH
+    delete process.env.SUBSCRIPTION_CACHE_TTL_SECONDS
     // [AI-Review][Critical] Round 9: COOKIE_SECRET для HMAC-подписания кеша
     process.env.COOKIE_SECRET = 'test-cookie-secret'
 
@@ -58,10 +56,18 @@ describe('middleware', () => {
     mockEq.mockReturnValue({ single: mockSingle, maybeSingle: mockSingle })
     mockSelect.mockReturnValue({ eq: mockEq })
     mockFrom.mockReturnValue({ select: mockSelect })
+    mockCreateServerClient.mockImplementation(() => ({
+      auth: {
+        getUser: mockGetUser,
+      },
+      from: mockFrom,
+    }))
   })
 
   afterEach(() => {
     delete process.env.COOKIE_SECRET
+    delete process.env.AUTH_SUCCESS_REDIRECT_PATH
+    delete process.env.SUBSCRIPTION_CACHE_TTL_SECONDS
   })
 
   describe('неавторизованный пользователь', () => {
@@ -146,6 +152,17 @@ describe('middleware', () => {
 
       expect(response.status).toBe(307)
       expect(response.headers.get('location')).toBe('http://localhost:3000/feed')
+    })
+
+    it('редиректит с /login на AUTH_SUCCESS_REDIRECT_PATH если он задан', async () => {
+      process.env.AUTH_SUCCESS_REDIRECT_PATH = '/dashboard'
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+
+      const req = new NextRequest('http://localhost:3000/login')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/dashboard')
     })
 
     it('пропускает на /feed без редиректа', async () => {
@@ -543,6 +560,30 @@ describe('middleware', () => {
       expect(cachedCookie?.value).toMatch(/^user-123:inactive:.+/)
     })
 
+    it('использует SUBSCRIPTION_CACHE_TTL_SECONDS для __sub_status cookie', async () => {
+      process.env.SUBSCRIPTION_CACHE_TTL_SECONDS = '45'
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('set-cookie')).toContain('Max-Age=45')
+    })
+
+    it('ставит secure для __sub_status cookie в production (Round 19 High)', async () => {
+      vi.stubEnv('NODE_ENV', 'production')
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('set-cookie')).toContain('Secure')
+    })
+
     it('устанавливает подписанный __sub_status cookie при редиректе с canceled статуса', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: { subscription_status: 'canceled' } })
@@ -712,6 +753,73 @@ describe('middleware', () => {
       expect(cachedCookie).toBeUndefined()
       // DB не вызывался — это чистый кеш-редирект
       expect(mockFrom).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('setAll — сохранение ранее выставленных cookies (Round 17)', () => {
+    it('не теряет уже выставленную __sub_status куку после setAll от Supabase', async () => {
+      const mockUser = { id: 'user-123', email: 'test@example.com' }
+      mockGetUser.mockImplementation(async () => {
+        return { data: { user: mockUser } }
+      })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
+
+      mockCreateServerClient.mockImplementation((_url, _key, options) => {
+        return {
+          auth: {
+            getUser: async () => {
+              options.cookies.setAll([
+                {
+                  name: 'sb-refresh-token',
+                  value: 'new-refresh-token',
+                  options: { httpOnly: true, path: '/' },
+                },
+              ])
+              return { data: { user: mockUser } }
+            },
+          },
+          from: mockFrom,
+        }
+      })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
+      expect(response.cookies.get('__sub_status')?.value).toMatch(/^user-123:inactive:.+/)
+      expect(response.cookies.get('sb-refresh-token')?.value).toBe('new-refresh-token')
+    })
+
+    it('сохраняет non-cookie headers из supabaseResponse при redirect (Round 19 Medium)', async () => {
+      const mockUser = { id: 'user-123', email: 'test@example.com' }
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
+
+      mockCreateServerClient.mockImplementation((_url, _key, options) => {
+        return {
+          auth: {
+            getUser: async () => {
+              options.cookies.setAll([
+                {
+                  name: 'sb-refresh-token',
+                  value: 'new-refresh-token',
+                  options: { httpOnly: true, path: '/' },
+                },
+              ])
+              return { data: { user: mockUser } }
+            },
+          },
+          from: mockFrom,
+        }
+      })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
+      expect(response.headers.get('x-middleware-next')).toBe('1')
+      expect(response.cookies.get('sb-refresh-token')?.value).toBe('new-refresh-token')
     })
   })
 })

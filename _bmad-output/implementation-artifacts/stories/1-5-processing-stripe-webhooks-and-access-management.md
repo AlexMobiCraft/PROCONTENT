@@ -5,7 +5,7 @@ Status: review
 - [x] Implementation complete
 - [x] Tests passing
 - [x] Code review resolved
-- [x] Ready for next story
+- [ ] Ready for next story
 
 ## Story
 
@@ -135,7 +135,7 @@ so that система могла автоматически выдавать д
 - [x] [AI-Review][Medium] Потеря данных при Race Condition профиля. `handleCheckoutSessionCompleted` обновляет профиль по userId через `.update('profiles')`. Если триггер на `auth.users` еще не создал запись в `public.profiles`, update ничего не обновит и данные Stripe потеряются. [src/app/api/webhooks/stripe/route.ts:118]
 - [x] [AI-Review][Medium] Оптимизация инвалидации кеша на /inactive. При переходе с /inactive на /feed кука удаляется, что вызывает лишний DB lookup при следующем запросе. Нужно создавать новую куку со статусом 'active' прямо при редиректе. [src/lib/supabase/middleware.ts:192]
 
-### Review Follow-ups (AI) - Round 15 (Adversarial)
+ ### Review Follow-ups (AI) - Round 15 (Adversarial)
 - [x] [AI-Review][Critical] Уязвимость отмены при переподписке (False Cancellation Lockout). Откатить fallback-гвард с strict `is.null` на безопасный для вебхуков отмены. [src/app/api/webhooks/stripe/route.ts]
 - [x] [AI-Review][High] Уязвимость уникального ключа при Upsert (Auth Trigger Collision). Добавить обработку `ON CONFLICT DO UPDATE` для защиты от сбоя триггера регистрации профиля. [src/app/api/webhooks/stripe/route.ts:148]
 - [x] [AI-Review][Medium] Производительность Middleware (Избыточный импорт крипто-ключа). Вынести `importHmacKey` в глобальную область, чтобы не импортировать ключ на каждый парсинг токена в Edge. [src/lib/supabase/middleware.ts:15]
@@ -147,6 +147,18 @@ so that система могла автоматически выдавать д
 - [x] [AI-Review][High] SQL Injection / Небезопасная конкатенация в PostgREST фильтрах — Во всех fallback-запросах используется небезопасная строковая интерполяция `.or(...)`. [src/app/api/webhooks/stripe/route.ts:324]
 - [x] [AI-Review][Medium] Хрупкое извлечение current_period_end в Invoice — Fallback берет первую позицию инвойса, что может ошибочно истечь разовую позицию как подписку. [src/app/api/webhooks/stripe/route.ts:202]
 - [x] [AI-Review][Medium] Несогласованность контекста куков в Middleware — redirectWithCookies слепо копирует куки, что может привести к state-дрифтингу или потере кеша. [src/lib/supabase/middleware.ts:214]
+### Review Follow-ups (AI) - Round 17 (Adversarial)
+- [x] [AI-Review][Critical] Database Consistency Risk (Broken Upsert) — в `handleCheckoutSessionCompleted` (шаг 0) `upsert` выполняется с исключением email, что вызовет ошибку 23502 при NOT NULL на email. Требуется проверка метода создания профиля. [src/app/api/webhooks/stripe/route.ts:114]
+- [x] [AI-Review][Medium] Zombie Subscription Revival (Воскрешение) — В `handleSubscriptionDeleted` нужно сбрасывать `stripe_subscription_id` в null, чтобы старый/задержанный payment_succeeded не активировал отмененную подписку. [src/app/api/webhooks/stripe/route.ts:354]
+- [x] [AI-Review][Medium] Отсутствие проверки invoice.status — `handleInvoicePaymentSucceeded` не проверяет `invoice.status === 'paid'`, доверяя типу события, что может активировать подписку для закрытых (forgiven) инвойсов. [src/app/api/webhooks/stripe/route.ts:245]
+- [x] [AI-Review][Medium] Missing Pagination Support (Line Items) — поиск `type === 'subscription'` в `handleInvoicePaymentSucceeded` ищет только первую страницу `invoice.lines.data`. При `has_more: true` строка может потеряться. [src/app/api/webhooks/stripe/route.ts:252]
+- [x] [AI-Review][Low] Potential Double Override в Middleware Cookies — в `updateSession` `supabaseResponse` пересоздается внутри `setAll`, что может затереть ранее установленные другими миддлварями куки. [src/lib/supabase/middleware.ts:158]
+
+ ### Review Follow-ups (AI) - Round 19 (Adversarial)
+- [x] [AI-Review][Critical] Webhook Timeout DoS (Архитектура) — функция `findSubscriptionLineItem` выполняет синхронный цикл с повторными запросами к Stripe в обработчике, что приведет к таймауту webhook'а и сбоям. [src/app/api/webhooks/stripe/route.ts]
+- [x] [AI-Review][High] Скрытая потеря данных (Silent Data Loss) в `upsertProfileByUserId` — если `.upsert()` падает из-за конфликта и `.update()` не находит пользователя в профилях, происходит слепой failure. [src/app/api/webhooks/stripe/route.ts]
+- [x] [AI-Review][High] Небезопасные куки в Middleware — при установке `SUBSCRIPTION_CACHE_COOKIE` отсутствует флаг `secure`. Добавить `secure: process.env.NODE_ENV === 'production'`. [src/lib/supabase/middleware.ts]
+- [x] [AI-Review][Medium] Утеря заголовков маршрутизации при редиректе — `redirectWithCookies` не копирует заголовки из `supabaseResponse`. Добавить копирование системных и пользовательских хидеров. [src/lib/supabase/middleware.ts]
 
 ## Dev Notes
 
@@ -209,11 +221,22 @@ const supabaseAdmin = createClient(
 ## Dev Agent Record
 
 ### Implementation Plan
+- Round 18: единый routing config вынесен в `src/lib/app-routes.ts`, чтобы `auth/confirm` и `middleware` переиспользовали один источник truth для public paths и post-auth redirect target.
+- Round 18: базовый DDoS guard для Stripe webhook реализован как in-memory fixed-window limiter в `src/lib/stripe/webhook-rate-limit.ts`, configurable через env и возвращающий `429`/`Retry-After` до тяжёлой обработки payload.
+- Round 18: TTL cookie-кеша подписки переведён на env-driven конфигурацию `SUBSCRIPTION_CACHE_TTL_SECONDS`; unix timestamps в webhook tests заменены именованными константами для поддерживаемости.
 - Архитектурное решение: Stripe API 2026-02-25.clover использует `invoice.parent.subscription_details.subscription` вместо прямого `invoice.subscription`. Адаптированы все обработчики invoice событий.
 - Для Subscription `current_period_end` в новом API используется `cancel_at` (дата когда подписка будет отменена при `cancel_at_period_end=true`).
 - Supabase admin client теперь использует `createClient<Database>()` — полная типизация без `any`. (Ранее был без generic из-за ограничений type inference; проблема решена использованием `Database` из `src/types/supabase.ts`.)
 - Middleware использует явный type cast для результата `.select()` — обходное решение для той же проблемы инференса.
 - NFR7 реализован через проверку в `src/lib/supabase/middleware.ts`: аутентифицированный пользователь с `subscription_status = 'inactive'` редиректится на `/`.
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 17 (Adversarial)
+- ✅ Resolved [Critical]: Broken Upsert / Database Consistency — выделен helper `upsertProfileByUserId()`, который получает canonical email через `supabase.auth.admin.getUserById(userId)` и выполняет `upsert({ id, email, ...updateData })`. Это устраняет риск `23502`/NOT NULL при создании профиля по `client_reference_id` и fallback по `userId`.
+- ✅ Resolved [Medium]: Zombie Subscription Revival — `handleSubscriptionDeleted` теперь сбрасывает `stripe_subscription_id: null` вместе с `subscription_status: 'inactive'` и `current_period_end: null`, чтобы задержанный `invoice.payment_succeeded` старой подписки не оживлял отменённый доступ.
+- ✅ Resolved [Medium]: Missing `invoice.status` guard — `handleInvoicePaymentSucceeded` теперь делает ранний выход, если `invoice.status !== 'paid'`.
+- ✅ Resolved [Medium]: Missing Pagination Support — добавлен helper `findSubscriptionLineItem()`, который проходит по страницам `stripe.invoices.listLineItems()` до нахождения строки `type === 'subscription'` или конца списка.
+- ✅ Resolved [Low]: Double Override в Middleware Cookies — в `updateSession` внутри `setAll()` теперь копируются уже выставленные cookies из старого `supabaseResponse` перед применением новых cookies от Supabase.
+- Для прохождения Definition of Done дополнительно устранены существовавшие lint-блокеры вне story scope: `src/app/auth/confirm/route.ts` (`camelcase`) и `tests/unit/features/landing/components/HeroSection.test.tsx` (невалидный inline-disable).
 
 #### Адресованы Review Follow-ups (2026-03-12) — Раунд 13 (Adversarial)
 - ✅ Resolved [Critical]: `handleInvoicePaymentFailed` fallback Шаг 2 — заменён IS NULL guard на OR-guard (`stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscriptionId}`). При переподписке invoice.payment_failed для sub_new теперь корректно захватывает профили с sub_old (переподписка + задержка checkout).
@@ -274,6 +297,33 @@ const supabaseAdmin = createClient(
 - Добавлено 20 новых тестов (15 middleware + 2 route). TypeCheck: ✅. Все 188 тестов: ✅ 100% pass.
 
 ### Completion Notes
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 19
+- ✅ Resolved [Critical]: Webhook Timeout DoS — `findSubscriptionLineItem()` больше не ходит в Stripe пагинацией из webhook path; обработчик использует только первую страницу `invoice.lines`, логирует warn при `has_more`, но завершает событие без дополнительных сетевых round-trip.
+- ✅ Resolved [High]: Silent Data Loss — `upsertProfileByUserId()` теперь делает retry `.update(...).select('id')` и бросает ошибку, если после конфликта профиль всё ещё не сохранён. Слепой success-path устранён; Stripe получает `500` и может retry.
+- ✅ Resolved [High]: Insecure Middleware Cookies — введён общий helper cookie options; `__sub_status` теперь ставится с `secure: process.env.NODE_ENV === 'production'`.
+- ✅ Resolved [Medium]: Redirect Header Loss — `redirectWithCookies()` теперь копирует non-cookie headers из `supabaseResponse` в redirect response, сохраняя middleware/system headers вместе с auth cookies.
+- Добавлено 3 теста netto: 1 новый webhook test на fail-loud upsert path, 2 новых middleware tests на `Secure` cookie и header preservation; 1 существующий webhook pagination test переписан под no-extra-fetch поведение.
+- Lint: ✅ 0 ошибок.
+- TypeCheck: ✅ 0 ошибок.
+- Все 223 теста: ✅ 100% pass.
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 18
+- ✅ Resolved [Medium]: `AUTH_SUCCESS_REDIRECT_PATH` вынесен в общий routing config; `src/app/auth/confirm/route.ts` и `src/lib/supabase/middleware.ts` больше не держат hardcoded `/feed` как единственный target redirect.
+- ✅ Resolved [Medium]: Добавлен базовый in-memory rate limiter для `POST /api/webhooks/stripe` с `429` и `Retry-After`, configurable через `STRIPE_WEBHOOK_RATE_LIMIT_MAX` и `STRIPE_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS`.
+- ✅ Resolved [Low]: Public routes вынесены в `src/lib/app-routes.ts`, `middleware.ts` переиспользует единый `isPublicPath()` helper.
+- ✅ Resolved [Low]: TTL кеша подписки теперь configurable через `SUBSCRIPTION_CACHE_TTL_SECONDS`.
+- ✅ Resolved [Low]: Magic unix timestamps в `tests/unit/app/api/webhooks/stripe/route.test.ts` заменены на именованные константы; добавлены отдельные unit-тесты для `auth/confirm` route и middleware config.
+- Lint: ✅ 0 ошибок.
+- TypeCheck: ✅ 0 ошибок.
+- Все 220 тестов: ✅ 100% pass.
+
+- Адресованы все 5 замечаний Round 17 (1 Critical, 3 Medium, 1 Low).
+- Добавлено 3 новых теста: 2 в `tests/unit/app/api/webhooks/stripe/route.test.ts`, 1 в `tests/unit/middleware.test.ts`.
+- Обновлены существующие webhook/middleware тесты под canonical email upsert и сброс `stripe_subscription_id` при `customer.subscription.deleted`.
+- Lint: ✅ 0 ошибок / 0 предупреждений.
+- TypeCheck: ✅ 0 ошибок.
+- Все 213 тестов: ✅ 100% pass.
 - Реализованы все 6 Tasks / 15 Subtasks
 - 15 новых unit-тестов для webhook route (route.test.ts)
 - 4 новых теста для subscription-инвалидации в middleware.test.ts
@@ -345,22 +395,36 @@ const supabaseAdmin = createClient(
 - [x] [AI-Review][Low] Логирование: Добавить `userId` в сообщение об ошибке БД в Middleware для точной диагностики. [src/lib/supabase/middleware.ts:92]
 - [x] [AI-Review][Low] Code Style: Рассмотреть замену `!` assertions на явные guard-проверки для всех переменных окружения в начале `route.ts`. [src/app/api/webhooks/stripe/route.ts]
 
+#### Review Follow-ups (AI) - Round 18
+- [x] [AI-Review][Medium] Вынести жестко заданный целевой маршрут редиректа в конфигурацию. [src/app/auth/confirm/route.ts:10]
+- [x] [AI-Review][Medium] Реализовать базовое ограничение скорости (Rate Limiting) для защиты от DDoS. [src/app/api/webhooks/stripe/route.ts]
+- [x] [AI-Review][Low] Вынести жестко заданные публичные маршруты в отдельную константу или конфигурацию (улучшение поддерживаемости). [src/lib/supabase/middleware.ts]
+- [x] [AI-Review][Low] Заменить жестко заданный `SUBSCRIPTION_CACHE_TTL = 30` на настраиваемую константу из переменных окружения. [src/lib/supabase/middleware.ts:8]
+- [x] [AI-Review][Low] Избавиться от магических чисел (unix timestamps) в тестах, заменив их на именованные константы. [tests/unit/app/api/webhooks/stripe/route.test.ts]
+
 ## File List
 
 - `supabase/migrations/002_add_subscription_fields.sql` — SQL миграция полей подписки
 - `supabase/migrations/003_add_rpc_functions.sql` — Postgres RPC `get_auth_user_id_by_email` (Round 8)
 - `src/types/supabase.ts` — добавлены поля подписки + тип `SubscriptionStatus`
 - `src/app/api/webhooks/stripe/route.ts` — новый Route Handler (Tasks 2, 3, 5)
+- `src/app/auth/confirm/route.ts` — redirect path вынесен в конфигурацию, error redirect очищает auth query params (Round 18)
+- `src/lib/app-routes.ts` — общие route constants/helpers для auth redirect и public paths (Round 18)
+- `src/lib/stripe/webhook-rate-limit.ts` — базовый in-memory rate limiter для Stripe webhooks (Round 18)
 - `src/lib/supabase/middleware.ts` — добавлена проверка subscription_status (Task 4); /inactive как публичный маршрут (Round 7)
 - `src/middleware.ts` — корневой middleware, вызывает updateSession (Round 7 — Middleware Wiring fix)
 - `src/app/inactive/page.tsx` — страница для неактивных пользователей (Round 7)
-- `.env.example` — добавлены `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `COOKIE_SECRET` (Round 9)
+- `.env.example` — добавлены `AUTH_SUCCESS_REDIRECT_PATH`, `STRIPE_WEBHOOK_RATE_LIMIT_*`, `SUBSCRIPTION_CACHE_TTL_SECONDS` (Round 18)
 - `.env.local` — добавлены placeholder-значения новых переменных
+- `tests/unit/app/auth/confirm/route.test.ts` — unit-тесты auth confirm route config/error redirects (Round 18)
 - `tests/unit/app/api/webhooks/stripe/route.test.ts` — unit-тесты webhook (Task 6)
-- `tests/unit/middleware.test.ts` — добавлены тесты subscription-инвалидации
+- `tests/unit/middleware.test.ts` — добавлены тесты configurable auth redirect path и cache TTL env (Round 18)
+- `tests/unit/features/landing/components/HeroSection.test.tsx` — lint fix: role-based assertion вместо невалидного inline-disable
 
 ## Change Log
 
+- 2026-03-12: Адресованы все 4 замечания Round 19: убран пагинируемый Stripe line-item fetch из webhook path (Timeout DoS fix), `upsertProfileByUserId` переведён в fail-loud режим при пустом retry update, `__sub_status` cookie получил `secure` в production, `redirectWithCookies` сохраняет non-cookie headers. Добавлено 3 теста netto, обновлён 1 существующий тест. Lint: ✅. TypeCheck: ✅. Все 223 теста: ✅ 100% pass.
+- 2026-03-12: Адресованы все 5 замечаний Round 18: configurable auth success redirect path, базовый webhook rate limiting, shared public route config, env-configurable cache TTL, именованные timestamp constants в webhook tests. Добавлены 1 новый helper file для routes, 1 новый helper file для rate limiting, 1 новый test file. Lint: ✅. TypeCheck: ✅. Все 220 тестов: ✅ 100% pass.
 - 2026-03-11: Story 1.5 реализована. Добавлены Stripe Webhook обработчики, SQL миграция полей подписки, middleware-инвалидация при inactive-статусе, unit-тесты. Все AC выполнены.
 - 2026-03-11: Адресованы все 4 Review Follow-ups: Race Condition fix в checkout handler, кеш subscription_status в middleware (30s TTL), типизация ProfileUpdate, event.id в логах. 142 теста: 100% pass.
 - 2026-03-11: Проведен Adversarial Review. Выявлено 5 новых замечаний (1 High, 2 Medium, 2 Low). Статус изменен на 'in-progress'.
@@ -391,11 +455,13 @@ const supabaseAdmin = createClient(
 - 2026-03-12: Адресованы все 3 замечания Round 13: OR-guard вместо IS NULL в handleInvoicePaymentFailed fallback в сценарии переподписки (Critical), OR-guard в handleSubscriptionDeleted / handleSubscriptionUpdated fallback (High), динамический updateData в checkout handler без null-ключей (High). Добавлено 5 новых тестов. TypeCheck: ✅. Все 203 теста: ✅ 100% pass.
 - 2026-03-12: Адресованы все 4 замечания Round 14: IS NULL guard вместо OR-guard во всех fallback-обработчиках (Critical — Data Corruption защита), привязка IDs до payment_status-check в checkout handler (High), upsert-fallback при Race Condition профиля (Medium), active cookie на /inactive→/feed редиректе (Medium). Обновлено 6 тестов, добавлено 2 новых. TypeCheck: ✅. Все 205 тестов: ✅ 100% pass.
 - 2026-03-12: Адресованы все 4 замечания Round 15: EQ-OR guard вместо strict IS NULL в fallback всех cancellation handlers (Critical — False Cancellation Lockout), retry update при upsert collision с auth trigger (High), глобальный кеш CryptoKey в middleware (Medium), trialing сохраняется в БД как есть (Medium). Добавлен 1 тест, обновлено 5. TypeCheck: ✅. Все 206 тестов: ✅ 100% pass.
-- 2026-03-12: Адресованы все 5 замечаний Round 16: client_reference_id Step 0 в checkout handler (Critical — Account Takeover), upsert без email + retry (Critical — Auth Trigger Race), two-query fallback вместо .or() строк (High — SQL Injection), period_end только из type=subscription строки (Medium), исключение __sub_status из redirectWithCookies (Medium). Добавлено 4 теста, обновлено 7. TypeCheck: ✅. Все 210 тестов: ✅ 100% pass. Статус: review.
+- 2026-03-12: Адресованы все 5 замечания Round 16: client_reference_id Step 0 в checkout handler (Critical — Account Takeover), upsert без email + retry (Critical — Auth Trigger Race), two-query fallback вместо .or() строк (High — SQL Injection), period_end только из type=subscription строки (Medium), исключение __sub_status из redirectWithCookies (Medium). Добавлено 4 теста, обновлено 7. TypeCheck: ✅. Все 210 тестов: ✅ 100% pass.
+- 2026-03-12: Проведен Adversarial Review (Round 17). Выявлено 5 новых замечаний (1 Critical, 3 Medium, 1 Low): Broken Upsert Database Consistency, Zombie Subscription Revival, отсутствие проверки invoice.status, уязвимость Line Items Pagination, 	Double Override Middleware Cookies. Созданы Action Items. Статус изменен на 'in-progress'.
+- 2026-03-12: Адресованы все 5 замечаний Round 17: canonical-email upsert через `auth.admin.getUserById` (Critical), `stripe_subscription_id: null` в `handleSubscriptionDeleted` (Medium), guard `invoice.status === 'paid'` (Medium), pagination для `invoice.lines` через `stripe.invoices.listLineItems()` (Medium), сохранение ранее выставленных cookies в `middleware.ts:setAll()` (Low). Добавлено 3 теста, обновлены существующие проверки. Lint: ✅. TypeCheck: ✅. Все 213 тестов: ✅ 100% pass.
 
 ## Completion Status
 
 - [x] Implementation complete
 - [x] Tests passing
 - [x] Code review resolved
-- [x] Ready for next story
+- [ ] Ready for next story

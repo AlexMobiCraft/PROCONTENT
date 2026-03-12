@@ -32,10 +32,9 @@ import { HeroSection } from '@/features/landing/components/HeroSection'
 
 describe('HeroSection', () => {
   it('рендерится без ошибок', () => {
-    const { container } = render(<HeroSection />)
+    render(<HeroSection />)
 
-    // eslint-disable-next-line testing-library/no-container
-    expect(container.querySelector('section')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
   })
 
   it('содержит h1 с текстом PROCONTENT', () => {

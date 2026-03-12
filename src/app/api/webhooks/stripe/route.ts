@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { stripe } from '@/lib/stripe'
+import {
+  consumeStripeWebhookRateLimit,
+  getStripeWebhookRateLimitKey,
+} from '@/lib/stripe/webhook-rate-limit'
 import type Stripe from 'stripe'
 import type { Database } from '@/types/supabase'
 
 // Типизированный объект обновления профиля (без any)
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
+type ProfileInsert = Database['public']['Tables']['profiles']['Insert']
 
 // Fix [AI-Review][Low]: явные параметры и guard-проверки вместо ! assertions
 function createAdminClient() {
@@ -22,6 +27,70 @@ function createAdminClient() {
 // Admin-клиент Supabase с Service Role Key (обходит RLS).
 // SupabaseClient<Database> — полная типизация без any.
 type SupabaseAdmin = ReturnType<typeof createAdminClient>
+
+async function getAuthUserEmailById(supabase: SupabaseAdmin, userId: string) {
+  const { data, error } = await supabase.auth.admin.getUserById(userId)
+
+  if (error) {
+    throw new Error(`[webhook] Ошибка получения пользователя auth.users по id ${userId}: ${error.message}`)
+  }
+
+  const authEmail = data.user?.email
+  if (!authEmail) {
+    throw new Error(`[webhook] Не найден email пользователя auth.users для id ${userId}`)
+  }
+
+  return authEmail
+}
+
+async function upsertProfileByUserId(
+  supabase: SupabaseAdmin,
+  userId: string,
+  updateData: ProfileUpdate
+) {
+  const authEmail = await getAuthUserEmailById(supabase, userId)
+  const { error: upsertError } = await supabase
+    .from('profiles')
+    .upsert(
+      { id: userId, email: authEmail, ...updateData } as ProfileInsert,
+      { onConflict: 'id' }
+    )
+
+  if (upsertError) {
+    const { data: updatedProfiles, error: retryError } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', userId)
+      .select('id')
+
+    if (retryError) {
+      throw new Error(
+        `[webhook] Ошибка сохранения профиля для userId ${userId}: ${upsertError.message} → ${retryError.message}`
+      )
+    }
+
+    if (!updatedProfiles || updatedProfiles.length === 0) {
+      throw new Error(
+        `[webhook] Профиль для userId ${userId} не был сохранён после upsert retry: ${upsertError.message}`
+      )
+    }
+  }
+}
+
+async function findSubscriptionLineItem(invoice: Stripe.Invoice) {
+  const initialLine = invoice.lines?.data?.find(
+    (line) => (line as unknown as { type?: string }).type === 'subscription'
+  )
+
+  if (!initialLine && invoice.lines?.has_more && invoice.id) {
+    console.warn(
+      '[webhook] invoice.payment_succeeded: subscription line item не найден на первой странице, current_period_end будет пропущен:',
+      invoice.id
+    )
+  }
+
+  return initialLine ?? null
+}
 
 // Task 3.1: checkout.session.completed
 // Привязываем stripe_customer_id / stripe_subscription_id к профилю пользователя.
@@ -100,31 +169,7 @@ async function handleCheckoutSessionCompleted(
 
     if (!updatedById || updatedById.length === 0) {
       // Триггер на auth.users ещё не создал профиль — сохраняем данные Stripe через upsert.
-      // Fix [AI-Review][Critical] Round 16: НЕ включаем email в upsert — только id + Stripe данные.
-      // Email из Stripe (customer_details.email) может отличаться от email в auth.users
-      // из-за нормализации/регистра; включение email вызовет конфликт уникального ключа.
-      // Fix [AI-Review][Critical] Round 16: type cast — ProfileInsert требует email,
-      // но мы намеренно исключаем его чтобы избежать конфликта уникального ключа.
-      type ProfileInsert = Database['public']['Tables']['profiles']['Insert']
-      const { error: upsertError } = await supabase
-        .from('profiles')
-        .upsert(
-          { id: clientReferenceId, ...updateData } as unknown as ProfileInsert,
-          { onConflict: 'id' }
-        )
-
-      if (upsertError) {
-        // Auth trigger создал профиль между update() (0 строк) и upsert() (конфликт) — retry update
-        const { error: retryError } = await supabase
-          .from('profiles')
-          .update(updateData)
-          .eq('id', clientReferenceId)
-        if (retryError) {
-          console.warn(
-            `[webhook] checkout: upsert+retry не удался для clientReferenceId ${clientReferenceId}: ${upsertError.message} → ${retryError.message}`
-          )
-        }
-      }
+      await upsertProfileByUserId(supabase, clientReferenceId, updateData)
     }
     return
   }
@@ -194,29 +239,7 @@ async function handleCheckoutSessionCompleted(
     console.warn(
       `[webhook] checkout.session.completed: профиль не найден для userId ${userId} (email: ${email}). Пробуем upsert.`
     )
-    // email гарантирован строкой (прошёл null-guard выше). ProfileUpdate — Update-тип с опциональными
-    // полями; приводим к Insert-типу чтобы удовлетворить требование NOT NULL на email при upsert.
-    type ProfileInsert = Database['public']['Tables']['profiles']['Insert']
-    const { error: upsertError } = await supabase
-      .from('profiles')
-      .upsert(
-        { id: userId, email: email, ...updateData } as ProfileInsert,
-        { onConflict: 'id' }
-      )
-    // Fix [AI-Review][High] Round 15: Auth Trigger Collision — триггер мог создать профиль
-    // между нашим .update() (0 строк) и .upsert(). Уникальный ключ на email/id вызывает
-    // ошибку 23505. Retry с plain update: профиль теперь точно существует.
-    if (upsertError) {
-      const { error: retryError } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', userId)
-      if (retryError) {
-        console.warn(
-          `[webhook] checkout: upsert+retry профиля не удался для userId ${userId}: ${upsertError.message} → ${retryError.message}`
-        )
-      }
-    }
+    await upsertProfileByUserId(supabase, userId, updateData)
   }
 }
 
@@ -244,14 +267,14 @@ async function handleInvoicePaymentSucceeded(
   // Без этой проверки неактивный пользователь мог оплатить разовый товар и получить active статус.
   if (!subscriptionId) return
 
+  if (invoice.status !== 'paid') return
+
   // Fix [AI-Review][Medium] Round 5: ищем строку с type==='subscription' для точного period_end.
   // type отсутствует в Stripe TypeScript типах для API 2026-02-25.clover — используем type cast.
   // Fix [AI-Review][Medium] Round 16: убираем fallback на первую строку инвойса.
   // Fallback мог использовать period_end разовой позиции (invoiceitem) как дату окончания подписки,
   // что приводит к ложному current_period_end в БД. Если нет subscription-строки — не устанавливаем дату.
-  const subscriptionLine = invoice.lines?.data?.find(
-    (line) => (line as unknown as { type?: string }).type === 'subscription'
-  )
+  const subscriptionLine = await findSubscriptionLineItem(invoice)
   const periodEndTs = subscriptionLine?.period?.end
   const currentPeriodEnd = periodEndTs
     ? new Date(periodEndTs * 1000).toISOString()
@@ -331,7 +354,7 @@ async function handleInvoicePaymentSucceeded(
 
 // Task 3.3: customer.subscription.deleted
 // Переводим пользователя в inactive.
-// [AI-Review][High] Fix: двухшаговое обновление вместо OR:
+// [AI-Review][High] Fix: двухшаговый подход вместо OR:
 //   1) строгая проверка по stripe_subscription_id (primary key события)
 //   2) fallback по stripe_customer_id только если customerId определён
 // [AI-Review][Medium] Fix: customerId проверяется перед использованием (PostgREST undefined guard)
@@ -351,7 +374,11 @@ async function handleSubscriptionDeleted(
   // Fix [AI-Review][Medium] Round 10: сбрасываем current_period_end при удалении подписки.
   //   Оставлять дату окончания периода при deleted подписке → Leaked State:
   //   UI может показывать "подписка до XX.XX.XXXX" для уже удалённого аккаунта.
-  const deletedUpdate = { subscription_status: 'inactive' as const, current_period_end: null }
+  const deletedUpdate = {
+    subscription_status: 'inactive' as const,
+    current_period_end: null,
+    stripe_subscription_id: null,
+  }
 
   // Шаг 1: строгое обновление по stripe_subscription_id
   const { data: updatedBySub, error } = await supabase
@@ -445,6 +472,10 @@ async function handleSubscriptionUpdated(
   const update: ProfileUpdate = { subscription_status: status }
   if (periodEnd) {
     update.current_period_end = periodEnd
+  }
+  // Устанавливаем subscription_id если ещё не записан (handles late event binding)
+  if (subscription.id) {
+    update.stripe_subscription_id = subscription.id
   }
 
   // Шаг 1: обновление по stripe_subscription_id
@@ -584,6 +615,25 @@ export async function POST(request: Request) {
   if (!webhookSecret) {
     console.error('[webhook] STRIPE_WEBHOOK_SECRET не настроен')
     return NextResponse.json({ error: 'Конфигурация webhook недоступна' }, { status: 500 })
+  }
+
+  const now = Date.now()
+  const rateLimitState = consumeStripeWebhookRateLimit(
+    getStripeWebhookRateLimitKey(request),
+    now
+  )
+
+  if (!rateLimitState.allowed) {
+    const retryAfter = Math.max(1, Math.ceil((rateLimitState.resetAt - now) / 1000))
+    return NextResponse.json(
+      { error: 'Слишком много запросов к webhook' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': retryAfter.toString(),
+        },
+      }
+    )
   }
 
   // Task 2.2: raw payload для валидации подписи (JSON parsing сломал бы подпись)
