@@ -111,6 +111,7 @@ function makeCheckoutEvent(overrides = {}): import('stripe').default.Event {
         customer: 'cus_123',
         subscription: 'sub_123',
         mode: 'subscription', // [AI-Review][High] Round 5: mode обязателен для активации подписки
+        payment_status: 'paid', // [AI-Review][Critical] Round 12: только paid/no_payment_required активируют подписку
         customer_details: { email: 'user@example.com' },
         ...overrides,
       },
@@ -413,6 +414,32 @@ describe('POST /api/webhooks/stripe', () => {
       )
     })
 
+    // Fix [AI-Review][Critical] Round 12: payment_status guard — утечка выручки
+    it('не выдаёт доступ если payment_status = unpaid (bank transfer pending)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ payment_status: 'unpaid' })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // Платёж не подтверждён — подписка не активируется
+      expect(mockUpdate).not.toHaveBeenCalled()
+    })
+
+    it('выдаёт доступ если payment_status = no_payment_required (бесплатный трайал)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ payment_status: 'no_payment_required' })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+    })
+
     it('логирует warn если пользователь не найден в auth.users по email (RPC вернул null)', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
@@ -450,6 +477,26 @@ describe('POST /api/webhooks/stripe', () => {
         )
       )
       consoleSpy.mockRestore()
+    })
+
+    // Fix [AI-Review][High] Round 13: динамический updateData — не сбрасываем данные если значение undefined
+    it('не записывает null в stripe_customer_id если customer отсутствует в сессии (Round 13 High fix)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ customer: null, subscription: 'sub_999' })
+      )
+      // Шаг 1 (customer_id) пропускается (customerId = null) → шаг 2 (RPC)
+      // RPC возвращает пользователя → обновляем профиль по userId
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // updateData должен содержать stripe_subscription_id, но НЕ stripe_customer_id (customer = null)
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ stripe_subscription_id: 'sub_999', subscription_status: 'active' })
+      )
+      expect(mockUpdate).not.toHaveBeenCalledWith(
+        expect.objectContaining({ stripe_customer_id: null })
+      )
     })
   })
 
@@ -515,8 +562,9 @@ describe('POST /api/webhooks/stripe', () => {
       )
     })
 
-    it('fallback по customer_id когда subscription_id не привязан (event ordering fix)', async () => {
-      // Симулируем invoice, пришедший до checkout.session.completed (нет subscription)
+    it('fallback по customer_id когда subscription_id отсутствует — ранний выход (Round 12 High fix)', async () => {
+      // Fix [AI-Review][High] Round 12: invoice без subscriptionId (разовый инвойс) — ранний выход.
+      // Мы больше НЕ делаем fallback по customerId — нет subscriptionId = нет права на активацию подписки.
       mockConstructEvent.mockReturnValueOnce(
         makeInvoiceEvent('invoice.payment_succeeded', {
           parent: { subscription_details: { subscription: null } },
@@ -526,10 +574,8 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      // Только шаг 2 (subscription_id недоступен): customer_id с .is() guard (subscriptionId undefined)
-      expect(mockEq).not.toHaveBeenCalledWith('stripe_subscription_id', expect.anything())
-      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
-      expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+      // Без subscriptionId — обновления не происходит вообще (ранний выход)
+      expect(mockUpdate).not.toHaveBeenCalled()
     })
 
     // [AI-Review][High] Fix Round 9: сценарий переподписки (re-subscription)
@@ -602,8 +648,9 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
     })
 
-    // [AI-Review][High] Fix: fallback с IS NULL guard когда шаг 1 не нашёл строку
-    it('fallback по customer_id с IS NULL guard если шаг 1 не нашёл строку (AC2)', async () => {
+    // [AI-Review][High] Fix Round 13: fallback использует OR-guard вместо IS NULL
+    // (OR-guard захватывает профили с sub_old при переподписке)
+    it('fallback по customer_id с OR-guard если шаг 1 не нашёл строку (Round 13 AC2)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeSubscriptionEvent('customer.subscription.deleted')
       )
@@ -615,7 +662,10 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
-      expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+      // Round 13: OR-guard вместо IS NULL — обновляет профили с любым sub_id кроме текущего
+      expect(mockOrChain).toHaveBeenCalledWith(
+        'stripe_subscription_id.is.null,stripe_subscription_id.neq.sub_123'
+      )
     })
 
     // [AI-Review][Medium] Fix: не падает при undefined customerId (PostgREST undefined fix)
@@ -632,6 +682,26 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
+    })
+
+    // Fix [AI-Review][High] Round 13: OR-guard в fallback subscription.deleted
+    // При переподписке профиль имеет sub_old ≠ null → IS NULL guard пропустил бы обновление
+    it('fallback использует OR-guard для переподписки (профиль с sub_old) (Round 13 High fix)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeSubscriptionEvent('customer.subscription.deleted')
+      )
+      // Шаг 1 возвращает 0 строк (sub_new пришёл до checkout.completed) → fallback
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      // Round 13: OR-guard вместо IS NULL
+      expect(mockOrChain).toHaveBeenCalledWith(
+        'stripe_subscription_id.is.null,stripe_subscription_id.neq.sub_123'
+      )
     })
   })
 
@@ -707,8 +777,8 @@ describe('POST /api/webhooks/stripe', () => {
       )
     })
 
-    // Fix [AI-Review][High] Round 6: fallback если subscription.updated пришёл до checkout.session.completed
-    it('fallback по customer_id если subscription_id не привязан (Race Condition fix)', async () => {
+    // Fix [AI-Review][High] Round 6 + Round 13: fallback subscription.updated использует OR-guard
+    it('fallback по customer_id если subscription_id не привязан (Race Condition fix, Round 13 OR-guard)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeSubscriptionEvent('customer.subscription.updated')
       )
@@ -720,7 +790,10 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
-      expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+      // Round 13: OR-guard вместо IS NULL
+      expect(mockOrChain).toHaveBeenCalledWith(
+        'stripe_subscription_id.is.null,stripe_subscription_id.neq.sub_123'
+      )
     })
   })
 
@@ -744,7 +817,6 @@ describe('POST /api/webhooks/stripe', () => {
       consoleSpy.mockRestore()
     })
 
-    // Fix [AI-Review][Medium] Round 6: fallback если payment_failed пришёл до checkout.session.completed
     it('fallback по customer_id если subscription_id не привязан (Race Condition fix, AC2)', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       mockConstructEvent.mockReturnValueOnce(
@@ -801,6 +873,26 @@ describe('POST /api/webhooks/stripe', () => {
         subscription_status: 'inactive',
         current_period_end: null,
       })
+      consoleSpy.mockRestore()
+    })
+
+    // Fix [AI-Review][Critical] Round 13: OR-guard в fallback payment.failed
+    // При переподписке профиль имеет sub_old ≠ null → IS NULL guard пропустил бы → пользователь остаётся active
+    it('fallback использует OR-guard при переподписке (профиль с sub_old) (Round 13 Critical fix)', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_failed'))
+      // Шаг 1 не найдёт sub_new (у профиля sub_old) → fallback
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      // Round 13: OR-guard вместо IS NULL — захватывает профили с устаревшим sub_id
+      expect(mockOrChain).toHaveBeenCalledWith(
+        'stripe_subscription_id.is.null,stripe_subscription_id.neq.sub_123'
+      )
       consoleSpy.mockRestore()
     })
   })

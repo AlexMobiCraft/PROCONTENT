@@ -10,15 +10,22 @@ const SUBSCRIPTION_CACHE_TTL = 30 // seconds
 // [AI-Review][Critical] Fix Round 9: HMAC-подписание cookie против спуфинга кеша.
 // Без подписи злоумышленник мог изменить cookie в DevTools (e.g. userId:active),
 // обходя проверку подписки. С подписью изменение cookie → неверная подпись → DB lookup.
-async function hmacSign(data: string, secret: string): Promise<string> {
+// Fix [AI-Review][Medium] Round 12: безопасное для времени импортирование ключа HMAC.
+// Используется как для sign (создание токена), так и для verify (проверка без timing leak).
+async function importHmacKey(secret: string): Promise<CryptoKey> {
   const encoder = new TextEncoder()
-  const key = await crypto.subtle.importKey(
+  return crypto.subtle.importKey(
     'raw',
     encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign', 'verify']
   )
+}
+
+async function hmacSign(data: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const key = await importHmacKey(secret)
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(data))
   const bytes = new Uint8Array(sig)
   let binary = ''
@@ -56,20 +63,30 @@ export async function parseCacheToken(
   const lastColon = token.lastIndexOf(':')
   if (lastColon < 0) return null
 
-  const sig = token.slice(lastColon + 1)
+  const sigB64 = token.slice(lastColon + 1)
   const data = token.slice(0, lastColon)
 
-  // Fix [AI-Review][Medium] Round 10: оборачиваем crypto.subtle в try/catch.
-  // Ошибка в hmacSign (напр. невалидный ключ или crypto недоступен) без try/catch
-  // вызвала бы падение Middleware для ВСЕХ пользователей (глобальный DoS).
-  // При ошибке возвращаем null → принудительный DB lookup (fail-secure).
-  let expectedSig: string
+  // Fix [AI-Review][Medium] Round 12: timing-safe сравнение HMAC через crypto.subtle.verify().
+  // Строковое сравнение (sig !== expectedSig) уязвимо к timing attack:
+  // атакующий может измерять время ответа для побайтового подбора подписи.
+  // crypto.subtle.verify() выполняет сравнение за постоянное время (constant-time).
+  // Fix [AI-Review][Medium] Round 10: try/catch вокруг crypto.subtle сохраняется — защита от глобального DoS.
   try {
-    expectedSig = await hmacSign(data, secret)
+    const encoder = new TextEncoder()
+    const key = await importHmacKey(secret)
+
+    // Декодируем base64url-подпись обратно в ArrayBuffer
+    const sigPad = sigB64.replace(/-/g, '+').replace(/_/g, '/').padEnd(
+      sigB64.length + (4 - (sigB64.length % 4)) % 4, '='
+    )
+    const sigBytes = Uint8Array.from(atob(sigPad), (c) => c.charCodeAt(0))
+
+    // timing-safe проверка: verify() возвращает true/false за постоянное время
+    const isValid = await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(data))
+    if (!isValid) return null
   } catch {
     return null
   }
-  if (sig !== expectedSig) return null
 
   const firstColon = data.indexOf(':')
   if (firstColon < 0) return null

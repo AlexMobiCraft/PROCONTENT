@@ -663,5 +663,26 @@ describe('middleware', () => {
       const result = await parseCacheToken('user-123:active:anysig')
       expect(result).toBeNull()
     })
+
+    // Fix [AI-Review][Medium] Round 12: timing-safe HMAC через crypto.subtle.verify()
+    it('корректно парсит валидный подписанный токен (timing-safe verify)', async () => {
+      // createCacheToken использует hmacSign, parseCacheToken — crypto.subtle.verify()
+      const token = await createCacheToken('user-abc', 'active')
+      expect(token).not.toBeNull()
+
+      const parsed = await parseCacheToken(token!)
+      expect(parsed).toEqual({ userId: 'user-abc', status: 'active' })
+    })
+
+    it('отвергает токен с изменённым битом подписи (timing-safe, постоянное время)', async () => {
+      const token = await createCacheToken('user-abc', 'active')
+      expect(token).not.toBeNull()
+
+      // Меняем последний символ base64url — бит подписи изменён
+      const tampered = token!.slice(0, -1) + (token!.endsWith('A') ? 'B' : 'A')
+      const result = await parseCacheToken(tampered)
+
+      expect(result).toBeNull()
+    })
   })
 })

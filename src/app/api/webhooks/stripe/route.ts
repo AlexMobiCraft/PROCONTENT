@@ -49,16 +49,31 @@ async function handleCheckoutSessionCompleted(
     return
   }
 
+  // Fix [AI-Review][Critical] Round 12: утечка выручки — выдаём доступ только при фактической оплате.
+  // Stripe может вызвать checkout.session.completed до получения оплаты (payment_status = 'unpaid')
+  // в случае банковских переводов, 3DS pending и т.п. Активируем подписку только при:
+  //   'paid'                 — платёж прошёл
+  //   'no_payment_required'  — бесплатный пробный период (trial), оплата не требовалась
+  const paymentStatus = session.payment_status
+  if (paymentStatus !== 'paid' && paymentStatus !== 'no_payment_required') {
+    console.log(
+      '[webhook] checkout.session.completed: пропускаем, payment_status не paid:',
+      paymentStatus
+    )
+    return
+  }
+
   if (!email) {
     console.error('[webhook] checkout.session.completed: отсутствует email клиента')
     return
   }
 
-  const updateData: ProfileUpdate = {
-    stripe_customer_id: customerId ?? null,
-    stripe_subscription_id: subscriptionId ?? null,
-    subscription_status: 'active',
-  }
+  // Fix [AI-Review][High] Round 13: формируем updateData динамически.
+  // Если customerId или subscriptionId отсутствуют — НЕ включаем ключ в объект обновления.
+  // Иначе запись null перезаписывает ранее сохранённые данные (потеря stripe_customer_id / stripe_subscription_id).
+  const updateData: ProfileUpdate = { subscription_status: 'active' }
+  if (customerId) updateData.stripe_customer_id = customerId
+  if (subscriptionId) updateData.stripe_subscription_id = subscriptionId
 
   // Шаг 1: обновляем по stripe_customer_id (no-op при первом вызове, корректен при retry)
   if (customerId) {
@@ -138,7 +153,11 @@ async function handleInvoicePaymentSucceeded(
   const customerId =
     typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id ?? null
 
-  if (!subscriptionId && !customerId) return
+  // Fix [AI-Review][High] Round 12: повышение привилегий через разовые инвойсы.
+  // Если invoice не привязан к подписке (subscriptionId отсутствует), активировать подписку нельзя:
+  // разовый платёж (one-time purchase) не даёт права на recurring subscription.
+  // Без этой проверки неактивный пользователь мог оплатить разовый товар и получить active статус.
+  if (!subscriptionId) return
 
   // Fix [AI-Review][Medium] Round 5: ищем строку с type==='subscription' для точного period_end.
   // type отсутствует в Stripe TypeScript типах для API 2026-02-25.clover — используем type cast.
@@ -255,15 +274,22 @@ async function handleSubscriptionDeleted(
   // Ранний выход если строка найдена — избегаем двойного обновления
   if (updatedBySub && updatedBySub.length > 0) return
 
-  // Шаг 2: fallback по stripe_customer_id только если stripe_subscription_id ещё не привязан.
-  // Fix [AI-Review][High]: .is('stripe_subscription_id', null) предотвращает случайную отмену
-  // новой подписки при замене подписок (когда у профиля уже есть новый subscription_id).
+  // Шаг 2: fallback по stripe_customer_id.
+  // Fix [AI-Review][High] Round 13: заменяем .is(null) на OR-guard аналогично invoice.payment_succeeded.
+  // При переподписке профиль имеет sub_old ≠ null. Вебхук subscription.deleted для sub_new
+  // приходит до checkout.session.completed → Шаг 1 (sub_new) не найдёт строку.
+  // С IS NULL guard Шаг 2 тоже пропустит профиль → пользователь остаётся active ошибочно.
+  // OR guard (IS NULL OR NEQ sub.id) захватывает профили с любым sub_id кроме текущего подтверждённого.
+  // Это безопасно: если профиль уже имеет sub_new (checkout.completed успел) → Шаг 1 найдёт строку → ранний выход.
   if (customerId) {
-    const { error: fallbackError } = await supabase
+    const fallbackQuery = supabase
       .from('profiles')
       .update(deletedUpdate)
       .eq('stripe_customer_id', customerId)
-      .is('stripe_subscription_id', null)
+
+    const { error: fallbackError } = await fallbackQuery.or(
+      `stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscription.id}`
+    )
 
     if (fallbackError) {
       throw new Error(
@@ -327,13 +353,19 @@ async function handleSubscriptionUpdated(
 
   if (updatedBySub && updatedBySub.length > 0) return
 
-  // Шаг 2: fallback по stripe_customer_id если subscription_id ещё не привязан в профиле
+  // Шаг 2: fallback по stripe_customer_id.
+  // Fix [AI-Review][High] Round 13: OR-guard вместо IS NULL — аналогично subscription.deleted.
+  // При задержке checkout.completed профиль имеет sub_old → IS NULL guard пропустит обновление.
+  // OR guard обновляет профили с sub.id = null ИЛИ sub_old ≠ subscription.id.
   if (customerId) {
-    const { error: fallbackError } = await supabase
+    const fallbackQuery = supabase
       .from('profiles')
       .update(update)
       .eq('stripe_customer_id', customerId)
-      .is('stripe_subscription_id', null)
+
+    const { error: fallbackError } = await fallbackQuery.or(
+      `stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscription.id}`
+    )
 
     if (fallbackError) {
       throw new Error(
@@ -349,6 +381,9 @@ async function handleSubscriptionUpdated(
 //   payment_failed может прийти до checkout.session.completed (нет subscription_id в профиле).
 // Fix [AI-Review][Medium] Round 7: сбрасываем current_period_end в null при неуплате —
 //   подписка больше не активна, оставлять дату окончания периода вводит UI в заблуждение.
+// Fix [AI-Review][Low] Round 12: поток управления максимально явный:
+//   Шаг 1: если есть subscriptionId — обновляем по нёму, при успехе выходим.
+//   Шаг 2: fallback по customerId (только если subscriptionId нет в профиле, т.е. через race condition).
 async function handleInvoicePaymentFailed(
   invoice: Stripe.Invoice,
   supabase: SupabaseAdmin
@@ -388,13 +423,24 @@ async function handleInvoicePaymentFailed(
     if (updatedBySub && updatedBySub.length > 0) return
   }
 
-  // Шаг 2: fallback по stripe_customer_id только для профилей без привязанного subscription_id
+  // Шаг 2: fallback по stripe_customer_id.
+  // Fix [AI-Review][Critical] Round 13: OR-guard вместо IS NULL.
+  // При переподписке профиль имеет sub_old ≠ null. invoice.payment_failed для нового sub_new
+  // с задержкой checkout.completed → Шаг 1 (sub_new) не найдёт строку.
+  // IS NULL guard в Шаге 2 тоже пропустит профиль → пользователь остаётся active несмотря на неуплату.
+  // OR guard: (sub_id IS NULL OR sub_id ≠ subscriptionId) — захватывает профили с устаревшим sub_id.
+  // Это безопасно: если у профиля уже sub_new (checkout успел) → Шаг 1 найдёт → ранний выход до сюда.
   if (customerId) {
-    const { error: fallbackError } = await supabase
+    const fallbackQuery = supabase
       .from('profiles')
       .update(failedUpdate)
       .eq('stripe_customer_id', customerId)
-      .is('stripe_subscription_id', null)
+
+    const { error: fallbackError } = subscriptionId
+      ? await fallbackQuery.or(
+          `stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscriptionId}`
+        )
+      : await fallbackQuery.is('stripe_subscription_id', null)
 
     if (fallbackError) {
       throw new Error(
