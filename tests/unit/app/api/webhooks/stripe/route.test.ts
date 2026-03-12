@@ -474,7 +474,9 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
     })
 
-    it('fallback по customer_id если шаг 1 не нашёл строк (Double Update fix)', async () => {
+    // [AI-Review][High] Fix Round 9: fallback использует OR guard вместо IS NULL
+    // при наличии subscriptionId, чтобы поддержать сценарий переподписки (re-subscription).
+    it('fallback по customer_id использует OR guard при наличии subscriptionId (re-subscription fix)', async () => {
       mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_succeeded'))
       // Шаг 1 возвращает 0 строк → переходим к fallback
       mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
@@ -484,7 +486,10 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
-      expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+      // Fix Round 9: OR guard вместо IS NULL — позволяет обновлять аккаунты с устаревшим sub_id
+      expect(mockOrChain).toHaveBeenCalledWith(
+        expect.stringContaining('stripe_subscription_id.is.null,stripe_subscription_id.neq.sub_123')
+      )
     })
 
     // [AI-Review][Medium] Fix Round 5: ищем строку с type==='subscription' для точного period_end
@@ -521,15 +526,51 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      // Только шаг 2 (subscription_id недоступен): customer_id с .is() guard
+      // Только шаг 2 (subscription_id недоступен): customer_id с .is() guard (subscriptionId undefined)
       expect(mockEq).not.toHaveBeenCalledWith('stripe_subscription_id', expect.anything())
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
       expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
     })
+
+    // [AI-Review][High] Fix Round 9: сценарий переподписки (re-subscription)
+    // Профиль имеет устаревший sub_id; новый инвойс пришёл до checkout.session.completed
+    it('обновляет профиль с устаревшим sub_id при повторной подписке (re-subscription, Round 9)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_succeeded'))
+      // Шаг 1 (новый sub_id sub_123) возвращает 0 строк → профиль имеет старый sub_id
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // Шаг 1: пытается найти по новому subscription_id
+      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      // Шаг 2: OR guard — захватывает профили с null ИЛИ с другим (устаревшим) sub_id
+      expect(mockOrChain).toHaveBeenCalledWith(
+        'stripe_subscription_id.is.null,stripe_subscription_id.neq.sub_123'
+      )
+    })
+
+    // Fix [AI-Review][Critical] Round 11: fallback ТЕПЕРЬ включает stripe_subscription_id.
+    // При переподписке профиль сохраняет старый sub_old если fallback его не обновит;
+    // тогда customer.subscription.deleted для sub_old ложно переводит пользователя в inactive.
+    it('fallback по customer_id обновляет stripe_subscription_id при переподписке (Resubscription fix, Round 11)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_succeeded'))
+      // Шаг 1 возвращает 0 строк → fallback (сценарий переподписки: профиль имеет sub_old)
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      await POST(makeRequest('{}'))
+
+      // Шаг 1 (mockUpdate.calls[0]): включает stripe_subscription_id
+      expect(mockUpdate.mock.calls[0]?.[0]).toHaveProperty('stripe_subscription_id', 'sub_123')
+      // Шаг 2 fallback (mockUpdate.calls[1]): ТОЖЕ включает stripe_subscription_id (Round 11 fix)
+      expect(mockUpdate.mock.calls[1]?.[0]).toHaveProperty('stripe_subscription_id', 'sub_123')
+      expect(mockUpdate.mock.calls[1]?.[0]).toMatchObject({ subscription_status: 'active' })
+    })
   })
 
   describe('customer.subscription.deleted', () => {
-    it('переводит пользователя в inactive (AC2)', async () => {
+    // Fix [AI-Review][Medium] Round 10: current_period_end сбрасывается при удалении подписки
+    it('переводит пользователя в inactive и сбрасывает current_period_end (AC2, Round 10)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeSubscriptionEvent('customer.subscription.deleted')
       )
@@ -537,7 +578,10 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      expect(mockUpdate).toHaveBeenCalledWith({ subscription_status: 'inactive' })
+      expect(mockUpdate).toHaveBeenCalledWith({
+        subscription_status: 'inactive',
+        current_period_end: null,
+      })
     })
 
     // Fix [AI-Review][Medium] Round 6: ранний выход если шаг 1 нашёл строку
@@ -550,7 +594,10 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      expect(mockUpdate).toHaveBeenCalledWith({ subscription_status: 'inactive' })
+      expect(mockUpdate).toHaveBeenCalledWith({
+        subscription_status: 'inactive',
+        current_period_end: null,
+      })
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
     })
@@ -638,6 +685,28 @@ describe('POST /api/webhooks/stripe', () => {
       )
     })
 
+    // Fix [AI-Review][Medium] Round 11: plan upgrade — cancel_at = null, используем current_period_end
+    it('обновляет current_period_end через current_period_end при апгрейде тарифа (cancel_at = null)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeSubscriptionEvent('customer.subscription.updated', {
+          status: 'active',
+          cancel_at: null,
+          cancel_at_period_end: false,
+          current_period_end: 1900000000, // актуальная дата конца периода (не cancel_at)
+        })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subscription_status: 'active',
+          current_period_end: new Date(1900000000 * 1000).toISOString(),
+        })
+      )
+    })
+
     // Fix [AI-Review][High] Round 6: fallback если subscription.updated пришёл до checkout.session.completed
     it('fallback по customer_id если subscription_id не привязан (Race Condition fix)', async () => {
       mockConstructEvent.mockReturnValueOnce(
@@ -694,17 +763,23 @@ describe('POST /api/webhooks/stripe', () => {
       consoleSpy.mockRestore()
     })
 
-    // Fix [AI-Review][High] Round 8: guard от stale payment_failed вебхуков
-    it('вызывает .or() guard для current_period_end при payment_failed (Race Condition Round 8)', async () => {
+    // Fix [AI-Review][High] Round 10: guard на current_period_end удалён
+    // Stripe шлёт payment_failed в grace period — period_end ещё в будущем,
+    // поэтому прежний guard (.or period_end.is.null OR lte.now) слепо игнорировал событие
+    it('переводит в inactive даже если current_period_end в будущем (grace period, Round 10)', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_failed'))
 
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      // Проверяем что .or() был вызван с защитным условием period_end
-      expect(mockOrChain).toHaveBeenCalledWith(
-        expect.stringContaining('current_period_end.is.null')
+      expect(mockUpdate).toHaveBeenCalledWith({
+        subscription_status: 'inactive',
+        current_period_end: null,
+      })
+      // Fix Round 10: .or() guard для current_period_end удалён — платёж всегда обрабатывается
+      expect(mockOrChain).not.toHaveBeenCalledWith(
+        expect.stringContaining('current_period_end')
       )
       consoleSpy.mockRestore()
     })

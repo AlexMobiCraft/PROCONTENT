@@ -1,6 +1,6 @@
 # Story 1.5: Обработка Stripe Webhooks и управление доступом
 
-Status: in-progress
+Status: review
 
 - [x] Implementation complete
 - [x] Tests passing
@@ -100,12 +100,24 @@ so that система могла автоматически выдавать д
 - [x] [AI-Review][Medium] Уязвимость к регистру email — Использовать toLowerCase() перед сравнением email адреса в handleCheckoutSessionCompleted. [src/app/api/webhooks/stripe/route.ts:95]
 
 ### Review Follow-ups (AI) - Round 9 (Adversarial)
-- [ ] [AI-Review][Critical] Обход Paywall через Cookie (Спуфинг кеша) — Кеш `__sub_status` нельзя доверять клиенту в открытом виде, так как содержимое можно изменить вручную через DevTools (подставив `[user.id]:active`). Следует использовать криптографически подписанные JWT или зашифрованные куки для хранения статуса с учетом NFR7. [src/lib/supabase/middleware.ts:134]
-- [ ] [AI-Review][High] Потеря данных инвойса при переподписке — Слишком строгий guard `.is('stripe_subscription_id', null)` для fallback-обновлений не позволяет инвойсам обновлять данные старых аккаунтов, повторно купивших подписку, что приведет к ложным `current_period_end`. Необходимо изменить логику fallback. [src/app/api/webhooks/stripe/route.ts:181]
-- [ ] [AI-Review][High] Fail-Open при отсутствии Env-переменных — Блок `if (!supabaseUrl || !supabaseAnonKey)` применяет прозрачный `return NextResponse.next()` вместо fail-secure блокировки маршрута. [src/lib/supabase/middleware.ts:26]
-- [ ] [AI-Review][Medium] Доступ для "none" пользователей (Нестрогий Authorization) — Status `'none'` (null в БД) пропускается без блокировки. Авторизация должна переходить на white-list подход, разрешая только `'active'` или `'trialing'`. [src/lib/supabase/middleware.ts:125]
-- [ ] [AI-Review][Medium] UX Dead-End на /inactive — Отсутствует логика вытаскивания пользователя со страницы `/inactive` (если оплата пришла во время нахождения на ней). Требуется добавить проверку `isPublicPath` и принудительный редирект для `active` юзеров в `feed`. [src/lib/supabase/middleware.ts:58]
+- [x] [AI-Review][Critical] Обход Paywall через Cookie (Спуфинг кеша) — Кеш `__sub_status` нельзя доверять клиенту в открытом виде, так как содержимое можно изменить вручную через DevTools (подставив `[user.id]:active`). Следует использовать криптографически подписанные JWT или зашифрованные куки для хранения статуса с учетом NFR7. [src/lib/supabase/middleware.ts:134]
+- [x] [AI-Review][High] Потеря данных инвойса при переподписке — Слишком строгий guard `.is('stripe_subscription_id', null)` для fallback-обновлений не позволяет инвойсам обновлять данные старых аккаунтов, повторно купивших подписку, что приведет к ложным `current_period_end`. Необходимо изменить логику fallback. [src/app/api/webhooks/stripe/route.ts:181]
+- [x] [AI-Review][High] Fail-Open при отсутствии Env-переменных — Блок `if (!supabaseUrl || !supabaseAnonKey)` применяет прозрачный `return NextResponse.next()` вместо fail-secure блокировки маршрута. [src/lib/supabase/middleware.ts:26]
+- [x] [AI-Review][Medium] Доступ для "none" пользователей (Нестрогий Authorization) — Status `'none'` (null в БД) пропускается без блокировки. Авторизация должна переходить на white-list подход, разрешая только `'active'` или `'trialing'`. [src/lib/supabase/middleware.ts:125]
+- [x] [AI-Review][Medium] UX Dead-End на /inactive — Отсутствует логика вытаскивания пользователя со страницы `/inactive` (если оплата пришла во время нахождения на ней). Требуется добавить проверку `isPublicPath` и принудительный редирект для `active` юзеров в `feed`. [src/lib/supabase/middleware.ts:58]
 
+### Review Follow-ups (AI) - Round 10 (Adversarial)
+- [x] [AI-Review][Critical] Уничтожение активной подписки старыми инвойсами (Data Corruption). Изменить fallback-условие в `handleInvoicePaymentSucceeded`, чтобы избежать перезаписи `stripe_subscription_id` при переподписке (.neq.${subscriptionId} некорректно работает). [src/app/api/webhooks/stripe/route.ts:195]
+- [x] [AI-Review][High] Слепое игнорирование неуплаты. `handleInvoicePaymentFailed` игнорирует событие из-за строгой проверки `current_period_end` в прошлом, в то время как Stripe шлёт `payment_failed` до истечения подписки. [src/app/api/webhooks/stripe/route.ts:359]
+- [x] [AI-Review][Medium] Потенциальный глобальный DoS через Middleware Crash. Обернуть вызовы `crypto.subtle` в `parseCacheToken` в `try/catch` для предотвращения падения Middleware. [src/lib/supabase/middleware.ts:173]
+- [x] [AI-Review][Medium] Осиротевший `current_period_end` (Leaked State) в `handleSubscriptionDeleted`. Необходимо сбрасывать `current_period_end` в `null` при удалении подписки. [src/app/api/webhooks/stripe/route.ts:228]
+
+### Review Follow-ups (AI) - Round 11 (Adversarial)
+- [x] [AI-Review][Critical] Resubscription Data Corruption (Leaked State). В `handleInvoicePaymentSucceeded` при переподписке старый `stripe_subscription_id` остаётся, если checkout.session.completed задержался, что приведёт к неудаче последующих fallback-отмен. [src/app/api/webhooks/stripe/route.ts:193]
+- [x] [AI-Review][High] Missing User Profile Lockout (Auth-Profile Race Condition). В `middleware.ts` при вызове `single()`, если запись профиля ещё не создана триггером, возвращается ошибка (PGRST116), из-за которой свежие пользователи отбрасываются в бесконечный цикл через `/`. [src/lib/supabase/middleware.ts:208]
+- [x] [AI-Review][Medium] Stale current_period_end on Plan Upgrades. Поле `cancel_at` равно null при апгрейде тарифов, поэтому дата окончания не обновляется в БД. Нужно использовать актуальное время окончания периода из объекта подписки. [src/app/api/webhooks/stripe/route.ts:291]
+- [x] [AI-Review][Medium] Potential Unhandled Rejection on Edge Crypto Error. Вызов `createCacheToken` не имеет `try/catch` вокруг crypto-функций, что может выбросить неотловленное исключение в Edge и сломать Middleware. [src/lib/supabase/middleware.ts:62]
+- [x] [AI-Review][Low] Hardcoded "none" subscription status assumption. Использование 'none' при отсутствии значения статуса. [src/lib/supabase/middleware.ts:218]
 
 ## Dev Notes
 
@@ -173,6 +185,29 @@ const supabaseAdmin = createClient(
 - Supabase admin client теперь использует `createClient<Database>()` — полная типизация без `any`. (Ранее был без generic из-за ограничений type inference; проблема решена использованием `Database` из `src/types/supabase.ts`.)
 - Middleware использует явный type cast для результата `.select()` — обходное решение для той же проблемы инференса.
 - NFR7 реализован через проверку в `src/lib/supabase/middleware.ts`: аутентифицированный пользователь с `subscription_status = 'inactive'` редиректится на `/`.
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 11 (Adversarial)
+- ✅ Resolved [Critical]: `handleInvoicePaymentSucceeded` fallback теперь включает `stripe_subscription_id` при наличии subscriptionId. Устранён Leaked State при переподписке: профиль обновляет sub_id до нового, `customer.subscription.deleted` для старой подписки больше не найдёт профиль по sub_old → False Cancellation невозможен.
+- ✅ Resolved [High]: `.single()` заменён на `.maybeSingle()` в обоих местах middleware (main subscription check + /inactive handler). При PGRST116 (нет профиля) возвращается `{data: null, error: null}` → status = null → redirect /inactive (не /, не бесконечный цикл).
+- ✅ Resolved [Medium]: `handleSubscriptionUpdated` использует `subscription.current_period_end` (via type cast) как fallback когда `cancel_at` = null (апгрейд тарифа). `current_period_end` теперь всегда обновляется при subscription.updated.
+- ✅ Resolved [Medium]: `createCacheToken` обёрнут в `try/catch` вокруг `hmacSign`. Ошибка crypto.subtle теперь возвращает null вместо неотловленного исключения → Middleware не падает.
+- ✅ Resolved [Low]: Убран хардкод `?? 'none'` — `status = profile?.subscription_status`. null/undefined корректно блокируются whitelist-проверкой. Внутренние вызовы `createCacheToken` используют `?? 'none'` / `?? 'active'` для совместимости типов.
+- Добавлено 4 новых теста (1 route + 3 middleware), обновлён 1 тест (Round 10 → Round 11). TypeCheck: ✅. Все 196 тестов: ✅ 100% pass.
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 10 (Adversarial)
+- ✅ Resolved [Critical]: `handleInvoicePaymentSucceeded` fallback — создан отдельный `fallbackUpdate` без `stripe_subscription_id`. Старый инвойс больше не перезапишет актуальный sub_id профиля через OR guard. `stripe_subscription_id` обновляется только в Шаге 1 (прямое совпадение) или в checkout handler.
+- ✅ Resolved [High]: Убран guard `.or(current_period_end.is.null, lte.now)` из `handleInvoicePaymentFailed` Шага 1. Stripe шлёт `payment_failed` в grace period — period_end ещё в будущем, поэтому прежний guard слепо игнорировал актуальные неуплаты.
+- ✅ Resolved [Medium]: `parseCacheToken` — вызов `hmacSign` обёрнут в `try/catch`. Ошибка `crypto.subtle` (напр. crypto недоступен) теперь возвращает `null` (DB lookup) вместо краша Middleware для всех пользователей.
+- ✅ Resolved [Medium]: `handleSubscriptionDeleted` — добавлен `current_period_end: null` в оба update-объекта (Шаг 1 и fallback Шаг 2). Orphaned `current_period_end` устранён.
+- Добавлено 4 новых теста (2 route + 2 middleware), обновлено 3 существующих теста. TypeCheck: ✅. Все 192 теста: ✅ 100% pass.
+
+#### Адресованы Review Follow-ups (2026-03-12) — Раунд 9 (Adversarial)
+- ✅ Resolved [Critical]: HMAC-подписание `__sub_status` cookie с помощью `crypto.subtle` (Web Crypto API). Добавлен `COOKIE_SECRET` env var. Функции `createCacheToken`/`parseCacheToken` экспортированы для тестирования. Изменённый cookie не пройдёт HMAC-проверку → принудительный DB lookup.
+- ✅ Resolved [High]: `handleInvoicePaymentSucceeded` fallback — замена `.is('stripe_subscription_id', null)` на `.or('stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscriptionId}')` при наличии subscriptionId. Позволяет обновлять профили с устаревшим sub_id (сценарий переподписки).
+- ✅ Resolved [High]: Fail-secure при отсутствии Supabase env vars — защищённые маршруты редиректируются на `/login`, публичные пропускаются.
+- ✅ Resolved [Medium]: Whitelist авторизации — `status !== 'active' && status !== 'trialing'` вместо blacklist. `'none'` (null в БД) теперь тоже блокируется → редирект на `/inactive`.
+- ✅ Resolved [Medium]: `/inactive` UX Dead-End — свежий DB-запрос при посещении `/inactive`. Active/trialing пользователи редиректируются на `/feed` с инвалидацией стейлого кеша.
+- Добавлено 20 новых тестов (15 middleware + 2 route). TypeCheck: ✅. Все 188 тестов: ✅ 100% pass.
 
 ### Completion Notes
 - Реализованы все 6 Tasks / 15 Subtasks
@@ -255,7 +290,7 @@ const supabaseAdmin = createClient(
 - `src/lib/supabase/middleware.ts` — добавлена проверка subscription_status (Task 4); /inactive как публичный маршрут (Round 7)
 - `src/middleware.ts` — корневой middleware, вызывает updateSession (Round 7 — Middleware Wiring fix)
 - `src/app/inactive/page.tsx` — страница для неактивных пользователей (Round 7)
-- `.env.example` — добавлены `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`
+- `.env.example` — добавлены `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `COOKIE_SECRET` (Round 9)
 - `.env.local` — добавлены placeholder-значения новых переменных
 - `tests/unit/app/api/webhooks/stripe/route.test.ts` — unit-тесты webhook (Task 6)
 - `tests/unit/middleware.test.ts` — добавлены тесты subscription-инвалидации
@@ -285,6 +320,9 @@ const supabaseAdmin = createClient(
 - 2026-03-12: Проведен Adversarial Review (Round 8). Добавлено 4 новых замечания (1 Critical, 2 High, 1 Medium). Статус изменен на 'in-progress'.
 - 2026-03-12: Адресованы все 4 замечания Round 8: Postgres RPC `get_auth_user_id_by_email` вместо auth.admin.listUsers (Critical + Medium toLowerCase в SQL), trialing→active в subscription.updated (High), .or() guard для period_end в invoice.payment_failed (High). Добавлено 2 новых теста. TypeCheck: ✅. Все 168 тестов: ✅ 100% pass.
 - 2026-03-12: Проведен Adversarial Review (Round 9). Добавлено 5 новых замечаний (1 Critical, 2 High, 2 Medium). Статус возвращен в 'in-progress'.
+- 2026-03-12: Адресованы все 5 замечаний Round 9: HMAC-подписание cookie __sub_status с COOKIE_SECRET env var (Critical), OR guard вместо IS NULL в handleInvoicePaymentSucceeded fallback (High re-subscription), fail-secure редирект при отсутствии Supabase env vars (High), whitelist авторизации active/trialing only (Medium), редирект active пользователей с /inactive на /feed с инвалидацией кеша (Medium). Добавлено 20 новых тестов. TypeCheck: ✅. Все 188 тестов: ✅ 100% pass.
+- 2026-03-12: Адресованы все 4 замечания Round 10: отдельный fallbackUpdate без stripe_subscription_id в handleInvoicePaymentSucceeded (Critical), удалён current_period_end guard в handleInvoicePaymentFailed (High), try/catch вокруг crypto.subtle в parseCacheToken (Medium), current_period_end: null в handleSubscriptionDeleted (Medium). Добавлено 4 теста, обновлено 3. TypeCheck: ✅. Все 192 теста: ✅ 100% pass.
+- 2026-03-12: Адресованы все 5 замечаний Round 11: stripe_subscription_id в fallback handleInvoicePaymentSucceeded (Critical — Resubscription Leaked State), maybeSingle() вместо single() в middleware (High — Auth-Profile Race), current_period_end fallback при апгрейде тарифа (Medium), try/catch в createCacheToken (Medium), удалён хардкод 'none' (Low). Добавлено 4 теста, обновлён 1. TypeCheck: ✅. Все 196 тестов: ✅ 100% pass.
 
 ## Completion Status
 

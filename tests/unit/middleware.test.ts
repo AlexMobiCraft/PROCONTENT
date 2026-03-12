@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetUser, mockSingle, mockEq, mockSelect, mockFrom } = vi.hoisted(() => {
   const mockSingle = vi.fn()
@@ -18,19 +18,50 @@ vi.mock('@supabase/ssr', () => ({
   }),
 }))
 
-import { updateSession } from '@/lib/supabase/middleware'
+import { updateSession, createCacheToken, parseCacheToken } from '@/lib/supabase/middleware'
+
+// Хелпер: создаёт HMAC-подписанное значение cookie (идентично логике middleware).
+// Используется в тестах для генерации валидных signed tokens.
+async function makeSignedCookie(
+  userId: string,
+  status: string,
+  secret = 'test-cookie-secret'
+): Promise<string> {
+  const data = `${userId}:${status}`
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(data))
+  const bytes = new Uint8Array(sig)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  const sigStr = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+  return `${data}:${sigStr}`
+}
 
 describe('middleware', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
+    // [AI-Review][Critical] Round 9: COOKIE_SECRET для HMAC-подписания кеша
+    process.env.COOKIE_SECRET = 'test-cookie-secret'
 
     // По умолчанию: пользователь с активной подпиской
     mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
-    mockEq.mockReturnValue({ single: mockSingle })
+    // Fix [AI-Review][High] Round 11: поддержка maybeSingle (см. middleware.ts)
+    mockEq.mockReturnValue({ single: mockSingle, maybeSingle: mockSingle })
     mockSelect.mockReturnValue({ eq: mockEq })
     mockFrom.mockReturnValue({ select: mockSelect })
+  })
+
+  afterEach(() => {
+    delete process.env.COOKIE_SECRET
   })
 
   describe('неавторизованный пользователь', () => {
@@ -94,14 +125,11 @@ describe('middleware', () => {
     })
 
     it('copyRedirect сохраняет name и value кук из supabaseResponse', async () => {
-      // Мок настроен так, что supabase setAll выставляет куку в supabaseResponse
-      // Проверяем, что при редиректе неавторизованного куки копируются в ответ
       mockGetUser.mockResolvedValue({ data: { user: null } })
 
       const req = new NextRequest('http://localhost:3000/protected')
       const response = await updateSession(req)
 
-      // Редирект должен вернуться с корректным Location
       expect(response.status).toBe(307)
       expect(response.headers.get('location')).toContain('/login')
     })
@@ -139,15 +167,60 @@ describe('middleware', () => {
     })
   })
 
+  // [AI-Review][High] Fix Round 9: fail-secure при отсутствии env переменных
+  describe('fail-secure при отсутствии Supabase env переменных', () => {
+    beforeEach(() => {
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL
+      delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    })
+
+    it('редиректит на /login при обращении к защищённому маршруту без env', async () => {
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+    })
+
+    it('пропускает на /login без редиректа (публичный маршрут)', async () => {
+      const req = new NextRequest('http://localhost:3000/login')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('пропускает на / без редиректа (публичный маршрут)', async () => {
+      const req = new NextRequest('http://localhost:3000/')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('пропускает на /inactive без редиректа (публичный маршрут)', async () => {
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('не вызывает supabase при отсутствии env', async () => {
+      const req = new NextRequest('http://localhost:3000/feed')
+      await updateSession(req)
+
+      expect(mockGetUser).not.toHaveBeenCalled()
+    })
+  })
+
   describe('кеш subscription_status (__sub_status cookie)', () => {
     const mockUser = { id: 'user-123', email: 'test@example.com' }
 
-    // Fix [AI-Review][Critical]: кеш теперь хранится в формате "userId:status"
-    it('пропускает без запроса к БД при кеше active (формат userId:status)', async () => {
+    // [AI-Review][Critical] Fix Round 9: cookie подписана HMAC — нужны валидные токены в тестах
+    it('пропускает без запроса к БД при подписанном кеше active', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      const signedCookie = await makeSignedCookie('user-123', 'active')
 
       const req = new NextRequest('http://localhost:3000/feed', {
-        headers: { Cookie: '__sub_status=user-123:active' },
+        headers: { Cookie: `__sub_status=${signedCookie}` },
       })
       const response = await updateSession(req)
 
@@ -155,16 +228,16 @@ describe('middleware', () => {
       expect(mockFrom).not.toHaveBeenCalled()
     })
 
-    it('редиректит без запроса к БД при кеше inactive (формат userId:status)', async () => {
+    it('редиректит без запроса к БД при подписанном кеше inactive', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      const signedCookie = await makeSignedCookie('user-123', 'inactive')
 
       const req = new NextRequest('http://localhost:3000/feed', {
-        headers: { Cookie: '__sub_status=user-123:inactive' },
+        headers: { Cookie: `__sub_status=${signedCookie}` },
       })
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      // Fix [AI-Review][Medium] Round 7: редирект на /inactive (семантический маршрут)
       expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
       expect(mockFrom).not.toHaveBeenCalled()
     })
@@ -179,7 +252,57 @@ describe('middleware', () => {
       expect(mockFrom).toHaveBeenCalledWith('profiles')
     })
 
-    // Fix [AI-Review][Critical]: кеш другого пользователя должен игнорироваться
+    // [AI-Review][Critical] Fix Round 9: неподписанный cookie игнорируется → DB lookup
+    it('игнорирует неподписанный cookie и делает запрос к БД (HMAC protection)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      // Неподписанный формат (как было до Round 9 — уязвимый)
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: '__sub_status=user-123:active' },
+      })
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+      // Cookie не прошла HMAC-проверку → обязательный DB запрос
+      expect(mockFrom).toHaveBeenCalledWith('profiles')
+    })
+
+    it('игнорирует подделанный cookie (изменённый status) и делает DB запрос', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      // Валидный signed inactive токен, к которому добавлен 'X' — подпись неверна
+      const validSigned = await makeSignedCookie('user-123', 'inactive')
+      const tamperedCookie = validSigned.replace(':inactive:', ':active:')
+
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: `__sub_status=${tamperedCookie}` },
+      })
+      const response = await updateSession(req)
+
+      // Подпись не совпала → DB lookup, статус active → доступ разрешён
+      expect(response.status).not.toBe(307)
+      expect(mockFrom).toHaveBeenCalledWith('profiles')
+    })
+
+    it('игнорирует кеш если COOKIE_SECRET не задан → всегда DB lookup', async () => {
+      delete process.env.COOKIE_SECRET
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      // createCacheToken вернёт null → cookie не устанавливается в следующем запросе
+      // parseCacheToken вернёт null → кеш игнорируется
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: '__sub_status=user-123:active:fakesig' },
+      })
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+      expect(mockFrom).toHaveBeenCalledWith('profiles')
+    })
+
+    // Fix [AI-Review][Critical] Round 4: кеш другого пользователя должен игнорироваться
     it('игнорирует кеш и делает запрос к БД если userId не совпадает', async () => {
       mockGetUser.mockResolvedValue({
         data: { user: { id: 'user-456', email: 'other@example.com' } },
@@ -187,13 +310,13 @@ describe('middleware', () => {
       mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
 
       // Кеш принадлежит user-123, текущий пользователь — user-456
+      const signedCookie = await makeSignedCookie('user-123', 'active')
       const req = new NextRequest('http://localhost:3000/feed', {
-        headers: { Cookie: '__sub_status=user-123:active' },
+        headers: { Cookie: `__sub_status=${signedCookie}` },
       })
       const response = await updateSession(req)
 
       expect(response.status).not.toBe(307)
-      // Кеш проигнорирован — был обращение к БД
       expect(mockFrom).toHaveBeenCalledWith('profiles')
     })
 
@@ -203,13 +326,12 @@ describe('middleware', () => {
       })
       mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
 
-      // Кеш с inactive принадлежит user-123, текущий пользователь user-456 с active
+      const signedCookie = await makeSignedCookie('user-123', 'inactive')
       const req = new NextRequest('http://localhost:3000/feed', {
-        headers: { Cookie: '__sub_status=user-123:inactive' },
+        headers: { Cookie: `__sub_status=${signedCookie}` },
       })
       const response = await updateSession(req)
 
-      // user-456 active — не должен быть заблокирован чужим кешем
       expect(response.status).not.toBe(307)
       expect(mockFrom).toHaveBeenCalledWith('profiles')
     })
@@ -226,7 +348,6 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      // Fix [AI-Review][Medium] Round 7: редирект на /inactive (семантический маршрут)
       expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
     })
 
@@ -240,14 +361,26 @@ describe('middleware', () => {
       expect(response.status).not.toBe(307)
     })
 
-    it('пропускает пользователя с null subscription_status (новый, не привязан)', async () => {
+    it('пропускает пользователя с trialing подпиской', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'trialing' } })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    // [AI-Review][Medium] Fix Round 9: whitelist подход — null статус тоже блокируется
+    it('блокирует пользователя с null subscription_status (whitelist: только active/trialing)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: { subscription_status: null } })
 
       const req = new NextRequest('http://localhost:3000/feed')
       const response = await updateSession(req)
 
-      expect(response.status).not.toBe(307)
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
     })
 
     it('не проверяет подписку на публичных маршрутах (/)', async () => {
@@ -257,7 +390,6 @@ describe('middleware', () => {
       const req = new NextRequest('http://localhost:3000/')
       const response = await updateSession(req)
 
-      // На публичных маршрутах аутентифицированный пользователь не редиректится
       expect(response.status).not.toBe(307)
     })
 
@@ -270,13 +402,11 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      // Fix [AI-Review][Medium] Round 7: редирект на /inactive (семантический маршрут)
       expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
     })
 
     // [AI-Review][Medium] Fix: Fail-Secure — при ошибке БД блокируем доступ
     // [AI-Review][Critical] Fix Round 5: редиректим на / (не /login) чтобы избежать бесконечного цикла
-    // /login с авторизованным юзером → /feed → ошибка БД → /login → loop. Редирект на / ломает цикл.
     it('редиректит на / при ошибке БД (fail-secure, без бесконечного цикла, NFR7)', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: null, error: { message: 'DB unavailable' } })
@@ -289,25 +419,114 @@ describe('middleware', () => {
     })
 
     it('не попадает в бесконечный цикл при ошибке БД (ошибка → /, не /login → /feed)', async () => {
-      // При ошибке БД — редирект на /, а не на /login.
-      // / — isPublicPath, auth user на / не редиректится обратно на /feed (только /login триггерит redirect к /feed).
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: null, error: { message: 'DB unavailable' } })
 
       const req = new NextRequest('http://localhost:3000/feed')
       const response = await updateSession(req)
 
-      // Редирект должен идти на /, а не на /login
       expect(response.headers.get('location')).not.toContain('/login')
       expect(response.headers.get('location')).toBe('http://localhost:3000/')
     })
   })
 
-  describe('кеш __sub_status — расширенные проверки', () => {
+  // [AI-Review][Medium] Fix Round 9: UX Dead-End на /inactive
+  describe('/inactive — перенаправление active пользователей', () => {
     const mockUser = { id: 'user-123', email: 'test@example.com' }
 
-    // Fix [AI-Review][High] Round 6: кешируем inactive/canceled в редиректе, чтобы не бить в БД повторно
-    it('устанавливает __sub_status cookie при редиректе с inactive статуса (DDOS fix)', async () => {
+    it('редиректит active пользователя с /inactive на /feed (оплата прошла)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      // По умолчанию mockSingle вернёт active
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/feed')
+    })
+
+    it('редиректит trialing пользователя с /inactive на /feed', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'trialing' } })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/feed')
+    })
+
+    it('пропускает inactive пользователя на /inactive (показывает страницу)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('пропускает пользователя с null статусом на /inactive', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: null } })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('пропускает при ошибке БД на /inactive (остаёмся на странице)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: null, error: { message: 'DB unavailable' } })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('удаляет стейлый кеш при редиректе active пользователя с /inactive', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      // Стейлый inactive-кеш должен быть удалён чтобы /feed не сделал re-redirect
+      const cachedCookie = response.cookies.get('__sub_status')
+      expect(cachedCookie?.value).toBeFalsy()
+    })
+
+    it('проверяет подписку через DB при посещении /inactive (не только кеш)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: { subscription_status: 'active' } })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      await updateSession(req)
+
+      // Для /inactive всегда делаем свежий DB запрос (не кешируем)
+      expect(mockFrom).toHaveBeenCalledWith('profiles')
+    })
+
+    it('пропускает неавторизованного пользователя на /inactive без проверки подписки', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+      expect(mockFrom).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('кеш __sub_status — расширенные проверки (HMAC-подписанные)', () => {
+    const mockUser = { id: 'user-123', email: 'test@example.com' }
+
+    // Fix [AI-Review][High] Round 6: кешируем inactive/canceled в редиректе
+    it('устанавливает подписанный __sub_status cookie при редиректе с inactive статуса', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: { subscription_status: 'inactive' } })
 
@@ -315,14 +534,13 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      // Fix [AI-Review][Medium] Round 7: редирект теперь на /inactive
       expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
-      // Кеш должен быть установлен на redirect-ответе
       const cachedCookie = response.cookies.get('__sub_status')
-      expect(cachedCookie?.value).toBe('user-123:inactive')
+      // [Round 9]: значение теперь подписано — начинается с "user-123:inactive:"
+      expect(cachedCookie?.value).toMatch(/^user-123:inactive:.+/)
     })
 
-    it('устанавливает __sub_status cookie при редиректе с canceled статуса (DDOS fix)', async () => {
+    it('устанавливает подписанный __sub_status cookie при редиректе с canceled статуса', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
       mockSingle.mockResolvedValue({ data: { subscription_status: 'canceled' } })
 
@@ -330,39 +548,120 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      // Fix [AI-Review][Medium] Round 7: редирект теперь на /inactive
       expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
       const cachedCookie = response.cookies.get('__sub_status')
-      expect(cachedCookie?.value).toBe('user-123:canceled')
+      expect(cachedCookie?.value).toMatch(/^user-123:canceled:.+/)
     })
 
-    // [AI-Review][Critical] Fix: кеш canceled должен блокировать доступ
-    it('редиректит без запроса к БД при кеше canceled (формат userId:status)', async () => {
+    it('редиректит без запроса к БД при подписанном кеше canceled', async () => {
       mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      const signedCookie = await makeSignedCookie('user-123', 'canceled')
 
       const req = new NextRequest('http://localhost:3000/feed', {
-        headers: { Cookie: '__sub_status=user-123:canceled' },
+        headers: { Cookie: `__sub_status=${signedCookie}` },
       })
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      // Fix [AI-Review][Medium] Round 7: редирект теперь на /inactive
       expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
       expect(mockFrom).not.toHaveBeenCalled()
     })
 
-    // Fix [AI-Review][Medium] Round 7: /inactive — публичный маршрут, не проверяем подписку
-    it('пропускает аутентифицированного пользователя на /inactive без проверки подписки', async () => {
-      mockGetUser.mockResolvedValue({
-        data: { user: { id: 'user-123', email: 'test@example.com' } },
-      })
+    // [AI-Review][Medium] Round 9 whitelist: подписанный кеш с 'none' тоже блокирует
+    it('редиректит без запроса к БД при подписанном кеше none (whitelist)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      const signedCookie = await makeSignedCookie('user-123', 'none')
 
-      const req = new NextRequest('http://localhost:3000/inactive')
+      const req = new NextRequest('http://localhost:3000/feed', {
+        headers: { Cookie: `__sub_status=${signedCookie}` },
+      })
       const response = await updateSession(req)
 
-      expect(response.status).not.toBe(307)
-      // /inactive — publicPath, проверки подписки не должно быть
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
       expect(mockFrom).not.toHaveBeenCalled()
+    })
+
+    // Проверяем что createCacheToken возвращает валидный токен
+    it('createCacheToken создаёт токен, который parseCacheToken верифицирует', async () => {
+      const token = await createCacheToken('user-xyz', 'active')
+      expect(token).not.toBeNull()
+      expect(token).toMatch(/^user-xyz:active:.+/)
+    })
+
+    it('createCacheToken возвращает null если COOKIE_SECRET не задан', async () => {
+      delete process.env.COOKIE_SECRET
+      const token = await createCacheToken('user-xyz', 'active')
+      expect(token).toBeNull()
+    })
+  })
+
+  // Fix [AI-Review][High] Round 11: Auth-Profile Race Condition (maybeSingle)
+  describe('свежий пользователь без профиля (PGRST116 → maybeSingle fix)', () => {
+    const mockUser = { id: 'new-user-id', email: 'new@example.com' }
+
+    it('редиректит на /inactive если профиль ещё не создан (data = null, нет ошибки)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      // maybeSingle при 0 строках: { data: null, error: null } — не ошибка
+      mockSingle.mockResolvedValue({ data: null, error: null })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      // Whitelist: null статус → /inactive (не бесконечный цикл через / → /feed)
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
+    })
+
+    it('не создаёт бесконечный цикл для свежего пользователя (не редиректит на /)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({ data: null, error: null })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.headers.get('location')).not.toBe('http://localhost:3000/')
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
+    })
+  })
+
+  // Fix [AI-Review][Medium] Round 11: createCacheToken не кидает исключение при ошибке crypto
+  describe('createCacheToken — защита от Edge Crypto ошибки', () => {
+    it('возвращает null при ошибке crypto.subtle (не бросает исключение)', async () => {
+      const signSpy = vi
+        .spyOn(globalThis.crypto.subtle, 'sign')
+        .mockRejectedValueOnce(new Error('crypto unavailable'))
+
+      const result = await createCacheToken('user-123', 'active')
+
+      expect(result).toBeNull()
+      signSpy.mockRestore()
+    })
+  })
+
+  // Fix [AI-Review][Medium] Round 10: DoS protection — parseCacheToken не падает при ошибке crypto
+  describe('parseCacheToken — защита от DoS через crypto ошибку', () => {
+    it('возвращает null при ошибке crypto.subtle (не бросает, не крашит Middleware)', async () => {
+      // Мокаем crypto.subtle.sign чтобы бросить ошибку
+      const signSpy = vi
+        .spyOn(globalThis.crypto.subtle, 'sign')
+        .mockRejectedValueOnce(new Error('crypto unavailable'))
+
+      const result = await parseCacheToken('user-123:active:fakesignature')
+
+      expect(result).toBeNull()
+      signSpy.mockRestore()
+    })
+
+    it('возвращает null при корректном формате но неверной подписи (без исключения)', async () => {
+      const result = await parseCacheToken('user-123:active:invalidsig')
+      expect(result).toBeNull()
+    })
+
+    it('возвращает null при отсутствии COOKIE_SECRET', async () => {
+      delete process.env.COOKIE_SECRET
+      const result = await parseCacheToken('user-123:active:anysig')
+      expect(result).toBeNull()
     })
   })
 })

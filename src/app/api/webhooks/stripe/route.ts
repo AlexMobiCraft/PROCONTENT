@@ -126,7 +126,8 @@ async function handleCheckoutSessionCompleted(
 // Fix [AI-Review][High]: двухшаговый подход вместо OR-фильтра.
 //   OR-фильтр мог перезаписывать данные новой подписки старыми инвойсами.
 //   Шаг 1: строгое обновление по subscription_id (primary key)
-//   Шаг 2: fallback по customer_id ТОЛЬКО если stripe_subscription_id ещё не привязан (IS NULL)
+//   Шаг 2: fallback по customer_id — при повторной подписке профиль имеет старый sub_id (не null),
+//     поэтому guard расширен: IS NULL ИЛИ NEQ нового subscriptionId (RE-SUBSCRIPTION FIX Round 9).
 // Fix [AI-Review][Medium] Round 6: ранний выход если шаг 1 нашёл строку — избегаем двойного обновления
 async function handleInvoicePaymentSucceeded(
   invoice: Stripe.Invoice,
@@ -177,15 +178,34 @@ async function handleInvoicePaymentSucceeded(
     if (updatedBySub && updatedBySub.length > 0) return
   }
 
-  // Шаг 2: fallback по stripe_customer_id только для профилей без привязанного subscription_id.
-  // Fix [AI-Review][High]: .is('stripe_subscription_id', null) предотвращает перезапись
-  // данных новой подписки инвойсами от предыдущей.
+  // Шаг 2: fallback по stripe_customer_id.
+  // Fix [AI-Review][High] Round 9 (RE-SUBSCRIPTION): если invoice.payment_succeeded пришёл
+  //   до checkout.session.completed при переподписке, профиль может иметь старый sub_id (не null).
+  //   Расширяем guard с IS NULL до (IS NULL OR NEQ новому subscriptionId), чтобы обновить
+  //   профили с устаревшим subscription_id.
+  // Fix [AI-Review][Critical] Round 10: fallback НЕ включает stripe_subscription_id в update.
+  //   Старый инвойс (sub_old) мог перезаписать актуальный sub_id (sub_new) профиля через OR guard:
+  //   sub_new != sub_old → OR условие срабатывает → update.stripe_subscription_id = sub_old → Data Corruption.
+  //   stripe_subscription_id обновляется только в Шаге 1 (прямое совпадение) или в checkout handler.
   if (customerId) {
-    const { error: fallbackError } = await supabase
+    const fallbackUpdate: ProfileUpdate = { subscription_status: 'active' }
+    if (currentPeriodEnd) fallbackUpdate.current_period_end = currentPeriodEnd
+    // Fix [AI-Review][Critical] Round 11: включаем stripe_subscription_id чтобы устранить
+    // Leaked State при переподписке. Без обновления sub_id профиль сохраняет sub_old;
+    // когда Stripe шлёт customer.subscription.deleted для sub_old — пользователь
+    // ложно переводится в inactive (False Cancellation, если checkout.session.completed задержан).
+    if (subscriptionId) fallbackUpdate.stripe_subscription_id = subscriptionId
+
+    const fallbackQuery = supabase
       .from('profiles')
-      .update(update)
+      .update(fallbackUpdate)
       .eq('stripe_customer_id', customerId)
-      .is('stripe_subscription_id', null)
+
+    const { error: fallbackError } = await (subscriptionId
+      ? fallbackQuery.or(
+          `stripe_subscription_id.is.null,stripe_subscription_id.neq.${subscriptionId}`
+        )
+      : fallbackQuery.is('stripe_subscription_id', null))
 
     if (fallbackError) {
       throw new Error(
@@ -214,10 +234,15 @@ async function handleSubscriptionDeleted(
       ? subscription.customer
       : subscription.customer?.id
 
+  // Fix [AI-Review][Medium] Round 10: сбрасываем current_period_end при удалении подписки.
+  //   Оставлять дату окончания периода при deleted подписке → Leaked State:
+  //   UI может показывать "подписка до XX.XX.XXXX" для уже удалённого аккаунта.
+  const deletedUpdate = { subscription_status: 'inactive' as const, current_period_end: null }
+
   // Шаг 1: строгое обновление по stripe_subscription_id
   const { data: updatedBySub, error } = await supabase
     .from('profiles')
-    .update({ subscription_status: 'inactive' })
+    .update(deletedUpdate)
     .eq('stripe_subscription_id', subscription.id)
     .select('id')
 
@@ -236,7 +261,7 @@ async function handleSubscriptionDeleted(
   if (customerId) {
     const { error: fallbackError } = await supabase
       .from('profiles')
-      .update({ subscription_status: 'inactive' })
+      .update(deletedUpdate)
       .eq('stripe_customer_id', customerId)
       .is('stripe_subscription_id', null)
 
@@ -262,12 +287,15 @@ async function handleSubscriptionUpdated(
       ? subscription.customer
       : subscription.customer?.id
 
-  // Примечание [AI-Review][Medium]: запрос использовать subscription.current_period_end,
-  // однако в Stripe API 2026-02-25.clover это поле отсутствует на типе Subscription.
-  // Согласно Dev Notes: в новом API используется cancel_at вместо current_period_end.
-  // cancel_at — когда подписка реально закончится (если cancel_at_period_end=true)
+  // cancel_at — когда подписка реально закончится (если cancel_at_period_end=true).
+  // Fix [AI-Review][Medium] Round 11: при апгрейде тарифа cancel_at = null (не отменяется),
+  // поэтому дата окончания периода не обновлялась → Stale current_period_end в БД.
+  // Используем subscription.current_period_end как fallback (поле есть в Stripe API ответе,
+  // но отсутствует в TypeScript типах 2026-02-25.clover → type cast).
   const cancelAt = subscription.cancel_at
-  const periodEnd = cancelAt ? new Date(cancelAt * 1000).toISOString() : null
+  const rawCurrentPeriodEnd = (subscription as unknown as { current_period_end?: number }).current_period_end
+  const periodEndTs = cancelAt ?? rawCurrentPeriodEnd
+  const periodEnd = periodEndTs ? new Date(periodEndTs * 1000).toISOString() : null
 
   let status: 'active' | 'inactive' | 'canceled'
   // Fix [AI-Review][High] Round 8: trialing = пробный период, пользователь имеет активный доступ
@@ -338,16 +366,17 @@ async function handleInvoicePaymentFailed(
   }
 
   // Шаг 1: обновление по stripe_subscription_id.
-  // Fix [AI-Review][High] Round 8: guard от stale webhooks с задержкой Stripe.
-  //   Обновляем в inactive только если period_end уже истёк или не установлен.
-  //   Если period_end в будущем → более свежий invoice.payment_succeeded уже продлил период.
-  const nowIso = new Date().toISOString()
+  // Fix [AI-Review][High] Round 10: убран guard на current_period_end.
+  //   Stripe отправляет payment_failed в течение grace period — до истечения period_end.
+  //   Прежний guard (.or(period_end.is.null, period_end.lte.now)) блокировал обработку
+  //   актуальных неуплат, так как period_end в этот момент ещё в будущем.
+  //   Сторонние эффекты (stale webhooks) приемлемы: subscription.deleted приходит следом
+  //   и подтверждает inactive статус финально.
   if (subscriptionId) {
     const { data: updatedBySub, error } = await supabase
       .from('profiles')
       .update(failedUpdate)
       .eq('stripe_subscription_id', subscriptionId)
-      .or(`current_period_end.is.null,current_period_end.lte.${nowIso}`)
       .select('id')
 
     if (error) {
