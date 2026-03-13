@@ -1,6 +1,6 @@
 # Story 1.6: Onboarding-страница для новых участниц
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -35,31 +35,31 @@ so that сразу вовлечься в жизнь комьюнити.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Создание маршрута `/onboarding`** (AC: 1, 4, 5)
-  - [ ] Subtask 1.1: Создать страницу `src/app/(app)/onboarding/page.tsx` внутри группы `(app)` (защищённая зона, авторизация проверяется через `(app)/layout.tsx`). Страница — **Server Component** (async), делает fetch данных на сервере.
-  - [ ] Subtask 1.2: Проверить, что `/onboarding` корректно защищается текущим `(app)/layout.tsx` (auth guard). Неавторизованные пользователи уже редиректятся на `/login`. Дополнительный код защиты **НЕ нужен** — используется существующий.
-  - [ ] Subtask 1.3: Убедиться, что маршрут `/onboarding` **НЕ** является публичным в `src/lib/app-routes.ts`. Он должен быть закрытым (только авторизованные). Проверить, что `isPublicPath('/onboarding')` возвращает `false`.
-  - [ ] Subtask 1.4: Опционально (если `session_id` передан в URL): вывести лог `console.info('[onboarding] session_id: ...', sessionId)` для отладки. **НЕ** выполнять верификацию session через Stripe API (выходит за scope MVP).
+- [x] **Task 1: Создание маршрута `/onboarding`** (AC: 1, 4, 5)
+  - [x] Subtask 1.1: Создать страницу `src/app/(app)/onboarding/page.tsx` внутри группы `(app)` (защищённая зона, авторизация проверяется через `(app)/layout.tsx`). Страница — **Server Component** (async), делает fetch данных на сервере.
+  - [x] Subtask 1.2: Проверить, что `/onboarding` корректно защищается текущим `(app)/layout.tsx` (auth guard). Неавторизованные пользователи уже редиректятся на `/login`. Дополнительный код защиты **НЕ нужен** — используется существующий.
+  - [x] Subtask 1.3: Убедиться, что маршрут `/onboarding` **НЕ** является публичным в `src/lib/app-routes.ts`. Он должен быть закрытым (только авторизованные). Проверить, что `isPublicPath('/onboarding')` возвращает `false`.
+  - [x] Subtask 1.4: Опционально (если `session_id` передан в URL): вывести лог `console.info('[onboarding] session_id: ...', sessionId)` для отладки. **НЕ** выполнять верификацию session через Stripe API (выходит за scope MVP).
 
-- [ ] **Task 2: Реализация UI onboarding-страницы** (AC: 1, 2, 3)
-  - [ ] Subtask 2.1: Создать клиентский компонент `src/features/onboarding/components/OnboardingScreen.tsx`. Структура экрана (сверху вниз):
+- [x] **Task 2: Реализация UI onboarding-страницы** (AC: 1, 2, 3)
+  - [x] Subtask 2.1: Создать клиентский компонент `src/features/onboarding/components/OnboardingScreen.tsx`. Структура экрана (сверху вниз):
     1. **Приветственный блок:** Заголовок "Привет, ты теперь часть PROCONTENT!" (шрифт `font-heading` / Cormorant Garamond, стиль editorial). Подзаголовок "Мы рады, что ты здесь. Вот с чего начать:" (шрифт `font-sans` / Barlow Condensed, `uppercase tracking-[0.15em]`).
     2. **CTA WhatsApp:** Кнопка/ссылка "Вступить в WhatsApp-группу" (editorial outline стиль: `border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase`, hover: `bg-primary/10`). Иконка WhatsApp слева (Lucide: `MessageCircle` или SVG). Ссылка открывается в `target="_blank" rel="noopener noreferrer"`.
     3. **Блок "Начни здесь" — Топ-5 постов:** Заголовок секции "Начни здесь" (`font-heading`). Список из 5 карточек (упрощённый вариант `PostCard` или отдельный `OnboardingPostCard`). Каждая карточка: заголовок + категория + иконка типа (видео/фото/текст).
     4. **CTA "Перейти в ленту":** Внизу кнопка "Перейти к ленте" (outline primary) → ссылка на `/feed`.
-  - [ ] Subtask 2.2: Реализовать `OnboardingPostCard` — упрощённая карточка поста для блока "Начни здесь":
+  - [x] Subtask 2.2: Реализовать `OnboardingPostCard` — упрощённая карточка поста для блока "Начни здесь":
     - Заголовок поста (`font-heading text-base font-semibold`)
     - Бейдж категории (`bg-muted rounded-full px-3 py-1 text-xs`)
     - Бейдж типа контента (Видео/Фото/Текст)
     - Без кнопок лайков/комментариев (не нужны на onboarding)
     - Min touch target 44x44px
     - `aria-label` на ссылке
-  - [ ] Subtask 2.3: Обеспечить Mobile-First дизайн: полноэкранная компоновка на `375px`, центрирование контента с `max-w-xl` на десктопе.
-  - [ ] Subtask 2.4: Добавить Skeleton-загрузку (`OnboardingScreenSkeleton`) — отображается пока идёт fetch данных постов.
+  - [x] Subtask 2.3: Обеспечить Mobile-First дизайн: полноэкранная компоновка на `375px`, центрирование контента с `max-w-xl` на десктопе.
+  - [x] Subtask 2.4: Добавить Skeleton-загрузку (`OnboardingScreenSkeleton`) — отображается пока идёт fetch данных постов.
 
-- [ ] **Task 3: Получение данных "Топ-5 постов" и WhatsApp-ссылки** (AC: 1, 2)
-  - [ ] Subtask 3.1: **MVP-подход:** Поскольку таблица `posts` ещё не существует (будет создана в Epic 2), а FR13 (управление топ-5 автором) реализуется в Epic 4, использовать **статические данные** (hardcoded массив из 5 объектов `{ id, title, category, type }`) и **строковую константу** для WhatsApp-ссылки.
-  - [ ] Subtask 3.2: Определить конфигурацию в файле `src/features/onboarding/data/onboarding-config.ts`:
+- [x] **Task 3: Получение данных "Топ-5 постов" и WhatsApp-ссылки** (AC: 1, 2)
+  - [x] Subtask 3.1: **MVP-подход:** Поскольку таблица `posts` ещё не существует (будет создана в Epic 2), а FR13 (управление топ-5 автором) реализуется в Epic 4, использовать **статические данные** (hardcoded массив из 5 объектов `{ id, title, category, type }`) и **строковую константу** для WhatsApp-ссылки.
+  - [x] Subtask 3.2: Определить конфигурацию в файле `src/features/onboarding/data/onboarding-config.ts`:
     ```typescript
     export const ONBOARDING_CONFIG = {
       whatsappUrl: process.env.NEXT_PUBLIC_WHATSAPP_URL || 'https://chat.whatsapp.com/placeholder',
@@ -72,16 +72,16 @@ so that сразу вовлечься в жизнь комьюнити.
       ],
     } as const
     ```
-  - [ ] Subtask 3.3: Добавить `NEXT_PUBLIC_WHATSAPP_URL` в `.env.example` и `.env.local` (placeholder значение).
-  - [ ] Subtask 3.4: **ПОДГОТОВКА К FUTURE:** Оставить TODO-комментарий в `onboarding-config.ts` о том, что в Epic 4 (Story 4.3) данные будут подтягиваться из Supabase (таблица `onboarding_posts` или поле `is_onboarding: true` в таблице `posts`).
+  - [x] Subtask 3.3: Добавить `NEXT_PUBLIC_WHATSAPP_URL` в `.env.example` и `.env.local` (placeholder значение).
+  - [x] Subtask 3.4: **ПОДГОТОВКА К FUTURE:** Оставить TODO-комментарий в `onboarding-config.ts` о том, что в Epic 4 (Story 4.3) данные будут подтягиваться из Supabase (таблица `onboarding_posts` или поле `is_onboarding: true` в таблице `posts`).
 
-- [ ] **Task 4: Обновление Stripe Checkout success_url** (AC: 1)
-  - [ ] Subtask 4.1: ✅ **УЖЕ РЕАЛИЗОВАНО.** В `src/app/api/checkout/route.ts` success_url уже указывает на `/onboarding?session_id={CHECKOUT_SESSION_ID}`. Никаких изменений не требуется. Проверить, что ссылка корректна при code review.
+- [x] **Task 4: Обновление Stripe Checkout success_url** (AC: 1)
+  - [x] Subtask 4.1: ✅ **УЖЕ РЕАЛИЗОВАНО.** В `src/app/api/checkout/route.ts` success_url уже указывает на `/onboarding?session_id={CHECKOUT_SESSION_ID}`. Никаких изменений не требуется. Проверить, что ссылка корректна при code review.
 
-- [ ] **Task 5: Unit-тестирование** (AC: 1–5)
-  - [ ] Subtask 5.1: Написать unit-тест для `OnboardingScreen` — проверить рендер приветствия, WhatsApp-ссылки, списка из 5 карточек, кнопки "Перейти к ленте".
-  - [ ] Subtask 5.2: Написать unit-тест для `OnboardingPostCard` — проверить рендер заголовка, категории, типа контента.
-  - [ ] Subtask 5.3: Написать интеграционный тест для страницы `/onboarding` — проверить, что Server Component рендерит `OnboardingScreen` с данными из конфигурации.
+- [x] **Task 5: Unit-тестирование** (AC: 1–5)
+  - [x] Subtask 5.1: Написать unit-тест для `OnboardingScreen` — проверить рендер приветствия, WhatsApp-ссылки, списка из 5 карточек, кнопки "Перейти к ленте".
+  - [x] Subtask 5.2: Написать unit-тест для `OnboardingPostCard` — проверить рендер заголовка, категории, типа контента.
+  - [x] Subtask 5.3: Написать интеграционный тест для страницы `/onboarding` — проверить, что Server Component рендерит `OnboardingScreen` с данными из конфигурации.
 
 ## Dev Notes
 
@@ -172,10 +172,31 @@ so that сразу вовлечься в жизнь комьюнити.
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-sonnet-4-6 (Amelia, Dev Agent)
 
 ### Debug Log References
 
+Нет ошибок. Все 249 тестов прошли (18 test files). Lint и typecheck — чисто.
+
 ### Completion Notes List
 
+- ✅ Task 1: `src/app/(app)/onboarding/page.tsx` — async Server Component, awaits `searchParams` (Next.js 15+ Promise API), логирует `session_id` при наличии. Защита через существующий `(app)/layout.tsx` — дополнительный код не нужен. `/onboarding` не в `PUBLIC_PATHS` — подтверждено.
+- ✅ Task 2: `OnboardingScreen.tsx` (Client Component), `OnboardingPostCard.tsx`, `OnboardingScreenSkeleton.tsx` — editorial стиль по UX-спеке: `font-heading` clamp для заголовка, `tracking-[0.15em] uppercase` для подзаголовка, outline кнопки с `hover:bg-primary/10`, min touch target 44px.
+- ✅ Task 3: `onboarding-config.ts` со статическими данными 5 постов и `NEXT_PUBLIC_WHATSAPP_URL`. TODO-комментарий для Epic 4. Переменная добавлена в `.env.example` и `.env.local`.
+- ✅ Task 4: Проверено — `success_url` в `src/app/api/checkout/route.ts` уже указывает на `/onboarding?session_id={CHECKOUT_SESSION_ID}`. Изменений не требуется.
+- ✅ Task 5: 20 новых тестов в 3 файлах — `OnboardingPostCard` (8), `OnboardingScreen` (7), `page` (5). Покрыты AC 1–5.
+
 ### File List
+
+- `src/app/(app)/onboarding/page.tsx` — новый (Server Component страницы)
+- `src/features/onboarding/components/OnboardingScreen.tsx` — новый (Client Component, основной UI)
+- `src/features/onboarding/components/OnboardingPostCard.tsx` — новый (карточка поста)
+- `src/features/onboarding/components/OnboardingScreenSkeleton.tsx` — новый (skeleton)
+- `src/features/onboarding/data/onboarding-config.ts` — новый (статические данные MVP)
+- `.env.example` — изменён (добавлен `NEXT_PUBLIC_WHATSAPP_URL`)
+- `.env.local` — изменён (добавлен `NEXT_PUBLIC_WHATSAPP_URL`)
+- `tests/unit/features/onboarding/OnboardingPostCard.test.tsx` — новый
+- `tests/unit/features/onboarding/OnboardingScreen.test.tsx` — новый
+- `tests/unit/app/onboarding/page.test.tsx` — новый
+- `_bmad-output/implementation-artifacts/stories/1-6-onboarding-page-for-new-members.md` — обновлён (статус, задачи, Dev Agent Record)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` — обновлён (`review`)
