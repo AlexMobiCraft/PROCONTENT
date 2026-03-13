@@ -47,6 +47,7 @@ export function AuthContainer() {
 
     if (apiError) {
       // Системные ошибки сети/сервера — показываем как сетевую ошибку
+      console.error('[auth] signInWithOtp error:', apiError)
       setNetworkError('Не удалось отправить письмо. Попробуйте ещё раз.')
       return
     }
