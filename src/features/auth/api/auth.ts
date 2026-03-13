@@ -4,11 +4,12 @@ import { createClient } from '@/lib/supabase/client'
 
 export async function signInWithOtp(email: string) {
   const supabase = createClient()
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? window.location.origin
   return supabase.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: true,
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
+      emailRedirectTo: `${siteUrl}/auth/callback`,
     },
   })
 }
