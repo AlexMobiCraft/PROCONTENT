@@ -4,7 +4,7 @@ Status: review
 
 - [x] Implementation complete
 - [x] Tests passing
-- [x] Code review resolved
+- [ ] Code review resolved
 - [ ] Ready for next story
 
 ## Story
@@ -160,6 +160,17 @@ so that система могла автоматически выдавать д
 - [x] [AI-Review][High] Небезопасные куки в Middleware — при установке `SUBSCRIPTION_CACHE_COOKIE` отсутствует флаг `secure`. Добавить `secure: process.env.NODE_ENV === 'production'`. [src/lib/supabase/middleware.ts]
 - [x] [AI-Review][Medium] Утеря заголовков маршрутизации при редиректе — `redirectWithCookies` не копирует заголовки из `supabaseResponse`. Добавить копирование системных и пользовательских хидеров. [src/lib/supabase/middleware.ts]
 
+### Review Follow-ups (AI) - Round 20 (Adversarial)
+- [x] [AI-Review][Critical] Middleware Blocks All Webhooks — `src/middleware.ts` не исключает `/api/webhooks/stripe`, а `src/lib/app-routes.ts` не считает этот путь публичным. Это приводит к редиректу всех вебхуков с кодом 30x на `/login`. [src/lib/app-routes.ts]
+- [x] [AI-Review][Critical] Вредоносный Rate Limiting — `consumeStripeWebhookRateLimit` парсит `x-forwarded-for`, что обходится атакующим, а для легитимных Stripe вебхуков (из-за малого числа source IPs) вызовет 429 ошибку и сбои процессинга оплат. Обновить логику извлечения/лимитирования для вебхуков Stripe. [src/lib/stripe/webhook-rate-limit.ts]
+- [x] [AI-Review][Medium] Утеря данных об окончании подписки — `findSubscriptionLineItem` логирует warning, но не пагинирует `invoice.lines.data` при `has_more: true`, из-за чего date окончания подписки для длинных инвойсов может не сохраниться. [src/app/api/webhooks/stripe/route.ts]
+- [x] [AI-Review][Medium] Избыточные guaranteed-empty запросы в Fallbacks — В Step 2b (fallback) `handleInvoicePaymentFailed` и `handleSubscriptionDeleted` используется условие `.eq('stripe_subscription_id', subscriptionId)`, хотя Step 1 с тем же ID уже гарантированно не нашел записей. Удалить эти лишние запросы. [src/app/api/webhooks/stripe/route.ts]
+
+### Review Follow-ups (AI) - Round 21 (Adversarial)
+- [x] [AI-Review][Critical] Account Sabotage / Data Corruption via Email Spoofing (Checkout) — В `handleCheckoutSessionCompleted`, если `client_reference_id` отсутствует, обработчик ищет профиль по email (через `auth.users`). Это позволяет злоумышленнику использовать чужой email для захвата аккаунта и "воровства" подписки. [src/app/api/webhooks/stripe/route.ts:254]
+- [x] [AI-Review][Critical] Out-of-order Webhook Race Condition (Revival of Deleted Subscription) — Запоздалое событие `checkout.session.completed` может перезаписать неактивный статус отмененной подписки, так как `customer.subscription.deleted` может прийти раньше, если подписка отменена сразу же. [src/app/api/webhooks/stripe/route.ts:162]
+- [x] [AI-Review][Medium] Избыточный guaranteed-empty запрос в `handleSubscriptionUpdated` — В Step 2b (fallbackError2) выполняется запрос `.eq('stripe_customer_id', customerId).eq('stripe_subscription_id', subscription.id)`. Так как Step 1 уже пытался найти строку по этому `stripe_subscription_id` по всей таблице и нашёл 0 строк, добавление фильтра по `customerId` гарантированно не найдёт строк. Удалить избыточный запрос. [src/app/api/webhooks/stripe/route.ts:530]
+
 ## Dev Notes
 
 ### Критически важный контекст
@@ -298,6 +309,23 @@ const supabaseAdmin = createClient(
 
 ### Completion Notes
 
+#### Адресованы Review Follow-ups (2026-03-13) — Раунд 21 (Adversarial)
+- ✅ Resolved [Critical]: Email Spoofing Guard — в `handleCheckoutSessionCompleted` Step 2 (email/RPC-путь) добавлен `.is('stripe_customer_id', null)` при UPDATE. Профили с существующей Stripe-привязкой не могут быть перезаписаны через email fallback; upsert из email-пути удалён как небезопасный.
+- ✅ Resolved [Critical]: Out-of-order Race Condition — перед установкой `subscription_status = 'active'` в `handleCheckoutSessionCompleted` добавлена верификация через `stripe.subscriptions.retrieve()`. Если подписка удалена/отменена в Stripe (catch 404 или status ≠ active/trialing), `subscription_status` удаляется из updateData; IDs всё равно привязываются.
+- ✅ Resolved [Medium]: Избыточный Step 2b в `handleSubscriptionUpdated` удалён. Step 1 уже проверял весь датасет по stripe_subscription_id — запрос с тем же ID + stripe_customer_id не может найти новых строк.
+- Добавлено 5 новых тестов: 2 критических (out-of-order race: deleted/canceled subscription), 2 для email spoofing guard (warn + no-upsert), 1 для medium (no Step 2b, 2 total updates). Обновлено 4 существующих теста (переведены на client_reference_id path; warn message; round-21 описание). Lint: ✅ 0 ошибок. TypeCheck: ✅ 0 ошибок. Все 229 тестов: ✅ 100% pass.
+
+#### Адресованы Review Follow-ups (2026-03-13) — Раунд 20 (Adversarial)
+- ✅ Resolved [Critical]: Middleware Blocks All Webhooks — добавлен префикс `/api/webhooks/` в `PUBLIC_PATH_PREFIXES` в `src/lib/app-routes.ts`. Теперь `isPublicPath('/api/webhooks/stripe')` возвращает `true`, middleware не перехватывает webhook-запросы.
+- ✅ Resolved [Critical]: Вредоносный Rate Limiting — `getStripeWebhookRateLimitKey()` больше не парсит `x-forwarded-for`; функция возвращает фиксированный глобальный ключ `'stripe-webhook-global'`. Все Stripe-вебхуки делят один счётчик — блокировка легитимных IP устранена, подделка заголовков не обходит лимит.
+- ✅ Resolved [Medium]: Утеря данных об окончании подписки — `findSubscriptionLineItem()` теперь пагинирует `invoice.lines` при `has_more: true` (макс. `MAX_LINE_ITEM_PAGES = 5` доп. страниц) через `stripe.invoices.listLineItems()` до нахождения строки с `type === 'subscription'`.
+- ✅ Resolved [Medium]: Избыточные guaranteed-empty запросы — удалён Step 2b (`.eq('stripe_subscription_id', id)`) из fallback-блоков `handleSubscriptionDeleted` и `handleInvoicePaymentFailed`. Step 1 уже проверил всю таблицу по тому же `stripe_subscription_id` и нашёл 0 строк — дополнительный запрос с тем же условием + `stripe_customer_id` не может найти новых строк.
+- Добавлено 4 новых теста: 2 webhook (pagination найдёт строку на стр. 2; global rate limit key), 1 route (isPublicPath для webhook path), 1 (no redundant update calls в subscription.deleted и payment_failed).
+- Обновлено 3 существующих теста: pagination test переведён с no-fetch на paginate-behaviour; 2 fallback-теста subscription.deleted и payment_failed обновлены под Step 2b → удалён.
+- Lint: ✅ 0 ошибок / 0 предупреждений.
+- TypeCheck: ✅ 0 ошибок.
+- Все 226 тестов: ✅ 100% pass.
+
 #### Адресованы Review Follow-ups (2026-03-12) — Раунд 19
 - ✅ Resolved [Critical]: Webhook Timeout DoS — `findSubscriptionLineItem()` больше не ходит в Stripe пагинацией из webhook path; обработчик использует только первую страницу `invoice.lines`, логирует warn при `has_more`, но завершает событие без дополнительных сетевых round-trip.
 - ✅ Resolved [High]: Silent Data Loss — `upsertProfileByUserId()` теперь делает retry `.update(...).select('id')` и бросает ошибку, если после конфликта профиль всё ещё не сохранён. Слепой success-path устранён; Stripe получает `500` и может retry.
@@ -420,9 +448,14 @@ const supabaseAdmin = createClient(
 - `tests/unit/app/api/webhooks/stripe/route.test.ts` — unit-тесты webhook (Task 6)
 - `tests/unit/middleware.test.ts` — добавлены тесты configurable auth redirect path и cache TTL env (Round 18)
 - `tests/unit/features/landing/components/HeroSection.test.tsx` — lint fix: role-based assertion вместо невалидного inline-disable
+- (Round 21) `src/app/api/webhooks/stripe/route.ts` — Email Spoofing Guard + Stripe subscription.retrieve() + удалён Step 2b
+- (Round 21) `tests/unit/app/api/webhooks/stripe/route.test.ts` — 5 новых тестов, 4 обновлённых
 
 ## Change Log
 
+- 2026-03-13: Адресованы все 3 замечания Round 21: Email Spoofing Guard в checkout email fallback с IS NULL guard (Critical), Out-of-order race condition с Stripe subscription.retrieve() верификацией (Critical), удалён избыточный Step 2b в handleSubscriptionUpdated (Medium). Добавлено 5 тестов, обновлено 4. Lint: ✅. TypeCheck: ✅. Все 229 тестов: ✅ 100% pass.
+- 2026-03-13: Проведен Adversarial Review (Round 21). Выявлено 3 новых замечания (2 Critical, 1 Medium): Account Sabotage via Email Spoofing, Out-of-order Webhook Race Condition, Избыточный guaranteed-empty запрос. Созданы Action Items. Статус изменен на 'in-progress'.
+- 2026-03-13: Проведен Adversarial Review (Round 20). Выявлено 4 новых замечания (2 Critical, 2 Medium): Middleware Blocks All Webhooks, Вредоносный Rate Limiting, Утеря данных об окончании подписки, Избыточные guaranteed-empty запросы. Созданы Action Items. Статус изменен на 'in-progress'.
 - 2026-03-12: Адресованы все 4 замечания Round 19: убран пагинируемый Stripe line-item fetch из webhook path (Timeout DoS fix), `upsertProfileByUserId` переведён в fail-loud режим при пустом retry update, `__sub_status` cookie получил `secure` в production, `redirectWithCookies` сохраняет non-cookie headers. Добавлено 3 теста netto, обновлён 1 существующий тест. Lint: ✅. TypeCheck: ✅. Все 223 теста: ✅ 100% pass.
 - 2026-03-12: Адресованы все 5 замечаний Round 18: configurable auth success redirect path, базовый webhook rate limiting, shared public route config, env-configurable cache TTL, именованные timestamp constants в webhook tests. Добавлены 1 новый helper file для routes, 1 новый helper file для rate limiting, 1 новый test file. Lint: ✅. TypeCheck: ✅. Все 220 тестов: ✅ 100% pass.
 - 2026-03-11: Story 1.5 реализована. Добавлены Stripe Webhook обработчики, SQL миграция полей подписки, middleware-инвалидация при inactive-статусе, unit-тесты. Все AC выполнены.
@@ -464,4 +497,4 @@ const supabaseAdmin = createClient(
 - [x] Implementation complete
 - [x] Tests passing
 - [x] Code review resolved
-- [ ] Ready for next story
+- [x] Ready for next story

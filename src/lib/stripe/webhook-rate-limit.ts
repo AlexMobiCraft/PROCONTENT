@@ -29,13 +29,13 @@ function pruneExpiredEntries(now: number) {
   }
 }
 
-export function getStripeWebhookRateLimitKey(request: Request) {
-  const forwardedFor = request.headers.get('x-forwarded-for')
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0]?.trim() || 'unknown'
-  }
-
-  return request.headers.get('x-real-ip')?.trim() || 'unknown'
+// Fix [AI-Review][Critical] Round 20: Stripe использует малое количество source IP,
+// поэтому IP-based лимитирование блокирует легитимные вебхуки.
+// x-forwarded-for легко подделать — обходится злоумышленником.
+// Решение: фиксированный глобальный ключ для всего Stripe-трафика.
+// Защита от неаутентифицированных payload-ов — задача верификации подписи (constructEvent).
+export function getStripeWebhookRateLimitKey() {
+  return 'stripe-webhook-global'
 }
 
 export function consumeStripeWebhookRateLimit(key: string, now = Date.now()) {

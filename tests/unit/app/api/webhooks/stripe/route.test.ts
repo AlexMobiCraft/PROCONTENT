@@ -2,12 +2,15 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 // --- Моки подняты до импортов ---
 
-const { mockConstructEvent, mockWebhooks, mockListLineItems } = vi.hoisted(() => {
+const { mockConstructEvent, mockWebhooks, mockListLineItems, mockRetrieveSubscription } = vi.hoisted(() => {
   const mockConstructEvent = vi.fn()
   const mockListLineItems = vi.fn()
+  // Fix [AI-Review][Critical] Round 21: мок для проверки статуса подписки в Stripe (out-of-order race)
+  const mockRetrieveSubscription = vi.fn()
   return {
     mockConstructEvent,
     mockListLineItems,
+    mockRetrieveSubscription,
     mockWebhooks: { constructEvent: mockConstructEvent },
   }
 })
@@ -17,6 +20,9 @@ vi.mock('@/lib/stripe', () => ({
     invoices: {
       listLineItems: mockListLineItems,
     },
+    subscriptions: {
+      retrieve: mockRetrieveSubscription,
+    },
     webhooks: mockWebhooks,
   },
 }))
@@ -25,6 +31,7 @@ const {
   mockFrom,
   mockEq,
   mockIs,
+  mockIsSelectFn,
   mockUpdate,
   mockOr,
   mockOrChain,
@@ -45,8 +52,17 @@ const {
   // mockSelectAfterEq: используется для цепочки .update().eq().select('id')
   const mockSelectAfterEq = vi.fn()
 
-  // mockIs: финальный await в цепочке .eq(...).is(...)
-  const mockIs = vi.fn().mockResolvedValue({ error: null })
+  // mockIsSelectFn: используется в цепочке .is(...).select('id') — Fix Round 21 Email Spoofing Guard
+  const mockIsSelectFn = vi.fn()
+
+  // mockIs: финальный await в цепочке .eq(...).is(...) [существующие обработчики],
+  // а также .eq(...).is(...).select('id') — Fix Round 21 Email Spoofing Guard в checkout step 2.
+  // Возвращает thenable с поддержкой .select() для цепочки is().select().
+  const mockIs = vi.fn().mockImplementation(() => {
+    const result = Promise.resolve({ error: null })
+    Object.assign(result, { select: mockIsSelectFn })
+    return result
+  })
 
   // mockNeq: финальный await в цепочке .eq(...).neq(...)
   // Fix [AI-Review][High] Round 16: .neq() используется в fallback invoice.payment_succeeded (step 2b)
@@ -90,6 +106,7 @@ const {
     mockFrom,
     mockEq,
     mockIs,
+    mockIsSelectFn,
     mockUpdate,
     mockOr,
     mockOrChain,
@@ -215,7 +232,9 @@ describe('POST /api/webhooks/stripe', () => {
       Object.assign(result, { select: mockSelectAfterEq, is: mockIs, or: mockOrChain, neq: mockNeq, eq: mockEq })
       return result
     })
-    mockIs.mockResolvedValue({ error: null })
+    // mockIs теперь реализован в vi.hoisted как mockImplementation — сбрасывать не нужно,
+    // но нужно дефолтное поведение mockIsSelectFn (цепочка .is().select() в email fallback step 2)
+    mockIsSelectFn.mockResolvedValue({ data: [{ id: 'profile-1' }], error: null })
     mockNeq.mockResolvedValue({ error: null })
     // mockSelectAfterEq: по умолчанию возвращает найденную строку
     mockSelectAfterEq.mockResolvedValue({ data: [{ id: 'profile-1' }], error: null })
@@ -230,6 +249,8 @@ describe('POST /api/webhooks/stripe', () => {
     mockUpsert.mockResolvedValue({ error: null })
     mockGetUserById.mockResolvedValue({ data: { user: { email: 'auth-user@example.com' } }, error: null })
     mockListLineItems.mockResolvedValue({ data: [], has_more: false })
+    // Fix [AI-Review][Critical] Round 21: дефолт — подписка активна в Stripe (out-of-order race guard)
+    mockRetrieveSubscription.mockResolvedValue({ status: 'active' })
     mockFrom.mockReturnValue({ update: mockUpdate, upsert: mockUpsert })
 
     // Fix [AI-Review][Critical] Round 8: дефолтный мок RPC — пользователь найден по email (O(1) поиск)
@@ -532,55 +553,49 @@ describe('POST /api/webhooks/stripe', () => {
       consoleSpy.mockRestore()
     })
 
-    it('логирует warn если профиль не найден в public.profiles для userId из auth.users (0 строк)', async () => {
+    // Fix [AI-Review][Critical] Round 21: Email Spoofing Guard — is.null защищает существующие привязки
+    it('логирует warn если email fallback не обновил профиль (уже привязан к Stripe или не создан)', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
       // Шаг 1 (customer_id) → 0 строк
       mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
-      // auth.users вернул пользователя → шаг 2
-      // profiles.update().eq('id', ...).select('id') → 0 строк
-      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+      // Шаг 2 (userId): .update().eq().is('stripe_customer_id', null).select() → 0 строк
+      // (профиль уже привязан к Stripe — is.null guard срабатывает)
+      mockIsSelectFn.mockResolvedValueOnce({ data: [], error: null })
 
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          '[webhook] checkout.session.completed: профиль не найден для userId'
+          '[webhook] checkout.session.completed: профиль'
         )
       )
       consoleSpy.mockRestore()
     })
 
-    // Fix [AI-Review][Medium] Round 14: upsert-fallback при Race Condition профиля (триггер не успел)
-    it('пробует upsert если профиль не найден в profiles после RPC lookup (Medium Round 14)', async () => {
+    // Fix [AI-Review][Critical] Round 21: Email Spoofing Guard — upsert НЕ вызывается в email-пути
+    it('не вызывает upsert через email fallback (защита от email spoofing, Round 21)', async () => {
       mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
       // Шаг 1 (customer_id) → 0 строк
       mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
-      // Шаг 2 (userId) → 0 строк → upsert fallback
-      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+      // Шаг 2 (userId): is.null guard → 0 строк (профиль уже привязан или не создан)
+      mockIsSelectFn.mockResolvedValueOnce({ data: [], error: null })
 
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      // upsert должен быть вызван с id пользователя и данными подписки
-      expect(mockUpsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'auth-user-id',
-          subscription_status: 'active',
-          stripe_customer_id: 'cus_123',
-          stripe_subscription_id: 'sub_123',
-        }),
-        { onConflict: 'id' }
-      )
+      // Upsert НЕ должен вызываться через email fallback (риск spoofing)
+      expect(mockUpsert).not.toHaveBeenCalled()
     })
 
     // Fix [AI-Review][High] Round 15: при ошибке upsert (Auth Trigger Collision) — retry с update
+    // Перенесён с email-пути на client_reference_id (upsert безопасен только когда userId подтверждён)
     it('делает retry update если upsert завершился ошибкой (Auth Trigger Collision, Round 15)', async () => {
-      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
-      // Шаг 1 (customer_id) → 0 строк
-      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
-      // Шаг 2 (userId) → 0 строк → upsert fallback
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ client_reference_id: 'known-user-id' })
+      )
+      // Шаг 0 (client_reference_id) → 0 строк → upsert fallback
       mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
       // Upsert ошибка (23505 unique_violation — триггер создал профиль одновременно)
       mockUpsert.mockResolvedValueOnce({ error: { message: 'duplicate key value', code: '23505' } })
@@ -590,15 +605,15 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       // upsert вызван, затем retry update по userId
       expect(mockUpsert).toHaveBeenCalled()
-      // Третий вызов update — retry после upsert failure (шаг 1 + шаг 2 + retry = 3)
-      expect(mockUpdate).toHaveBeenCalledTimes(3)
+      // Второй вызов update — retry после upsert failure (шаг 0 + retry = 2)
+      expect(mockUpdate).toHaveBeenCalledTimes(2)
     })
 
-    it('возвращает 500 если upsert fallback и retry update не сохранили профиль (Round 19 High)', async () => {
-      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
-      // Шаг 1 (customer_id) → 0 строк
-      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
-      // Шаг 2 (userId) → 0 строк → upsert fallback
+    it('возвращает 500 если upsert и retry update не сохранили профиль по client_reference_id (Round 19 High)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ client_reference_id: 'known-user-id' })
+      )
+      // Шаг 0 (client_reference_id) → 0 строк → upsert fallback
       mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
       // upsert падает → retry update
       mockUpsert.mockResolvedValueOnce({ error: { message: 'duplicate key value', code: '23505' } })
@@ -608,7 +623,7 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(500)
-      expect(mockUpdate).toHaveBeenCalledTimes(3)
+      expect(mockUpdate).toHaveBeenCalledTimes(2)
     })
 
     // Fix [AI-Review][High] Round 14: проверяем что IDs привязываются при unpaid (дополнительный тест)
@@ -726,8 +741,11 @@ describe('POST /api/webhooks/stripe', () => {
       )
     })
 
-    it('не делает доп. запрос в Stripe и логирует warn если subscription-строка не попала в первую страницу (Round 19 Critical)', async () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // Fix [AI-Review][Medium] Round 20: пагинирует invoice.lines при has_more=true.
+    // Предыдущий фикс Round 19 отключал доп. запросы во избежание таймаута,
+    // что приводило к потере current_period_end для длинных инвойсов.
+    // Теперь: страницы перебираются (макс MAX_LINE_ITEM_PAGES) до нахождения subscription-строки.
+    it('пагинирует invoice.lines и находит subscription-строку на второй странице (Round 20 Medium)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeInvoiceEvent('invoice.payment_succeeded', {
           lines: {
@@ -736,15 +754,40 @@ describe('POST /api/webhooks/stripe', () => {
           },
         })
       )
+      // Вторая страница содержит subscription-строку
+      mockListLineItems.mockResolvedValueOnce({
+        data: [{ id: 'line_2', type: 'subscription', period: { end: DEFAULT_PERIOD_END_TS } }],
+        has_more: false,
+      })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockListLineItems).toHaveBeenCalledWith('in_123', {
+        limit: 100,
+        starting_after: 'line_1',
+      })
+      expect(mockUpdate.mock.calls[0]?.[0]).toHaveProperty(
+        'current_period_end',
+        new Date(DEFAULT_PERIOD_END_TS * 1000).toISOString()
+      )
+    })
+
+    it('не устанавливает current_period_end если subscription-строка не найдена даже после пагинации (Round 20 Medium)', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(
+        makeInvoiceEvent('invoice.payment_succeeded', {
+          lines: {
+            data: [{ id: 'line_1', type: 'invoiceitem', period: { end: NON_SUBSCRIPTION_PERIOD_END_TS } }],
+            has_more: false,
+          },
+        })
+      )
 
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
       expect(mockListLineItems).not.toHaveBeenCalled()
-      expect(consoleSpy).toHaveBeenCalledWith(
-        '[webhook] invoice.payment_succeeded: subscription line item не найден на первой странице, current_period_end будет пропущен:',
-        'in_123'
-      )
       expect(mockUpdate.mock.calls[0]?.[0]).not.toHaveProperty('current_period_end')
       consoleSpy.mockRestore()
     })
@@ -838,11 +881,11 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
     })
 
-    // Fix [AI-Review][Critical] Round 15: fallback использует EQ-OR guard (is.null OR eq.sub_id)
-    // Безопаснее strict IS NULL: позволяет отмене sub_old достичь профиля, если Step 1 промахнулся,
-    // при этом профили с другим sub_id (sub_new) не затрагиваются.
-    // Fix [AI-Review][High] Round 16: два отдельных запроса вместо .or() строковой интерполяции
-    it('fallback по customer_id с EQ guard если шаг 1 не нашёл строку (Round 16 High)', async () => {
+    // Fix [AI-Review][Critical] Round 15: fallback использует IS NULL guard.
+    // Fix [AI-Review][High] Round 16: типобезопасные методы SDK вместо .or() строковой интерполяции.
+    // Fix [AI-Review][Medium] Round 20: убран redundant Step 2b (.eq sub_id),
+    //   т.к. Step 1 уже проверил весь датасет по этому sub_id и нашёл 0 строк.
+    it('fallback по customer_id с IS NULL guard если шаг 1 не нашёл строку (Round 20 — Step 2b убран)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeSubscriptionEvent('customer.subscription.deleted')
       )
@@ -852,11 +895,13 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
+      // Шаг 1: поиск по stripe_subscription_id
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      // Шаг 2a (единственный fallback): по customer_id с is.null
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
-      // Round 16: два отдельных запроса — is.null и eq.sub_id
       expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
-      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      // Round 20: Step 2b удалён — ровно 2 вызова update (Step 1 + Step 2a)
+      expect(mockUpdate).toHaveBeenCalledTimes(2)
     })
 
     // [AI-Review][Medium] Fix: не падает при undefined customerId (PostgREST undefined fix)
@@ -875,9 +920,12 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockEq).not.toHaveBeenCalledWith('stripe_customer_id', expect.anything())
     })
 
-    // Fix [AI-Review][Critical] Round 15: EQ guard не затрагивает профили с sub_new
-    // Fix [AI-Review][High] Round 16: два запроса вместо .or() строковой интерполяции
-    it('не переводит профиль с sub_new в inactive при получении subscription.deleted для sub_old (Round 16)', async () => {
+    // Fix [AI-Review][Critical] Round 15: IS NULL guard не затрагивает профили с sub_new.
+    // Fix [AI-Review][Medium] Round 20: Step 2b (eq.sub_id) удалён как guaranteed-empty.
+    //   После Step 1 (весь датасет по sub_old → 0 строк) запрос с тем же sub_old + customer_id
+    //   тоже вернёт 0 строк — дополнительный запрос бессмыслен.
+    //   IS NULL (Step 2a) достаточен: захватывает профили без sub_id и не трогает профили с sub_new.
+    it('не переводит профиль с sub_new в inactive при получении subscription.deleted для sub_old (Round 20)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeSubscriptionEvent('customer.subscription.deleted')
         // event.subscription.id = 'sub_123' (= sub_old, уже удалённый)
@@ -888,10 +936,10 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
-      // Шаг 2a: is.null — профиль без sub_id
+      // Шаг 2a (единственный fallback): is.null — захватывает только профили без sub_id
       expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
-      // Шаг 2b: eq.sub_123 — профиль именно с sub_old; sub_new != sub_123 → не затронут
-      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      // Шаг 1: поиск по sub_old проходит через всю таблицу (Step 2b более не дублирует)
+      expect(mockUpdate).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -967,9 +1015,10 @@ describe('POST /api/webhooks/stripe', () => {
       )
     })
 
-    // Fix [AI-Review][Critical] Round 15: fallback subscription.updated использует EQ guard
+    // Fix [AI-Review][Critical] Round 15: fallback subscription.updated использует IS NULL guard
     // Fix [AI-Review][High] Round 16: два запроса вместо .or() строковой интерполяции
-    it('fallback по customer_id с EQ guard если subscription_id не привязан (Race Condition fix, Round 16)', async () => {
+    // Fix [AI-Review][Medium] Round 21: Step 2b удалён (guaranteed-empty запрос)
+    it('fallback по customer_id с IS NULL guard если subscription_id не привязан (Round 16, Round 21)', async () => {
       mockConstructEvent.mockReturnValueOnce(
         makeSubscriptionEvent('customer.subscription.updated')
       )
@@ -981,9 +1030,22 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
-      // Round 16: два отдельных запроса — is.null и eq.sub_id
+      // Round 16: Step 2a — is.null (Step 2b удалён в Round 21)
       expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
-      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+    })
+
+    // Fix [AI-Review][Medium] Round 21: Step 2b удалён — не выполняется избыточный запрос
+    it('не выполняет Step 2b в subscription.updated — гарантированно пустой запрос (Round 21 Medium)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeSubscriptionEvent('customer.subscription.updated')
+      )
+      // Шаг 1 возвращает 0 строк → fallback
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      await POST(makeRequest('{}'))
+
+      // Без Step 2b: ровно 2 update вызова (Step 1 + Step 2a)
+      expect(mockUpdate).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -1066,22 +1128,25 @@ describe('POST /api/webhooks/stripe', () => {
       consoleSpy.mockRestore()
     })
 
-    // Fix [AI-Review][Critical] Round 15: EQ guard в fallback payment.failed при наличии subscriptionId
-    // Fix [AI-Review][High] Round 16: два запроса вместо .or() строковой интерполяции
-    it('fallback использует EQ guard при наличии subscriptionId (Round 16 High)', async () => {
+    // Fix [AI-Review][Critical] Round 15: IS NULL guard в fallback payment.failed.
+    // Fix [AI-Review][High] Round 16: типобезопасные методы SDK вместо .or() строковой интерполяции.
+    // Fix [AI-Review][Medium] Round 20: Step 2b (.eq sub_id) удалён как guaranteed-empty.
+    it('fallback использует только IS NULL guard если шаг 1 не нашёл строку (Round 20 — Step 2b убран)', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_failed'))
-      // Шаг 1 не найдёт (у профиля sub_new, event = sub_old) → fallback
+      // Шаг 1 не найдёт строку → fallback
       mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
 
       const response = await POST(makeRequest('{}'))
 
       expect(response.status).toBe(200)
+      // Шаг 1: поиск по subscription_id
       expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      // Шаг 2a: только IS NULL (Step 2b удалён)
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
-      // Round 16: два отдельных запроса — is.null и eq.sub_123
       expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
-      expect(mockEq).toHaveBeenCalledWith('stripe_subscription_id', 'sub_123')
+      // Round 20: ровно 2 update вызова (Step 1 + Step 2a)
+      expect(mockUpdate).toHaveBeenCalledTimes(2)
       consoleSpy.mockRestore()
     })
   })
@@ -1118,6 +1183,72 @@ describe('POST /api/webhooks/stripe', () => {
         expect.objectContaining({ id: 'known-user-id', email: 'auth-user@example.com' }),
         { onConflict: 'id' }
       )
+    })
+
+    // Fix [AI-Review][Critical] Round 21: Out-of-order Webhook Race Condition
+    it('не активирует подписку если она удалена в Stripe до получения checkout (Out-of-order Race, Round 21)', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ client_reference_id: 'known-user-id' })
+      )
+      // Stripe: подписка уже удалена (retrieve выбрасывает ошибку — 404)
+      mockRetrieveSubscription.mockRejectedValueOnce(new Error('No such subscription: sub_123'))
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      // IDs привязываются (stripe_customer_id, stripe_subscription_id), но статус НЕ активируется
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ stripe_customer_id: 'cus_123', stripe_subscription_id: 'sub_123' })
+      )
+      expect(mockUpdate).not.toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+      consoleSpy.mockRestore()
+    })
+
+    it('не активирует подписку если статус в Stripe canceled (Out-of-order Race, Round 21)', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ client_reference_id: 'known-user-id' })
+      )
+      // Stripe: подписка уже отменена
+      mockRetrieveSubscription.mockResolvedValueOnce({ status: 'canceled' })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).not.toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+    })
+  })
+
+  // Fix [AI-Review][Critical] Round 20: Middleware не блокирует webhook маршрут
+  describe('isPublicPath — webhook path (Round 20 Critical)', () => {
+    it('считает /api/webhooks/stripe публичным маршрутом (не перехватывается middleware)', async () => {
+      const { isPublicPath } = await import('@/lib/app-routes')
+      expect(isPublicPath('/api/webhooks/stripe')).toBe(true)
+      expect(isPublicPath('/api/webhooks/stripe/other')).toBe(true)
+    })
+  })
+
+  // Fix [AI-Review][Critical] Round 20: глобальный rate limit key для Stripe webhook
+  describe('rate limiting — глобальный ключ (Round 20 Critical)', () => {
+    it('два запроса с разными x-forwarded-for считаются против одного лимита (global key)', async () => {
+      // Устанавливаем жёсткий лимит = 1 запрос для теста
+      process.env.STRIPE_WEBHOOK_RATE_LIMIT_MAX = '1'
+      process.env.STRIPE_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS = '60'
+      resetStripeWebhookRateLimitStore()
+
+      mockConstructEvent.mockReturnValue(makeCheckoutEvent())
+
+      // Первый запрос с IP 1.1.1.1 — должен пройти
+      const res1 = await POST(makeRequest('{}', 'valid-sig', { 'x-forwarded-for': '1.1.1.1' }))
+      expect(res1.status).toBe(200)
+
+      // Второй запрос с другим IP 2.2.2.2 — должен быть заблокирован (один глобальный счётчик)
+      const res2 = await POST(makeRequest('{}', 'valid-sig', { 'x-forwarded-for': '2.2.2.2' }))
+      expect(res2.status).toBe(429)
     })
   })
 

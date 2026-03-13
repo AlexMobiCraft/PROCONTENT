@@ -4,7 +4,7 @@ export const INACTIVE_PATH = '/inactive'
 export const DEFAULT_AUTH_REDIRECT_PATH = '/feed'
 export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH] as const
 
-const PUBLIC_PATH_PREFIXES = ['/auth/'] as const
+const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/'] as const
 
 function normalizeInternalPath(path: string | undefined, fallback: string) {
   if (!path || !path.startsWith('/')) {
