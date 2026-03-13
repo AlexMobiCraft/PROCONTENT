@@ -1,5 +1,32 @@
 {
   "enabledPlugins": {
     "claude-code-setup@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/Users/1/DEV/PROCONTENT/.claude/hooks/block-env.sh",
+            "statusMessage": "Проверка защищённых файлов..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/Users/1/DEV/PROCONTENT/.claude/hooks/prettier-format.sh",
+            "statusMessage": "Prettier форматирование...",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }
