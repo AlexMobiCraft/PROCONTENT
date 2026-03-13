@@ -2,9 +2,10 @@ export const ROOT_PATH = '/'
 export const LOGIN_PATH = '/login'
 export const INACTIVE_PATH = '/inactive'
 export const DEFAULT_AUTH_REDIRECT_PATH = '/feed'
-export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH] as const
+export const ONBOARDING_PATH = '/onboarding'
+export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH, ONBOARDING_PATH] as const
 
-const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/'] as const
+const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/', '/api/checkout'] as const
 
 function normalizeInternalPath(path: string | undefined, fallback: string) {
   if (!path || !path.startsWith('/')) {
