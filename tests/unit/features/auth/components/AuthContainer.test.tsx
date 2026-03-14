@@ -12,11 +12,10 @@ vi.mock('@base-ui/react/button', () => ({
   }) => <button {...props}>{children}</button>,
 }))
 
-const { mockPush, mockReplace, mockSignInWithOtp, mockVerifyOtp, mockSearchParams } = vi.hoisted(() => ({
+const { mockPush, mockReplace, mockSignInWithPassword, mockSearchParams } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockReplace: vi.fn(),
-  mockSignInWithOtp: vi.fn(),
-  mockVerifyOtp: vi.fn(),
+  mockSignInWithPassword: vi.fn(),
   mockSearchParams: vi.fn(),
 }))
 
@@ -26,8 +25,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/features/auth/api/auth', () => ({
-  signInWithOtp: mockSignInWithOtp,
-  verifyOtp: mockVerifyOtp,
+  signInWithPassword: mockSignInWithPassword,
 }))
 
 const mockSetUser = vi.fn()
@@ -50,127 +48,26 @@ describe('AuthContainer', () => {
     mockSearchParams.mockReturnValue({ get: () => null })
   })
 
-  it('рендерит заголовок и форму email на начальном шаге', () => {
+  it('рендерит заголовок и форму логина', () => {
     render(<AuthContainer />)
 
-    expect(screen.getByText('Войти в клуб')).toBeInTheDocument()
+    expect(screen.getByText('Вход')).toBeInTheDocument()
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.getByLabelText('Пароль')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Получить код' })
+      screen.getByRole('button', { name: 'Войти' })
     ).toBeInTheDocument()
   })
 
-  it('переходит к шагу OTP после успешной отправки email', async () => {
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    const user = userEvent.setup()
-    render(<AuthContainer />)
-
-    await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
-    })
-    expect(mockSignInWithOtp).toHaveBeenCalledWith('test@example.com')
-  })
-
-  it('отображает введённый email на шаге OTP', async () => {
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    const user = userEvent.setup()
-    render(<AuthContainer />)
-
-    await user.type(screen.getByLabelText('Email'), 'user@test.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/user@test\.com/)).toBeInTheDocument()
-    })
-  })
-
-  it('показывает сетевую ошибку при сбое signInWithOtp', async () => {
-    mockSignInWithOtp.mockResolvedValue({
+  it('показывает сетевую ошибку при сбое', async () => {
+    mockSignInWithPassword.mockResolvedValue({
       error: { message: 'Network error', status: 500 },
     })
     const user = userEvent.setup()
     render(<AuthContainer />)
 
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('Не удалось отправить письмо. Попробуйте ещё раз.')
-      ).toBeInTheDocument()
-    })
-    // Остаёмся на шаге email
-    expect(screen.getByLabelText('Email')).toBeInTheDocument()
-  })
-
-  it('выполняет router.push("/feed") после успешной верификации OTP', async () => {
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    mockVerifyOtp.mockResolvedValue({ data: { session: null, user: null }, error: null })
-    const user = userEvent.setup()
-    render(<AuthContainer />)
-
-    await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() =>
-      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
-    )
-
-    await user.type(screen.getByLabelText('Код из письма'), '123456')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/feed')
-    })
-  })
-
-  it('показывает inline-ошибку при невалидном OTP (status 422)', async () => {
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    mockVerifyOtp.mockResolvedValue({
-      error: { message: 'Token has expired or is invalid', status: 422 },
-    })
-    const user = userEvent.setup()
-    render(<AuthContainer />)
-
-    await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() =>
-      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
-    )
-
-    await user.type(screen.getByLabelText('Код из письма'), '000000')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          'Код неверный или просрочен. Проверьте письмо или запросите новый код.'
-        )
-      ).toBeInTheDocument()
-    })
-    expect(mockPush).not.toHaveBeenCalled()
-  })
-
-  it('показывает сетевую ошибку при системном сбое verifyOtp', async () => {
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    mockVerifyOtp.mockResolvedValue({
-      error: { message: 'Internal server error', status: 500 },
-    })
-    const user = userEvent.setup()
-    render(<AuthContainer />)
-
-    await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() =>
-      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
-    )
-
-    await user.type(screen.getByLabelText('Код из письма'), '123456')
+    await user.type(screen.getByLabelText('Пароль'), 'password123')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     await waitFor(() => {
@@ -180,21 +77,47 @@ describe('AuthContainer', () => {
     })
   })
 
-  it('обновляет Zustand store при успешном входе', async () => {
-    const mockSession = { access_token: 'tok', user: { id: '42', email: 'test@example.com' } }
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    mockVerifyOtp.mockResolvedValue({ data: { session: mockSession, user: mockSession.user }, error: null })
+  it('выполняет router.push("/feed") после успешной авторизации', async () => {
+    mockSignInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: null })
     const user = userEvent.setup()
     render(<AuthContainer />)
 
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+    await user.type(screen.getByLabelText('Пароль'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
 
-    await waitFor(() =>
-      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
-    )
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/feed')
+    })
+  })
 
-    await user.type(screen.getByLabelText('Код из письма'), '123456')
+  it('показывает inline-ошибку "Неверный email или пароль" (status 400 Invalid login credentials)', async () => {
+    mockSignInWithPassword.mockResolvedValue({
+      error: { message: 'Invalid login credentials', status: 400 },
+    })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.type(screen.getByLabelText('Пароль'), 'wrongpassword')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Неверный email или пароль')
+      ).toBeInTheDocument()
+    })
+    expect(mockPush).not.toHaveBeenCalled()
+  })
+
+  it('обновляет Zustand store при успешном входе', async () => {
+    const mockSession = { access_token: 'tok', user: { id: '42', email: 'test@example.com' } }
+    mockSignInWithPassword.mockResolvedValue({ data: { session: mockSession, user: mockSession.user }, error: null })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.type(screen.getByLabelText('Пароль'), 'password123')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     await waitFor(() => {
@@ -210,7 +133,7 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     expect(
-      screen.getByText('Ссылка недействительна. Запросите новый код.')
+      screen.getByText('Ссылка недействительна. Запросите новую или войдите по паролю.')
     ).toBeInTheDocument()
   })
 
@@ -218,104 +141,23 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     expect(
-      screen.queryByText('Ссылка недействительна. Запросите новый код.')
+      screen.queryByText('Ссылка недействительна. Запросите новую или войдите по паролю.')
     ).not.toBeInTheDocument()
   })
 
-  it('кнопка "Войти" остаётся задизейблена после успешной верификации (isLoading=true до навигации)', async () => {
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    mockVerifyOtp.mockResolvedValue({ data: { session: null, user: null }, error: null })
+  it('кнопка "Войти" остаётся задизейблена после успешного входа (isLoading=true до навигации)', async () => {
+    mockSignInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: null })
     const user = userEvent.setup()
     render(<AuthContainer />)
 
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() =>
-      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
-    )
-
-    await user.type(screen.getByLabelText('Код из письма'), '123456')
+    await user.type(screen.getByLabelText('Пароль'), 'password123')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/feed')
     })
 
-    // После успешной верификации isLoading остаётся true — кнопка задизейблена
-    expect(screen.getByRole('button', { name: 'Проверяем...' })).toBeDisabled()
-  })
-
-  it('очищает sticky ?error из URL при возврате на шаг email', async () => {
-    mockSearchParams.mockReturnValue({
-      get: (key: string) => (key === 'error' ? 'auth_callback_error' : null),
-    })
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    const user = userEvent.setup()
-    render(<AuthContainer />)
-
-    await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() =>
-      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Изменить email' }))
-
-    expect(mockReplace).toHaveBeenCalledWith('/login')
-  })
-
-  it('не вызывает router.replace при возврате без error-параметра в URL', async () => {
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    const user = userEvent.setup()
-    render(<AuthContainer />)
-
-    await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() =>
-      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Изменить email' }))
-
-    expect(mockReplace).not.toHaveBeenCalled()
-  })
-
-  it('кнопка "Изменить email" возвращает на шаг email', async () => {
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    const user = userEvent.setup()
-    render(<AuthContainer />)
-
-    await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() =>
-      expect(screen.getByLabelText('Код из письма')).toBeInTheDocument()
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Изменить email' }))
-
-    expect(screen.getByLabelText('Email')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Код из письма')).not.toBeInTheDocument()
-  })
-
-  it('кнопка "Отправить повторно" вызывает signInWithOtp с сохранённым email', async () => {
-    mockSignInWithOtp.mockResolvedValue({ error: null })
-    const user = userEvent.setup()
-    render(<AuthContainer />)
-
-    await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Отправить повторно' })).toBeInTheDocument()
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Отправить повторно' }))
-
-    expect(mockSignInWithOtp).toHaveBeenCalledTimes(2)
-    expect(mockSignInWithOtp).toHaveBeenLastCalledWith('test@example.com')
+    expect(screen.getByRole('button', { name: 'Секунду...' })).toBeDisabled()
   })
 })

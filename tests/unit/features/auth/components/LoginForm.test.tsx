@@ -16,45 +16,40 @@ vi.mock('@base-ui/react/button', () => ({
 import { LoginForm } from '@/features/auth/components/LoginForm'
 
 describe('LoginForm', () => {
-  it('рендерит поле email и кнопку отправки', () => {
+  it('рендерит поле email, пароля и кнопку отправки', () => {
     render(<LoginForm onSubmit={vi.fn()} isLoading={false} error={null} />)
 
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.getByLabelText('Пароль')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Получить код' })
+      screen.getByRole('button', { name: 'Войти' })
     ).toBeInTheDocument()
   })
 
-  it('рендерит подпись под формой', () => {
-    render(<LoginForm onSubmit={vi.fn()} isLoading={false} error={null} />)
-
-    expect(
-      screen.getByText('Мы отправим ссылку на ваш email')
-    ).toBeInTheDocument()
-  })
-
-  it('вызывает onSubmit с введённым email при отправке формы', async () => {
+  it('вызывает onSubmit с введённым email и паролем при отправке формы', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
     render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
 
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+    await user.type(screen.getByLabelText('Пароль'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
 
-    expect(onSubmit).toHaveBeenCalledWith('test@example.com')
+    expect(onSubmit).toHaveBeenCalledWith({ email: 'test@example.com', password: 'password123' })
   })
 
   it('показывает состояние загрузки: кнопка задизейблена и текст изменён', () => {
     render(<LoginForm onSubmit={vi.fn()} isLoading={true} error={null} />)
 
-    const button = screen.getByRole('button', { name: 'Отправляем...' })
+    const button = screen.getByRole('button', { name: 'Секунду...' })
     expect(button).toBeDisabled()
   })
 
-  it('поле email задизейблено при isLoading=true', () => {
+  it('поля задизейблены при isLoading=true', () => {
     render(<LoginForm onSubmit={vi.fn()} isLoading={true} error={null} />)
 
     expect(screen.getByLabelText('Email')).toBeDisabled()
+    expect(screen.getByLabelText('Пароль')).toBeDisabled()
   })
 
   it('отображает inline-ошибку при наличии error prop', () => {
@@ -62,12 +57,12 @@ describe('LoginForm', () => {
       <LoginForm
         onSubmit={vi.fn()}
         isLoading={false}
-        error="Введите корректный email"
+        error="Сетевая ошибка"
       />
     )
 
     const errorEl = screen.getByRole('alert')
-    expect(errorEl).toHaveTextContent('Введите корректный email')
+    expect(errorEl).toHaveTextContent('Сетевая ошибка')
   })
 
   it('поле email имеет aria-invalid=true при наличии ошибки', () => {
@@ -89,10 +84,25 @@ describe('LoginForm', () => {
     const onSubmit = vi.fn()
     render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
 
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+    await user.type(screen.getByLabelText('Пароль'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     expect(onSubmit).not.toHaveBeenCalled()
     expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Введите email')
+  })
+
+  it('не вызывает onSubmit при пустом пароле', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Введите пароль')
   })
 
   it('не вызывает onSubmit при невалидном email', async () => {
@@ -101,21 +111,24 @@ describe('LoginForm', () => {
     render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
 
     await user.type(screen.getByLabelText('Email'), 'не-email')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+    await user.type(screen.getByLabelText('Пароль'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     expect(onSubmit).not.toHaveBeenCalled()
     expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Введите корректный email')
   })
 
-  it('вызывает onSubmit при валидном email', async () => {
+  it('вызывает onSubmit при валидном email и пароле', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
     render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
 
     await user.type(screen.getByLabelText('Email'), 'valid@example.com')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+    await user.type(screen.getByLabelText('Пароль'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
 
-    expect(onSubmit).toHaveBeenCalledWith('valid@example.com')
+    expect(onSubmit).toHaveBeenCalledWith({ email: 'valid@example.com', password: 'password123' })
   })
 
   it('очищает ошибку валидации при вводе в поле email', async () => {
@@ -124,11 +137,25 @@ describe('LoginForm', () => {
     render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
 
     // Вызываем ошибку валидации (пустая отправка)
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
     expect(screen.getByRole('alert')).toBeInTheDocument()
 
     // Начинаем вводить — ошибка должна исчезнуть
     await user.type(screen.getByLabelText('Email'), 'a')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('очищает ошибку валидации при вводе в поле пароля', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<LoginForm onSubmit={onSubmit} isLoading={false} error={null} />)
+
+    // Вызываем пустую отправку чтобы появилась ошибка
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    // Вводим что-то в пароль
+    await user.type(screen.getByLabelText('Пароль'), '1')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

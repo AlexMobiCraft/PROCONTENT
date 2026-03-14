@@ -261,7 +261,7 @@ procontent/
 
 **API & Data Boundaries:**
 - **Client-Side Data Fetching (SPA):** Все запросы на чтение данных (лента, комментарии) происходят напрямую из клиентских компонентов (`use client`) через `lib/supabase/client.ts`, минуя Next.js API Routes. Это обеспечивает мгновенный отклик и классический SPA-опыт.
-- **Server-Side Mutations & Webhooks:** Next.js Route Handlers (`/api/webhooks/*`) и `lib/supabase/server.ts` используются ИСКЛЮЧИТЕЛЬНО для безопасного взаимодействия со сторонними серверами (Stripe Webhooks) и серверной логики админки.
+- **Server-Side Mutations & Webhooks:** Next.js Route Handlers (`/api/webhooks/*`, `/auth/confirm/route.ts`) и `lib/supabase/server.ts` используются ИСКЛЮЧИТЕЛЬНО для безопасного взаимодействия со сторонними серверами (Stripe Webhooks), обработки ссылок верификации email/пароля и серверной логики админки.
 
 **Component Boundaries:**
 - Компоненты внутри `src/features/[name]/components/` делятся на `Containers` (Smart - имеют доступ к `store.ts` и `api/`) и `Views` (Dumb).
@@ -283,9 +283,10 @@ procontent/
 ### Integration Points
 
 **Data Flow (Authentication -> Content):**
-1. При использовании Magic Links почтовые клиенты иногда ломают URL-строку (URL-encoding). Чтобы избежать ошибок "Verify requires a verification type", Magic Links направляются **не** на дефолтный `/auth/v1/verify`, а на кастомный Route Handler `src/app/auth/confirm/route.ts` через `token_hash` и `type`.
-2. Stripe Webhook обновляет статус подписки в таблице `users` и `auth.users` (metadata) в Supabase.
-3. При входе в `(app)/layout.tsx` проверяется сессия Supabase через `client.ts` и `server.ts`.
+1. Supabase Auth настроен на использование классической комбинации Email + Password. Для верификации email при первой регистрации, а также для сброса пароля используются уникальные ссылки-приглашения (Invite/Recovery links).
+2. Чтобы избежать проблем с почтовыми клиентами, ломающими URL-строки, эти ссылки направляются на кастомный Route Handler `src/app/auth/confirm/route.ts`, который валидирует `token_hash` и `type` (например, `invite` или `recovery`), после чего перенаправляет участницу на страницу создания нового пароля.
+3. Stripe Webhook обновляет статус подписки в таблице `users` и `auth.users` (metadata) в Supabase.
+4. При входе в `(app)/layout.tsx` проверяется сессия Supabase через `client.ts` и `server.ts`.
 4. Если подписка неактивна, пользователь редиректится на Paywall (`src/features/auth/components/Paywall.tsx`).
 5. Если активна, монтируется `FeedContainer`, который запрашивает данные напрямую из Supabase.
 

@@ -21,7 +21,13 @@ export async function GET(request: NextRequest) {
     if (!error) {
       // Подчищаем URL от токена перед редиректом
       const url = request.nextUrl.clone()
-      url.pathname = next
+      
+      if (type === 'signup' || type === 'recovery') {
+        url.pathname = '/update-password'
+      } else {
+        url.pathname = next
+      }
+      
       url.searchParams.delete('token_hash')
       url.searchParams.delete('type')
       url.searchParams.delete('next')

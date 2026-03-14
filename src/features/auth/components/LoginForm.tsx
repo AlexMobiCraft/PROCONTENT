@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-
 import { cn } from '@/lib/utils'
 
 interface LoginFormProps {
-  onSubmit: (email: string) => void
+  onSubmit: (data: { email: string; password?: string }) => void
   isLoading: boolean
   error: string | null
 }
@@ -17,6 +16,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
     e.preventDefault()
     const form = e.currentTarget
     const emailInput = form.elements.namedItem('email') as HTMLInputElement
+    const passwordInput = form.elements.namedItem('password') as HTMLInputElement | null
 
     if (emailInput.validity.valueMissing) {
       setValidationError('Введите email')
@@ -26,9 +26,19 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
       setValidationError('Введите корректный email')
       return
     }
+    
+    // We make password required for login, assuming LoginForm handles both steps or just login.
+    // In our new requirements LoginForm is just email + password.
+    if (passwordInput && passwordInput.validity.valueMissing) {
+      setValidationError('Введите пароль')
+      return
+    }
 
     setValidationError(null)
-    onSubmit(emailInput.value)
+    onSubmit({ 
+      email: emailInput.value, 
+      password: passwordInput?.value 
+    })
   }
 
   const displayError = validationError ?? error
@@ -46,7 +56,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
           required
           placeholder="your@email.com"
           disabled={isLoading}
-          aria-describedby={displayError ? 'email-error' : undefined}
+          aria-describedby={displayError ? 'login-error' : undefined}
           aria-invalid={!!displayError}
           onChange={() => setValidationError(null)}
           className={cn(
@@ -55,26 +65,43 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
               'border-destructive focus:ring-destructive/20 focus:border-destructive'
           )}
         />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="password" className="text-foreground text-sm font-medium">
+          Пароль
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          required
+          placeholder="Ваш пароль"
+          disabled={isLoading}
+          onChange={() => setValidationError(null)}
+          className={cn(
+            'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
+            displayError &&
+              'border-destructive focus:ring-destructive/20 focus:border-destructive'
+          )}
+        />
         {displayError && (
-          <p id="email-error" role="alert" className="text-destructive text-sm">
+          <p id="login-error" role="alert" className="text-destructive text-sm mt-1">
             {displayError}
           </p>
         )}
       </div>
 
-      <div className="flex justify-center">
+      <div className="flex justify-center mt-2">
         <button
           type="submit"
           disabled={isLoading}
           className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none w-[240px]"
         >
-          {isLoading ? 'Отправляем...' : 'Получить код'}
+          {isLoading ? 'Секунду...' : 'Войти'}
         </button>
       </div>
 
-      <p className="text-muted-foreground text-center text-xs">
-        Мы отправим ссылку на ваш email
-      </p>
     </form>
   )
 }

@@ -2,25 +2,17 @@
 
 import { createClient } from '@/lib/supabase/client'
 
-export async function signInWithOtp(email: string) {
+export async function signInWithPassword({ email, password }: { email: string, password: string }) {
   const supabase = createClient()
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? window.location.origin
-  return supabase.auth.signInWithOtp({
+  return supabase.auth.signInWithPassword({
     email,
-    options: {
-      shouldCreateUser: true,
-      emailRedirectTo: `${siteUrl}/auth/callback`,
-    },
+    password,
   })
 }
 
-export async function verifyOtp(email: string, token: string) {
+export async function updatePassword(password: string) {
   const supabase = createClient()
-  return supabase.auth.verifyOtp({
-    email,
-    token,
-    type: 'email',
-  })
+  return supabase.auth.updateUser({ password })
 }
 
 export async function signOut() {

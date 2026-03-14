@@ -1,95 +1,84 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Мок Supabase-клиента
-const mockSignInWithOtp = vi.fn()
-const mockVerifyOtp = vi.fn()
+const mockSignInWithPassword = vi.fn()
+const mockUpdateUser = vi.fn()
 const mockSignOut = vi.fn()
 const mockGetSession = vi.fn()
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: {
-      signInWithOtp: mockSignInWithOtp,
-      verifyOtp: mockVerifyOtp,
+      signInWithPassword: mockSignInWithPassword,
+      updateUser: mockUpdateUser,
       signOut: mockSignOut,
       getSession: mockGetSession,
     },
   }),
 }))
 
-import { getSession, signInWithOtp, signOut, verifyOtp } from '@/features/auth/api/auth'
+import { getSession, signInWithPassword, signOut, updatePassword } from '@/features/auth/api/auth'
 
 describe('auth API', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // window.location.origin доступен в jsdom
-    Object.defineProperty(window, 'location', {
-      value: { origin: 'http://localhost:3000' },
-      writable: true,
-    })
   })
 
-  describe('signInWithOtp', () => {
-    it('вызывает supabase.auth.signInWithOtp с правильными параметрами', async () => {
-      mockSignInWithOtp.mockResolvedValue({ data: {}, error: null })
+  describe('signInWithPassword', () => {
+    it('вызывает supabase.auth.signInWithPassword с правильными параметрами', async () => {
+      mockSignInWithPassword.mockResolvedValue({ data: {}, error: null })
 
-      await signInWithOtp('test@example.com')
+      await signInWithPassword({ email: 'test@example.com', password: 'password123' })
 
-      expect(mockSignInWithOtp).toHaveBeenCalledWith({
+      expect(mockSignInWithPassword).toHaveBeenCalledWith({
         email: 'test@example.com',
-        options: {
-          shouldCreateUser: true,
-          emailRedirectTo: 'http://localhost:3000/auth/callback',
-        },
+        password: 'password123',
       })
     })
 
     it('возвращает ошибку от Supabase', async () => {
-      const error = { message: 'Rate limit exceeded', status: 429 }
-      mockSignInWithOtp.mockResolvedValue({ data: null, error })
+      const error = { message: 'Invalid credentials', status: 400 }
+      mockSignInWithPassword.mockResolvedValue({ data: null, error })
 
-      const result = await signInWithOtp('test@example.com')
+      const result = await signInWithPassword({ email: 'test@example.com', password: 'wrong' })
 
       expect(result.error).toEqual(error)
     })
 
     it('возвращает data при успехе', async () => {
-      mockSignInWithOtp.mockResolvedValue({ data: { user: null }, error: null })
+      mockSignInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: null })
 
-      const result = await signInWithOtp('test@example.com')
+      const result = await signInWithPassword({ email: 'test@example.com', password: 'password123' })
 
       expect(result.error).toBeNull()
     })
   })
 
-  describe('verifyOtp', () => {
-    it('вызывает supabase.auth.verifyOtp с правильными параметрами', async () => {
-      mockVerifyOtp.mockResolvedValue({ data: {}, error: null })
+  describe('updatePassword', () => {
+    it('вызывает supabase.auth.updateUser с правильными параметрами', async () => {
+      mockUpdateUser.mockResolvedValue({ data: {}, error: null })
 
-      await verifyOtp('test@example.com', '123456')
+      await updatePassword('newpassword123')
 
-      expect(mockVerifyOtp).toHaveBeenCalledWith({
-        email: 'test@example.com',
-        token: '123456',
-        type: 'email',
+      expect(mockUpdateUser).toHaveBeenCalledWith({
+        password: 'newpassword123',
       })
     })
 
-    it('возвращает ошибку при невалидном OTP', async () => {
-      const error = { message: 'Token has expired or is invalid', status: 422 }
-      mockVerifyOtp.mockResolvedValue({ data: null, error })
+    it('возвращает ошибку от Supabase при обновлении', async () => {
+      const error = { message: 'Weak password', status: 400 }
+      mockUpdateUser.mockResolvedValue({ data: null, error })
 
-      const result = await verifyOtp('test@example.com', '000000')
+      const result = await updatePassword('123')
 
       expect(result.error).toEqual(error)
-      expect(result.error?.status).toBe(422)
     })
 
-    it('возвращает data при успешной верификации', async () => {
-      const session = { access_token: 'token', user: { id: '1' } }
-      mockVerifyOtp.mockResolvedValue({ data: { session }, error: null })
+    it('возвращает data при успешном обновлении', async () => {
+      const user = { id: '1' }
+      mockUpdateUser.mockResolvedValue({ data: { user }, error: null })
 
-      const result = await verifyOtp('test@example.com', '123456')
+      const result = await updatePassword('newpassword123')
 
       expect(result.error).toBeNull()
     })
