@@ -5,56 +5,44 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthSuccessRedirectPath } from '@/lib/app-routes'
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
+  const { searchParams } = request.nextUrl
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null
   const next = searchParams.get('next') ?? getAuthSuccessRedirectPath()
 
+  const redirectUrl = request.nextUrl.clone()
+  redirectUrl.searchParams.delete('token_hash')
+  redirectUrl.searchParams.delete('type')
+  redirectUrl.searchParams.delete('next')
+
   if (tokenHash && type) {
     const supabase = await createClient()
 
     const { error } = await supabase.auth.verifyOtp({
       type,
-      'token_hash': tokenHash,
+      token_hash: tokenHash,
     })
     
     if (!error) {
-      // Подчищаем URL от токена перед редиректом
-      const url = request.nextUrl.clone()
-      
       if (type === 'signup' || type === 'recovery') {
-        url.pathname = '/update-password'
+        redirectUrl.pathname = '/update-password'
       } else {
-        url.pathname = next
+        redirectUrl.pathname = next
       }
-      
-      url.searchParams.delete('token_hash')
-      url.searchParams.delete('type')
-      url.searchParams.delete('next')
-      return NextResponse.redirect(url)
+      return NextResponse.redirect(redirectUrl)
     }
+
+    // Если verifyOtp вернул ошибку
+    console.error('[auth/confirm] Error:', error.message)
+    redirectUrl.pathname = '/login'
+    redirectUrl.searchParams.set('error', 'auth_callback_error')
+    redirectUrl.searchParams.set('error_description', error.message)
+    return NextResponse.redirect(redirectUrl)
   }
 
-  // При ошибке редиректим на логин с параметром ошибки
-  const url = request.nextUrl.clone()
-  url.pathname = '/login'
-  url.searchParams.delete('token_hash')
-  url.searchParams.delete('type')
-  url.searchParams.delete('next')
-  url.searchParams.set('error', 'auth_callback_error')
-  
-  if (tokenHash && type) {
-    const supabase = await createClient()
-    const { error } = await supabase.auth.verifyOtp({
-      type,
-      'token_hash': tokenHash,
-    })
-    if (error) {
-      url.searchParams.set('error_description', error.message)
-    }
-  } else {
-    url.searchParams.set('error_description', 'Missing token_hash or type')
-  }
-  
-  return NextResponse.redirect(url)
+  // Если параметров нет вообще
+  redirectUrl.pathname = '/login'
+  redirectUrl.searchParams.set('error', 'auth_callback_error')
+  redirectUrl.searchParams.set('error_description', 'Missing token_hash or type')
+  return NextResponse.redirect(redirectUrl)
 }
