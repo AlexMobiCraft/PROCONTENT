@@ -35,14 +35,14 @@ export async function GET(request: NextRequest) {
     // Если verifyOtp вернул ошибку
     console.error('[auth/confirm] Error:', error.message)
     redirectUrl.pathname = '/login'
-    redirectUrl.searchParams.set('error', 'auth_callback_error')
+    redirectUrl.searchParams.set('error', 'auth_callback_error_v2')
     redirectUrl.searchParams.set('error_description', error.message)
     return NextResponse.redirect(redirectUrl)
   }
 
   // Если параметров нет вообще
   redirectUrl.pathname = '/login'
-  redirectUrl.searchParams.set('error', 'auth_callback_error')
+  redirectUrl.searchParams.set('error', 'auth_callback_error_v2')
   redirectUrl.searchParams.set('error_description', 'Missing token_hash or type')
   return NextResponse.redirect(redirectUrl)
 }
