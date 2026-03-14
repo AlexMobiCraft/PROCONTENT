@@ -14,6 +14,6 @@ export const config = {
      * - favicon.ico
      * - публичных ассетов (изображения, шрифты и т.д.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth/confirm|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
