@@ -99,16 +99,16 @@ So that легко и безопасно получать доступ к сво
   - [x] Subtask 3.2 В `route.ts` обработать параметры `token_hash` и `type`.
   - [x] Subtask 3.3 После успешного `verifyOtp` (если `type === 'signup'` или `recovery`) перенаправить на страницу установки пароля (`/update-password`).
 
-- [ ] Task 4 (AC: 1, 3) Создание страницы и компонента установки/обновления пароля
+- [x] Task 4 (AC: 1, 3) Создание страницы и компонента установки/обновления пароля
   - [x] Subtask 4.1 Создать компонент `UpdatePasswordForm.tsx` с полем пароля и его валидацией.
-  - [ ] Subtask 4.2 Создать страницу `src/app/(app)/update-password/page.tsx` (или `(public)` если нужна публичная доступность без сессии - лучше `(app)` чтобы пользователь уже был авторизован после перехода по ссылке).
-  - [ ] Subtask 4.3 При отправке формы вызывать `updatePassword`, затем редиректить в `/feed`. после успешного сохранения нового пароля.
+  - [x] Subtask 4.2 Создать страницу `src/app/(app)/update-password/page.tsx` (или `(public)` если нужна публичная доступность без сессии - лучше `(app)` чтобы пользователь уже был авторизован после перехода по ссылке).
+  - [x] Subtask 4.3 При отправке формы вызывать `updatePassword`, затем редиректить в `/feed`. после успешного сохранения нового пароля.
 
-- [ ] Task 5 Обновление Vitest тестов
-  - [ ] Subtask 5.1 Удалить устаревшие тесты (для OTP).
-  - [ ] Subtask 5.2 Актуализировать тесты API, LoginForm и AuthContainer для работы с email/password.
-  - [ ] Subtask 5.3 Добавить тесты для `UpdatePasswordForm`.
-  - [ ] Subtask 5.4 Обновить тесты для `route.ts`.
+- [x] Task 5 Обновление Vitest тестов
+  - [x] Subtask 5.1 Удалить устаревшие тесты (для OTP).
+  - [x] Subtask 5.2 Актуализировать тесты API, LoginForm и AuthContainer для работы с email/password.
+  - [x] Subtask 5.3 Добавить тесты для `UpdatePasswordForm`.
+  - [x] Subtask 5.4 Обновить тесты для `route.ts`.
 
 ## Dev Agent Record
 

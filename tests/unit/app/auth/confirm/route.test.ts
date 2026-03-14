@@ -32,7 +32,7 @@ describe('GET /auth/confirm', () => {
     mockVerifyOtp.mockResolvedValue({ error: null })
   })
 
-  it('редиректит на /feed по умолчанию после успешной верификации', async () => {
+  it('редиректит на /feed по умолчанию после успешной верификации (type=email)', async () => {
     const response = await GET(makeRequest())
 
     expect(response.status).toBe(307)
@@ -43,7 +43,21 @@ describe('GET /auth/confirm', () => {
     })
   })
 
-  it('использует AUTH_SUCCESS_REDIRECT_PATH если next не передан', async () => {
+  it('редиректит на /update-password при успехе если type=signup', async () => {
+    const response = await GET(makeRequest('token_hash=test-token&type=signup'))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('http://localhost:3000/update-password')
+  })
+
+  it('редиректит на /update-password при успехе если type=recovery', async () => {
+    const response = await GET(makeRequest('token_hash=test-token&type=recovery'))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('http://localhost:3000/update-password')
+  })
+
+  it('использует AUTH_SUCCESS_REDIRECT_PATH если next не передан и type=email', async () => {
     process.env.AUTH_SUCCESS_REDIRECT_PATH = '/dashboard'
 
     const response = await GET(makeRequest())
@@ -52,7 +66,7 @@ describe('GET /auth/confirm', () => {
     expect(response.headers.get('location')).toBe('http://localhost:3000/dashboard')
   })
 
-  it('отдаёт приоритет query next над AUTH_SUCCESS_REDIRECT_PATH', async () => {
+  it('отдаёт приоритет query next над AUTH_SUCCESS_REDIRECT_PATH (type=email)', async () => {
     process.env.AUTH_SUCCESS_REDIRECT_PATH = '/dashboard'
 
     const response = await GET(
