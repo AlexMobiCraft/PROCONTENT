@@ -15,9 +15,23 @@ export async function GET(request: NextRequest) {
   redirectUrl.searchParams.delete('type')
   redirectUrl.searchParams.delete('next')
 
-  if (tokenHash && type) {
-    const supabase = await createClient()
+  const supabase = await createClient()
 
+  // 1. Проверяем, может мы уже авторизованы (на случай двойного вызова роута)
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (user) {
+    console.log('[auth/confirm] User already authenticated, redirecting...')
+    if (type === 'signup' || type === 'recovery') {
+      redirectUrl.pathname = '/update-password'
+    } else {
+      redirectUrl.pathname = next
+    }
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  // 2. Если не авторизованы, пробуем верифицировать токен
+  if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({
       type,
       token_hash: tokenHash,
@@ -32,17 +46,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(redirectUrl)
     }
 
-    // Если verifyOtp вернул ошибку
-    console.error('[auth/confirm] Error:', error.message)
+    // Ошибка верификации
+    console.error('[auth/confirm] VerifyOtp Error:', error.message)
     redirectUrl.pathname = '/login'
     redirectUrl.searchParams.set('error', 'auth_callback_error_v2')
-    redirectUrl.searchParams.set('error_description', error.message)
+    redirectUrl.searchParams.set('error_description', `${error.message} (Type: ${type})`)
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Если параметров нет вообще
+  // Параметров нет
   redirectUrl.pathname = '/login'
   redirectUrl.searchParams.set('error', 'auth_callback_error_v2')
-  redirectUrl.searchParams.set('error_description', 'Missing token_hash or type')
+  redirectUrl.searchParams.set('error_description', 'No token_hash found in URL')
   return NextResponse.redirect(redirectUrl)
 }
