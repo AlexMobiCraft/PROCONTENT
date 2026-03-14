@@ -42,5 +42,19 @@ export async function GET(request: NextRequest) {
   url.searchParams.delete('type')
   url.searchParams.delete('next')
   url.searchParams.set('error', 'auth_callback_error')
+  
+  if (tokenHash && type) {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.verifyOtp({
+      type,
+      'token_hash': tokenHash,
+    })
+    if (error) {
+      url.searchParams.set('error_description', error.message)
+    }
+  } else {
+    url.searchParams.set('error_description', 'Missing token_hash or type')
+  }
+  
   return NextResponse.redirect(url)
 }
