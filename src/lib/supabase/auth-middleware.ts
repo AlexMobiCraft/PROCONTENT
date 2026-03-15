@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { Database } from '@/types/supabase'
+import { stripe } from '@/lib/stripe'
 import {
   getAuthSuccessRedirectPath,
   INACTIVE_PATH,
@@ -9,16 +10,9 @@ import {
   ROOT_PATH,
 } from '@/lib/app-routes'
 
-// Fix [AI-Review][Medium]: кеш subscription_status в httpOnly cookie (30s TTL).
-// Исключает запрос к БД на каждый переход, сохраняя NFR7 (инвалидация <60s).
 const SUBSCRIPTION_CACHE_COOKIE = '__sub_status'
 const DEFAULT_SUBSCRIPTION_CACHE_TTL = 30
 
-// [AI-Review][Critical] Fix Round 9: HMAC-подписание cookie против спуфинга кеша.
-// Без подписи злоумышленник мог изменить cookie в DevTools (e.g. userId:active),
-// обходя проверку подписки. С подписью изменение cookie → неверная подпись → DB lookup.
-// Fix [AI-Review][Medium] Round 12: безопасное для времени импортирование ключа HMAC.
-// Используется как для sign (создание токена), так и для verify (проверка без timing leak).
 async function importHmacKey(secret: string): Promise<CryptoKey> {
   const encoder = new TextEncoder()
   return crypto.subtle.importKey(
@@ -30,24 +24,13 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
   )
 }
 
-// Fix [AI-Review][Medium] Round 15: кешируем CryptoKey глобально.
-// importKey — тяжёлая операция (decode + validate). В Edge Runtime
-// каждый вызов hmacSign/parseCacheToken импортировал ключ заново.
-// Кеш хранит Promise<CryptoKey> привязанный к secret — при смене secret ключ пересоздаётся.
 let _cachedHmacKey: { secret: string; key: Promise<CryptoKey> } | null = null
 
 function getSubscriptionCacheTtl() {
   const rawValue = process.env.SUBSCRIPTION_CACHE_TTL_SECONDS
-  if (!rawValue) {
-    return DEFAULT_SUBSCRIPTION_CACHE_TTL
-  }
-
+  if (!rawValue) return DEFAULT_SUBSCRIPTION_CACHE_TTL
   const parsedValue = Number.parseInt(rawValue, 10)
-  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
-    return DEFAULT_SUBSCRIPTION_CACHE_TTL
-  }
-
-  return parsedValue
+  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : DEFAULT_SUBSCRIPTION_CACHE_TTL
 }
 
 function getSubscriptionCacheCookieOptions(maxAge: number) {
@@ -61,9 +44,7 @@ function getSubscriptionCacheCookieOptions(maxAge: number) {
 }
 
 function getHmacKey(secret: string): Promise<CryptoKey> {
-  if (_cachedHmacKey && _cachedHmacKey.secret === secret) {
-    return _cachedHmacKey.key
-  }
+  if (_cachedHmacKey && _cachedHmacKey.secret === secret) return _cachedHmacKey.key
   const keyPromise = importHmacKey(secret)
   _cachedHmacKey = { secret, key: keyPromise }
   return keyPromise
@@ -79,12 +60,6 @@ async function hmacSign(data: string, secret: string): Promise<string> {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-// Создаёт подписанный токен кеша: "userId:status:hmac".
-// Если COOKIE_SECRET не задан — кеш отключён (всегда запрашиваем БД).
-// Fix [AI-Review][Medium] Round 11: оборачиваем crypto.subtle в try/catch.
-// Без try/catch ошибка hmacSign (напр. crypto недоступен в Edge) вызвала бы неотловленное
-// исключение и сломала Middleware глобально. При ошибке возвращаем null → кеш не устанавливается,
-// следующий запрос сделает DB lookup (fail-secure).
 export async function createCacheToken(userId: string, status: string): Promise<string | null> {
   const secret = process.env.COOKIE_SECRET
   if (!secret) return null
@@ -92,60 +67,29 @@ export async function createCacheToken(userId: string, status: string): Promise<
   try {
     const sig = await hmacSign(data, secret)
     return `${data}:${sig}`
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
-// Верифицирует подписанный токен. Возвращает {userId, status} при успехе, null при ошибке.
-// Null означает: либо секрет не задан, либо подпись неверна, либо crypto ошибка → DB lookup обязателен.
-export async function parseCacheToken(
-  token: string
-): Promise<{ userId: string; status: string } | null> {
+export async function parseCacheToken(token: string): Promise<{ userId: string; status: string } | null> {
   const secret = process.env.COOKIE_SECRET
   if (!secret) return null
-
-  // format: "userId:status:signature"
   const lastColon = token.lastIndexOf(':')
   if (lastColon < 0) return null
-
   const sigB64 = token.slice(lastColon + 1)
   const data = token.slice(0, lastColon)
-
-  // Fix [AI-Review][Medium] Round 12: timing-safe сравнение HMAC через crypto.subtle.verify().
-  // Строковое сравнение (sig !== expectedSig) уязвимо к timing attack:
-  // атакующий может измерять время ответа для побайтового подбора подписи.
-  // crypto.subtle.verify() выполняет сравнение за постоянное время (constant-time).
-  // Fix [AI-Review][Medium] Round 10: try/catch вокруг crypto.subtle сохраняется — защита от глобального DoS.
   try {
     const encoder = new TextEncoder()
     const key = await getHmacKey(secret)
-
-    // Декодируем base64url-подпись обратно в ArrayBuffer
-    const sigPad = sigB64.replace(/-/g, '+').replace(/_/g, '/').padEnd(
-      sigB64.length + (4 - (sigB64.length % 4)) % 4, '='
-    )
+    const sigPad = sigB64.replace(/-/g, '+').replace(/_/g, '/').padEnd(sigB64.length + (4 - (sigB64.length % 4)) % 4, '=')
     const sigBytes = Uint8Array.from(atob(sigPad), (c) => c.charCodeAt(0))
-
-    // timing-safe проверка: verify() возвращает true/false за постоянное время
     const isValid = await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(data))
     if (!isValid) return null
-  } catch {
-    return null
-  }
-
+  } catch { return null }
   const firstColon = data.indexOf(':')
   if (firstColon < 0) return null
-
   return { userId: data.slice(0, firstColon), status: data.slice(firstColon + 1) }
 }
 
-// [AI-Review][Critical] Fix Round 6: копируем куки из supabaseResponse в редирект,
-// чтобы не терять обновляемые auth токены (Supabase может обновить refresh token в getUser).
-// Fix [AI-Review][Medium] Round 16: исключаем SUBSCRIPTION_CACHE_COOKIE из копирования.
-// Слепое копирование кеш-куки из supabaseResponse могло привести к state-дрифтингу:
-// устаревший статус из предыдущего цикла мог переопределить новый, явно установленный вызывающим.
-// Кеш-куку устанавливают вызывающие функции явно — это их ответственность.
 function redirectWithCookies(url: URL, supabaseResponse: NextResponse): NextResponse {
   const redirectResponse = NextResponse.redirect(url)
   supabaseResponse.headers.forEach((value, key) => {
@@ -163,8 +107,6 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // [AI-Review][High] Fix Round 9: fail-secure при отсутствии env переменных.
-  // Вместо прозрачного pass-through — блокируем защищённые маршруты редиректом на /login.
   if (!supabaseUrl || !supabaseAnonKey) {
     const { pathname } = request.nextUrl
     if (!isPublicPath(pathname)) {
@@ -179,164 +121,112 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
 
   const supabase = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      getAll() {
-        return request.cookies.getAll()
-      },
+      getAll() { return request.cookies.getAll() },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value)
-        )
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
         const existingCookies = supabaseResponse.cookies.getAll()
         supabaseResponse = NextResponse.next({ request })
-        existingCookies.forEach(({ name, value, ...options }) =>
-          supabaseResponse.cookies.set(name, value, options)
-        )
-        cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, options)
-        )
+        existingCookies.forEach(({ name, value, ...options }) => supabaseResponse.cookies.set(name, value, options))
+        cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
       },
     },
   })
 
-  // IMPORTANT: Do not add any logic between createServerClient and getUser()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
-
   const publicPath = isPublicPath(pathname)
 
-  // Redirect authenticated user away from /login
   if (user && pathname === LOGIN_PATH) {
     const url = request.nextUrl.clone()
     url.pathname = getAuthSuccessRedirectPath()
     return redirectWithCookies(url, supabaseResponse)
   }
 
-  // Redirect unauthenticated users away from protected routes
   if (!user && !publicPath) {
     const url = request.nextUrl.clone()
     url.pathname = LOGIN_PATH
     return redirectWithCookies(url, supabaseResponse)
   }
 
-  // [AI-Review][Medium] Fix Round 9: UX Dead-End на /inactive.
-  // Если активный пользователь на /inactive (оплата прошла пока он там был) —
-  // делаем свежий DB-запрос и редиректим в /feed. Кеш не используем: нам нужна актуальная информация.
+  // ОБНОВЛЕННАЯ ЛОГИКА ДЛЯ /inactive (Story 1.7)
   if (user && pathname === INACTIVE_PATH) {
-    // Fix [AI-Review][High] Round 11: maybeSingle() вместо single().
-    // single() бросает PGRST116 если профиль не существует (свежий пользователь, триггер ещё не отработал).
-    // PGRST116 → profileError → редирект на / → если layout редиректит auth-юзеров на /feed → бесконечный цикл.
-    // maybeSingle() возвращает { data: null, error: null } при 0 строках → status = null → /inactive (безопасно).
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('subscription_status')
-      .eq('id', user.id)
-      .maybeSingle()
+    const { data: profile } = await supabase.from('profiles').select('subscription_status').eq('id', user.id).maybeSingle()
+    let status = profile?.subscription_status
 
-    if (!error) {
-      const status = profile?.subscription_status
-      if (status === 'active' || status === 'trialing') {
-        const url = request.nextUrl.clone()
-        url.pathname = getAuthSuccessRedirectPath()
-        const redirectResponse = redirectWithCookies(url, supabaseResponse)
-        // Fix [AI-Review][Medium] Round 14: создаём новую куку с актуальным active/trialing статусом.
-        // Удаление куки приводило к лишнему DB lookup при следующем запросе к /feed.
-        // DB-запрос уже выполнен выше — используем результат для создания нового кеш-токена.
-        const activeToken = await createCacheToken(user.id, status ?? 'active')
-        if (activeToken) {
-          redirectResponse.cookies.set(
-            SUBSCRIPTION_CACHE_COOKIE,
-            activeToken,
-            getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
-          )
-        } else {
-          redirectResponse.cookies.delete(SUBSCRIPTION_CACHE_COOKIE)
+    // Если статус не активен, пробуем найти оплату в Stripe прямо сейчас (Fallback)
+    if (status !== 'active' && status !== 'trialing' && user.email) {
+      try {
+        const customers = await stripe.customers.list({ email: user.email, limit: 1 })
+        if (customers.data.length > 0) {
+          const customerId = customers.data[0].id
+          const activeSubs = await stripe.subscriptions.list({ customer: customerId, status: 'active', limit: 1 })
+          if (activeSubs.data.length > 0) {
+            const sub = activeSubs.data[0]
+            // Обновляем БД через RPC или напрямую (Middleware имеет доступ)
+            await supabase.from('profiles').update({
+              subscription_status: 'active',
+              stripe_customer_id: customerId,
+              stripe_subscription_id: sub.id,
+              current_period_end: new Date((sub as any).current_period_end * 1000).toISOString()
+            }).eq('id', user.id)
+            status = 'active'
+          }
         }
-        return redirectResponse
+      } catch (e) {
+        console.error('[middleware] Fallback Stripe check error:', e)
       }
     }
-    // При ошибке БД или неактивном статусе — остаёмся на /inactive
+
+    if (status === 'active' || status === 'trialing') {
+      const url = request.nextUrl.clone()
+      url.pathname = getAuthSuccessRedirectPath()
+      const redirectResponse = redirectWithCookies(url, supabaseResponse)
+      const activeToken = await createCacheToken(user.id, status)
+      if (activeToken) {
+        redirectResponse.cookies.set(SUBSCRIPTION_CACHE_COOKIE, activeToken, getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl()))
+      }
+      return redirectResponse
+    }
     return supabaseResponse
   }
 
-  // Task 4.1 (NFR7): инвалидация доступа при subscription_status != active/trialing
-  // Проверяем только для аутентифицированных пользователей на защищённых маршрутах
   if (user && !publicPath) {
-    // [AI-Review][Critical] Fix Round 9: читаем подписанный токен кеша.
-    // Неверная подпись или отсутствие COOKIE_SECRET → null → DB lookup.
-    // Предотвращает спуфинг через DevTools: изменённый userId:status не пройдёт HMAC-проверку.
     const cachedValue = request.cookies.get(SUBSCRIPTION_CACHE_COOKIE)?.value
-
     if (cachedValue !== undefined) {
       const cached = await parseCacheToken(cachedValue)
-
       if (cached && cached.userId === user.id) {
-        // [AI-Review][Medium] Fix Round 9: whitelist подход.
-        // Разрешаем только active/trialing; 'none' (null в БД) тоже блокируется.
         if (cached.status !== 'active' && cached.status !== 'trialing') {
           const url = request.nextUrl.clone()
           url.pathname = INACTIVE_PATH
           return redirectWithCookies(url, supabaseResponse)
         }
-        // Кеш говорит active/trialing — пропускаем без DB
         return supabaseResponse
       }
-      // Кеш невалиден или принадлежит другому пользователю — игнорируем, делаем DB запрос
     }
 
-    // Кеша нет — делаем запрос к БД
-    // Fix [AI-Review][Medium]: тип выводится из Database generic createServerClient<Database>,
-    // исключая ручной cast. При изменении схемы TypeScript сразу укажет на несоответствие.
-    // Fix [AI-Review][High] Round 11: maybeSingle() вместо single() — см. комментарий выше.
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('subscription_status')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    // [AI-Review][Medium] Fix: Fail-Secure — блокируем при ошибке БД (NFR7)
-    // Fix [AI-Review][Low]: userId в логе для точной диагностики
-    // Fix [AI-Review][Critical] Round 5: редиректим на / (не /login), чтобы избежать бесконечного цикла.
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('subscription_status').eq('id', user.id).maybeSingle()
+    
     if (profileError) {
-      console.error('[middleware] Ошибка получения профиля для userId:', user.id, profileError)
       const url = request.nextUrl.clone()
       url.pathname = ROOT_PATH
       return redirectWithCookies(url, supabaseResponse)
     }
 
-    // Fix [AI-Review][Low] Round 11: убираем хардкод 'none'.
-    // null/undefined проходят whitelist-проверку корректно: null !== 'active' → true → блокируем.
     const status = profile?.subscription_status
-
-    // [AI-Review][Medium] Fix Round 9: whitelist подход.
-    // Блокируем всё кроме active/trialing: включая 'none' (новый, не оплативший).
     if (status !== 'active' && status !== 'trialing') {
       const url = request.nextUrl.clone()
       url.pathname = INACTIVE_PATH
-      // Fix [AI-Review][High] Round 6: кешируем статус перед редиректом,
-      // чтобы не делать запрос к БД на каждый последующий переход.
       const redirectResponse = redirectWithCookies(url, supabaseResponse)
       const token = await createCacheToken(user.id, status ?? 'none')
       if (token) {
-        redirectResponse.cookies.set(
-          SUBSCRIPTION_CACHE_COOKIE,
-          token,
-          getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
-        )
+        redirectResponse.cookies.set(SUBSCRIPTION_CACHE_COOKIE, token, getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl()))
       }
       return redirectResponse
     }
 
-    // Кешируем активный статус в подписанном httpOnly cookie (TTL = 30s)
     const token = await createCacheToken(user.id, status ?? 'active')
     if (token) {
-      supabaseResponse.cookies.set(
-        SUBSCRIPTION_CACHE_COOKIE,
-        token,
-        getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
-      )
+      supabaseResponse.cookies.set(SUBSCRIPTION_CACHE_COOKIE, token, getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl()))
     }
   }
 
