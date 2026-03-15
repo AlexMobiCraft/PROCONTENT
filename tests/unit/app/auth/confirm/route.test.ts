@@ -1,18 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockGetUser, mockVerifyOtp, mockCreateServerClient } = vi.hoisted(() => {
-  const mockGetUser = vi.fn()
+const { mockVerifyOtp, mockCreateServerClient } = vi.hoisted(() => {
   const mockVerifyOtp = vi.fn()
   const mockCreateServerClient = vi.fn(() => ({
     auth: {
-      getUser: mockGetUser,
       verifyOtp: mockVerifyOtp,
     },
   }))
 
   return {
-    mockGetUser,
     mockVerifyOtp,
     mockCreateServerClient,
   }
@@ -34,7 +31,6 @@ describe('GET /auth/confirm', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
     delete process.env.AUTH_SUCCESS_REDIRECT_PATH
-    mockGetUser.mockResolvedValue({ data: { user: null } })
     mockVerifyOtp.mockResolvedValue({ error: null })
   })
 
