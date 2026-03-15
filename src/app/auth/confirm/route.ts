@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
                   subscription_status: 'active',
                   stripe_customer_id: customerId,
                   stripe_subscription_id: sub.id,
-                  current_period_end: new Date(sub.current_period_end * 1000).toISOString()
+                  current_period_end: new Date((sub as any).current_period_end * 1000).toISOString()
                 })
                 .eq('id', user.id)
             }
