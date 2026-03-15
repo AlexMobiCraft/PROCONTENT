@@ -54,15 +54,18 @@ export function OnboardingScreen({ posts, whatsappUrl }: OnboardingScreenProps) 
             Начни здесь
           </h2>
           <nav aria-label="Список рекомендованных постов">
-            {posts.map((post) => (
-              <OnboardingPostCard
-                key={post.id}
-                id={post.id}
-                title={post.title}
-                category={post.category}
-                type={post.type}
-              />
-            ))}
+            <ul className="flex flex-col">
+              {posts.map((post) => (
+                <li key={post.id}>
+                  <OnboardingPostCard
+                    id={post.id}
+                    title={post.title}
+                    category={post.category}
+                    type={post.type}
+                  />
+                </li>
+              ))}
+            </ul>
           </nav>
         </section>
 

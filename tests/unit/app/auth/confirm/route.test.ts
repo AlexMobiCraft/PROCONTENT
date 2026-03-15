@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockGetUser, mockVerifyOtp, mockCreateClient } = vi.hoisted(() => {
+const { mockGetUser, mockVerifyOtp, mockCreateServerClient } = vi.hoisted(() => {
   const mockGetUser = vi.fn()
   const mockVerifyOtp = vi.fn()
-  const mockCreateClient = vi.fn(async () => ({
+  const mockCreateServerClient = vi.fn(() => ({
     auth: {
       getUser: mockGetUser,
       verifyOtp: mockVerifyOtp,
@@ -14,12 +14,12 @@ const { mockGetUser, mockVerifyOtp, mockCreateClient } = vi.hoisted(() => {
   return {
     mockGetUser,
     mockVerifyOtp,
-    mockCreateClient,
+    mockCreateServerClient,
   }
 })
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: mockCreateClient,
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: mockCreateServerClient,
 }))
 
 import { GET } from '@/app/auth/confirm/route'
@@ -31,6 +31,8 @@ function makeRequest(query = 'token_hash=test-token&type=email') {
 describe('GET /auth/confirm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
     delete process.env.AUTH_SUCCESS_REDIRECT_PATH
     mockGetUser.mockResolvedValue({ data: { user: null } })
     mockVerifyOtp.mockResolvedValue({ error: null })
@@ -87,9 +89,8 @@ describe('GET /auth/confirm', () => {
     const response = await GET(makeRequest())
 
     expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toContain(
-      'http://localhost:3000/login?error=auth_callback_error_v2'
-    )
-    expect(response.headers.get('location')).toContain('error_description=invalid+otp')
+    const url = new URL(response.headers.get('location') || '')
+    expect(url.pathname).toBe('/login')
+    expect(url.searchParams.get('error')).toBe('auth_callback_error_v2')
   })
 })

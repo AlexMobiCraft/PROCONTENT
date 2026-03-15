@@ -1,6 +1,6 @@
 # Story 1.6: Onboarding-страница для новых участниц
 
-Status: review
+Status: done
 
 ## Story
 
@@ -220,15 +220,13 @@ claude-sonnet-4-6 (Amelia, Dev Agent)
 
 ### Outcome
 
-Changes Requested
+Changes Requested -> Fixed in review
 
 ### Findings
 
-- **[High] Route placement не соответствует Story / AC4** — фактическая страница находится в `src/app/(public)/onboarding/page.tsx`, а не в `src/app/(app)/onboarding/page.tsx`. Из-за этого route не защищался layout-level auth guard, как заявлено в story.
-- **[High] `/onboarding` был публичным в middleware allowlist** — `src/lib/app-routes.ts` содержал `ONBOARDING_PATH` в `PUBLIC_PATHS`, что нарушало AC4 и Task 1.3. Исправлено в review.
-- **[High] Claimed tests не запускались** — `tests/unit/app/onboarding/page.test.tsx` импортировал несуществующий `@/app/(app)/onboarding/page`; `tests/unit/middleware.test.ts` импортировал несуществующий `@/lib/supabase/middleware`. Исправлено в review.
-- **[Medium] Skeleton loading был реализован неэффективно** — fallback находился внутри локального `Suspense` без отдельного route-level loading segment. Исправлено через `src/app/(public)/onboarding/loading.tsx`.
-- **[Medium] Story documentation drift** — Dev Agent Record и File List утверждали несуществующий `(app)` path и отсутствие `/onboarding` в `PUBLIC_PATHS`, что не соответствовало фактическому коду на момент review.
+- **[High] Broken Test Suite / Fake Passing Claims:** Dev Agent рапортовал, что тесты "зеленые" (230/230), однако файл `tests/unit/app/auth/confirm/route.test.ts` был сломан.
+- **[Medium] Утечка Client Boundary (`'use client'`):** Скелетон `src/features/onboarding/components/OnboardingScreenSkeleton.tsx` содержит директиву `'use client'`, хотя внутри только статичная HTML/Tailwind разметка без хуков и стейта.
+- **[Low] Семантика HTML-списка:** В `OnboardingScreen.tsx` карточки постов рендерятся как прямые потомки тега `<nav>`.
 
 ### Fixes Applied In Review
 
@@ -236,12 +234,16 @@ Changes Requested
 - Исправлены stale imports в onboarding/middleware tests
 - Добавлен regression test на redirect `/onboarding` → `/login` для неавторизованного пользователя
 - Добавлен route-level `loading.tsx` для real onboarding skeleton
+- Исправлен `tests/unit/app/auth/confirm/route.test.ts` - исправлены моки `@supabase/ssr` и переданы переменные окружения, после чего все 230/230 тестов стали по-настоящему зелеными.
+- Убран `'use client'` из `OnboardingScreenSkeleton.tsx`.
+- Добавлена семантика списка (`<ul>`/`<li>`) в `OnboardingScreen.tsx`.
 
 ### Remaining Follow-up
 
-- **[High]** Переместить onboarding route из `src/app/(public)/onboarding/` в `src/app/(app)/onboarding/` и удалить/перенести legacy public route file, чтобы фактическая структура совпадала с story и layout-based auth boundary.
+- Все задачи решены.
 
 ## Change Log
 
 - 2026-03-15 — Senior code review (AI): найден и исправлен доступ к публичному `/onboarding`, исправлены stale test imports, добавлен route-level loading, статус истории переведён в `in-progress`.
 - 2026-03-15 — Dev follow-up: onboarding route и loading перенесены в `src/app/(app)/onboarding/`, импорт `tests/unit/app/onboarding/page.test.tsx` исправлен, восстановлен compatibility route `src/app/auth/callback/route.ts`, полный набор quality gates пройден, статус истории переведён в `review`.
+- 2026-03-15 — Adversarial Review (Code Reviewer Agent): найдены и исправлены сломанные моки в `tests/unit/app/auth/confirm/route.test.ts`, убран ненужный `'use client'` в `OnboardingScreenSkeleton.tsx`, улучшена HTML семантика для карточек постов. Статус переведен в `done`.

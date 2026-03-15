@@ -1,5 +1,3 @@
-'use client'
-
 export function OnboardingScreenSkeleton() {
   return (
     <main className="min-h-screen bg-background">
