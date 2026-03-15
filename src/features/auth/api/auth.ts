@@ -10,6 +10,17 @@ export async function signInWithPassword({ email, password }: { email: string, p
   })
 }
 
+export async function signUp({ email, password }: { email: string; password: string }) {
+  const supabase = createClient()
+  return supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/confirm`,
+    },
+  })
+}
+
 export async function updatePassword(password: string) {
   const supabase = createClient()
   return supabase.auth.updateUser({ password })
