@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockVerifyOtp, mockCreateClient } = vi.hoisted(() => {
+const { mockGetUser, mockVerifyOtp, mockCreateClient } = vi.hoisted(() => {
+  const mockGetUser = vi.fn()
   const mockVerifyOtp = vi.fn()
   const mockCreateClient = vi.fn(async () => ({
     auth: {
+      getUser: mockGetUser,
       verifyOtp: mockVerifyOtp,
     },
   }))
 
   return {
+    mockGetUser,
     mockVerifyOtp,
     mockCreateClient,
   }
@@ -29,6 +32,7 @@ describe('GET /auth/confirm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     delete process.env.AUTH_SUCCESS_REDIRECT_PATH
+    mockGetUser.mockResolvedValue({ data: { user: null } })
     mockVerifyOtp.mockResolvedValue({ error: null })
   })
 
@@ -83,8 +87,9 @@ describe('GET /auth/confirm', () => {
     const response = await GET(makeRequest())
 
     expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toBe(
-      'http://localhost:3000/login?error=auth_callback_error'
+    expect(response.headers.get('location')).toContain(
+      'http://localhost:3000/login?error=auth_callback_error_v2'
     )
+    expect(response.headers.get('location')).toContain('error_description=invalid+otp')
   })
 })

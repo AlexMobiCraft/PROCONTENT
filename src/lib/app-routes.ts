@@ -3,7 +3,7 @@ export const LOGIN_PATH = '/login'
 export const INACTIVE_PATH = '/inactive'
 export const DEFAULT_AUTH_REDIRECT_PATH = '/feed'
 export const ONBOARDING_PATH = '/onboarding'
-export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH, ONBOARDING_PATH, '/update-password'] as const
+export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH, '/update-password'] as const
 
 const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/', '/api/checkout'] as const
 

@@ -14,7 +14,7 @@ vi.mock('@supabase/ssr', () => ({
   createServerClient: mockCreateServerClient,
 }))
 
-import { updateSession, createCacheToken, parseCacheToken } from '@/lib/supabase/middleware'
+import { updateSession, createCacheToken, parseCacheToken } from '@/lib/supabase/auth-middleware'
 
 // Хелпер: создаёт HMAC-подписанное значение cookie (идентично логике middleware).
 // Используется в тестах для генерации валидных signed tokens.
@@ -85,6 +85,16 @@ describe('middleware', () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
 
       const req = new NextRequest('http://localhost:3000/profile')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+    })
+
+    it('редиректит с /onboarding на /login', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/onboarding')
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
