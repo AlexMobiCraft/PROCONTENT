@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/auth-middleware'
 
 export async function proxy(request: NextRequest) {
-  // Пропускаем подтверждение авторизации, чтобы не сжигать одноразовый токен в Middleware/Proxy
+  // Пропускаем подтверждение авторизации, чтобы не сжигать одноразовый токен в Proxy
   if (request.nextUrl.pathname.startsWith('/auth/confirm')) {
     return
   }

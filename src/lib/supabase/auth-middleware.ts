@@ -172,25 +172,34 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
 
         if (customers.data.length > 0) {
           const customerId = customers.data[0].id
-          const activeSubs = await stripe.subscriptions.list({
+          let activeSubs = await stripe.subscriptions.list({
             customer: customerId,
             status: 'active',
             limit: 1
           })
+          if (activeSubs.data.length === 0) {
+            activeSubs = await stripe.subscriptions.list({
+              customer: customerId,
+              status: 'trialing',
+              limit: 1
+            })
+          }
 
-          console.log('[middleware] Stripe active subs found:', activeSubs.data.length)
+          console.log('[middleware] Stripe active/trialing subs found:', activeSubs.data.length)
 
           if (activeSubs.data.length > 0) {
             const sub = activeSubs.data[0]
             console.log('[middleware] Found active sub in Stripe, updating Supabase...')
-            
+            const rawPeriodEnd = (sub as unknown as { current_period_end?: number }).current_period_end
+            const currentPeriodEnd = rawPeriodEnd ? new Date(rawPeriodEnd * 1000).toISOString() : null
+
             const { error: updateError } = await supabase
               .from('profiles')
               .update({
-                subscription_status: 'active',
+                subscription_status: sub.status as 'active' | 'trialing',
                 stripe_customer_id: customerId,
                 stripe_subscription_id: sub.id,
-                current_period_end: new Date((sub as any).current_period_end * 1000).toISOString()
+                current_period_end: currentPeriodEnd,
               })
               .eq('id', user.id)
             

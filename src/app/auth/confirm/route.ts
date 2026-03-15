@@ -92,11 +92,19 @@ export async function GET(request: NextRequest) {
 
             if (customers.data.length > 0) {
               const customerId = customers.data[0].id
-              const activeSubs = await stripe.subscriptions.list({
+              // Проверяем active, затем trialing (Stripe создаёт trialing при checkout с trial period)
+            let activeSubs = await stripe.subscriptions.list({
                 customer: customerId,
                 status: 'active',
                 limit: 1,
               })
+              if (activeSubs.data.length === 0) {
+                activeSubs = await stripe.subscriptions.list({
+                  customer: customerId,
+                  status: 'trialing',
+                  limit: 1,
+                })
+              }
 
               // F8: adminSupabase создаётся один раз на весь stripe-путь запроса
               const adminSupabase = createAdminSupabaseClient()
