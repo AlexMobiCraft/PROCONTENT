@@ -95,7 +95,7 @@ so that сразу вовлечься в жизнь комьюнити.
 - **Checkout success_url уже прописан:** В `src/app/api/checkout/route.ts` (строка 54): `success_url: ${siteUrl}/onboarding?session_id={CHECKOUT_SESSION_ID}`. Изменения **НЕ нужны**. [Source: src/app/api/checkout/route.ts#L54]
 - **Группа маршрутов `(app)`:** Маршрут `/onboarding` располагается внутри `src/app/(app)/onboarding/page.tsx`. Группа `(app)` уже имеет layout с авторизационным guard'ом (`redirect('/login')` для неавторизованных). [Source: src/app/(app)/layout.tsx]
 - **`session_id` — опциональный параметр:** Stripe передаёт его как query-параметр при возврате пользователя. На MVP его **НЕ** нужно верифицировать через Stripe API. Пользователь может зайти на `/onboarding` без него (вернуться позже через меню).
-- **Middleware:** `/onboarding` защищён middleware (не в `PUBLIC_PATHS`). Пользователь с `subscription_status = 'inactive'` будет перенаправлен на `/inactive`. Это **корректное поведение**: если пользователь ещё не оплатил — на onboarding попасть нельзя. [Source: src/lib/app-routes.ts, src/lib/supabase/middleware.ts]
+- **Middleware / Proxy:** `/onboarding` защищён через `src/proxy.ts` (не в `PUBLIC_PATHS`). Пользователь с `subscription_status = 'inactive'` будет перенаправлен на `/inactive`. Это **корректное поведение**: если пользователь ещё не оплатил — на onboarding попасть нельзя. [Source: src/lib/app-routes.ts, src/lib/supabase/auth-middleware.ts]
 
 ### Архитектурные границы
 
@@ -117,8 +117,8 @@ so that сразу вовлечься в жизнь комьюнити.
 ### Plan из Story 1.5 (контекст)
 
 - **Привязка пользователя по checkout:** `handleCheckoutSessionCompleted` в webhook route обновляет `subscription_status = 'active'` и привязывает `stripe_customer_id` / `stripe_subscription_id`. К моменту перехода пользователя на `/onboarding` (success URL) — его профиль уже обновлён webhook'ом (или будет обновлён в ближайшие секунды).
-- **Возможный race condition:** Stripe success redirect и webhook могут прийти почти одновременно. Пользователь попадёт на `/onboarding`, но middleware может ещё не видеть `active` статус (webhook ещё не обработан). В этом случае middleware перенаправит на `/inactive`. **Это эпизодическая ситуация** — при обновлении страницы доступ появится. **MVP-решение:** документировать, не решать.
-- **Страница `/inactive`:** Текущая реализация содержит ссылку "На главную" → `/`. Если пользователь только что оплатил — middleware проверит его статус повторно и пустит дальше. [Source: src/app/inactive/page.tsx]
+- **Возможный race condition:** Stripe success redirect и webhook могут прийти почти одновременно. Пользователь попадёт на `/onboarding`, но auth-middleware может ещё не видеть `active` статус (webhook ещё не обработан). В этом случае middleware перенаправит на `/inactive`. **Это эпизодическая ситуация** — при обновлении страницы доступ появится. **MVP-решение:** документировать, не решать.
+- **Страница `/inactive`:** Текущая реализация содержит ссылку "На главную" → `/`. Если пользователь только что оплатил — auth-middleware проверит его статус повторно и пустит дальше. [Source: src/app/inactive/page.tsx]
 
 ### Project Structure Notes
 
@@ -142,7 +142,7 @@ so that сразу вовлечься в жизнь комьюнити.
 - [Source: src/app/api/checkout/route.ts#L54] — Success URL уже указывает на /onboarding
 - [Source: src/app/(app)/layout.tsx] — Auth guard в layout
 - [Source: src/lib/app-routes.ts] — Public paths (onboarding НЕ публичный)
-- [Source: src/lib/supabase/middleware.ts] — Subscription check middleware
+- [Source: src/lib/supabase/auth-middleware.ts] — Subscription check auth-middleware
 - [Source: _bmad-output/implementation-artifacts/stories/1-5-processing-stripe-webhooks-and-access-management.md] — Контекст webhook processing и subscription management
 
 ## Architecture Compliance

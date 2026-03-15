@@ -18,7 +18,7 @@ export function AuthContainer() {
 
   const magicLinkError = searchParams.get('error')
   const magicLinkErrorMessage =
-    magicLinkError === 'auth_callback_error'
+    magicLinkError === 'auth_callback_error' || magicLinkError === 'auth_callback_error_v2'
       ? 'Ссылка недействительна. Запросите новую или войдите по паролю.'
       : null
 

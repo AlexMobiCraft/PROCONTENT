@@ -2,7 +2,7 @@
 title: 'Исправить редирект на /login вместо /update-password при сбросе пароля'
 slug: 'fix-auth-recovery-redirect'
 created: '2026-03-15'
-status: 'ready-for-dev'
+status: 'Completed'
 stepsCompleted: [1, 2, 3, 4]
 tech_stack: ['Next.js 16', 'Supabase SSR', '@supabase/ssr', 'TypeScript', 'Vitest']
 files_to_modify:
@@ -122,7 +122,7 @@ test_patterns:
 
 ### Tasks
 
-- [ ] **Task 1**: Создать `src/app/(public)/update-password/page.tsx`
+- [x] **Task 1**: Создать `src/app/(public)/update-password/page.tsx`
   - Файл: `src/app/(public)/update-password/page.tsx` (новый)
   - Action: Создать страницу с тем же `UpdatePasswordForm`, но с outer wrapper как в `(public)/login/page.tsx`
   - Точное содержимое:
@@ -145,12 +145,12 @@ test_patterns:
     }
     ```
 
-- [ ] **Task 2**: Удалить `src/app/(app)/update-password/page.tsx`
+- [x] **Task 2**: Удалить `src/app/(app)/update-password/page.tsx`
   - Файл: `src/app/(app)/update-password/page.tsx` (удалить)
   - Директорию `src/app/(app)/update-password/` тоже удалить (она станет пустой)
   - Notes: Перед удалением убедиться что Task 1 уже создан
 
-- [ ] **Task 3**: Переписать `src/app/auth/confirm/route.ts`
+- [x] **Task 3**: Переписать `src/app/auth/confirm/route.ts`
   - Файл: `src/app/auth/confirm/route.ts` (полная замена)
   - Action: Удалить `getUser()` guard. Использовать `createServerClient()` из `@supabase/ssr` с биндингом кук к response.
   - Точное содержимое:
@@ -227,19 +227,27 @@ test_patterns:
 
 ### Acceptance Criteria
 
-- [ ] **AC 1**: Given пользователь кликает ссылку из recovery-письма `/auth/confirm?token_hash=VALID&type=recovery`, when токен валиден, then HTTP-ответ содержит `Set-Cookie` заголовки с сессией Supabase И редирект идёт на `/update-password`
+- [x] **AC 1**: Given пользователь кликает ссылку из recovery-письма `/auth/confirm?token_hash=VALID&type=recovery`, when токен валиден, then HTTP-ответ содержит `Set-Cookie` заголовки с сессией Supabase И редирект идёт на `/update-password`
 
-- [ ] **AC 2**: Given пользователь попал на `/update-password` после recovery-ссылки, when страница рендерится на сервере, then нет серверного `redirect('/login')` — `(public)/layout.tsx` не имеет auth guard
+- [x] **AC 2**: Given пользователь попал на `/update-password` после recovery-ссылки, when страница рендерится на сервере, then нет серверного `redirect('/login')` — `(public)/layout.tsx` не имеет auth guard
 
-- [ ] **AC 3**: Given пользователь на `/update-password` вводит новый пароль (≥6 символов) и нажимает "Сохранить и войти", when `supabase.auth.updateUser({ password })` выполняется успешно, then `router.push('/feed')` выполняется и пользователь попадает в закрытую зону
+- [x] **AC 3**: Given пользователь на `/update-password` вводит новый пароль (≥6 символов) и нажимает "Сохранить и войти", when `supabase.auth.updateUser({ password })` выполняется успешно, then `router.push('/feed')` выполняется и пользователь попадает в закрытую зону
 
-- [ ] **AC 4**: Given `token_hash` параметр отсутствует в URL, when GET `/auth/confirm` вызывается, then ответ — редирект на `/login?error=auth_callback_error_v2`
+- [x] **AC 4**: Given `token_hash` параметр отсутствует в URL, when GET `/auth/confirm` вызывается, then ответ — редирект на `/login?error=auth_callback_error_v2`
 
-- [ ] **AC 5**: Given `verifyOtp` возвращает ошибку (невалидный/истёкший токен), when GET `/auth/confirm` обрабатывается, then ответ — редирект на `/login?error=auth_callback_error_v2` И ошибка логируется в консоль сервера
+- [x] **AC 5**: Given `verifyOtp` возвращает ошибку (невалидный/истёкший токен), when GET `/auth/confirm` обрабатывается, then ответ — редирект на `/login?error=auth_callback_error_v2` И ошибка логируется в консоль сервера
 
-- [ ] **AC 6**: Given запрос к `/update-password` без сессии (прямой заход), when страница загружается, then форма показывается (публичная страница без auth guard), updateUser вернёт ошибку — форма отображает "Не удалось обновить пароль"
+- [x] **AC 6**: Given запрос к `/update-password` без сессии (прямой заход), when страница загружается, then форма показывается (публичная страница без auth guard), updateUser вернёт ошибку — форма отображает "Не удалось обновить пароль"
 
 ---
+
+## Review Notes
+
+- Adversarial review completed
+- Findings: 10 total, 3 fixed, 5 skipped (noise/out-of-scope/verified-ok), 2 deferred (tests)
+- Resolution approach: auto-fix
+- Fixed: F3 (`next` empty string → `||`), F4 (env var guard), F8 (`auth_callback_error_v2` в `AuthContainer`)
+- Deferred: F1, F2 (тесты — отдельная задача)
 
 ## Additional Context
 
