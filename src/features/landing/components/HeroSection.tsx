@@ -18,11 +18,17 @@ export function HeroSection() {
 
       {/* Content */}
       <div className="relative flex min-h-[100svh] flex-col justify-between px-5 pb-10 pt-14">
-        {/* Logo */}
-        <div className="mx-auto w-full max-w-xl">
+        {/* Header with Logo and Login */}
+        <div className="mx-auto flex w-full max-w-xl items-center justify-between">
           <span className="font-sans text-sm font-semibold tracking-[0.2em] uppercase text-primary-foreground/80">
             PROCONTENT
           </span>
+          <Link
+            href="/login"
+            className="font-sans text-[10px] font-medium tracking-[0.2em] uppercase text-primary-foreground/60 transition-colors hover:text-primary-foreground"
+          >
+            Войти
+          </Link>
         </div>
 
         {/* Main text */}
