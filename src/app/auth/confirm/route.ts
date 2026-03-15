@@ -15,26 +15,26 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl
   const tokenHash = searchParams.get('token_hash')
+  const code = searchParams.get('code')
   const type = searchParams.get('type') as EmailOtpType | null
   const next = searchParams.get('next') || getAuthSuccessRedirectPath()
 
-  if (tokenHash && type) {
+  if ((tokenHash && type) || code) {
     // Определяем путь редиректа
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.searchParams.delete('token_hash')
+    redirectUrl.searchParams.delete('code')
     redirectUrl.searchParams.delete('type')
     redirectUrl.searchParams.delete('next')
 
-    if (type === 'signup' || type === 'recovery') {
-      redirectUrl.pathname = '/update-password'
-    } else {
-      redirectUrl.pathname = next
-    }
+    // Если это первый вход после регистрации или восстановление — можно отправить на /feed 
+    // или на специальную страницу успеха.
+    redirectUrl.pathname = next
 
     // Создаём ответ ПЕРВЫМ — куки будут прикреплены к нему
     const response = NextResponse.redirect(redirectUrl)
 
-    // Supabase клиент для Route Handler: setAll биндится к response
+    // Supabase клиент для Route Handler
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -52,21 +52,24 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { error } = await supabase.auth.verifyOtp({
-      type,
-      token_hash: tokenHash,
-    })
-
-    if (!error) {
-      return response
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      if (!error) return response
+      console.error('[auth/confirm] exchangeCodeForSession error:', error.message)
+    } else if (tokenHash && type) {
+      const { error } = await supabase.auth.verifyOtp({
+        type,
+        token_hash: tokenHash,
+      })
+      if (!error) return response
+      console.error('[auth/confirm] verifyOtp error:', error.message, '| type:', type)
     }
-
-    console.error('[auth/confirm] verifyOtp error:', error.message, '| type:', type)
   }
 
-  // Нет token_hash/type или verifyOtp вернул ошибку
+  // Ошибка (нет кода/токена или ошибка верификации)
   const errorUrl = request.nextUrl.clone()
   errorUrl.searchParams.delete('token_hash')
+  errorUrl.searchParams.delete('code')
   errorUrl.searchParams.delete('type')
   errorUrl.searchParams.delete('next')
   errorUrl.pathname = '/login'
