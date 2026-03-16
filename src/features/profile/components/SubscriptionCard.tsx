@@ -1,11 +1,24 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-// periodEndDisplay — уже отформатированная на клиенте строка (или null)
+// timeZone: 'UTC' гарантирует одинаковый вывод на сервере и клиенте — нет hydration mismatch
+function formatPeriodEnd(currentPeriodEnd: string | null): string | null {
+  if (!currentPeriodEnd) return null
+  const date = new Date(currentPeriodEnd)
+  if (isNaN(date.getTime())) return currentPeriodEnd
+  return date.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+// periodEndDisplay — уже отформатированная строка (или null)
 function getStatusLabel(
   status: string | null,
   periodEndDisplay: string | null
@@ -35,29 +48,9 @@ export function SubscriptionCard({
 }: SubscriptionCardProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Форматирование в useEffect предотвращает hydration mismatch:
-  // сервер рендерит с UTC, клиент — с локальной таймзоной.
-  const [periodEndDisplay, setPeriodEndDisplay] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!currentPeriodEnd) {
-      setPeriodEndDisplay(null)
-      return
-    }
-    const date = new Date(currentPeriodEnd)
-    if (isNaN(date.getTime())) {
-      setPeriodEndDisplay(currentPeriodEnd)
-      return
-    }
-    setPeriodEndDisplay(
-      date.toLocaleDateString('ru-RU', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'UTC',
-      })
-    )
-  }, [currentPeriodEnd])
+  // Форматируем синхронно — timeZone: 'UTC' устраняет расхождение сервер/клиент без useEffect.
+  // suppressHydrationWarning на элементе — дополнительная защита от layout shift.
+  const periodEndDisplay = formatPeriodEnd(currentPeriodEnd)
 
   async function handleManageSubscription() {
     setIsLoading(true)
@@ -84,7 +77,8 @@ export function SubscriptionCard({
 
       // isLoading остаётся true — кнопка заблокирована до завершения навигации браузером
       window.location.href = data.url
-    } catch {
+    } catch (err) {
+      console.error('[SubscriptionCard] Ошибка запроса к /api/stripe/portal:', err)
       setError('Ошибка соединения')
       setIsLoading(false)
     }
@@ -103,6 +97,7 @@ export function SubscriptionCard({
             'font-medium',
             active ? 'text-foreground' : 'text-muted-foreground'
           )}
+          suppressHydrationWarning
         >
           {label}
         </p>

@@ -53,20 +53,25 @@ export async function POST(request: Request) {
     const body = (await request.json()) as { returnUrl?: unknown }
     const clientReturnUrl = typeof body?.returnUrl === 'string' ? body.returnUrl : null
     
-    // Строгая валидация: сравниваем origin через new URL() — защита от subdomain-spoofing
-    // (startsWith пропускал https://procontent.ru.evil.com, т.к. строка начиналась с origin)
-    const requestOrigin = new URL(request.url).origin
+    // Используем NEXT_PUBLIC_SITE_URL для надёжного определения хоста (за reverse proxy/Docker/Vercel
+    // request.url может содержать внутренний адрес, например http://172.16.0.1/...)
+    const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SITE_URL).origin
+      : new URL(request.url).origin
     let isValidReturnUrl = false
     if (clientReturnUrl) {
       try {
-        isValidReturnUrl = new URL(clientReturnUrl).origin === requestOrigin
+        isValidReturnUrl = new URL(clientReturnUrl).origin === siteOrigin
       } catch {
         isValidReturnUrl = false
       }
     }
-    returnUrl = isValidReturnUrl ? clientReturnUrl! : `${requestOrigin}/profile`
+    returnUrl = isValidReturnUrl ? clientReturnUrl! : `${siteOrigin}/profile`
   } catch {
-    returnUrl = `${new URL(request.url).origin}/profile`
+    const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SITE_URL).origin
+      : new URL(request.url).origin
+    returnUrl = `${siteOrigin}/profile`
   }
 
   try {

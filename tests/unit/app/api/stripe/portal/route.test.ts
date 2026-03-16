@@ -133,6 +133,24 @@ describe('POST /api/stripe/portal', () => {
     )
   })
 
+  it('использует NEXT_PUBLIC_SITE_URL вместо request.url.origin (надёжно за reverse proxy)', async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://procontent.ru'
+    mockPortalSessionsCreate.mockResolvedValueOnce({
+      url: 'https://billing.stripe.com/session/test',
+    })
+
+    // request.url указывает на внутренний Docker/Vercel-адрес
+    const request = new Request('http://172.16.0.1/api/stripe/portal', { method: 'POST' })
+    await POST(request)
+
+    expect(mockPortalSessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        return_url: 'https://procontent.ru/profile',
+      })
+    )
+    delete process.env.NEXT_PUBLIC_SITE_URL
+  })
+
   it('использует origin из URL запроса для return_url если клиент не прислал returnUrl', async () => {
     mockPortalSessionsCreate.mockResolvedValueOnce({
       url: 'https://billing.stripe.com/session/test',

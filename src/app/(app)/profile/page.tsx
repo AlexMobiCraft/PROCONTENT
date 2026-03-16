@@ -21,9 +21,23 @@ export default async function ProfilePage() {
     .single()
 
   if (profileError) {
+    // PGRST116: профиль ещё не создан — нормальный сценарий (не фатальная ошибка БД).
+    // Показываем страницу с email из auth.users и статусом "Нет подписки".
+    if ((profileError as { code?: string }).code === 'PGRST116') {
+      return (
+        <ProfileScreen
+          email={user.email ?? ''}
+          displayName={null}
+          subscriptionStatus={null}
+          currentPeriodEnd={null}
+          hasStripeCustomer={false}
+        />
+      )
+    }
     console.error('[profile/page] Ошибка загрузки профиля:', profileError)
     return (
-      <main className="mx-auto max-w-lg px-4 py-12">
+      <main className="mx-auto max-w-lg space-y-8 px-4 py-12">
+        <h1 className="font-heading text-2xl font-semibold text-foreground">Профиль</h1>
         <p className="text-sm text-destructive">
           Не удалось загрузить данные профиля. Попробуйте обновить страницу.
         </p>

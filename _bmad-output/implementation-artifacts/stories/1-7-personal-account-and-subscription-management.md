@@ -1,6 +1,6 @@
 # Story 1.7: Личный кабинет и управление подпиской
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -35,6 +35,24 @@ so that полностью контролировать свои платежи.
   - [x] [AI-Review][Low] Test-only функции без `NODE_ENV` guard попадают в production bundle: `resetPortalRateLimitStore` и `getPortalRateLimitStoreSize` [src/lib/stripe/portal-rate-limit.ts:54-61]
   - [x] [AI-Review][Low] `ProfileScreen.tsx` не имеет собственных тестов: ветка `{displayName && ...}` не покрыта ни одним тестом [src/features/profile/components/ProfileScreen.tsx:26]
   - [x] [AI-Review][Low] `loading.tsx` не имеет тестов [src/app/(app)/profile/loading.tsx]
+
+- [x] **Review Follow-ups (AI) - Round 8**
+  - [x] [AI-Review][High] Memory Leak в Rate Limiter из-за особенностей итерации Map: `pruneExpired` проверяет до 100 записей и прерывает цикл. Так как Map итерируется в порядке добавления, если первые 100 пользователей постоянно обновляют лимиты, они остаются в начале очереди и функция никогда не дойдет до 101-й записи, которая могла устареть. Это приведет к бесконечному росту памяти. Исправить: при обновлении `resetAt` делать `delete` + `set` чтобы переместить ключ в конец Map, а при прунинге удалять записи с начала пока не встретится первая активная [src/lib/stripe/portal-rate-limit.ts:22]
+  - [x] [AI-Review][Medium] Сломанный UX при ошибке БД: При `profileError` в `page.tsx` возвращается пустой `<main>` только с текстом ошибки. Теряется заголовок "Профиль" и структура страницы. Отрисовать ошибку консистентно с дизайном экрана, чтобы интерфейс не выглядел "сломанным" [src/app/(app)/profile/page.tsx:25]
+  - [x] [AI-Review][Low] Скрытые ошибки сети на клиенте: В `SubscriptionCard` блок `catch` при запросе к `/api/stripe/portal` не выводит ошибку в `console.error`. Это затруднит отладку непредвиденных проблем (CORS, блокировщики рекламы) [src/features/profile/components/SubscriptionCard.tsx:87]
+
+- [x] **Review Follow-ups (AI) - Round 9**
+  - [x] [AI-Review][High] Graceful fallback при отсутствии профиля: `page.tsx` при `PGRST116` (профиль не найден) показывает вечную ошибку. Пользователь не может пользоваться личным кабинетом. Нужно обработать отсутствие профиля как нормальный сценарий и показать email из `auth.user` со статусом "Нет подписки" [src/app/(app)/profile/page.tsx:17]
+  - [x] [AI-Review][High] Reverse Proxy уязвимость в `route.ts`: `new URL(request.url).origin` может указывать на внутренний адрес в Docker/Vercel. Использовать `process.env.NEXT_PUBLIC_SITE_URL` для надежного определения хоста приложения [src/app/api/stripe/portal/route.ts:58]
+  - [x] [AI-Review][High] Неполные статусы Stripe в миграции: Отсутствуют `incomplete`, `incomplete_expired`, `paused`. Вебхук с этими статусами вызовет constraint violation и рассинхронизацию Stripe и БД [supabase/migrations/005_add_past_due_unpaid_status.sql]
+  - [x] [AI-Review][Medium] Сломанные unit-тесты в `auth/confirm`: 6 тестов падают с ошибкой `auth_callback_error_v2`. Нарушает NFR "All tests must pass 100%" и заблокирует CI/CD [tests/unit/app/auth/confirm/route.test.ts]
+  - [x] [AI-Review][Medium] Visual Jitter в `SubscriptionCard`: Из-за `useEffect` форматирования даты статус сначала рендерится "Активна", потом "Активна до [дата]". Вызывает layout shift. Лучше форматировать сразу с `suppressHydrationWarning` [src/features/profile/components/SubscriptionCard.tsx:42]
+
+- [ ] **Review Follow-ups (AI) - Round 10**
+  - [ ] [AI-Review][High] Unhandled Exception Risk: Вызов `new URL(process.env.NEXT_PUBLIC_SITE_URL)` внутри блока `catch` может выбросить ошибку (если переменная не содержит протокол), что приведет к фатальному падению функции без ответа клиенту. Использовать безопасный парсинг [src/app/api/stripe/portal/route.ts:71]
+  - [ ] [AI-Review][Medium] BFCache State Lock (UX): После установки `window.location.href` состояние `isLoading` не сбрасывается. Если пользователь нажмет кнопку "Назад", страница может загрузиться из BFCache с заблокированной кнопкой [src/features/profile/components/SubscriptionCard.tsx:79]
+  - [ ] [AI-Review][Medium] Ошибочный редирект для signup: Условие `type === 'signup' ? '/update-password' : ...` заставляет пользователей, зарегистрированных через Email+Пароль, немедленно менять пароль. Редирект нужен только для `recovery` [src/app/auth/confirm/route.ts:34]
+  - [ ] [AI-Review][Low] In-Memory Rate Limiter: Использование `Map` для rate limiting не работает корректно в serverless (Vercel) или multi-instance окружениях. Задокументировать или рассмотреть Redis-подобное решение [src/lib/stripe/portal-rate-limit.ts:12]
 
 - [x] **Review Follow-ups (AI) - Round 6**
   - [x] [AI-Review][High] Уязвимость Open Redirect (Security): Эндпоинт `/api/stripe/portal` слепо доверяет параметру `returnUrl` от клиента. Злоумышленник может подменить `returnUrl` (например, на фишинговый сайт). Необходима строгая валидация URL против хоста приложения [src/app/api/stripe/portal/route.ts:56]
@@ -171,6 +189,17 @@ _нет_
 - ✅ Resolved review finding [Low] Round 7: Создан `tests/unit/features/profile/components/ProfileScreen.test.tsx` — 5 тестов покрывают: heading, email, displayName (есть/null), SubscriptionCard render.
 - ✅ Resolved review finding [Low] Round 7: Создан `tests/unit/app/(app)/profile/loading.test.tsx` — 4 теста: рендер, main-элемент, animate-pulse, 2 bordered sections.
 - Итого тестов: 50 (18 SubscriptionCard + 14 portal route + 5 profile page + 9 rate-limiter + 4 loading + 5 ProfileScreen) — все ✓. TypeScript: без ошибок.
+- ✅ Resolved review finding [High] Round 8: `portal-rate-limit.ts` — `pruneExpired` переписан: теперь итерирует Map с начала до первой живой записи (O(k) вместо фиксированных 100). `consumePortalRateLimit` использует `delete` + `set` при сбросе окна — ключ перемещается в конец Map, поддерживая LRU-порядок. Добавлен тест "сохраняет свежие записи в конце Map при прунинге устаревших с начала".
+- ✅ Resolved review finding [Medium] Round 8: `page.tsx` — ошибочный `<main>` теперь включает `<h1>Профиль</h1>` и `space-y-8`, интерфейс консистентен с реальным экраном профиля. Тест обновлён: проверяет наличие heading "Профиль" в ошибочном состоянии.
+- ✅ Resolved review finding [Low] Round 8: `SubscriptionCard.tsx` — catch-блок логирует ошибку через `console.error('[SubscriptionCard] ...')`. Добавлен тест "логирует ошибку в console.error при сетевом сбое".
+- Итого тестов: 52 (19 SubscriptionCard + 14 portal route + 5 profile page + 10 rate-limiter + 4 loading + 5 ProfileScreen) — все ✓. TypeScript: без ошибок.
+- ✅ Code Review Round 9: Созданы 5 action items для исправления критических и средних проблем, найденных в adversarial review. Статус истории изменен на "in-progress" — необходимо выполнить исправления перед финальным завершением.
+- ✅ Resolved review finding [High] Round 9: `page.tsx` — PGRST116 обрабатывается как нормальный сценарий: рендерится `ProfileScreen` с email из `auth.user` и subscriptionStatus=null. Новый тест: "показывает ProfileScreen с email из auth при PGRST116".
+- ✅ Resolved review finding [High] Round 9: `portal/route.ts` — `new URL(request.url).origin` заменён на `process.env.NEXT_PUBLIC_SITE_URL ? new URL(SITE_URL).origin : request.url.origin`. Fallback сохранён для локальной разработки. Новый тест: "использует NEXT_PUBLIC_SITE_URL вместо request.url.origin".
+- ✅ Resolved review finding [High] Round 9: Создана миграция `006_add_incomplete_paused_status.sql` — добавлены `incomplete`, `incomplete_expired`, `paused` в CHECK constraint subscription_status. Финализирован полный набор всех Stripe-статусов.
+- ✅ Resolved review finding [Medium] Round 9: `auth/confirm/route.ts` + `route.test.ts` — root cause: отсутствие `SUPABASE_SERVICE_ROLE_KEY` в `beforeEach` + нет мока `getUser`. Также восстановлен type-specific редирект (`recovery`/`signup` → `/update-password`). Все 6 тестов проходят ✓.
+- ✅ Resolved review finding [Medium] Round 9: `SubscriptionCard.tsx` — убран `useEffect` для форматирования даты; `formatPeriodEnd` вызывается синхронно (timeZone: 'UTC' гарантирует одинаковый SSR/CSR вывод). Добавлен `suppressHydrationWarning` на элемент статуса. Layout shift устранён.
+- Итого тестов: 57 (19 SubscriptionCard + 15 portal route + 6 profile page + 10 rate-limiter + 4 loading + 5 ProfileScreen + 6 auth/confirm) — все ✓. TypeScript: без ошибок.
 
 ### File List
 
@@ -221,3 +250,18 @@ _нет_
 - `tests/unit/lib/stripe/portal-rate-limit.test.ts` (обновлён — тест pruning через expired active user)
 - `tests/unit/features/profile/components/ProfileScreen.test.tsx` (новый — 5 unit-тестов)
 - `tests/unit/app/(app)/profile/loading.test.tsx` (новый — 4 unit-теста)
+- `src/lib/stripe/portal-rate-limit.ts` (обновлён — LRU-порядок: pruneExpired с начала Map, delete+set при сбросе окна)
+- `src/app/(app)/profile/page.tsx` (обновлён — ошибочный UI сохраняет заголовок Профиль и структуру страницы)
+- `src/features/profile/components/SubscriptionCard.tsx` (обновлён — console.error в catch-блоке)
+- `tests/unit/lib/stripe/portal-rate-limit.test.ts` (обновлён — тест LRU-порядка pruning)
+- `tests/unit/app/(app)/profile/page.test.tsx` (обновлён — тест проверяет heading при ошибке)
+- `tests/unit/features/profile/components/SubscriptionCard.test.tsx` (обновлён — тест console.error при сетевом сбое)
+- `src/app/(app)/profile/page.tsx` (обновлён — PGRST116 graceful fallback: рендерит ProfileScreen с auth email)
+- `src/app/api/stripe/portal/route.ts` (обновлён — NEXT_PUBLIC_SITE_URL для надёжного определения origin за reverse proxy)
+- `src/app/auth/confirm/route.ts` (обновлён — type-specific редирект: recovery/signup → /update-password)
+- `src/features/profile/components/SubscriptionCard.tsx` (обновлён — убран useEffect, синхронный formatPeriodEnd + suppressHydrationWarning)
+- `supabase/migrations/006_add_incomplete_paused_status.sql` (новый — добавлены incomplete, incomplete_expired, paused в CHECK constraint)
+- `tests/unit/app/(app)/profile/page.test.tsx` (обновлён — тест PGRST116 graceful fallback)
+- `tests/unit/app/api/stripe/portal/route.test.ts` (обновлён — тест NEXT_PUBLIC_SITE_URL)
+- `tests/unit/app/auth/confirm/route.test.ts` (обновлён — SUPABASE_SERVICE_ROLE_KEY, getUser mock, stripe mock)
+- `_bmad-output/implementation-artifacts/stories/1-7-personal-account-and-subscription-management.md` (обновлён — Round 8 выполнен, статус review)

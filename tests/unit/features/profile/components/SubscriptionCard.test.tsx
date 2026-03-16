@@ -195,6 +195,24 @@ describe('SubscriptionCard', () => {
       })
     })
 
+    it('логирует ошибку в console.error при сетевом сбое', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const user = userEvent.setup()
+      const networkError = new Error('Network error')
+      vi.mocked(global.fetch).mockRejectedValueOnce(networkError)
+
+      render(<SubscriptionCard {...defaultProps} />)
+      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+
+      await waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('/api/stripe/portal'),
+          networkError
+        )
+      })
+      consoleSpy.mockRestore()
+    })
+
     it('блокирует кнопку во время загрузки', async () => {
       const user = userEvent.setup()
       vi.mocked(global.fetch).mockImplementation(() => new Promise(() => {}))

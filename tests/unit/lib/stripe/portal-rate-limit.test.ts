@@ -110,6 +110,27 @@ describe('pruning устаревших записей', () => {
     expect(getPortalRateLimitStoreSize()).toBe(1)
   })
 
+  it('сохраняет свежие записи в конце Map при прунинге устаревших с начала (LRU-порядок)', () => {
+    const now = Date.now()
+    const oldTime = now - 2 * 60 * 1000 // 2 минуты назад — устарели
+
+    // N-1 устаревших пользователей (будут в начале Map)
+    for (let i = 0; i < PORTAL_RATE_LIMIT_PRUNE_THRESHOLD - 1; i++) {
+      consumePortalRateLimit(`old-user-${i}`, oldTime)
+    }
+
+    // Один свежий пользователь — добавлен последним, находится в конце Map
+    consumePortalRateLimit('fresh-user', now)
+    expect(getPortalRateLimitStoreSize()).toBe(PORTAL_RATE_LIMIT_PRUNE_THRESHOLD)
+
+    // Новый пользователь триггерит pruneExpired: удаляет устаревших с начала,
+    // останавливается на fresh-user (resetAt > now) — не трогает его
+    consumePortalRateLimit('new-user', now)
+
+    // Должны остаться только fresh-user и new-user
+    expect(getPortalRateLimitStoreSize()).toBe(2)
+  })
+
   it('удаляет устаревшие записи при достижении порога', () => {
     const windowMs = 60 * 1000
     const past = Date.now() - windowMs - 1

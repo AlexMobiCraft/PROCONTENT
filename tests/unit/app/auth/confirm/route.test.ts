@@ -1,22 +1,39 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockVerifyOtp, mockCreateServerClient } = vi.hoisted(() => {
+const { mockVerifyOtp, mockGetUser, mockCreateServerClient } = vi.hoisted(() => {
   const mockVerifyOtp = vi.fn()
+  const mockGetUser = vi.fn()
   const mockCreateServerClient = vi.fn(() => ({
     auth: {
       verifyOtp: mockVerifyOtp,
+      exchangeCodeForSession: vi.fn().mockResolvedValue({ error: null }),
+      getUser: mockGetUser,
     },
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+    })),
   }))
 
   return {
     mockVerifyOtp,
+    mockGetUser,
     mockCreateServerClient,
   }
 })
 
 vi.mock('@supabase/ssr', () => ({
   createServerClient: mockCreateServerClient,
+}))
+
+// Мокируем stripe — не должен вызываться в базовых тестах (user без email)
+vi.mock('@/lib/stripe', () => ({
+  stripe: {
+    customers: { list: vi.fn() },
+    subscriptions: { list: vi.fn() },
+  },
 }))
 
 import { GET } from '@/app/auth/confirm/route'
@@ -30,8 +47,16 @@ describe('GET /auth/confirm', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
+    // SUPABASE_SERVICE_ROLE_KEY необходим для проверки env guard в начале route
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
     delete process.env.AUTH_SUCCESS_REDIRECT_PATH
     mockVerifyOtp.mockResolvedValue({ error: null })
+    // user без email → Stripe-блок пропускается, базовая навигация тестируется чисто
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+  })
+
+  afterEach(() => {
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY
   })
 
   it('редиректит на /feed по умолчанию после успешной верификации (type=email)', async () => {

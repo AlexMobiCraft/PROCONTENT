@@ -98,7 +98,25 @@ describe('ProfilePage', () => {
     expect(mockRedirect).toHaveBeenCalledWith('/login')
   })
 
-  it('показывает ошибку если profileError существует', async () => {
+  it('показывает ProfileScreen с email из auth при PGRST116 (профиль не создан)', async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST116', message: 'no rows returned' },
+    })
+
+    const page = await ProfilePage()
+    render(page)
+
+    const el = screen.getByTestId('profile-screen')
+    expect(el).toBeInTheDocument()
+    const props = JSON.parse(el.getAttribute('data-props') ?? '{}')
+    expect(props.email).toBe('test@example.com') // из auth.user
+    expect(props.hasStripeCustomer).toBe(false)
+    expect(props.subscriptionStatus).toBeNull()
+    expect(props.displayName).toBeNull()
+  })
+
+  it('показывает ошибку с заголовком Профиль если profileError существует', async () => {
     mockSingle.mockResolvedValueOnce({
       data: null,
       error: { message: 'DB connection error' },
@@ -108,6 +126,8 @@ describe('ProfilePage', () => {
     render(page)
 
     expect(screen.queryByTestId('profile-screen')).not.toBeInTheDocument()
+    // Заголовок остаётся, интерфейс не выглядит "сломанным"
+    expect(screen.getByRole('heading', { name: 'Профиль' })).toBeInTheDocument()
     expect(
       screen.getByText(/Не удалось загрузить данные профиля/)
     ).toBeInTheDocument()
