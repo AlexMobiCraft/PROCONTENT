@@ -6,14 +6,40 @@ type RateLimitState = {
 // 5 запросов на открытие портала в минуту на пользователя
 const PORTAL_RATE_LIMIT_MAX = 5
 const PORTAL_RATE_LIMIT_WINDOW_MS = 60 * 1000
+// Прунинг устаревших записей при достижении порога (защита от утечки памяти)
+export const PORTAL_RATE_LIMIT_PRUNE_THRESHOLD = 100
 
 const portalRateLimitStore = new Map<string, RateLimitState>()
+
+function pruneExpired(now: number): void {
+  // Чтобы избежать O(N) блокировки event loop при большом размере Map,
+  // мы не итерируем всю Map синхронно, а собираем ключи для удаления,
+  // прерывая цикл если мы проверили достаточное количество элементов (например, 100 за раз)
+  let checked = 0
+  const keysToDelete: string[] = []
+
+  for (const [key, state] of portalRateLimitStore) {
+    if (checked++ >= 100) break
+    if (state.resetAt <= now) {
+      keysToDelete.push(key)
+    }
+  }
+
+  for (const key of keysToDelete) {
+    portalRateLimitStore.delete(key)
+  }
+}
 
 export function consumePortalRateLimit(userId: string, now = Date.now()): { allowed: boolean } {
   // Ленивая очистка: удаляем только запись текущего пользователя если она устарела (O(1))
   const entry = portalRateLimitStore.get(userId)
 
   if (!entry || entry.resetAt <= now) {
+    // Периодический прунинг при накоплении записей — триггерится как для новых пользователей,
+    // так и для пользователей с истёкшим окном (иначе store рос бы неограниченно при 100+ активных)
+    if (portalRateLimitStore.size >= PORTAL_RATE_LIMIT_PRUNE_THRESHOLD) {
+      pruneExpired(now)
+    }
     portalRateLimitStore.set(userId, { count: 1, resetAt: now + PORTAL_RATE_LIMIT_WINDOW_MS })
     return { allowed: true }
   }
@@ -26,6 +52,13 @@ export function consumePortalRateLimit(userId: string, now = Date.now()): { allo
   return { allowed: true }
 }
 
+// Только для тестирования — в production не выполняют действий
 export function resetPortalRateLimitStore() {
+  if (process.env.NODE_ENV !== 'test') return
   portalRateLimitStore.clear()
+}
+
+export function getPortalRateLimitStoreSize(): number {
+  if (process.env.NODE_ENV !== 'test') return 0
+  return portalRateLimitStore.size
 }

@@ -26,6 +26,27 @@ so that полностью контролировать свои платежи.
 
 ## Tasks / Subtasks
 
+- [x] **Review Follow-ups (AI) - Round 7**
+  - [x] [AI-Review][Critical] Open Redirect bypass через `startsWith`: `clientReturnUrl.startsWith(requestOrigin)` пропускает URL вида `https://procontent.ru.evil.com/profile` — они начинаются с origin приложения, но указывают на чужой домен. Заменить на `new URL(clientReturnUrl).origin === requestOrigin` (обернуть в try/catch). Добавить тест на subdomain-spoofing кейс [src/app/api/stripe/portal/route.ts:58]
+  - [x] [AI-Review][Medium] Хранилище растёт неограниченно при активных пользователях: прунинг триггерится только при `!entry` (новый пользователь), если 100 активных пользователей с не-истёкшими записями делают запросы — `pruneExpired` не вызывается никогда, store растёт бесконечно [src/lib/stripe/portal-rate-limit.ts:39]
+  - [x] [AI-Review][Medium] Отсутствует заголовок `Retry-After` в ответе 429: добавить `headers: { 'Retry-After': '60' }` в NextResponse — клиент не знает через сколько секунд повторить запрос [src/app/api/stripe/portal/route.ts:22-25]
+  - [x] [AI-Review][Medium] Тест `unpaid` статуса отсутствует в SubscriptionCard: `getStatusLabel` обрабатывает `'unpaid'` → `'Не оплачена'`, но тест не написан — задача 4.1 не закрыта полностью [tests/unit/features/profile/components/SubscriptionCard.test.tsx]
+  - [x] [AI-Review][Low] Off-by-one в `pruneExpired`: `if (checked++ > 100) break` проверяет 101 элемент, комментарий гласит "до 100 элементов" — исправить на `>= 100` [src/lib/stripe/portal-rate-limit.ts:22]
+  - [x] [AI-Review][Low] Test-only функции без `NODE_ENV` guard попадают в production bundle: `resetPortalRateLimitStore` и `getPortalRateLimitStoreSize` [src/lib/stripe/portal-rate-limit.ts:54-61]
+  - [x] [AI-Review][Low] `ProfileScreen.tsx` не имеет собственных тестов: ветка `{displayName && ...}` не покрыта ни одним тестом [src/features/profile/components/ProfileScreen.tsx:26]
+  - [x] [AI-Review][Low] `loading.tsx` не имеет тестов [src/app/(app)/profile/loading.tsx]
+
+- [x] **Review Follow-ups (AI) - Round 6**
+  - [x] [AI-Review][High] Уязвимость Open Redirect (Security): Эндпоинт `/api/stripe/portal` слепо доверяет параметру `returnUrl` от клиента. Злоумышленник может подменить `returnUrl` (например, на фишинговый сайт). Необходима строгая валидация URL против хоста приложения [src/app/api/stripe/portal/route.ts:56]
+  - [x] [AI-Review][Medium] Скрытая ошибка Rate Limit в UI (UX): Когда сервер возвращает ошибку 429, `SubscriptionCard` игнорирует ответ API и выводит хардкод "Не удалось открыть портал управления подпиской" [src/features/profile/components/SubscriptionCard.tsx:75]
+  - [x] [AI-Review][Medium] Деградация O(N) при всплеске нагрузки (Performance): Условие прунинга `portalRateLimitStore.size >= 100` будет вызывать O(N) цикл `pruneExpired` при *каждом* новом запросе, если накопится более 100 активных пользователей (и их записи ещё не устареют) [src/lib/stripe/portal-rate-limit.ts:28]
+
+- [x] **Review Follow-ups (AI) - Round 5**
+  - [x] [AI-Review][High] Race condition загрузки в UI: Состояние `isLoading` сбрасывается в `finally` сразу после установки `window.location.href`, делая кнопку снова активной до того как браузер выполнит переход на Stripe Portal [src/features/profile/components/SubscriptionCard.tsx:78]
+  - [x] [AI-Review][Medium] Memory Leak в Rate Limiter: Записи в `portalRateLimitStore` остаются навсегда, если пользователь больше не делает запросов [src/lib/stripe/portal-rate-limit.ts:10]
+  - [x] [AI-Review][Medium] Ошибки БД (PGRST116): Отсутствие профиля у юзера вызывает фатальную ошибку 500 с записью в логи, вместо ожидаемой обработки отсутствия данных (404/400) [src/app/api/stripe/portal/route.ts:34]
+  - [x] [AI-Review][Low] Ненадежный `return_url`: Формирование `${origin}/profile` на сервере может сломаться за reverse proxy; надежнее передавать текущий URL страницы с клиента [src/app/api/stripe/portal/route.ts:46]
+
 - [x] **Review Follow-ups (AI) - Round 4**
   - [x] [AI-Review][Medium] O(N) цикл в Rate Limiter: Очистка устаревших записей итерирует всю `Map` при каждом запросе, что может заблокировать event loop при высоких нагрузках. Заменить на ленивую очистку ключа [src/lib/stripe/portal-rate-limit.ts:13]
   - [x] [AI-Review][Medium] Ошибка с часовыми поясами: Добавить `timeZone: 'UTC'` при форматировании даты окончания подписки, чтобы избежать сдвига даты на день назад в зависимости от локали [src/features/profile/components/SubscriptionCard.tsx:53]
@@ -133,6 +154,23 @@ _нет_
 - ✅ Resolved review finding [Low] Round 4: `portal/route.ts` — добавлен заголовок `Cache-Control: no-store` к успешному ответу; тест на наличие заголовка добавлен в `route.test.ts`.
 - ✅ Resolved review finding [Low] Round 4: `SubscriptionCard.tsx` — убран прямой вывод `data.error` на UI; вместо него показывается фиксированное generic-сообщение "Не удалось открыть портал управления подпиской"; тесты обновлены.
 - Итого тестов: 36 (15 SubscriptionCard + 9 portal route + 5 profile page + 7 rate-limiter) — все ✓. TypeScript: без ошибок.
+- ✅ Resolved review finding [High] Round 5: `SubscriptionCard.tsx` — убран `finally`-блок; `setIsLoading(false)` вызывается только на путях ошибки. На успешном пути (редирект) `isLoading` остаётся `true` — кнопка заблокирована до навигации. Новый тест: "кнопка остаётся заблокированной после успешного редиректа".
+- ✅ Resolved review finding [Medium] Round 5: `portal-rate-limit.ts` — добавлен периодический прунинг устаревших записей при достижении порога `PORTAL_RATE_LIMIT_PRUNE_THRESHOLD=100`. Экспортированы `PORTAL_RATE_LIMIT_PRUNE_THRESHOLD` и `getPortalRateLimitStoreSize` для тестирования. Новый тест: "удаляет устаревшие записи при достижении порога".
+- ✅ Resolved review finding [Medium] Round 5: `portal/route.ts` — PGRST116 обрабатывается как ожидаемый кейс (профиль не найден → 400 без логирования в error). Прочие ошибки БД по-прежнему возвращают 500. Новый тест: "возвращает 400 при PGRST116".
+- ✅ Resolved review finding [Low] Round 5: `SubscriptionCard.tsx` + `portal/route.ts` — клиент передаёт `window.location.origin + '/profile'` в теле запроса; сервер использует его как `return_url` (с валидацией http/https). Fallback на `new URL(request.url).origin` при отсутствии тела. Новый тест: "использует returnUrl переданный клиентом (надёжно за reverse proxy)".
+- ✅ Resolved review finding [High] Round 6: `portal/route.ts` — добавлена строгая валидация `returnUrl` против `new URL(request.url).origin` (защита от Open Redirect). Тесты обновлены: добавлен кейс для фишингового домена.
+- ✅ Resolved review finding [Medium] Round 6: `SubscriptionCard.tsx` — при получении 429 (Rate Limit) ошибки пользователю теперь отображается текст из ответа ("Слишком много запросов. Попробуйте позже.") вместо общей ошибки. Добавлен тест.
+- ✅ Resolved review finding [Medium] Round 6: `portal-rate-limit.ts` — O(N) цикл в функции `pruneExpired` заменён на частичный обход (до 100 элементов за один вызов).
+- Итого тестов: 43 (17 SubscriptionCard + 12 portal route + 5 profile page + 8 rate-limiter + 1 pruning) — все ✓. TypeScript: без ошибок.
+- ✅ Resolved review finding [Critical] Round 7: `portal/route.ts` — `startsWith` заменён на `new URL(clientReturnUrl).origin === requestOrigin` с try/catch; защита от subdomain-spoofing (procontent.ru.evil.com → blocked). Новый тест: "блокирует subdomain-spoofing".
+- ✅ Resolved review finding [Medium] Round 7: `portal-rate-limit.ts` — удалён `!entry &&` в условии прунинга; теперь прунинг триггерится и для пользователей с истёкшим окном, не только для новых. Новый тест: "триггер на истёкшую запись существующего пользователя".
+- ✅ Resolved review finding [Medium] Round 7: `portal/route.ts` — добавлен заголовок `Retry-After: 60` в ответ 429. Новый тест: "устанавливает Retry-After: 60 заголовок в ответе 429".
+- ✅ Resolved review finding [Medium] Round 7: `SubscriptionCard.test.tsx` — добавлен тест для `unpaid` → "Не оплачена".
+- ✅ Resolved review finding [Low] Round 7: `portal-rate-limit.ts` — off-by-one исправлен: `> 100` → `>= 100` (теперь ровно 100 элементов).
+- ✅ Resolved review finding [Low] Round 7: `portal-rate-limit.ts` — `resetPortalRateLimitStore` и `getPortalRateLimitStoreSize` защищены `NODE_ENV !== 'test'` guard — не выполняют действий в production.
+- ✅ Resolved review finding [Low] Round 7: Создан `tests/unit/features/profile/components/ProfileScreen.test.tsx` — 5 тестов покрывают: heading, email, displayName (есть/null), SubscriptionCard render.
+- ✅ Resolved review finding [Low] Round 7: Создан `tests/unit/app/(app)/profile/loading.test.tsx` — 4 теста: рендер, main-элемент, animate-pulse, 2 bordered sections.
+- Итого тестов: 50 (18 SubscriptionCard + 14 portal route + 5 profile page + 9 rate-limiter + 4 loading + 5 ProfileScreen) — все ✓. TypeScript: без ошибок.
 
 ### File List
 
@@ -169,3 +207,17 @@ _нет_
 - `tests/unit/lib/stripe/portal-rate-limit.test.ts` (новый — 7 unit-тестов для rate limiter)
 - `tests/unit/app/api/stripe/portal/route.test.ts` (обновлён — тест Cache-Control заголовка)
 - `tests/unit/features/profile/components/SubscriptionCard.test.tsx` (обновлён — тесты generic error вместо data.error)
+- `src/features/profile/components/SubscriptionCard.tsx` (обновлён — race condition fix: isLoading не сбрасывается при редиректе; передаёт returnUrl клиента в теле запроса)
+- `src/lib/stripe/portal-rate-limit.ts` (обновлён — pruneExpired при PORTAL_RATE_LIMIT_PRUNE_THRESHOLD; экспорт PORTAL_RATE_LIMIT_PRUNE_THRESHOLD и getPortalRateLimitStoreSize)
+- `src/app/api/stripe/portal/route.ts` (обновлён — защита от Open Redirect для returnUrl)
+- `tests/unit/app/api/stripe/portal/route.test.ts` (обновлён — тест фишингового домена в returnUrl)
+- `src/features/profile/components/SubscriptionCard.tsx` (обновлён — отображение сообщения ошибки 429 Rate Limit)
+- `tests/unit/features/profile/components/SubscriptionCard.test.tsx` (обновлён — тест отображения ошибки 429)
+- `src/lib/stripe/portal-rate-limit.ts` (обновлён — ограничение обхода Map в pruneExpired до 100 элементов для защиты от O(N))
+- `src/app/api/stripe/portal/route.ts` (обновлён — subdomain-spoofing fix: new URL().origin === requestOrigin; Retry-After: 60 в ответе 429)
+- `src/lib/stripe/portal-rate-limit.ts` (обновлён — pruning для expired active users; off-by-one fix >= 100; NODE_ENV guards)
+- `tests/unit/app/api/stripe/portal/route.test.ts` (обновлён — тест subdomain-spoofing, тест Retry-After заголовка)
+- `tests/unit/features/profile/components/SubscriptionCard.test.tsx` (обновлён — тест unpaid статуса)
+- `tests/unit/lib/stripe/portal-rate-limit.test.ts` (обновлён — тест pruning через expired active user)
+- `tests/unit/features/profile/components/ProfileScreen.test.tsx` (новый — 5 unit-тестов)
+- `tests/unit/app/(app)/profile/loading.test.tsx` (новый — 4 unit-теста)

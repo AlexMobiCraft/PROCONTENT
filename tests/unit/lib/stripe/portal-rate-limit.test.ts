@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  PORTAL_RATE_LIMIT_PRUNE_THRESHOLD,
   consumePortalRateLimit,
+  getPortalRateLimitStoreSize,
   resetPortalRateLimitStore,
 } from '@/lib/stripe/portal-rate-limit'
 
@@ -78,5 +80,51 @@ describe('resetPortalRateLimitStore', () => {
     resetPortalRateLimitStore()
 
     expect(consumePortalRateLimit('user-1').allowed).toBe(true)
+  })
+})
+
+describe('pruning устаревших записей', () => {
+  beforeEach(() => {
+    resetPortalRateLimitStore()
+  })
+
+  afterEach(() => {
+    resetPortalRateLimitStore()
+  })
+
+  it('удаляет устаревшие записи при достижении порога (триггер на истёкшую запись существующего пользователя)', () => {
+    const windowMs = 60 * 1000
+    const now = Date.now()
+    const past = now - windowMs - 1
+
+    // Заполняем store устаревшими записями до порога через существующих (не новых) пользователей
+    for (let i = 0; i < PORTAL_RATE_LIMIT_PRUNE_THRESHOLD; i++) {
+      consumePortalRateLimit(`active-user-${i}`, past)
+    }
+    expect(getPortalRateLimitStoreSize()).toBe(PORTAL_RATE_LIMIT_PRUNE_THRESHOLD)
+
+    // Существующий пользователь с истёкшей записью делает новый запрос — должен тригернуть pruning
+    consumePortalRateLimit('active-user-0', now)
+
+    // Устаревшие записи других пользователей удалены, остаётся только обновлённый active-user-0
+    expect(getPortalRateLimitStoreSize()).toBe(1)
+  })
+
+  it('удаляет устаревшие записи при достижении порога', () => {
+    const windowMs = 60 * 1000
+    const past = Date.now() - windowMs - 1
+    const now = Date.now()
+
+    // Заполняем store устаревшими записями до порога
+    for (let i = 0; i < PORTAL_RATE_LIMIT_PRUNE_THRESHOLD; i++) {
+      consumePortalRateLimit(`stale-user-${i}`, past)
+    }
+    expect(getPortalRateLimitStoreSize()).toBe(PORTAL_RATE_LIMIT_PRUNE_THRESHOLD)
+
+    // Новый пользователь превышает порог — триггерит прунинг устаревших записей
+    consumePortalRateLimit('new-user', now)
+
+    // Устаревшие записи удалены, остаётся только новый пользователь
+    expect(getPortalRateLimitStoreSize()).toBe(1)
   })
 })

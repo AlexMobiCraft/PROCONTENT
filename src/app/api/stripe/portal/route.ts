@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   if (!allowed) {
     return NextResponse.json(
       { error: 'Слишком много запросов. Попробуйте позже.' },
-      { status: 429 }
+      { status: 429, headers: { 'Retry-After': '60' } }
     )
   }
 
@@ -32,6 +32,10 @@ export async function POST(request: Request) {
     .single()
 
   if (profileError) {
+    // PGRST116: no rows found — профиль не найден, это ожидаемый кейс (не фатальная ошибка БД)
+    if ((profileError as { code?: string }).code === 'PGRST116') {
+      return NextResponse.json({ error: 'Аккаунт Stripe не найден' }, { status: 400 })
+    }
     console.error('[stripe/portal] Ошибка загрузки профиля:', profileError)
     return NextResponse.json(
       { error: 'Ошибка загрузки профиля. Попробуйте позже.' },
@@ -43,12 +47,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Аккаунт Stripe не найден' }, { status: 400 })
   }
 
-  const origin = new URL(request.url).origin
+  // Клиент передаёт свой origin для надёжной работы за reverse proxy
+  let returnUrl: string
+  try {
+    const body = (await request.json()) as { returnUrl?: unknown }
+    const clientReturnUrl = typeof body?.returnUrl === 'string' ? body.returnUrl : null
+    
+    // Строгая валидация: сравниваем origin через new URL() — защита от subdomain-spoofing
+    // (startsWith пропускал https://procontent.ru.evil.com, т.к. строка начиналась с origin)
+    const requestOrigin = new URL(request.url).origin
+    let isValidReturnUrl = false
+    if (clientReturnUrl) {
+      try {
+        isValidReturnUrl = new URL(clientReturnUrl).origin === requestOrigin
+      } catch {
+        isValidReturnUrl = false
+      }
+    }
+    returnUrl = isValidReturnUrl ? clientReturnUrl! : `${requestOrigin}/profile`
+  } catch {
+    returnUrl = `${new URL(request.url).origin}/profile`
+  }
 
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${origin}/profile`,
+      return_url: returnUrl,
     })
 
     return NextResponse.json(

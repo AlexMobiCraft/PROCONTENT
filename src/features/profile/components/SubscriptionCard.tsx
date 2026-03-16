@@ -63,18 +63,29 @@ export function SubscriptionCard({
     setIsLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/stripe/portal', { method: 'POST' })
+      // Передаём клиентский origin, чтобы return_url корректно формировался за reverse proxy
+      const returnUrl = window.location.origin + '/profile'
+      const response = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnUrl }),
+      })
       const data = (await response.json()) as { url?: string; error?: string }
 
       if (!response.ok || !data.url) {
-        setError('Не удалось открыть портал управления подпиской')
+        if (response.status === 429 && data.error) {
+          setError(data.error)
+        } else {
+          setError('Не удалось открыть портал управления подпиской')
+        }
+        setIsLoading(false)
         return
       }
 
+      // isLoading остаётся true — кнопка заблокирована до завершения навигации браузером
       window.location.href = data.url
     } catch {
       setError('Ошибка соединения')
-    } finally {
       setIsLoading(false)
     }
   }
@@ -82,10 +93,17 @@ export function SubscriptionCard({
   const { label, active } = getStatusLabel(subscriptionStatus, periodEndDisplay)
 
   return (
-    <div className="space-y-4 border border-border p-6">
+    <div className="border-border space-y-4 border p-6">
       <div>
-        <p className="mb-1 text-xs uppercase tracking-[0.15em] text-muted-foreground">Подписка</p>
-        <p className={cn('font-medium', active ? 'text-foreground' : 'text-muted-foreground')}>
+        <p className="text-muted-foreground mb-1 text-xs tracking-[0.15em] uppercase">
+          Подписка
+        </p>
+        <p
+          className={cn(
+            'font-medium',
+            active ? 'text-foreground' : 'text-muted-foreground'
+          )}
+        >
           {label}
         </p>
       </div>
@@ -102,7 +120,7 @@ export function SubscriptionCard({
             {isLoading ? 'Загрузка…' : 'Управление подпиской'}
           </Button>
           {error && (
-            <p className="text-xs text-destructive" role="alert">
+            <p className="text-destructive text-xs" role="alert">
               {error}
             </p>
           )}

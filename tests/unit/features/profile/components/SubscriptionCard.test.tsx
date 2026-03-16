@@ -42,6 +42,11 @@ describe('SubscriptionCard', () => {
       expect(screen.getByText('Требует оплаты')).toBeInTheDocument()
     })
 
+    it('показывает "Не оплачена" для unpaid статуса', () => {
+      render(<SubscriptionCard {...defaultProps} subscriptionStatus="unpaid" />)
+      expect(screen.getByText('Не оплачена')).toBeInTheDocument()
+    })
+
     it('показывает "Нет активной подписки" для null статуса', () => {
       render(<SubscriptionCard {...defaultProps} subscriptionStatus={null} />)
       expect(screen.getByText('Нет активной подписки')).toBeInTheDocument()
@@ -71,7 +76,7 @@ describe('SubscriptionCard', () => {
     })
 
     it('выполняет редирект на URL портала при успешном запросе', async () => {
-      vi.stubGlobal('location', { href: '' })
+      vi.stubGlobal('location', { href: '', origin: 'http://localhost:3000' })
       const user = userEvent.setup()
       vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
@@ -86,8 +91,8 @@ describe('SubscriptionCard', () => {
       })
     })
 
-    it('отправляет POST на /api/stripe/portal', async () => {
-      vi.stubGlobal('location', { href: '' })
+    it('кнопка остаётся заблокированной после успешного редиректа (нет race condition)', async () => {
+      vi.stubGlobal('location', { href: '', origin: 'http://localhost:3000' })
       const user = userEvent.setup()
       vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
@@ -98,7 +103,29 @@ describe('SubscriptionCard', () => {
       await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/stripe/portal', { method: 'POST' })
+        expect(window.location.href).toBe('https://billing.stripe.com/portal/test')
+      })
+      // isLoading НЕ сбрасывается после редиректа — кнопка остаётся заблокированной до навигации
+      expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
+    })
+
+    it('отправляет POST на /api/stripe/portal с returnUrl клиента', async () => {
+      vi.stubGlobal('location', { href: 'http://localhost:3000/profile', origin: 'http://localhost:3000' })
+      const user = userEvent.setup()
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ url: 'https://billing.stripe.com/portal/test' }),
+      } as Response)
+
+      render(<SubscriptionCard {...defaultProps} />)
+      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith('/api/stripe/portal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ returnUrl: 'http://localhost:3000/profile' }),
+        })
       })
     })
 
@@ -118,6 +145,24 @@ describe('SubscriptionCard', () => {
         )
         // убеждаемся что raw API error не выведен напрямую
         expect(screen.getByRole('alert')).not.toHaveTextContent('Аккаунт Stripe не найден')
+      })
+    })
+
+    it('показывает сообщение из ответа при ошибке 429 Rate Limit', async () => {
+      const user = userEvent.setup()
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        json: async () => ({ error: 'Слишком много запросов. Попробуйте позже.' }),
+      } as Response)
+
+      render(<SubscriptionCard {...defaultProps} />)
+      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'Слишком много запросов. Попробуйте позже.'
+        )
       })
     })
 

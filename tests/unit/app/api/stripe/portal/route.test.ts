@@ -73,7 +73,67 @@ describe('POST /api/stripe/portal', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-store')
   })
 
-  it('использует origin из URL запроса для return_url', async () => {
+  it('использует returnUrl переданный клиентом (надёжно за reverse proxy), если он совпадает с origin', async () => {
+    mockPortalSessionsCreate.mockResolvedValueOnce({
+      url: 'https://billing.stripe.com/session/test',
+    })
+
+    const request = new Request('https://myapp.example.com/api/stripe/portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ returnUrl: 'https://myapp.example.com/profile' }),
+    })
+
+    await POST(request)
+
+    expect(mockPortalSessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        return_url: 'https://myapp.example.com/profile',
+      })
+    )
+  })
+
+  it('блокирует subdomain-spoofing: returnUrl начинается с origin, но принадлежит другому домену', async () => {
+    mockPortalSessionsCreate.mockResolvedValueOnce({
+      url: 'https://billing.stripe.com/session/test',
+    })
+
+    const request = new Request('https://procontent.ru/api/stripe/portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ returnUrl: 'https://procontent.ru.evil.com/profile' }),
+    })
+
+    await POST(request)
+
+    expect(mockPortalSessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        return_url: 'https://procontent.ru/profile',
+      })
+    )
+  })
+
+  it('игнорирует returnUrl от клиента, если он указывает на другой домен (защита от Open Redirect)', async () => {
+    mockPortalSessionsCreate.mockResolvedValueOnce({
+      url: 'https://billing.stripe.com/session/test',
+    })
+
+    const request = new Request('http://localhost:3000/api/stripe/portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ returnUrl: 'https://evil-phishing.com/profile' }),
+    })
+
+    await POST(request)
+
+    expect(mockPortalSessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        return_url: 'http://localhost:3000/profile',
+      })
+    )
+  })
+
+  it('использует origin из URL запроса для return_url если клиент не прислал returnUrl', async () => {
     mockPortalSessionsCreate.mockResolvedValueOnce({
       url: 'https://billing.stripe.com/session/test',
     })
@@ -120,8 +180,22 @@ describe('POST /api/stripe/portal', () => {
     expect(mockPortalSessionsCreate).not.toHaveBeenCalled()
   })
 
+  it('возвращает 400 при PGRST116 (профиль не найден — ожидаемый кейс, не фатальная ошибка)', async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+    })
+
+    const response = await POST(makeRequest())
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data).toHaveProperty('error')
+    expect(mockPortalSessionsCreate).not.toHaveBeenCalled()
+  })
+
   it('возвращает 500 при ошибке Supabase (фатальная ошибка БД)', async () => {
-    mockSingle.mockResolvedValueOnce({ data: null, error: { message: 'DB connection error' } })
+    mockSingle.mockResolvedValueOnce({ data: null, error: { code: 'PGRST301', message: 'DB connection error' } })
 
     const response = await POST(makeRequest())
     const data = await response.json()
@@ -140,6 +214,15 @@ describe('POST /api/stripe/portal', () => {
     expect(response.status).toBe(429)
     expect(data).toHaveProperty('error')
     expect(mockPortalSessionsCreate).not.toHaveBeenCalled()
+  })
+
+  it('устанавливает Retry-After: 60 заголовок в ответе 429', async () => {
+    mockConsumePortalRateLimit.mockReturnValueOnce({ allowed: false })
+
+    const response = await POST(makeRequest())
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('60')
   })
 
   it('возвращает 500 при ошибке Stripe с понятным сообщением', async () => {
