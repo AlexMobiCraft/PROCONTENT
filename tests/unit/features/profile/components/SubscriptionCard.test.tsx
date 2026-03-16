@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SubscriptionCard } from '@/features/profile/components/SubscriptionCard'
 
@@ -66,19 +66,17 @@ describe('SubscriptionCard', () => {
   })
 
   describe('логика портала', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
     it('выполняет редирект на URL портала при успешном запросе', async () => {
+      vi.stubGlobal('location', { href: '' })
       const user = userEvent.setup()
       vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ url: 'https://billing.stripe.com/portal/test' }),
       } as Response)
-
-      const originalHref = window.location.href
-      Object.defineProperty(window, 'location', {
-        value: { href: '' },
-        writable: true,
-        configurable: true,
-      })
 
       render(<SubscriptionCard {...defaultProps} />)
       await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
@@ -86,26 +84,15 @@ describe('SubscriptionCard', () => {
       await waitFor(() => {
         expect(window.location.href).toBe('https://billing.stripe.com/portal/test')
       })
-
-      Object.defineProperty(window, 'location', {
-        value: { href: originalHref },
-        writable: true,
-        configurable: true,
-      })
     })
 
     it('отправляет POST на /api/stripe/portal', async () => {
+      vi.stubGlobal('location', { href: '' })
       const user = userEvent.setup()
       vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ url: 'https://billing.stripe.com/portal/test' }),
       } as Response)
-
-      Object.defineProperty(window, 'location', {
-        value: { href: '' },
-        writable: true,
-        configurable: true,
-      })
 
       render(<SubscriptionCard {...defaultProps} />)
       await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
@@ -115,7 +102,7 @@ describe('SubscriptionCard', () => {
       })
     })
 
-    it('показывает ошибку из ответа сервера', async () => {
+    it('показывает generic-ошибку при неуспешном ответе сервера (скрывает data.error)', async () => {
       const user = userEvent.setup()
       vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: false,
@@ -126,11 +113,15 @@ describe('SubscriptionCard', () => {
       await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent('Аккаунт Stripe не найден')
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'Не удалось открыть портал управления подпиской'
+        )
+        // убеждаемся что raw API error не выведен напрямую
+        expect(screen.getByRole('alert')).not.toHaveTextContent('Аккаунт Stripe не найден')
       })
     })
 
-    it('показывает дефолтную ошибку если в ответе нет поля error', async () => {
+    it('показывает generic-ошибку даже если в ответе нет поля error', async () => {
       const user = userEvent.setup()
       vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: false,
@@ -141,7 +132,9 @@ describe('SubscriptionCard', () => {
       await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent('Ошибка при открытии портала')
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'Не удалось открыть портал управления подпиской'
+        )
       })
     })
 

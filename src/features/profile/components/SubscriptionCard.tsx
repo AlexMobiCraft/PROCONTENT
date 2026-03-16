@@ -1,29 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) {
-    return dateStr
-  }
-  return date.toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
-}
-
+// periodEndDisplay — уже отформатированная на клиенте строка (или null)
 function getStatusLabel(
   status: string | null,
-  periodEnd: string | null
+  periodEndDisplay: string | null
 ): { label: string; active: boolean } {
   if (status === 'active' || status === 'trialing') {
     return {
-      label: periodEnd ? `Активна до ${formatDate(periodEnd)}` : 'Активна',
+      label: periodEndDisplay ? `Активна до ${periodEndDisplay}` : 'Активна',
       active: true,
     }
   }
@@ -46,6 +35,29 @@ export function SubscriptionCard({
 }: SubscriptionCardProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Форматирование в useEffect предотвращает hydration mismatch:
+  // сервер рендерит с UTC, клиент — с локальной таймзоной.
+  const [periodEndDisplay, setPeriodEndDisplay] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!currentPeriodEnd) {
+      setPeriodEndDisplay(null)
+      return
+    }
+    const date = new Date(currentPeriodEnd)
+    if (isNaN(date.getTime())) {
+      setPeriodEndDisplay(currentPeriodEnd)
+      return
+    }
+    setPeriodEndDisplay(
+      date.toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })
+    )
+  }, [currentPeriodEnd])
 
   async function handleManageSubscription() {
     setIsLoading(true)
@@ -55,7 +67,7 @@ export function SubscriptionCard({
       const data = (await response.json()) as { url?: string; error?: string }
 
       if (!response.ok || !data.url) {
-        setError(data.error ?? 'Ошибка при открытии портала')
+        setError('Не удалось открыть портал управления подпиской')
         return
       }
 
@@ -67,7 +79,7 @@ export function SubscriptionCard({
     }
   }
 
-  const { label, active } = getStatusLabel(subscriptionStatus, currentPeriodEnd)
+  const { label, active } = getStatusLabel(subscriptionStatus, periodEndDisplay)
 
   return (
     <div className="space-y-4 border border-border p-6">

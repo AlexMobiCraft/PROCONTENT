@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 
 import { stripe } from '@/lib/stripe'
+import { consumePortalRateLimit } from '@/lib/stripe/portal-rate-limit'
 import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: Request) {
@@ -16,6 +17,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
   }
 
+  const { allowed } = consumePortalRateLimit(user.id)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Слишком много запросов. Попробуйте позже.' },
+      { status: 429 }
+    )
+  }
+
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('stripe_customer_id')
@@ -24,6 +33,10 @@ export async function POST(request: Request) {
 
   if (profileError) {
     console.error('[stripe/portal] Ошибка загрузки профиля:', profileError)
+    return NextResponse.json(
+      { error: 'Ошибка загрузки профиля. Попробуйте позже.' },
+      { status: 500 }
+    )
   }
 
   if (!profile?.stripe_customer_id) {
@@ -38,7 +51,10 @@ export async function POST(request: Request) {
       return_url: `${origin}/profile`,
     })
 
-    return NextResponse.json({ url: session.url }, { status: 200 })
+    return NextResponse.json(
+      { url: session.url },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } }
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[stripe/portal] Ошибка при создании сессии портала:', message)
