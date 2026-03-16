@@ -52,6 +52,21 @@ describe('SubscriptionCard', () => {
       expect(screen.getByText('Нет активной подписки')).toBeInTheDocument()
     })
 
+    it('показывает "Приостановлена" для paused статуса', () => {
+      render(<SubscriptionCard {...defaultProps} subscriptionStatus="paused" />)
+      expect(screen.getByText('Приостановлена')).toBeInTheDocument()
+    })
+
+    it('показывает "Не завершена" для incomplete статуса', () => {
+      render(<SubscriptionCard {...defaultProps} subscriptionStatus="incomplete" />)
+      expect(screen.getByText('Не завершена')).toBeInTheDocument()
+    })
+
+    it('показывает "Не завершена" для incomplete_expired статуса', () => {
+      render(<SubscriptionCard {...defaultProps} subscriptionStatus="incomplete_expired" />)
+      expect(screen.getByText('Не завершена')).toBeInTheDocument()
+    })
+
     it('не падает при невалидной дате, возвращает исходную строку', () => {
       render(<SubscriptionCard {...defaultProps} currentPeriodEnd="invalid-date" />)
       expect(screen.getByText(/invalid-date/)).toBeInTheDocument()
@@ -211,6 +226,54 @@ describe('SubscriptionCard', () => {
         )
       })
       consoleSpy.mockRestore()
+    })
+
+    it('сбрасывает isLoading при восстановлении страницы из BFCache (pageshow persisted)', async () => {
+      vi.stubGlobal('location', { href: '', origin: 'http://localhost:3000' })
+      const user = userEvent.setup()
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ url: 'https://billing.stripe.com/portal/test' }),
+      } as Response)
+
+      render(<SubscriptionCard {...defaultProps} />)
+      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+
+      // После успешного редиректа isLoading остаётся true — кнопка заблокирована
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
+      })
+
+      // Симулируем восстановление страницы из BFCache (event.persisted = true)
+      const pageshowEvent = new PageTransitionEvent('pageshow', { persisted: true })
+      window.dispatchEvent(pageshowEvent)
+
+      // isLoading должен сброситься — кнопка снова активна
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Управление подпиской/ })).not.toBeDisabled()
+      })
+    })
+
+    it('НЕ сбрасывает isLoading при обычном pageshow (persisted=false)', async () => {
+      vi.stubGlobal('location', { href: '', origin: 'http://localhost:3000' })
+      const user = userEvent.setup()
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ url: 'https://billing.stripe.com/portal/test' }),
+      } as Response)
+
+      render(<SubscriptionCard {...defaultProps} />)
+      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
+      })
+
+      // Обычный pageshow (не BFCache) — не сбрасываем isLoading
+      const pageshowEvent = new PageTransitionEvent('pageshow', { persisted: false })
+      window.dispatchEvent(pageshowEvent)
+
+      expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
     })
 
     it('блокирует кнопку во время загрузки', async () => {

@@ -30,9 +30,9 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get('token_hash')
   const code = searchParams.get('code')
   const type = searchParams.get('type') as EmailOtpType | null
-  // type=recovery (сброс пароля) и type=signup → редирект на установку пароля
+  // type=recovery (сброс пароля) → редирект на установку пароля; signup идёт на обычный success path
   const defaultRedirect =
-    type === 'recovery' || type === 'signup' ? '/update-password' : getAuthSuccessRedirectPath()
+    type === 'recovery' ? '/update-password' : getAuthSuccessRedirectPath()
   const next = searchParams.get('next') || defaultRedirect
 
   if ((tokenHash && type) || code) {

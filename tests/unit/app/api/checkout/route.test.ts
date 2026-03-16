@@ -164,7 +164,7 @@ describe('POST /api/checkout', () => {
     expect(response.status).toBe(200)
     expect(mockSessionsCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        success_url: 'http://localhost:3000/onboarding?session_id={CHECKOUT_SESSION_ID}',
+        success_url: 'http://localhost:3000/register?session_id={CHECKOUT_SESSION_ID}',
         cancel_url: 'http://localhost:3000/#pricing',
       })
     )

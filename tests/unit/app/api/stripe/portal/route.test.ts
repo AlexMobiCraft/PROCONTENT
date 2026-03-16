@@ -243,6 +243,26 @@ describe('POST /api/stripe/portal', () => {
     expect(response.headers.get('Retry-After')).toBe('60')
   })
 
+  it('не падает если NEXT_PUBLIC_SITE_URL содержит невалидный URL (safe catch block)', async () => {
+    process.env.NEXT_PUBLIC_SITE_URL = 'not-a-valid-url'
+    mockPortalSessionsCreate.mockResolvedValueOnce({
+      url: 'https://billing.stripe.com/session/test',
+    })
+
+    // Запрос без тела → catch block в returnUrl-логике; NEXT_PUBLIC_SITE_URL невалиден → fallback на request.url
+    const request = new Request('http://localhost:3000/api/stripe/portal', { method: 'POST' })
+    const response = await POST(request)
+
+    // Функция не должна падать; Stripe получает корректный return_url
+    expect(response.status).toBe(200)
+    expect(mockPortalSessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        return_url: 'http://localhost:3000/profile',
+      })
+    )
+    delete process.env.NEXT_PUBLIC_SITE_URL
+  })
+
   it('возвращает 500 при ошибке Stripe с понятным сообщением', async () => {
     mockPortalSessionsCreate.mockRejectedValueOnce(new Error('Stripe connection error'))
 

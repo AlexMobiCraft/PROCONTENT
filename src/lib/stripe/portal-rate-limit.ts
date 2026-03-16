@@ -3,6 +3,11 @@ type RateLimitState = {
   resetAt: number
 }
 
+// IMPORTANT: In-memory rate limiter — работает только в рамках одного процесса Node.js.
+// В serverless-окружениях (Vercel, AWS Lambda) каждый экземпляр функции имеет свой
+// независимый store — лимиты НЕ синхронизируются между инстансами.
+// Для надёжного rate limiting в production рассмотрите Redis / Upstash Redis.
+
 // 5 запросов на открытие портала в минуту на пользователя
 const PORTAL_RATE_LIMIT_MAX = 5
 const PORTAL_RATE_LIMIT_WINDOW_MS = 60 * 1000

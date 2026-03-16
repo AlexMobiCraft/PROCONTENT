@@ -70,11 +70,12 @@ describe('GET /auth/confirm', () => {
     })
   })
 
-  it('редиректит на /update-password при успехе если type=signup', async () => {
+  it('НЕ редиректит на /update-password для type=signup — только recovery требует смены пароля', async () => {
     const response = await GET(makeRequest('token_hash=test-token&type=signup'))
 
     expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toBe('http://localhost:3000/update-password')
+    // signup — обычная регистрация через email, пароль уже задан; редирект на success path, не /update-password
+    expect(response.headers.get('location')).toBe('http://localhost:3000/feed')
   })
 
   it('редиректит на /update-password при успехе если type=recovery', async () => {

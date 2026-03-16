@@ -68,9 +68,15 @@ export async function POST(request: Request) {
     }
     returnUrl = isValidReturnUrl ? clientReturnUrl! : `${siteOrigin}/profile`
   } catch {
-    const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL
-      ? new URL(process.env.NEXT_PUBLIC_SITE_URL).origin
-      : new URL(request.url).origin
+    // Безопасный парсинг: NEXT_PUBLIC_SITE_URL может отсутствовать протокол — оборачиваем в try/catch
+    let siteOrigin: string
+    try {
+      siteOrigin = process.env.NEXT_PUBLIC_SITE_URL
+        ? new URL(process.env.NEXT_PUBLIC_SITE_URL).origin
+        : new URL(request.url).origin
+    } catch {
+      siteOrigin = new URL(request.url).origin
+    }
     returnUrl = `${siteOrigin}/profile`
   }
 

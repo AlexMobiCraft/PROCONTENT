@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -32,6 +32,9 @@ function getStatusLabel(
   if (status === 'canceled') return { label: 'Отменена', active: false }
   if (status === 'past_due') return { label: 'Требует оплаты', active: false }
   if (status === 'unpaid') return { label: 'Не оплачена', active: false }
+  if (status === 'paused') return { label: 'Приостановлена', active: false }
+  if (status === 'incomplete' || status === 'incomplete_expired')
+    return { label: 'Не завершена', active: false }
   return { label: 'Нет активной подписки', active: false }
 }
 
@@ -48,6 +51,18 @@ export function SubscriptionCard({
 }: SubscriptionCardProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // BFCache fix: если пользователь нажал "Назад" и страница загружена из BFCache,
+  // isLoading может остаться true (кнопка заблокирована). Сбрасываем при восстановлении.
+  useEffect(() => {
+    function handlePageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        setIsLoading(false)
+      }
+    }
+    window.addEventListener('pageshow', handlePageShow)
+    return () => window.removeEventListener('pageshow', handlePageShow)
+  }, [])
   // Форматируем синхронно — timeZone: 'UTC' устраняет расхождение сервер/клиент без useEffect.
   // suppressHydrationWarning на элементе — дополнительная защита от layout shift.
   const periodEndDisplay = formatPeriodEnd(currentPeriodEnd)
