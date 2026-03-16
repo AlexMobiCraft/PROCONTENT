@@ -16,6 +16,7 @@ export function UpdatePasswordForm() {
     e.preventDefault()
     const form = e.currentTarget
     const passwordInput = form.elements.namedItem('password') as HTMLInputElement
+    const confirmInput = form.elements.namedItem('confirm') as HTMLInputElement
 
     if (passwordInput.validity.valueMissing) {
       setValidationError('Введите новый пароль')
@@ -24,6 +25,11 @@ export function UpdatePasswordForm() {
 
     if (passwordInput.value.length < 6) {
       setValidationError('Пароль должен быть не короче 6 символов')
+      return
+    }
+
+    if (confirmInput.value !== passwordInput.value) {
+      setValidationError('Пароли не совпадают')
       return
     }
 
@@ -80,6 +86,26 @@ export function UpdatePasswordForm() {
               {displayError}
             </p>
           )}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="confirm" className="text-foreground text-sm font-medium">
+            Подтвердите пароль
+          </label>
+          <input
+            id="confirm"
+            name="confirm"
+            type="password"
+            required
+            placeholder="Повторите пароль"
+            disabled={isLoading}
+            onChange={() => setValidationError(null)}
+            className={cn(
+              'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
+              displayError &&
+                'border-destructive focus:ring-destructive/20 focus:border-destructive'
+            )}
+          />
         </div>
 
         <div className="flex justify-center mt-2">

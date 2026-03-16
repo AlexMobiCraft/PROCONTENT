@@ -26,6 +26,13 @@ export async function updatePassword(password: string) {
   return supabase.auth.updateUser({ password })
 }
 
+export async function resetPasswordForEmail(email: string) {
+  const supabase = createClient()
+  return supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/auth/confirm?type=recovery`,
+  })
+}
+
 export async function signOut() {
   const supabase = createClient()
   return supabase.auth.signOut()

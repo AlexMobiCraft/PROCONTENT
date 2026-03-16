@@ -77,6 +77,15 @@ export function AuthContainer() {
         isLoading={isLoading}
         error={error}
       />
+
+      <div className="text-center">
+        <a
+          href="/forgot-password"
+          className="text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
+        >
+          Забыли пароль?
+        </a>
+      </div>
     </div>
   )
 }

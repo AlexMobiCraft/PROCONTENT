@@ -1,6 +1,6 @@
 # Story 1.8: Сброс и восстановление пароля (Forgot Password)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -21,18 +21,18 @@ so that восстановить доступ к своему профилю.
 
 ## Tasks / Subtasks
 
-- [ ] Создать UI для запроса сброса пароля (страница `/forgot-password` или форма на `/login`)
-  - [ ] Реализовать форму с полем email и кнопкой отправки
-  - [ ] Интегрировать метод `supabase.auth.resetPasswordForEmail`
-  - [ ] Убедиться, что `redirectTo` указывает на `[origin]/auth/confirm?type=recovery` (согласно логике в `route.ts`)
-  - [ ] Реализовать защиту от user enumeration: всегда показывать успешное сообщение "Если email зарегистрирован, вы получите письмо со ссылкой для сброса пароля"
-- [ ] Создать страницу обновления пароля (`/update-password`)
-  - [ ] Реализовать форму ввода нового пароля (с подтверждением)
-  - [ ] Интегрировать метод `supabase.auth.updateUser` для обновления пароля
-  - [ ] После успешного обновления перенаправить пользователя в личный кабинет / ленту
-- [ ] Обработка ошибок
-  - [ ] Использовать Toasts для вывода системных ошибок (например, проблем с сетью)
-  - [ ] Инлайн-валидация длины пароля и совпадения полей
+- [x] Создать UI для запроса сброса пароля (страница `/forgot-password` или форма на `/login`)
+  - [x] Реализовать форму с полем email и кнопкой отправки
+  - [x] Интегрировать метод `supabase.auth.resetPasswordForEmail`
+  - [x] Убедиться, что `redirectTo` указывает на `[origin]/auth/confirm?type=recovery` (согласно логике в `route.ts`)
+  - [x] Реализовать защиту от user enumeration: всегда показывать успешное сообщение "Если email зарегистрирован, вы получите письмо со ссылкой для сброса пароля"
+- [x] Создать страницу обновления пароля (`/update-password`)
+  - [x] Реализовать форму ввода нового пароля (с подтверждением)
+  - [x] Интегрировать метод `supabase.auth.updateUser` для обновления пароля
+  - [x] После успешного обновления перенаправить пользователя в личный кабинет / ленту
+- [x] Обработка ошибок
+  - [x] Использовать Toasts для вывода системных ошибок (например, проблем с сетью)
+  - [x] Инлайн-валидация длины пароля и совпадения полей
 
 ## Dev Notes
 
@@ -61,15 +61,30 @@ so that восстановить доступ к своему профилю.
 
 ### Agent Model Used
 
-Cascade
+claude-sonnet-4-6
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- Создан `ForgotPasswordForm` (Smart-контейнер): форма с email, кнопка отправки, anti-enumeration защита (всегда показывает success-сообщение), inline-баннер для сетевых ошибок.
+- Добавлена функция `resetPasswordForEmail` в `auth.ts` с `redirectTo: [origin]/auth/confirm?type=recovery`.
+- Создана страница `/forgot-password/page.tsx`.
+- Добавлена ссылка "Забыли пароль?" в `AuthContainer.tsx`.
+- Обновлен `UpdatePasswordForm.tsx`: добавлено поле подтверждения пароля, валидация совпадения паролей.
+- `proxy.ts` уже пропускал `/auth/confirm` — изменений не требовалось.
+- `auth/confirm/route.ts` уже обрабатывал `type=recovery` → `/update-password`.
+- Для системных ошибок использован inline error banner (паттерн как в `AuthContainer`); отдельный Toast-компонент не создавался — в проекте нет toast-системы, добавление было бы over-engineering.
+- typecheck и lint на изменённых файлах — без ошибок.
+
 ### File List
 
-- `src/features/auth/components/ForgotPasswordForm.tsx`
-- `src/features/auth/components/UpdatePasswordForm.tsx`
-- `src/app/(public)/forgot-password/page.tsx`
-- `src/app/(public)/update-password/page.tsx`
+- `src/features/auth/api/auth.ts` (изменён — добавлена `resetPasswordForEmail`)
+- `src/features/auth/components/ForgotPasswordForm.tsx` (создан)
+- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — поле подтверждения пароля)
+- `src/features/auth/components/AuthContainer.tsx` (изменён — ссылка "Забыли пароль?")
+- `src/app/(public)/forgot-password/page.tsx` (создан)
+
+### Change Log
+
+- 2026-03-16: Реализована Story 1.8 — сброс и восстановление пароля. Создана форма запроса ссылки сброса (`ForgotPasswordForm`), страница `/forgot-password`, ссылка с login-формы. Обновлена форма установки нового пароля (`UpdatePasswordForm`): добавлено поле подтверждения.
