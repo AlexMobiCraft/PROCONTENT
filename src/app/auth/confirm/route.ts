@@ -173,6 +173,7 @@ export async function GET(request: NextRequest) {
 
   const errorUrl = request.nextUrl.clone()
   errorUrl.pathname = '/login'
-  errorUrl.searchParams.set('error', 'auth_callback_error_v2')
+  // При ошибке recovery-токена показываем "ссылка истекла" вместо общей ошибки
+  errorUrl.searchParams.set('error', type === 'recovery' ? 'link-expired' : 'auth_callback_error_v2')
   return NextResponse.redirect(errorUrl)
 }

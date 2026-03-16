@@ -109,7 +109,7 @@ describe('UpdatePasswordForm', () => {
     expect(mockPush).not.toHaveBeenCalled()
   })
 
-  it('показывает уведомление "Пароль обновлён" и вызывает router.refresh() при успешном обновлении', async () => {
+  it('показывает уведомление "Пароль обновлён" при успешном обновлении', async () => {
     mockUpdatePassword.mockResolvedValue({ error: null })
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
@@ -122,10 +122,9 @@ describe('UpdatePasswordForm', () => {
       expect(screen.getByText('Пароль обновлён')).toBeInTheDocument()
     })
     expect(screen.getByText(/успешно изменён/)).toBeInTheDocument()
-    expect(mockRefresh).toHaveBeenCalledTimes(1)
   })
 
-  it('редиректит на /feed после задержки при успешном обновлении пароля', async () => {
+  it('редиректит на /feed после задержки и вызывает router.refresh() внутри таймера', async () => {
     mockUpdatePassword.mockResolvedValue({ error: null })
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
@@ -134,13 +133,14 @@ describe('UpdatePasswordForm', () => {
     await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
     await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
 
-    // Сначала появляется сообщение об успехе
+    // Сначала появляется сообщение об успехе — redirect и refresh ещё не вызваны
     await waitFor(() => expect(screen.getByText('Пароль обновлён')).toBeInTheDocument())
-    // В этот момент редиректа ещё нет (идёт задержка 2с)
     expect(mockPush).not.toHaveBeenCalledWith('/feed')
+    expect(mockRefresh).not.toHaveBeenCalled()
 
-    // Через 2 секунды происходит редирект
+    // Через 2 секунды router.push и router.refresh срабатывают вместе (внутри setTimeout)
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/feed'), { timeout: 3000 })
+    expect(mockRefresh).toHaveBeenCalledTimes(1)
   })
 
   it('обновляет useAuthStore после успешного обновления пароля', async () => {

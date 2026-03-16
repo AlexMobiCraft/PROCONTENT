@@ -15,6 +15,7 @@ export function ForgotPasswordForm() {
     e.preventDefault()
     const form = e.currentTarget
     const emailInput = form.elements.namedItem('email') as HTMLInputElement
+    setNetworkError(null)
 
     if (emailInput.validity.valueMissing) {
       setValidationError('Введите email')

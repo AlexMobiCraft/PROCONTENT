@@ -115,4 +115,15 @@ describe('GET /auth/confirm', () => {
     expect(url.pathname).toBe('/login')
     expect(url.searchParams.get('error')).toBe('auth_callback_error_v2')
   })
+
+  it('редиректит на /login?error=link-expired при ошибке verifyOtp для type=recovery', async () => {
+    mockVerifyOtp.mockResolvedValueOnce({ error: { message: 'Token has expired or is invalid' } })
+
+    const response = await GET(makeRequest('token_hash=test-token&type=recovery'))
+
+    expect(response.status).toBe(307)
+    const url = new URL(response.headers.get('location') || '')
+    expect(url.pathname).toBe('/login')
+    expect(url.searchParams.get('error')).toBe('link-expired')
+  })
 })

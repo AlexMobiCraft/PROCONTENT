@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { updatePassword } from '@/features/auth/api/auth'
 import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/features/auth/store'
+import { getAuthSuccessRedirectPath } from '@/lib/app-routes'
 import { cn } from '@/lib/utils'
 
 export function UpdatePasswordForm() {
@@ -65,8 +66,10 @@ export function UpdatePasswordForm() {
     setIsLoading(false)
 
     setSuccess(true)
-    router.refresh()
-    setTimeout(() => router.push('/feed'), 2000)
+    setTimeout(() => {
+      router.refresh()
+      router.push(getAuthSuccessRedirectPath())
+    }, 2000)
   }
 
   const displayError = validationError ?? error
