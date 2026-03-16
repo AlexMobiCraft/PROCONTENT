@@ -145,6 +145,17 @@ describe('AuthContainer', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('показывает сообщение об истёкшей ссылке при ?error=link-expired в URL', () => {
+    mockSearchParams.mockReturnValue({
+      get: (key: string) => (key === 'error' ? 'link-expired' : null),
+    })
+    render(<AuthContainer />)
+
+    expect(
+      screen.getByText('Срок действия ссылки истёк. Запросите новую ссылку для сброса пароля.')
+    ).toBeInTheDocument()
+  })
+
   it('кнопка "Войти" остаётся задизейблена после успешного входа (isLoading=true до навигации)', async () => {
     mockSignInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: null })
     const user = userEvent.setup()

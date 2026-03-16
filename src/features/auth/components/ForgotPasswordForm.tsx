@@ -20,7 +20,8 @@ export function ForgotPasswordForm() {
       setValidationError('Введите email')
       return
     }
-    if (emailInput.validity.typeMismatch) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (emailInput.validity.typeMismatch || !emailRegex.test(emailInput.value)) {
       setValidationError('Введите корректный email')
       return
     }
@@ -31,14 +32,15 @@ export function ForgotPasswordForm() {
 
     const { error } = await resetPasswordForEmail(emailInput.value)
 
-    setIsLoading(false)
-
     if (error) {
+      setIsLoading(false)
       setNetworkError('Не удалось отправить письмо. Попробуйте позже.')
       return
     }
 
     // Всегда показываем успешное сообщение — защита от user enumeration (AC4)
+    // isLoading сбрасывается вместе с setSubmitted в одном ре-рендере
+    setIsLoading(false)
     setSubmitted(true)
   }
 
@@ -53,6 +55,13 @@ export function ForgotPasswordForm() {
             Если email зарегистрирован, вы получите письмо со ссылкой для сброса пароля.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setSubmitted(false)}
+          className="text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors text-left"
+        >
+          Ввести другой email
+        </button>
         <a
           href="/login"
           className="text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
@@ -97,7 +106,10 @@ export function ForgotPasswordForm() {
             disabled={isLoading}
             aria-describedby={validationError ? 'forgot-email-error' : undefined}
             aria-invalid={!!validationError}
-            onChange={() => setValidationError(null)}
+            onChange={(e) => {
+              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+              if (emailRegex.test(e.target.value)) setValidationError(null)
+            }}
             className={cn(
               'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
               validationError &&

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@base-ui/react/button', () => ({
   Button: ({
@@ -12,29 +12,52 @@ vi.mock('@base-ui/react/button', () => ({
   }) => <button {...props}>{children}</button>,
 }))
 
-const { mockPush, mockUpdatePassword } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
-  mockUpdatePassword: vi.fn(),
-}))
+const { mockPush, mockRefresh, mockUpdatePassword, mockSetSession, mockSetUser, mockGetSession } =
+  vi.hoisted(() => ({
+    mockPush: vi.fn(),
+    mockRefresh: vi.fn(),
+    mockUpdatePassword: vi.fn(),
+    mockSetSession: vi.fn(),
+    mockSetUser: vi.fn(),
+    mockGetSession: vi.fn(),
+  }))
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }))
 
 vi.mock('@/features/auth/api/auth', () => ({
   updatePassword: mockUpdatePassword,
 }))
 
+vi.mock('@/features/auth/store', () => ({
+  useAuthStore: () => ({ setSession: mockSetSession, setUser: mockSetUser }),
+}))
+
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: { getSession: mockGetSession },
+  }),
+}))
+
 import { UpdatePasswordForm } from '@/features/auth/components/UpdatePasswordForm'
+
+const mockSession = { access_token: 'token', user: { id: 'user-123', email: 'user@example.com' } }
 
 describe('UpdatePasswordForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetSession.mockResolvedValue({ data: { session: mockSession } })
   })
 
-  it('рендерит форму установки пароля', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('рендерит форму установки пароля с двумя полями', () => {
     render(<UpdatePasswordForm />)
     expect(screen.getByLabelText('Новый пароль')).toBeInTheDocument()
+    expect(screen.getByLabelText('Подтвердите пароль')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Сохранить и войти' })).toBeInTheDocument()
   })
 
@@ -59,12 +82,25 @@ describe('UpdatePasswordForm', () => {
     expect(mockUpdatePassword).not.toHaveBeenCalled()
   })
 
+  it('показывает ошибку если пароли не совпадают', async () => {
+    const user = userEvent.setup()
+    render(<UpdatePasswordForm />)
+
+    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'differentpassword')
+    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Пароли не совпадают')
+    expect(mockUpdatePassword).not.toHaveBeenCalled()
+  })
+
   it('показывает ошибку сервера', async () => {
     mockUpdatePassword.mockResolvedValue({ error: { message: 'Server error' } })
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
     await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
     await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
 
     await waitFor(() => {
@@ -73,16 +109,96 @@ describe('UpdatePasswordForm', () => {
     expect(mockPush).not.toHaveBeenCalled()
   })
 
-  it('редиректит на /feed при успешном обновлении пароля', async () => {
+  it('показывает уведомление "Пароль обновлён" и вызывает router.refresh() при успешном обновлении', async () => {
     mockUpdatePassword.mockResolvedValue({ error: null })
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
     await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
     await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/feed')
+      expect(screen.getByText('Пароль обновлён')).toBeInTheDocument()
     })
+    expect(screen.getByText(/успешно изменён/)).toBeInTheDocument()
+    expect(mockRefresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('редиректит на /feed после задержки при успешном обновлении пароля', async () => {
+    mockUpdatePassword.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    render(<UpdatePasswordForm />)
+
+    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
+
+    // Сначала появляется сообщение об успехе
+    await waitFor(() => expect(screen.getByText('Пароль обновлён')).toBeInTheDocument())
+    // В этот момент редиректа ещё нет (идёт задержка 2с)
+    expect(mockPush).not.toHaveBeenCalledWith('/feed')
+
+    // Через 2 секунды происходит редирект
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/feed'), { timeout: 3000 })
+  })
+
+  it('обновляет useAuthStore после успешного обновления пароля', async () => {
+    mockUpdatePassword.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    render(<UpdatePasswordForm />)
+
+    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
+
+    await waitFor(() => {
+      expect(mockSetSession).toHaveBeenCalledWith(mockSession)
+      expect(mockSetUser).toHaveBeenCalledWith(mockSession.user)
+    })
+  })
+
+  it('редиректит на /login?error=link-expired при истёкшем токене', async () => {
+    mockUpdatePassword.mockResolvedValue({ error: { message: 'Invalid token' } })
+    const user = userEvent.setup()
+    render(<UpdatePasswordForm />)
+
+    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/login?error=link-expired')
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('редиректит на /login?error=link-expired при истёкшей сессии', async () => {
+    mockUpdatePassword.mockResolvedValue({ error: { message: 'Auth session missing' } })
+    const user = userEvent.setup()
+    render(<UpdatePasswordForm />)
+
+    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/login?error=link-expired')
+    })
+  })
+
+  it('показывает inline ошибку при обычной серверной ошибке (не expired)', async () => {
+    mockUpdatePassword.mockResolvedValue({ error: { message: 'Database error' } })
+    const user = userEvent.setup()
+    render(<UpdatePasswordForm />)
+
+    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Не удалось обновить пароль. Попробуйте позже.')
+    })
+    expect(mockPush).not.toHaveBeenCalled()
   })
 })

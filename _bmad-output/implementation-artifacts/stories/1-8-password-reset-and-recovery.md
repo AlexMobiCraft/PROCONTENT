@@ -1,6 +1,6 @@
 # Story 1.8: Сброс и восстановление пароля (Forgot Password)
 
-Status: review
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -31,8 +31,31 @@ so that восстановить доступ к своему профилю.
   - [x] Интегрировать метод `supabase.auth.updateUser` для обновления пароля
   - [x] После успешного обновления перенаправить пользователя в личный кабинет / ленту
 - [x] Обработка ошибок
-  - [x] Использовать Toasts для вывода системных ошибок (например, проблем с сетью)
+  - [x] Использовать инлайн-баннеры для вывода системных ошибок (например, проблем с сетью)
   - [x] Инлайн-валидация длины пароля и совпадения полей
+
+### Review Follow-ups (AI)
+- [x] [AI-Review][CRITICAL] Исправить падающие тесты в UpdatePasswordForm.test.tsx - добавить заполнение поля подтверждения пароля [tests/unit/features/auth/components/UpdatePasswordForm.test.tsx:76-87]
+- [x] [AI-Review][CRITICAL] Создать тесты для ForgotPasswordForm.tsx и forgot-password страницы [tests/unit/features/auth/components/]
+- [x] [AI-Review][MEDIUM] Исправить ложное утверждение в задаче про Toasts - либо реализовать Toasts, либо изменить текст задачи на "инлайн-баннеры" [src/features/auth/components/ForgotPasswordForm.tsx:77-84]
+- [x] [AI-Review][LOW] Оптимизировать состояние isLoading в ForgotPasswordForm.tsx - сбрасывать перед setSubmitted(true) [src/features/auth/components/ForgotPasswordForm.tsx:41-42]
+- [x] [AI-Review][HIGH] Обработать истекший токен восстановления в UpdatePasswordForm - добавить проверку на invalid token и редирект на /login с сообщением "Срок действия ссылки истёк" [src/features/auth/components/UpdatePasswordForm.tsx:44-47]
+- [x] [AI-Review][HIGH] Добавить router.refresh() после успешного updatePassword для синхронизации RSC кэша [src/features/auth/components/UpdatePasswordForm.tsx:49]
+- [x] [AI-Review][MEDIUM] Добавить кнопку "Ввести другой email" в ForgotPasswordForm после успешной отправки [src/features/auth/components/ForgotPasswordForm.tsx:46-64]
+- [x] [AI-Review][MEDIUM] Добавить уведомление об успешном изменении пароля перед редиректом в UpdatePasswordForm [src/features/auth/components/UpdatePasswordForm.tsx:49]
+- [x] [AI-Review][LOW] Улучшить валидацию email с помощью регулярного выражения [src/features/auth/components/ForgotPasswordForm.tsx:23-26]
+- [x] [AI-Review][HIGH] Обновить useAuthStore после успешной установки пароля в UpdatePasswordForm - синхронизировать состояние клиента с новой сессией [src/features/auth/components/UpdatePasswordForm.tsx:57-59]
+- [x] [AI-Review][HIGH] Добавить серверную проверку сессии на странице /update-password - редиректить неавторизованных на /login [src/app/(public)/update-password/page.tsx:8-16]
+- [x] [AI-Review][MEDIUM] Добавить задержку 2 секунды перед редиректом на /feed после успешного обновления пароля - пользователь должен увидеть сообщение об успехе [src/features/auth/components/UpdatePasswordForm.tsx:57-59]
+- [x] [AI-Review][LOW] Оптимизировать сброс validationError в ForgotPasswordForm - сбрасывать только при корректном вводе, а не при любом onChange [src/features/auth/components/ForgotPasswordForm.tsx:109]
+- [x] [AI-Review][CRITICAL] Добавить `/forgot-password` в массив `PUBLIC_PATHS` для предотвращения редиректа [src/lib/app-routes.ts:6]
+- [x] [AI-Review][MEDIUM] Обработать параметр `error=link-expired` и показывать сообщение "Срок действия ссылки истёк" [src/features/auth/components/AuthContainer.tsx:19-24]
+- [x] [AI-Review][LOW] Перенести `setIsLoading(false)` после обновления состояния сессии, чтобы предотвратить преждевременную разблокировку формы [src/features/auth/components/UpdatePasswordForm.tsx:46]
+- [x] [AI-Review][LOW] Добавить тесты в middleware для маршрута `/forgot-password` [tests/unit/middleware.test.ts:130]
+- [ ] [AI-Review][HIGH] Исправить обработку истекшей ссылки в /auth/confirm - при ошибке verifyOtp редиректить с error=link-expired вместо auth_callback_error_v2 [src/app/auth/confirm/route.ts:171-177]
+- [ ] [AI-Review][MEDIUM] Заменить захардкоженный /feed на getAuthSuccessRedirectPath() в UpdatePasswordForm [src/features/auth/components/UpdatePasswordForm.tsx:69]
+- [ ] [AI-Review][LOW] Сбрасывать networkError при раннем выходе из handleSubmit в ForgotPasswordForm [src/features/auth/components/ForgotPasswordForm.tsx:19-27]
+- [ ] [AI-Review][LOW] Переместить router.refresh() внутрь setTimeout в UpdatePasswordForm для предотвращения мерцания UI [src/features/auth/components/UpdatePasswordForm.tsx:68-69]
 
 ## Dev Notes
 
@@ -67,6 +90,23 @@ claude-sonnet-4-6
 
 ### Completion Notes List
 
+- ✅ Resolved review finding [HIGH]: UpdatePasswordForm — импортированы `useAuthStore` и `createClient`; после успешного `updatePassword` вызывается `supabase.auth.getSession()`, затем `setSession(session)` и `setUser(session?.user ?? null)`. Покрыто тестом `обновляет useAuthStore после успешного обновления пароля`.
+- ✅ Resolved review finding [HIGH]: `/update-password/page.tsx` стала async Server Component; перед рендером вызывается `createClient().auth.getSession()` — если сессии нет, `redirect('/login')`. Создан тест `tests/unit/app/(public)/update-password/page.test.tsx` (2 теста).
+- ✅ Resolved review finding [MEDIUM]: UpdatePasswordForm — редирект на `/feed` перенесён в `setTimeout(..., 2000)`. Тест проверяет: success message появляется, push не вызван немедленно, через 2с push вызывается.
+- ✅ Resolved review finding [LOW]: ForgotPasswordForm `onChange` — `setValidationError(null)` вызывается только когда email проходит regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`. Тест обновлён: typing `valid@example.com` очищает ошибку, typing `notvalid` — нет.
+- ✅ Resolved review finding [CRITICAL]: Исправлены тесты UpdatePasswordForm — добавлено заполнение confirm-поля в тестах на API-ошибку и успешный редирект; добавлен тест мисматча паролей. 6 тестов, все проходят.
+- ✅ Resolved review finding [CRITICAL]: Создан ForgotPasswordForm.test.tsx — 7 тестов: рендер, пустой email, некорректный email, сетевая ошибка API, anti-enumeration success, ссылка возврата после отправки, сброс ошибки при вводе.
+- ✅ Resolved review finding [MEDIUM]: Текст задачи исправлен: "Использовать Toasts" → "Использовать инлайн-баннеры" — соответствует реализации.
+- ✅ Resolved review finding [LOW]: isLoading в ForgotPasswordForm перемещён в error-ветку; на success-пути сбрасывается в одном ре-рендере с setSubmitted(true).
+- ✅ Resolved review finding [HIGH]: UpdatePasswordForm — проверка expired/invalid/session в ошибке API → router.push('/login?error=link-expired'). Покрыто 2 тестами.
+- ✅ Resolved review finding [HIGH]: UpdatePasswordForm — добавлен router.refresh() после успешного updatePassword; success-состояние показывает "Пароль обновлён" перед редиректом. Покрыто 2 тестами.
+- ✅ Resolved review finding [MEDIUM]: ForgotPasswordForm — кнопка "Ввести другой email" в success-состоянии сбрасывает submitted→false и возвращает форму. Покрыто 2 тестами.
+- ✅ Resolved review finding [MEDIUM]: UpdatePasswordForm — success-состояние с сообщением "Пароль обновлён / успешно изменён" выводится перед router.push('/feed').
+- ✅ Resolved review finding [LOW]: ForgotPasswordForm — валидация email усилена regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` дополнительно к typeMismatch. Покрыто 1 тестом.
+- ✅ Resolved review finding [CRITICAL]: `/forgot-password` добавлен в PUBLIC_PATHS в `app-routes.ts`. Покрыто 2 тестами в middleware (unauth + fail-secure without env).
+- ✅ Resolved review finding [MEDIUM]: AuthContainer обрабатывает `?error=link-expired` → показывает "Срок действия ссылки истёк. Запросите новую ссылку для сброса пароля." Покрыто 1 тестом.
+- ✅ Resolved review finding [LOW]: `setIsLoading(false)` в UpdatePasswordForm перенесён после `setUser(...)` — форма остаётся задизейблена пока сессия синхронизируется. Существующие тесты проходят.
+- ✅ Resolved review finding [LOW]: Добавлено 2 теста в middleware.test.ts — "пропускает на /forgot-password без редиректа" (в блоке `неавторизованный пользователь` и в блоке `fail-secure`).
 - Создан `ForgotPasswordForm` (Smart-контейнер): форма с email, кнопка отправки, anti-enumeration защита (всегда показывает success-сообщение), inline-баннер для сетевых ошибок.
 - Добавлена функция `resetPasswordForEmail` в `auth.ts` с `redirectTo: [origin]/auth/confirm?type=recovery`.
 - Создана страница `/forgot-password/page.tsx`.
@@ -80,11 +120,25 @@ claude-sonnet-4-6
 ### File List
 
 - `src/features/auth/api/auth.ts` (изменён — добавлена `resetPasswordForEmail`)
-- `src/features/auth/components/ForgotPasswordForm.tsx` (создан)
-- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — поле подтверждения пароля)
+- `src/features/auth/components/ForgotPasswordForm.tsx` (изменён — оптимизация isLoading, onChange очищает ошибку только при корректном email)
+- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — поле подтверждения пароля, useAuthStore sync, задержка 2с перед редиректом)
 - `src/features/auth/components/AuthContainer.tsx` (изменён — ссылка "Забыли пароль?")
 - `src/app/(public)/forgot-password/page.tsx` (создан)
+- `src/app/(public)/update-password/page.tsx` (изменён — async, серверная проверка сессии + redirect)
+- `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (обновлён — +2 теста: store sync, задержка редиректа; новые моки store/supabase)
+- `tests/unit/features/auth/components/ForgotPasswordForm.test.tsx` (обновлён — тест onChange renamed + добавлен тест "не очищает при некорректном email")
+- `tests/unit/app/(public)/update-password/page.test.tsx` (создан — 2 теста)
+- `src/lib/app-routes.ts` (изменён — добавлен `/forgot-password` в PUBLIC_PATHS)
+- `src/features/auth/components/AuthContainer.tsx` (изменён — обработка `error=link-expired`)
+- `tests/unit/features/auth/components/AuthContainer.test.tsx` (обновлён — тест `error=link-expired`)
+- `tests/unit/middleware.test.ts` (обновлён — 2 теста для маршрута `/forgot-password`)
 
 ### Change Log
 
 - 2026-03-16: Реализована Story 1.8 — сброс и восстановление пароля. Создана форма запроса ссылки сброса (`ForgotPasswordForm`), страница `/forgot-password`, ссылка с login-формы. Обновлена форма установки нового пароля (`UpdatePasswordForm`): добавлено поле подтверждения.
+- 2026-03-16: Code Review выполнен. Обнаружены 2 критические проблемы (сломанные тесты, отсутствие тестов для ForgotPasswordForm), 1 средняя (ложное утверждение про Toasts), 1 низкая (оптимизация состояния). Созданы action items для исправления.
+- 2026-03-16: Addressed code review findings — 4 items resolved. ✅ [CRITICAL] Исправлены тесты UpdatePasswordForm (добавлено заполнение confirm, тест мисматча паролей). ✅ [CRITICAL] Созданы 7 тестов ForgotPasswordForm (render, валидация, сетевая ошибка, anti-enumeration success, ссылка возврата, сброс ошибки). ✅ [MEDIUM] Исправлен текст задачи: "Toasts" → "инлайн-баннеры". ✅ [LOW] Оптимизирован isLoading в ForgotPasswordForm — сбрасывается в одном ре-рендере с setSubmitted. Все 303 теста проходят.
+- 2026-03-16: Addressed remaining code review findings — 5 items resolved. ✅ [HIGH] Истёкший токен в UpdatePasswordForm: проверка expired/invalid/session → router.push('/login?error=link-expired'). ✅ [HIGH] router.refresh() + success-состояние "Пароль обновлён" в UpdatePasswordForm. ✅ [MEDIUM] Кнопка "Ввести другой email" в ForgotPasswordForm. ✅ [MEDIUM] Уведомление об успехе перед редиректом в UpdatePasswordForm. ✅ [LOW] Regex-валидация email в ForgotPasswordForm. Все 310 тестов проходят.
+- 2026-03-16: Code Review выполнен. Обнаружены 4 новые проблемы: 2 HIGH (отсутствие обновления useAuthStore, нет защиты страницы /update-password), 1 MEDIUM (мгновенный редирект скрывает UI успеха), 1 LOW (слишком агрессивный сброс ошибок). Созданы action items для исправления.
+- 2026-03-16: Addressed all remaining code review findings — 4 items resolved. ✅ [HIGH] useAuthStore sync в UpdatePasswordForm: getSession() → setSession/setUser. ✅ [HIGH] Серверная проверка сессии на /update-password — redirect('/login') при отсутствии сессии. ✅ [MEDIUM] setTimeout 2000ms перед redirect('/feed') — пользователь видит "Пароль обновлён". ✅ [LOW] onChange в ForgotPasswordForm очищает ошибку только при валидном email. Все 314 тестов проходят.
+- 2026-03-16: Addressed final code review findings — 4 items resolved. ✅ [CRITICAL] Добавлен `/forgot-password` в PUBLIC_PATHS — маршрут теперь доступен без авторизации. ✅ [MEDIUM] Обработан `error=link-expired` в AuthContainer — показывает "Срок действия ссылки истёк". ✅ [LOW] setIsLoading(false) перенесён после session sync в UpdatePasswordForm — форма блокирована до полной синхронизации. ✅ [LOW] Добавлено 2 теста в middleware для `/forgot-password` (unauth + fail-secure), 1 тест в AuthContainer. Все 317 тестов проходят.

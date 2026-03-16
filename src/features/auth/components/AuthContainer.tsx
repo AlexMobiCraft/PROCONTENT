@@ -20,6 +20,8 @@ export function AuthContainer() {
   const magicLinkErrorMessage =
     magicLinkError === 'auth_callback_error' || magicLinkError === 'auth_callback_error_v2'
       ? 'Ссылка недействительна. Запросите новую или войдите по паролю.'
+      : magicLinkError === 'link-expired'
+      ? 'Срок действия ссылки истёк. Запросите новую ссылку для сброса пароля.'
       : null
 
   async function handleLoginSubmit({ email, password }: { email: string; password?: string }) {

@@ -127,6 +127,15 @@ describe('middleware', () => {
 
       expect(response.status).not.toBe(307)
     })
+
+    it('пропускает на /forgot-password без редиректа', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/forgot-password')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
   })
 
   describe('потеря сессии при редиректе', () => {
@@ -225,6 +234,13 @@ describe('middleware', () => {
 
     it('пропускает на /inactive без редиректа (публичный маршрут)', async () => {
       const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('пропускает на /forgot-password без редиректа (публичный маршрут)', async () => {
+      const req = new NextRequest('http://localhost:3000/forgot-password')
       const response = await updateSession(req)
 
       expect(response.status).not.toBe(307)

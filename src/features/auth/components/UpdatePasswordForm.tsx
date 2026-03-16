@@ -4,13 +4,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { updatePassword } from '@/features/auth/api/auth'
+import { createClient } from '@/lib/supabase/client'
+import { useAuthStore } from '@/features/auth/store'
 import { cn } from '@/lib/utils'
 
 export function UpdatePasswordForm() {
   const router = useRouter()
+  const { setSession, setUser } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -39,17 +43,48 @@ export function UpdatePasswordForm() {
 
     const { error: apiError } = await updatePassword(passwordInput.value)
 
-    setIsLoading(false)
-
     if (apiError) {
+      setIsLoading(false)
+      const msg = apiError.message?.toLowerCase() ?? ''
+      const isExpired =
+        msg.includes('invalid') || msg.includes('expired') || msg.includes('session')
+      if (isExpired) {
+        router.push('/login?error=link-expired')
+        return
+      }
       setError('Не удалось обновить пароль. Попробуйте позже.')
       return
     }
 
-    router.push('/feed')
+    const supabase = createClient()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    setSession(session)
+    setUser(session?.user ?? null)
+    setIsLoading(false)
+
+    setSuccess(true)
+    router.refresh()
+    setTimeout(() => router.push('/feed'), 2000)
   }
 
   const displayError = validationError ?? error
+
+  if (success) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-heading text-foreground text-2xl font-semibold">
+            Пароль обновлён
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Ваш пароль успешно изменён. Перенаправляем в ленту...
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
