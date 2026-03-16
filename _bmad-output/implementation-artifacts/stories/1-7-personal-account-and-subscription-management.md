@@ -1,6 +1,6 @@
 # Story 1.7: Личный кабинет и управление подпиской
 
-Status: review
+Status: done
 
 ## Story
 
@@ -208,12 +208,16 @@ _нет_
 - ✅ Resolved review finding [Medium] Round 11: `SubscriptionCard.tsx` — `getStatusLabel` дополнена обработкой `paused` → «Приостановлена», `incomplete`/`incomplete_expired` → «Не завершена». Покрывает все статусы Stripe из миграций 005–006.
 - ✅ Resolved review finding [Medium] Round 11: `tests/unit/app/api/checkout/route.test.ts` добавлен в File List истории (ранее был изменён, но не задокументирован).
 - ✅ Resolved review finding [Low] Round 11: `SubscriptionCard.test.tsx` — добавлены 3 теста для `paused`, `incomplete`, `incomplete_expired` статусов.
-- Итого тестов: 56 (24 SubscriptionCard + 16 portal route + 6 profile page + 10 rate-limiter + 4 loading + 5 ProfileScreen + 6 auth/confirm) — все ✓.
+- ✅ Resolved review finding [Low] Round 12: `SubscriptionCard.test.tsx` — добавлены обертки `act(...)` вокруг `window.dispatchEvent(pageshowEvent)` для устранения предупреждений React при тестировании BFCache.
+- Итого тестов: 56 (24 SubscriptionCard + 16 portal route + 6 profile page + 10 rate-limiter + 4 loading + 5 ProfileScreen + 6 auth/confirm) — все ✓. Lint чистый.
 
 - [x] **Review Follow-ups (AI) - Round 11**
   - [x] [AI-Review][Medium] Некорректное отображение новых статусов подписки (UI): В миграции 006 добавлены `paused`, `incomplete`, `incomplete_expired`, но `getStatusLabel` в `SubscriptionCard.tsx` не обрабатывает их и возвращает «Нет активной подписки». Для пользователя с приостановленной подпиской (`paused`) это выглядит как ошибка — должно отображаться «Приостановлена» или «Не завершена» [src/features/profile/components/SubscriptionCard.tsx:32]
   - [x] [AI-Review][Medium] Незадокументированные изменения в тестах: Исправлен падающий тест в `tests/unit/app/api/checkout/route.test.ts` (нормализация NEXT_PUBLIC_SITE_URL со слешем на конце). Файл изменен, но отсутствует в File List истории [tests/unit/app/api/checkout/route.test.ts:167]
   - [x] [AI-Review][Low] Отсутствуют тесты для новых статусов подписки: В `tests/unit/features/profile/components/SubscriptionCard.test.tsx` нет тестов для `paused`, `incomplete`, `incomplete_expired` статусов, добавленных в миграции 006 [tests/unit/features/profile/components/SubscriptionCard.test.tsx]
+
+- [x] **Review Follow-ups (AI) - Round 12**
+  - [x] [AI-Review][Low] Test Quality: В `tests/unit/features/profile/components/SubscriptionCard.test.tsx` диспетчеризация событий (`window.dispatchEvent(pageshowEvent)`) для проверки BFCache не была обернута в `act(...)`. Это вызывало предупреждения React (`An update to SubscriptionCard inside a test was not wrapped in act(...)`) во время прогона тестов и засоряло логи. [tests/unit/features/profile/components/SubscriptionCard.test.tsx]
 
 ### File List
 

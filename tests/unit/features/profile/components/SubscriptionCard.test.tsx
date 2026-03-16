@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -246,7 +246,9 @@ describe('SubscriptionCard', () => {
 
       // Симулируем восстановление страницы из BFCache (event.persisted = true)
       const pageshowEvent = new PageTransitionEvent('pageshow', { persisted: true })
-      window.dispatchEvent(pageshowEvent)
+      act(() => {
+        window.dispatchEvent(pageshowEvent)
+      })
 
       // isLoading должен сброситься — кнопка снова активна
       await waitFor(() => {
@@ -271,7 +273,9 @@ describe('SubscriptionCard', () => {
 
       // Обычный pageshow (не BFCache) — не сбрасываем isLoading
       const pageshowEvent = new PageTransitionEvent('pageshow', { persisted: false })
-      window.dispatchEvent(pageshowEvent)
+      act(() => {
+        window.dispatchEvent(pageshowEvent)
+      })
 
       expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
     })
