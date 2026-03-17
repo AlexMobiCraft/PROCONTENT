@@ -57,8 +57,12 @@ so that восстановить доступ к своему профилю.
 - [x] [AI-Review][LOW] Добавить тесты в middleware для маршрута `/forgot-password` [tests/unit/middleware.test.ts:130]
 - [x] [AI-Review][HIGH] Исправить обработку истекшей ссылки в /auth/confirm - при ошибке verifyOtp редиректить с error=link-expired вместо auth_callback_error_v2 [src/app/auth/confirm/route.ts:171-177]
 - [x] [AI-Review][MEDIUM] Заменить захардкоженный /feed на getAuthSuccessRedirectPath() в UpdatePasswordForm [src/features/auth/components/UpdatePasswordForm.tsx:69]
-- [x] [AI-Review][LOW] Сбрасывать networkError при раннем выходе из handleSubmit в ForgotPasswordForm [src/features/auth/components/ForgotPasswordForm.tsx:19-27]
+- [x] [AI-Review][LOW] Сбрасывать networkError при раннем выходе из handleSubmit in ForgotPasswordForm [src/features/auth/components/ForgotPasswordForm.tsx:19-27]
 - [x] [AI-Review][LOW] Переместить router.refresh() внутрь setTimeout в UpdatePasswordForm для предотвращения мерцания UI [src/features/auth/components/UpdatePasswordForm.tsx:68-69]
+- [x] [AI-Review][HIGH] Исправить оставшийся нативный тег `<a>` на компонент `Link` в ForgotPasswordForm.tsx для SPA-навигации [src/features/auth/components/ForgotPasswordForm.tsx:139-144]
+- [x] [AI-Review][MEDIUM] Ослабить логику сброса validationError в ForgotPasswordForm — сбрасывать при любом вводе (onChange), а не только при полной валидности [src/features/auth/components/ForgotPasswordForm.tsx:111-114]
+- [x] [AI-Review][MEDIUM] Улучшить тесты ForgotPasswordForm — проверять именно наличие Link компонентов, чтобы не пропускать нативные <a> [tests/unit/features/auth/components/ForgotPasswordForm.test.tsx]
+- [x] [AI-Review][LOW] Оптимизировать UpdatePasswordForm — использовать данные из ответа updatePassword вместо лишнего вызова getSession() [src/features/auth/components/UpdatePasswordForm.tsx:52-73]
 
 ## Dev Notes
 
@@ -117,6 +121,10 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [HIGH]: `<a>` → `Link` (next/link) в AuthContainer.tsx (ссылка "Забыли пароль?") и ForgotPasswordForm.tsx (оба "Вернуться ко входу"). SPA-навигация без полного page reload. Существующие тесты проходят.
 - ✅ Resolved review finding [MEDIUM]: route.ts — Stripe-синхронизация обёрнута в `if (type !== 'recovery')`. При восстановлении пароля getUser не вызывается, Stripe-запросы не отправляются. Добавлен тест. Все 320 тестов проходят.
 - ✅ Resolved review finding [MEDIUM]: UpdatePasswordForm — таймер сохранён в `timerRef` (useRef), useEffect с cleanup clearTimeout предотвращает state-обновление после размонтирования. Существующие тесты проходят.
+- ✅ Resolved review finding [HIGH]: Исправлен нативный `<a>` в форм-стате ForgotPasswordForm (строка 139) → `Link` из next/link. Все 321 тест проходят.
+- ✅ Resolved review finding [MEDIUM]: ForgotPasswordForm onChange теперь всегда сбрасывает validationError при любом вводе. Тест обновлён: "очищает ошибку при любом вводе (включая некорректный email)".
+- ✅ Resolved review finding [MEDIUM]: Добавлен vi.mock('next/link') в ForgotPasswordForm.test.tsx — мок рендерит data-component="Link". Новый тест "использует компонент Link для навигации" проверяет оба состояния (форма + success).
+- ✅ Resolved review finding [LOW]: UpdatePasswordForm — удалены createClient() и getSession(). setUser теперь использует data?.user из ответа updatePassword. setSession удалён. Тест обновлён. Все 321 тест проходят.
 - Создан `ForgotPasswordForm` (Smart-контейнер): форма с email, кнопка отправки, anti-enumeration защита (всегда показывает success-сообщение), inline-баннер для сетевых ошибок.
 - Добавлена функция `resetPasswordForEmail` в `auth.ts` с `redirectTo: [origin]/auth/confirm?type=recovery`.
 - Создана страница `/forgot-password/page.tsx`.
@@ -153,6 +161,10 @@ claude-sonnet-4-6
 - `src/app/auth/confirm/route.ts` (изменён — Stripe-блок обёрнут в `if (type !== 'recovery')`)
 - `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — `timerRef` + `useEffect` для clearTimeout)
 - `tests/unit/app/auth/confirm/route.test.ts` (обновлён — тест: Stripe не вызывается при type=recovery)
+- `src/features/auth/components/ForgotPasswordForm.tsx` (изменён — `<a>` → `Link` в форм-стате; onChange всегда сбрасывает validationError)
+- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — удалены createClient/getSession/setSession; используется data.user из updatePassword)
+- `tests/unit/features/auth/components/ForgotPasswordForm.test.tsx` (обновлён — vi.mock('next/link'); тест onChange; тест Link компонентов)
+- `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (обновлён — удалены mockGetSession/supabase mock; обновлён тест store sync)
 
 ### Change Log
 
@@ -165,3 +177,5 @@ claude-sonnet-4-6
 - 2026-03-16: Addressed all remaining code review findings (final batch) — 4 items resolved. ✅ [HIGH] /auth/confirm: ошибка verifyOtp для type=recovery → error=link-expired. ✅ [MEDIUM] UpdatePasswordForm: router.push использует getAuthSuccessRedirectPath(). ✅ [LOW] ForgotPasswordForm: setNetworkError(null) при раннем выходе из handleSubmit. ✅ [LOW] UpdatePasswordForm: router.refresh() перенесён в setTimeout вместе с push. Все 319 тестов проходят.
 - 2026-03-16: Addressed final code review findings — 4 items resolved. ✅ [CRITICAL] Добавлен `/forgot-password` в PUBLIC_PATHS — маршрут теперь доступен без авторизации. ✅ [MEDIUM] Обработан `error=link-expired` в AuthContainer — показывает "Срок действия ссылки истёк". ✅ [LOW] setIsLoading(false) перенесён после session sync в UpdatePasswordForm — форма блокирована до полной синхронизации. ✅ [LOW] Добавлено 2 теста в middleware для `/forgot-password` (unauth + fail-secure), 1 тест в AuthContainer. Все 317 тестов проходят.
 - 2026-03-17: Addressed last 3 review findings — 3 items resolved. ✅ [HIGH] `<a>` → `Link` (next/link) в AuthContainer и ForgotPasswordForm. ✅ [MEDIUM] Stripe-синхронизация пропускается при type=recovery в /auth/confirm. ✅ [MEDIUM] clearTimeout через timerRef + useEffect в UpdatePasswordForm. Все 320 тестов проходят.
+- 2026-03-17: Проведен 11-й раунд Adversarial Code Review. Обнаружено 4 проблемы: 1 HIGH (пропущенный тег `<a>`), 2 MEDIUM (качество тестов и агрессивность валидации), 1 LOW (избыточный запрос сессии). Статус переведен в 'in-progress'.
+- 2026-03-17: Addressed final 4 review findings — все исправлено. ✅ [HIGH] `<a>` → Link в ForgotPasswordForm форм-стате. ✅ [MEDIUM] onChange сбрасывает validationError при любом вводе. ✅ [MEDIUM] Тесты ForgotPasswordForm проверяют Link компоненты (vi.mock + data-component). ✅ [LOW] UpdatePasswordForm: data.user из updatePassword вместо getSession(). Все 321 тест проходят.

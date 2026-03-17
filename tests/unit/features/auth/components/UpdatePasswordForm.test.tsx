@@ -12,14 +12,12 @@ vi.mock('@base-ui/react/button', () => ({
   }) => <button {...props}>{children}</button>,
 }))
 
-const { mockPush, mockRefresh, mockUpdatePassword, mockSetSession, mockSetUser, mockGetSession } =
+const { mockPush, mockRefresh, mockUpdatePassword, mockSetUser } =
   vi.hoisted(() => ({
     mockPush: vi.fn(),
     mockRefresh: vi.fn(),
     mockUpdatePassword: vi.fn(),
-    mockSetSession: vi.fn(),
     mockSetUser: vi.fn(),
-    mockGetSession: vi.fn(),
   }))
 
 vi.mock('next/navigation', () => ({
@@ -31,13 +29,7 @@ vi.mock('@/features/auth/api/auth', () => ({
 }))
 
 vi.mock('@/features/auth/store', () => ({
-  useAuthStore: () => ({ setSession: mockSetSession, setUser: mockSetUser }),
-}))
-
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({
-    auth: { getSession: mockGetSession },
-  }),
+  useAuthStore: () => ({ setUser: mockSetUser }),
 }))
 
 import { UpdatePasswordForm } from '@/features/auth/components/UpdatePasswordForm'
@@ -47,7 +39,6 @@ const mockSession = { access_token: 'token', user: { id: 'user-123', email: 'use
 describe('UpdatePasswordForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ data: { session: mockSession } })
   })
 
   afterEach(() => {
@@ -144,7 +135,7 @@ describe('UpdatePasswordForm', () => {
   })
 
   it('обновляет useAuthStore после успешного обновления пароля', async () => {
-    mockUpdatePassword.mockResolvedValue({ error: null })
+    mockUpdatePassword.mockResolvedValue({ error: null, data: { user: mockSession.user } })
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
@@ -153,7 +144,6 @@ describe('UpdatePasswordForm', () => {
     await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
 
     await waitFor(() => {
-      expect(mockSetSession).toHaveBeenCalledWith(mockSession)
       expect(mockSetUser).toHaveBeenCalledWith(mockSession.user)
     })
   })

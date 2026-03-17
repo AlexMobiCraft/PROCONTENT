@@ -10,6 +10,22 @@ vi.mock('@/features/auth/api/auth', () => ({
   resetPasswordForEmail: mockResetPasswordForEmail,
 }))
 
+vi.mock('next/link', () => ({
+  default: ({
+    href,
+    children,
+    className,
+  }: {
+    href: string
+    children: React.ReactNode
+    className?: string
+  }) => (
+    <a href={href} className={className} data-component="Link">
+      {children}
+    </a>
+  ),
+}))
+
 import { ForgotPasswordForm } from '@/features/auth/components/ForgotPasswordForm'
 
 describe('ForgotPasswordForm', () => {
@@ -102,15 +118,34 @@ describe('ForgotPasswordForm', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('не очищает ошибку валидации при вводе некорректного email', async () => {
+  it('очищает ошибку валидации при любом вводе (включая некорректный email)', async () => {
     const user = userEvent.setup()
     render(<ForgotPasswordForm />)
 
     await user.click(screen.getByRole('button', { name: 'Отправить ссылку' }))
     expect(screen.getByRole('alert')).toBeInTheDocument()
 
-    await user.type(screen.getByLabelText('Email'), 'notvalid')
-    expect(screen.getByRole('alert')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Email'), 'n')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('использует компонент Link для навигации (не нативный <a>)', async () => {
+    mockResetPasswordForEmail.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    render(<ForgotPasswordForm />)
+
+    // В форм-стане: ссылка "Вернуться ко входу" должна быть Link
+    const formLink = screen.getByRole('link', { name: 'Вернуться ко входу' })
+    expect(formLink).toHaveAttribute('data-component', 'Link')
+
+    // Переход в success-стан
+    await user.type(screen.getByLabelText('Email'), 'user@example.com')
+    await user.click(screen.getByRole('button', { name: 'Отправить ссылку' }))
+
+    await waitFor(() => {
+      const successLink = screen.getByRole('link', { name: 'Вернуться ко входу' })
+      expect(successLink).toHaveAttribute('data-component', 'Link')
+    })
   })
 
   it('показывает кнопку "Ввести другой email" после успешной отправки', async () => {

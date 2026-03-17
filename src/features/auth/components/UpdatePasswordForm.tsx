@@ -4,14 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { updatePassword } from '@/features/auth/api/auth'
-import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/features/auth/store'
 import { getAuthSuccessRedirectPath } from '@/lib/app-routes'
 import { cn } from '@/lib/utils'
 
 export function UpdatePasswordForm() {
   const router = useRouter()
-  const { setSession, setUser } = useAuthStore()
+  const { setUser } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -49,7 +48,7 @@ export function UpdatePasswordForm() {
     setError(null)
     setValidationError(null)
 
-    const { error: apiError } = await updatePassword(passwordInput.value)
+    const { error: apiError, data } = await updatePassword(passwordInput.value)
 
     if (apiError) {
       setIsLoading(false)
@@ -64,12 +63,7 @@ export function UpdatePasswordForm() {
       return
     }
 
-    const supabase = createClient()
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    setSession(session)
-    setUser(session?.user ?? null)
+    setUser(data?.user ?? null)
     setIsLoading(false)
 
     setSuccess(true)

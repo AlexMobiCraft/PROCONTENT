@@ -108,9 +108,8 @@ export function ForgotPasswordForm() {
             disabled={isLoading}
             aria-describedby={validationError ? 'forgot-email-error' : undefined}
             aria-invalid={!!validationError}
-            onChange={(e) => {
-              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-              if (emailRegex.test(e.target.value)) setValidationError(null)
+            onChange={() => {
+              setValidationError(null)
             }}
             className={cn(
               'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
@@ -136,12 +135,12 @@ export function ForgotPasswordForm() {
         </div>
       </form>
 
-      <a
+      <Link
         href="/login"
         className="text-center text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
       >
         Вернуться ко входу
-      </a>
+      </Link>
     </div>
   )
 }
