@@ -1,6 +1,6 @@
 # Story 1.8: Сброс и восстановление пароля (Forgot Password)
 
-Status: review
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -35,6 +35,9 @@ so that восстановить доступ к своему профилю.
   - [x] Инлайн-валидация длины пароля и совпадения полей
 
 ### Review Follow-ups (AI)
+- [ ] [AI-Review][HIGH] Заменить нативные теги `<a>` на компонент `Link` из `next/link` в `AuthContainer.tsx` и `ForgotPasswordForm.tsx` (включая состояние успеха) для корректной SPA-навигации [src/features/auth/components/AuthContainer.tsx:84-90][src/features/auth/components/ForgotPasswordForm.tsx:66-71][src/features/auth/components/ForgotPasswordForm.tsx:138-143]
+- [ ] [AI-Review][MEDIUM] Пропускать логику синхронизации со Stripe (запросы API и обновление профиля) при подтверждении токена с `type='recovery'` [src/app/auth/confirm/route.ts:75-168]
+- [ ] [AI-Review][MEDIUM] Очищать таймер (clearTimeout) в useEffect или использовать другой подход для предотвращения попыток обновления состояния/роутера при размонтировании компонента во время задержки редиректа [src/features/auth/components/UpdatePasswordForm.tsx:68-73]
 - [x] [AI-Review][CRITICAL] Исправить падающие тесты в UpdatePasswordForm.test.tsx - добавить заполнение поля подтверждения пароля [tests/unit/features/auth/components/UpdatePasswordForm.test.tsx:76-87]
 - [x] [AI-Review][CRITICAL] Создать тесты для ForgotPasswordForm.tsx и forgot-password страницы [tests/unit/features/auth/components/]
 - [x] [AI-Review][MEDIUM] Исправить ложное утверждение в задаче про Toasts - либо реализовать Toasts, либо изменить текст задачи на "инлайн-баннеры" [src/features/auth/components/ForgotPasswordForm.tsx:77-84]
