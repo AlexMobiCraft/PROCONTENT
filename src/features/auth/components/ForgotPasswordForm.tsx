@@ -22,8 +22,7 @@ export function ForgotPasswordForm() {
       setValidationError('Введите email')
       return
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (emailInput.validity.typeMismatch || !emailRegex.test(emailInput.value)) {
+    if (emailInput.validity.typeMismatch) {
       setValidationError('Введите корректный email')
       return
     }

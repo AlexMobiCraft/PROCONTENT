@@ -85,7 +85,7 @@ describe('UpdatePasswordForm', () => {
     expect(mockUpdatePassword).not.toHaveBeenCalled()
   })
 
-  it('показывает ошибку сервера', async () => {
+  it('показывает ошибку сервера (детальное сообщение из API)', async () => {
     mockUpdatePassword.mockResolvedValue({ error: { message: 'Server error' } })
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
@@ -95,7 +95,7 @@ describe('UpdatePasswordForm', () => {
     await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Не удалось обновить пароль. Попробуйте позже.')
+      expect(screen.getByRole('alert')).toHaveTextContent('Server error')
     })
     expect(mockPush).not.toHaveBeenCalled()
   })
@@ -177,7 +177,7 @@ describe('UpdatePasswordForm', () => {
     })
   })
 
-  it('показывает inline ошибку при обычной серверной ошибке (не expired)', async () => {
+  it('показывает inline ошибку при обычной серверной ошибке (не expired) — выводит apiError.message', async () => {
     mockUpdatePassword.mockResolvedValue({ error: { message: 'Database error' } })
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
@@ -187,7 +187,7 @@ describe('UpdatePasswordForm', () => {
     await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Не удалось обновить пароль. Попробуйте позже.')
+      expect(screen.getByRole('alert')).toHaveTextContent('Database error')
     })
     expect(mockPush).not.toHaveBeenCalled()
   })

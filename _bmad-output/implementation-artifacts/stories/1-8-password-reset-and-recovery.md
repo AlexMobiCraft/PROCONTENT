@@ -63,6 +63,11 @@ so that восстановить доступ к своему профилю.
 - [x] [AI-Review][MEDIUM] Ослабить логику сброса validationError в ForgotPasswordForm — сбрасывать при любом вводе (onChange), а не только при полной валидности [src/features/auth/components/ForgotPasswordForm.tsx:111-114]
 - [x] [AI-Review][MEDIUM] Улучшить тесты ForgotPasswordForm — проверять именно наличие Link компонентов, чтобы не пропускать нативные <a> [tests/unit/features/auth/components/ForgotPasswordForm.test.tsx]
 - [x] [AI-Review][LOW] Оптимизировать UpdatePasswordForm — использовать данные из ответа updatePassword вместо лишнего вызова getSession() [src/features/auth/components/UpdatePasswordForm.tsx:52-73]
+- [x] [AI-Review][HIGH] Выводить детальную ошибку из API (apiError.message) в UpdatePasswordForm вместо общего сообщения, если это не ошибка истечения токена [src/features/auth/components/UpdatePasswordForm.tsx:62]
+- [x] [AI-Review][MEDIUM] Добавить meta description на страницу /forgot-password для SEO и консистентности [src/app/(public)/forgot-password/page.tsx:5-7]
+- [x] [AI-Review][MEDIUM] Устранить дублирование логики защиты в PUBLIC_PATHS — либо доверить проверку middleware, либо убрать /update-password из публичных путей [src/lib/app-routes.ts:6]
+- [x] [AI-Review][LOW] Унифицировать написание бренда (PROCONTENT) в заголовках страниц [src/app/(public)/update-password/page.tsx:7]
+- [x] [AI-Review][LOW] Пересмотреть необходимость жесткого regex для email в ForgotPasswordForm, полагаясь на браузерную валидацию и Supabase [src/features/auth/components/ForgotPasswordForm.tsx:25]
 
 ## Dev Notes
 
@@ -125,6 +130,11 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: ForgotPasswordForm onChange теперь всегда сбрасывает validationError при любом вводе. Тест обновлён: "очищает ошибку при любом вводе (включая некорректный email)".
 - ✅ Resolved review finding [MEDIUM]: Добавлен vi.mock('next/link') в ForgotPasswordForm.test.tsx — мок рендерит data-component="Link". Новый тест "использует компонент Link для навигации" проверяет оба состояния (форма + success).
 - ✅ Resolved review finding [LOW]: UpdatePasswordForm — удалены createClient() и getSession(). setUser теперь использует data?.user из ответа updatePassword. setSession удалён. Тест обновлён. Все 321 тест проходят.
+- ✅ Resolved review finding [HIGH]: UpdatePasswordForm — `setError` теперь показывает `apiError.message` (с fallback на общее сообщение) вместо захардкоженной строки. Тесты обновлены: ожидают 'Server error' и 'Database error'. Все 319 тестов проходят.
+- ✅ Resolved review finding [MEDIUM]: forgot-password/page.tsx — добавлено поле `description` в metadata для SEO.
+- ✅ Resolved review finding [MEDIUM]: update-password/page.tsx упрощена до синхронного компонента — убраны `async`, `createClient`, `redirect`. Дублирование устранено: `/update-password` остаётся в PUBLIC_PATHS (необходимо для recovery-flow при inactive-подписке), server-redirect убран. Тест упрощён до 1 проверки рендера.
+- ✅ Resolved review finding [LOW]: update-password/page.tsx — исправлен бренд `ProContent` → `PROCONTENT` в title страницы.
+- ✅ Resolved review finding [LOW]: ForgotPasswordForm — убран жёсткий regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`, валидация email полагается на `typeMismatch` (browser validation) + Supabase. Regex-специфичный тест удалён. Все 319 тестов проходят.
 - Создан `ForgotPasswordForm` (Smart-контейнер): форма с email, кнопка отправки, anti-enumeration защита (всегда показывает success-сообщение), inline-баннер для сетевых ошибок.
 - Добавлена функция `resetPasswordForEmail` в `auth.ts` с `redirectTo: [origin]/auth/confirm?type=recovery`.
 - Создана страница `/forgot-password/page.tsx`.
@@ -165,6 +175,13 @@ claude-sonnet-4-6
 - `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — удалены createClient/getSession/setSession; используется data.user из updatePassword)
 - `tests/unit/features/auth/components/ForgotPasswordForm.test.tsx` (обновлён — vi.mock('next/link'); тест onChange; тест Link компонентов)
 - `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (обновлён — удалены mockGetSession/supabase mock; обновлён тест store sync)
+- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — apiError.message вместо захардкоженной строки)
+- `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (обновлён — 2 теста проверяют фактическое сообщение API)
+- `src/app/(public)/forgot-password/page.tsx` (изменён — добавлен description в metadata)
+- `src/app/(public)/update-password/page.tsx` (изменён — убраны async/createClient/redirect/session-check; исправлен ProContent → PROCONTENT)
+- `tests/unit/app/(public)/update-password/page.test.tsx` (обновлён — упрощён до 1 теста рендера без session mocks)
+- `src/features/auth/components/ForgotPasswordForm.tsx` (изменён — убран regex, оставлен только typeMismatch)
+- `tests/unit/features/auth/components/ForgotPasswordForm.test.tsx` (обновлён — удалён regex-специфичный тест)
 
 ### Change Log
 
@@ -179,3 +196,6 @@ claude-sonnet-4-6
 - 2026-03-17: Addressed last 3 review findings — 3 items resolved. ✅ [HIGH] `<a>` → `Link` (next/link) в AuthContainer и ForgotPasswordForm. ✅ [MEDIUM] Stripe-синхронизация пропускается при type=recovery в /auth/confirm. ✅ [MEDIUM] clearTimeout через timerRef + useEffect в UpdatePasswordForm. Все 320 тестов проходят.
 - 2026-03-17: Проведен 11-й раунд Adversarial Code Review. Обнаружено 4 проблемы: 1 HIGH (пропущенный тег `<a>`), 2 MEDIUM (качество тестов и агрессивность валидации), 1 LOW (избыточный запрос сессии). Статус переведен в 'in-progress'.
 - 2026-03-17: Addressed final 4 review findings — все исправлено. ✅ [HIGH] `<a>` → Link в ForgotPasswordForm форм-стате. ✅ [MEDIUM] onChange сбрасывает validationError при любом вводе. ✅ [MEDIUM] Тесты ForgotPasswordForm проверяют Link компоненты (vi.mock + data-component). ✅ [LOW] UpdatePasswordForm: data.user из updatePassword вместо getSession(). Все 321 тест проходят.
+- 2026-03-17: Проведен 12-й раунд Adversarial Code Review. Обнаружены 5 проблем: 1 HIGH (скрытие ошибок API), 2 MEDIUM (SEO и дублирование логики защиты), 2 LOW (брендинг и regex). Статус переведен в 'in-progress'.
+- 2026-03-17: Addressed final 5 review findings (12-й раунд) — все исправлено. ✅ [HIGH] UpdatePasswordForm показывает apiError.message. ✅ [MEDIUM] Meta description добавлен на /forgot-password. ✅ [MEDIUM] Дублирование логики убрано: update-password/page.tsx упрощён, server-redirect удалён. ✅ [LOW] ProContent → PROCONTENT. ✅ [LOW] Regex убран из ForgotPasswordForm. Все 319 тестов проходят. Статус: review.
+

@@ -4,6 +4,7 @@ import { ForgotPasswordForm } from '@/features/auth/components/ForgotPasswordFor
 
 export const metadata: Metadata = {
   title: 'Сброс пароля | PROCONTENT',
+  description: 'Введите email — мы отправим ссылку для восстановления доступа к вашему аккаунту.',
 }
 
 export default function ForgotPasswordPage() {

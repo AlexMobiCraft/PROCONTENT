@@ -205,14 +205,4 @@ describe('ForgotPasswordForm', () => {
     expect(screen.queryByText('Не удалось отправить письмо. Попробуйте позже.')).not.toBeInTheDocument()
   })
 
-  it('отклоняет email без домена второго уровня (regex)', async () => {
-    const user = userEvent.setup()
-    render(<ForgotPasswordForm />)
-
-    await user.type(screen.getByLabelText('Email'), 'user@nodot')
-    await user.click(screen.getByRole('button', { name: 'Отправить ссылку' }))
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Введите корректный email')
-    expect(mockResetPasswordForEmail).not.toHaveBeenCalled()
-  })
 })

@@ -59,7 +59,7 @@ export function UpdatePasswordForm() {
         router.push('/login?error=link-expired')
         return
       }
-      setError('Не удалось обновить пароль. Попробуйте позже.')
+      setError(apiError.message ?? 'Не удалось обновить пароль. Попробуйте позже.')
       return
     }
 
