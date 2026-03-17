@@ -68,6 +68,8 @@ so that восстановить доступ к своему профилю.
 - [x] [AI-Review][MEDIUM] Устранить дублирование логики защиты в PUBLIC_PATHS — либо доверить проверку middleware, либо убрать /update-password из публичных путей [src/lib/app-routes.ts:6]
 - [x] [AI-Review][LOW] Унифицировать написание бренда (PROCONTENT) в заголовках страниц [src/app/(public)/update-password/page.tsx:7]
 - [x] [AI-Review][LOW] Пересмотреть необходимость жесткого regex для email в ForgotPasswordForm, полагаясь на браузерную валидацию и Supabase [src/features/auth/components/ForgotPasswordForm.tsx:25]
+- [x] [AI-Review][LOW] Устранить избыточность в ForgotPasswordForm.test.tsx (дублирующиеся тесты очистки валидации) [tests/unit/features/auth/components/ForgotPasswordForm.test.tsx:110-130]
+- [x] [AI-Review][LOW] Рассмотреть оптимизацию порядка router.refresh() и router.push() в UpdatePasswordForm для предотвращения потенциального мерцания [src/features/auth/components/UpdatePasswordForm.tsx:71-72]
 
 ## Dev Notes
 
@@ -135,6 +137,8 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: update-password/page.tsx упрощена до синхронного компонента — убраны `async`, `createClient`, `redirect`. Дублирование устранено: `/update-password` остаётся в PUBLIC_PATHS (необходимо для recovery-flow при inactive-подписке), server-redirect убран. Тест упрощён до 1 проверки рендера.
 - ✅ Resolved review finding [LOW]: update-password/page.tsx — исправлен бренд `ProContent` → `PROCONTENT` в title страницы.
 - ✅ Resolved review finding [LOW]: ForgotPasswordForm — убран жёсткий regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`, валидация email полагается на `typeMismatch` (browser validation) + Supabase. Regex-специфичный тест удалён. Все 319 тестов проходят.
+- ✅ Resolved review finding [LOW]: Удалён дублирующийся тест `'очищает ошибку валидации при вводе корректного email'` в ForgotPasswordForm.test.tsx — он являлся подмножеством теста `'очищает ошибку валидации при любом вводе'`. Все 318 тестов проходят.
+- ✅ Resolved review finding [LOW]: UpdatePasswordForm — порядок вызовов в setTimeout изменён на `router.push()` → `router.refresh()` для предотвращения мерцания UI (навигация происходит раньше обновления RSC-кэша). Существующий тест проходит без изменений.
 - Создан `ForgotPasswordForm` (Smart-контейнер): форма с email, кнопка отправки, anti-enumeration защита (всегда показывает success-сообщение), inline-баннер для сетевых ошибок.
 - Добавлена функция `resetPasswordForEmail` в `auth.ts` с `redirectTo: [origin]/auth/confirm?type=recovery`.
 - Создана страница `/forgot-password/page.tsx`.
@@ -181,7 +185,8 @@ claude-sonnet-4-6
 - `src/app/(public)/update-password/page.tsx` (изменён — убраны async/createClient/redirect/session-check; исправлен ProContent → PROCONTENT)
 - `tests/unit/app/(public)/update-password/page.test.tsx` (обновлён — упрощён до 1 теста рендера без session mocks)
 - `src/features/auth/components/ForgotPasswordForm.tsx` (изменён — убран regex, оставлен только typeMismatch)
-- `tests/unit/features/auth/components/ForgotPasswordForm.test.tsx` (обновлён — удалён regex-специфичный тест)
+- `tests/unit/features/auth/components/ForgotPasswordForm.test.tsx` (обновлён — удалён regex-специфичный тест; удалён дублирующийся тест очистки валидации)
+- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — порядок router.push()/router.refresh() в setTimeout)
 
 ### Change Log
 
@@ -198,4 +203,6 @@ claude-sonnet-4-6
 - 2026-03-17: Addressed final 4 review findings — все исправлено. ✅ [HIGH] `<a>` → Link в ForgotPasswordForm форм-стате. ✅ [MEDIUM] onChange сбрасывает validationError при любом вводе. ✅ [MEDIUM] Тесты ForgotPasswordForm проверяют Link компоненты (vi.mock + data-component). ✅ [LOW] UpdatePasswordForm: data.user из updatePassword вместо getSession(). Все 321 тест проходят.
 - 2026-03-17: Проведен 12-й раунд Adversarial Code Review. Обнаружены 5 проблем: 1 HIGH (скрытие ошибок API), 2 MEDIUM (SEO и дублирование логики защиты), 2 LOW (брендинг и regex). Статус переведен в 'in-progress'.
 - 2026-03-17: Addressed final 5 review findings (12-й раунд) — все исправлено. ✅ [HIGH] UpdatePasswordForm показывает apiError.message. ✅ [MEDIUM] Meta description добавлен на /forgot-password. ✅ [MEDIUM] Дублирование логики убрано: update-password/page.tsx упрощён, server-redirect удалён. ✅ [LOW] ProContent → PROCONTENT. ✅ [LOW] Regex убран из ForgotPasswordForm. Все 319 тестов проходят. Статус: review.
+- 2026-03-17: Проведен 13-й раунд Adversarial Code Review. Обнаружены 2 незначительные проблемы в тестах и UX. Созданы action items, статус переведен в 'in-progress'.
+- 2026-03-17: Addressed final 2 review findings (13-й раунд) — все исправлено. ✅ [LOW] Удалён дублирующийся тест ForgotPasswordForm (очистка валидации при корректном email — подмножество более общего теста). ✅ [LOW] Порядок router.push()/router.refresh() в UpdatePasswordForm: push() первым для предотвращения мерцания. Все 318 тестов проходят. Статус: review.
 

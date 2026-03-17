@@ -68,8 +68,8 @@ export function UpdatePasswordForm() {
 
     setSuccess(true)
     timerRef.current = setTimeout(() => {
-      router.refresh()
       router.push(getAuthSuccessRedirectPath())
+      router.refresh()
     }, 2000)
   }
 

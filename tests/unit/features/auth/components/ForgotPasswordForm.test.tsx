@@ -107,17 +107,6 @@ describe('ForgotPasswordForm', () => {
     })
   })
 
-  it('очищает ошибку валидации при вводе корректного email', async () => {
-    const user = userEvent.setup()
-    render(<ForgotPasswordForm />)
-
-    await user.click(screen.getByRole('button', { name: 'Отправить ссылку' }))
-    expect(screen.getByRole('alert')).toBeInTheDocument()
-
-    await user.type(screen.getByLabelText('Email'), 'valid@example.com')
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-  })
-
   it('очищает ошибку валидации при любом вводе (включая некорректный email)', async () => {
     const user = userEvent.setup()
     render(<ForgotPasswordForm />)
