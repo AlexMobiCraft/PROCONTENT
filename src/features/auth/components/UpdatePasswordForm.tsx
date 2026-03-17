@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { updatePassword } from '@/features/auth/api/auth'
@@ -16,6 +16,13 @@ export function UpdatePasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -66,7 +73,7 @@ export function UpdatePasswordForm() {
     setIsLoading(false)
 
     setSuccess(true)
-    setTimeout(() => {
+    timerRef.current = setTimeout(() => {
       router.refresh()
       router.push(getAuthSuccessRedirectPath())
     }, 2000)

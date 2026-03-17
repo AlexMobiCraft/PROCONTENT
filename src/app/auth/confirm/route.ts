@@ -73,7 +73,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (!verifyError) {
-      // 2. УМНАЯ ПРИВЯЗКА (Story 1.7): Если профиль только что создан, проверяем Stripe
+      // 2. УМНАЯ ПРИВЯЗКА (Story 1.7): Пропускаем для type=recovery — пользователь уже зарегистрирован,
+      // Stripe-синхронизация здесь избыточна и замедляет редирект на /update-password
+      if (type !== 'recovery') {
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -165,6 +167,7 @@ export async function GET(request: NextRequest) {
           }
         }
       }
+      } // end if (type !== 'recovery')
       return response
     }
 

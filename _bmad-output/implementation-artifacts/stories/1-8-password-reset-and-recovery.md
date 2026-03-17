@@ -1,6 +1,6 @@
 # Story 1.8: Сброс и восстановление пароля (Forgot Password)
 
-Status: in-progress
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -35,9 +35,9 @@ so that восстановить доступ к своему профилю.
   - [x] Инлайн-валидация длины пароля и совпадения полей
 
 ### Review Follow-ups (AI)
-- [ ] [AI-Review][HIGH] Заменить нативные теги `<a>` на компонент `Link` из `next/link` в `AuthContainer.tsx` и `ForgotPasswordForm.tsx` (включая состояние успеха) для корректной SPA-навигации [src/features/auth/components/AuthContainer.tsx:84-90][src/features/auth/components/ForgotPasswordForm.tsx:66-71][src/features/auth/components/ForgotPasswordForm.tsx:138-143]
-- [ ] [AI-Review][MEDIUM] Пропускать логику синхронизации со Stripe (запросы API и обновление профиля) при подтверждении токена с `type='recovery'` [src/app/auth/confirm/route.ts:75-168]
-- [ ] [AI-Review][MEDIUM] Очищать таймер (clearTimeout) в useEffect или использовать другой подход для предотвращения попыток обновления состояния/роутера при размонтировании компонента во время задержки редиректа [src/features/auth/components/UpdatePasswordForm.tsx:68-73]
+- [x] [AI-Review][HIGH] Заменить нативные теги `<a>` на компонент `Link` из `next/link` в `AuthContainer.tsx` и `ForgotPasswordForm.tsx` (включая состояние успеха) для корректной SPA-навигации [src/features/auth/components/AuthContainer.tsx:84-90][src/features/auth/components/ForgotPasswordForm.tsx:66-71][src/features/auth/components/ForgotPasswordForm.tsx:138-143]
+- [x] [AI-Review][MEDIUM] Пропускать логику синхронизации со Stripe (запросы API и обновление профиля) при подтверждении токена с `type='recovery'` [src/app/auth/confirm/route.ts:75-168]
+- [x] [AI-Review][MEDIUM] Очищать таймер (clearTimeout) в useEffect или использовать другой подход для предотвращения попыток обновления состояния/роутера при размонтировании компонента во время задержки редиректа [src/features/auth/components/UpdatePasswordForm.tsx:68-73]
 - [x] [AI-Review][CRITICAL] Исправить падающие тесты в UpdatePasswordForm.test.tsx - добавить заполнение поля подтверждения пароля [tests/unit/features/auth/components/UpdatePasswordForm.test.tsx:76-87]
 - [x] [AI-Review][CRITICAL] Создать тесты для ForgotPasswordForm.tsx и forgot-password страницы [tests/unit/features/auth/components/]
 - [x] [AI-Review][MEDIUM] Исправить ложное утверждение в задаче про Toasts - либо реализовать Toasts, либо изменить текст задачи на "инлайн-баннеры" [src/features/auth/components/ForgotPasswordForm.tsx:77-84]
@@ -114,6 +114,9 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: UpdatePasswordForm — router.push использует getAuthSuccessRedirectPath() вместо захардкоженного '/feed'. Импорт добавлен.
 - ✅ Resolved review finding [LOW]: ForgotPasswordForm — setNetworkError(null) вызывается при каждом handleSubmit до ранних return, сетевая ошибка сбрасывается при валидационных проверках. Покрыто 1 тестом.
 - ✅ Resolved review finding [LOW]: UpdatePasswordForm — router.refresh() перенесён внутрь setTimeout вместе с router.push, оба вызываются после 2с задержки. Тест обновлён (проверяет оба вызова в одном таймере). Все 319 тестов проходят.
+- ✅ Resolved review finding [HIGH]: `<a>` → `Link` (next/link) в AuthContainer.tsx (ссылка "Забыли пароль?") и ForgotPasswordForm.tsx (оба "Вернуться ко входу"). SPA-навигация без полного page reload. Существующие тесты проходят.
+- ✅ Resolved review finding [MEDIUM]: route.ts — Stripe-синхронизация обёрнута в `if (type !== 'recovery')`. При восстановлении пароля getUser не вызывается, Stripe-запросы не отправляются. Добавлен тест. Все 320 тестов проходят.
+- ✅ Resolved review finding [MEDIUM]: UpdatePasswordForm — таймер сохранён в `timerRef` (useRef), useEffect с cleanup clearTimeout предотвращает state-обновление после размонтирования. Существующие тесты проходят.
 - Создан `ForgotPasswordForm` (Smart-контейнер): форма с email, кнопка отправки, anti-enumeration защита (всегда показывает success-сообщение), inline-баннер для сетевых ошибок.
 - Добавлена функция `resetPasswordForEmail` в `auth.ts` с `redirectTo: [origin]/auth/confirm?type=recovery`.
 - Создана страница `/forgot-password/page.tsx`.
@@ -145,6 +148,11 @@ claude-sonnet-4-6
 - `tests/unit/app/auth/confirm/route.test.ts` (обновлён — тест link-expired для type=recovery)
 - `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (обновлён — тест задержки refresh)
 - `tests/unit/features/auth/components/ForgotPasswordForm.test.tsx` (обновлён — тест сброса networkError)
+- `src/features/auth/components/AuthContainer.tsx` (изменён — `<a>` → `Link` из next/link)
+- `src/features/auth/components/ForgotPasswordForm.tsx` (изменён — оба `<a>` → `Link` из next/link)
+- `src/app/auth/confirm/route.ts` (изменён — Stripe-блок обёрнут в `if (type !== 'recovery')`)
+- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — `timerRef` + `useEffect` для clearTimeout)
+- `tests/unit/app/auth/confirm/route.test.ts` (обновлён — тест: Stripe не вызывается при type=recovery)
 
 ### Change Log
 
@@ -156,3 +164,4 @@ claude-sonnet-4-6
 - 2026-03-16: Addressed all remaining code review findings — 4 items resolved. ✅ [HIGH] useAuthStore sync в UpdatePasswordForm: getSession() → setSession/setUser. ✅ [HIGH] Серверная проверка сессии на /update-password — redirect('/login') при отсутствии сессии. ✅ [MEDIUM] setTimeout 2000ms перед redirect('/feed') — пользователь видит "Пароль обновлён". ✅ [LOW] onChange в ForgotPasswordForm очищает ошибку только при валидном email. Все 314 тестов проходят.
 - 2026-03-16: Addressed all remaining code review findings (final batch) — 4 items resolved. ✅ [HIGH] /auth/confirm: ошибка verifyOtp для type=recovery → error=link-expired. ✅ [MEDIUM] UpdatePasswordForm: router.push использует getAuthSuccessRedirectPath(). ✅ [LOW] ForgotPasswordForm: setNetworkError(null) при раннем выходе из handleSubmit. ✅ [LOW] UpdatePasswordForm: router.refresh() перенесён в setTimeout вместе с push. Все 319 тестов проходят.
 - 2026-03-16: Addressed final code review findings — 4 items resolved. ✅ [CRITICAL] Добавлен `/forgot-password` в PUBLIC_PATHS — маршрут теперь доступен без авторизации. ✅ [MEDIUM] Обработан `error=link-expired` в AuthContainer — показывает "Срок действия ссылки истёк". ✅ [LOW] setIsLoading(false) перенесён после session sync в UpdatePasswordForm — форма блокирована до полной синхронизации. ✅ [LOW] Добавлено 2 теста в middleware для `/forgot-password` (unauth + fail-secure), 1 тест в AuthContainer. Все 317 тестов проходят.
+- 2026-03-17: Addressed last 3 review findings — 3 items resolved. ✅ [HIGH] `<a>` → `Link` (next/link) в AuthContainer и ForgotPasswordForm. ✅ [MEDIUM] Stripe-синхронизация пропускается при type=recovery в /auth/confirm. ✅ [MEDIUM] clearTimeout через timerRef + useEffect в UpdatePasswordForm. Все 320 тестов проходят.

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { signInWithPassword } from '@/features/auth/api/auth'
@@ -81,12 +82,12 @@ export function AuthContainer() {
       />
 
       <div className="text-center">
-        <a
+        <Link
           href="/forgot-password"
           className="text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
         >
           Забыли пароль?
-        </a>
+        </Link>
       </div>
     </div>
   )

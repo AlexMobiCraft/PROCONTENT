@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 import { resetPasswordForEmail } from '@/features/auth/api/auth'
 import { cn } from '@/lib/utils'
@@ -63,12 +64,12 @@ export function ForgotPasswordForm() {
         >
           Ввести другой email
         </button>
-        <a
+        <Link
           href="/login"
           className="text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
         >
           Вернуться ко входу
-        </a>
+        </Link>
       </div>
     )
   }

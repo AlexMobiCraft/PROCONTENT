@@ -126,4 +126,13 @@ describe('GET /auth/confirm', () => {
     expect(url.pathname).toBe('/login')
     expect(url.searchParams.get('error')).toBe('link-expired')
   })
+
+  it('не вызывает getUser и Stripe при успешной верификации type=recovery', async () => {
+    const response = await GET(makeRequest('token_hash=test-token&type=recovery'))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('http://localhost:3000/update-password')
+    // Stripe-синхронизация пропускается для recovery — пользователь уже зарегистрирован
+    expect(mockGetUser).not.toHaveBeenCalled()
+  })
 })
