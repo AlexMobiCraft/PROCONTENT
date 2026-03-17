@@ -152,8 +152,31 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     expect(
-      screen.getByText('Срок действия ссылки истёк. Запросите новую ссылку для сброса пароля.')
+      screen.getByText('Срок действия ссылки истёк. Запросите новую ссылку.')
     ).toBeInTheDocument()
+  })
+
+  it('сбрасывает ошибку из URL при начале взаимодействия с формой (submit)', async () => {
+    mockSearchParams.mockReturnValue({
+      get: (key: string) => (key === 'error' ? 'link-expired' : null),
+    })
+    mockSignInWithPassword.mockResolvedValue({ data: { session: null }, error: null })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    // URL-ошибка видна изначально
+    expect(screen.getByText('Срок действия ссылки истёк. Запросите новую ссылку.')).toBeInTheDocument()
+
+    // После первого взаимодействия (submit) ошибка из URL исчезает
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.type(screen.getByLabelText('Пароль'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Срок действия ссылки истёк. Запросите новую ссылку.')
+      ).not.toBeInTheDocument()
+    })
   })
 
   it('кнопка "Войти" остаётся задизейблена после успешного входа (isLoading=true до навигации)', async () => {

@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { updatePassword } from '@/features/auth/api/auth'
+import { getSession, updatePassword } from '@/features/auth/api/auth'
 import { useAuthStore } from '@/features/auth/store'
 import { getAuthSuccessRedirectPath } from '@/lib/app-routes'
 import { cn } from '@/lib/utils'
 
 export function UpdatePasswordForm() {
   const router = useRouter()
-  const { setUser } = useAuthStore()
+  const { setUser, setSession } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -63,13 +63,15 @@ export function UpdatePasswordForm() {
       return
     }
 
+    const { data: sessionData, error: sessionError } = await getSession()
     setUser(data?.user ?? null)
+    setSession(!sessionError && sessionData?.session ? sessionData.session : null)
     setIsLoading(false)
 
     setSuccess(true)
     timerRef.current = setTimeout(() => {
-      router.push(getAuthSuccessRedirectPath())
       router.refresh()
+      router.push(getAuthSuccessRedirectPath())
     }, 2000)
   }
 
@@ -77,7 +79,7 @@ export function UpdatePasswordForm() {
 
   if (success) {
     return (
-      <div className="flex flex-col gap-6">
+      <div role="status" className="flex flex-col gap-6">
         <div className="flex flex-col gap-1">
           <h1 className="font-heading text-foreground text-2xl font-semibold">
             Пароль обновлён
@@ -111,6 +113,7 @@ export function UpdatePasswordForm() {
             name="password"
             type="password"
             required
+            autoComplete="new-password"
             placeholder="Не менее 6 символов"
             disabled={isLoading}
             onChange={() => setValidationError(null)}
@@ -136,6 +139,7 @@ export function UpdatePasswordForm() {
             name="confirm"
             type="password"
             required
+            autoComplete="new-password"
             placeholder="Повторите пароль"
             disabled={isLoading}
             onChange={() => setValidationError(null)}

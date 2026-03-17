@@ -3,6 +3,8 @@ export const LOGIN_PATH = '/login'
 export const INACTIVE_PATH = '/inactive'
 export const DEFAULT_AUTH_REDIRECT_PATH = '/feed'
 export const ONBOARDING_PATH = '/onboarding'
+// /update-password: в PUBLIC_PATHS чтобы middleware пропускал пользователей с неактивной подпиской
+// (recovery-flow), дополнительная защита от неавторизованных — серверная проверка в самой странице
 export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH, '/update-password', '/register', '/forgot-password'] as const
 
 const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/', '/api/checkout'] as const

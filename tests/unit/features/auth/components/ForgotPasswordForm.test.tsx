@@ -168,6 +168,25 @@ describe('ForgotPasswordForm', () => {
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
   })
 
+  it('сбрасывает сетевую ошибку при вводе в поле email (onChange)', async () => {
+    mockResetPasswordForEmail.mockResolvedValue({ error: { message: 'Network error' } })
+    const user = userEvent.setup()
+    render(<ForgotPasswordForm />)
+
+    // Первый submit — получаем сетевую ошибку
+    await user.type(screen.getByLabelText('Email'), 'user@example.com')
+    await user.click(screen.getByRole('button', { name: 'Отправить ссылку' }))
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Не удалось отправить письмо. Попробуйте позже.'
+      )
+    })
+
+    // Вводим символ — сетевая ошибка исчезает
+    await user.type(screen.getByLabelText('Email'), 'x')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('сбрасывает сетевую ошибку при повторной отправке с невалидным email', async () => {
     mockResetPasswordForEmail.mockResolvedValue({ error: { message: 'Network error' } })
     const user = userEvent.setup()

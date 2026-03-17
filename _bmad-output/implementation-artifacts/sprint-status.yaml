@@ -48,8 +48,8 @@ development_status:
   1-4-stripe-checkout-integration: done
   1-5-processing-stripe-webhooks-and-access-management: done
   1-6-onboarding-page-for-new-members: done
-  "1-7-personal-account-and-subscription-management": "done"
-  1-8-password-reset-and-recovery: review
+  1-7-personal-account-and-subscription-management: done
+  1-8-password-reset-and-recovery: in-progress
   epic-1-retrospective: optional
 
   epic-2: backlog

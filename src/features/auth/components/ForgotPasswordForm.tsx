@@ -47,7 +47,7 @@ export function ForgotPasswordForm() {
 
   if (submitted) {
     return (
-      <div className="flex flex-col gap-6">
+      <div role="status" className="flex flex-col gap-6">
         <div className="flex flex-col gap-1">
           <h1 className="font-heading text-foreground text-2xl font-semibold">
             Письмо отправлено
@@ -109,6 +109,7 @@ export function ForgotPasswordForm() {
             aria-invalid={!!validationError}
             onChange={() => {
               setValidationError(null)
+              setNetworkError(null)
             }}
             className={cn(
               'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',

@@ -17,15 +17,18 @@ export function AuthContainer() {
   const [error, setError] = useState<string | null>(null)
   const [networkError, setNetworkError] = useState<string | null>(null)
 
-  const magicLinkError = searchParams.get('error')
-  const magicLinkErrorMessage =
-    magicLinkError === 'auth_callback_error' || magicLinkError === 'auth_callback_error_v2'
+  const rawError = searchParams.get('error')
+  const [urlError, setUrlError] = useState<string | null>(
+    rawError === 'auth_callback_error' || rawError === 'auth_callback_error_v2'
       ? 'Ссылка недействительна. Запросите новую или войдите по паролю.'
-      : magicLinkError === 'link-expired'
-      ? 'Срок действия ссылки истёк. Запросите новую ссылку для сброса пароля.'
+      : rawError === 'link-expired'
+      ? 'Срок действия ссылки истёк. Запросите новую ссылку.'
       : null
+  )
 
   async function handleLoginSubmit({ email, password }: { email: string; password?: string }) {
+    setUrlError(null)
+
     if (!password) {
       setError('Введите пароль')
       return
@@ -66,12 +69,12 @@ export function AuthContainer() {
         </p>
       </div>
 
-      {(magicLinkErrorMessage || networkError) && (
+      {(urlError || networkError) && (
         <div
           role="alert"
           className="border-destructive/20 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm"
         >
-          {magicLinkErrorMessage ?? networkError}
+          {urlError ?? networkError}
         </div>
       )}
 
