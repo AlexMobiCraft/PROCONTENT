@@ -217,4 +217,23 @@ describe('UpdatePasswordForm', () => {
     })
     expect(mockPush).not.toHaveBeenCalled()
   })
+
+  it('сбрасывает системную ошибку при вводе в поле пароля (onChange)', async () => {
+    mockUpdatePassword.mockResolvedValue({ error: { message: 'Database error' } })
+    const user = userEvent.setup()
+    render(<UpdatePasswordForm />)
+
+    // Вызываем ошибку сервера
+    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    })
+
+    // Вводим символ в поле пароля — системная ошибка должна исчезнуть
+    await user.type(screen.getByLabelText('Новый пароль'), 'x')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })

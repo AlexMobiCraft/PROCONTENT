@@ -128,7 +128,7 @@ export function ForgotPasswordForm() {
           <button
             type="submit"
             disabled={isLoading}
-            className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none w-[240px]"
+            className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none w-full max-w-[240px]"
           >
             {isLoading ? 'Отправляем...' : 'Отправить ссылку'}
           </button>

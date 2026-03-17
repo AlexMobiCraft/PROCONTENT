@@ -84,10 +84,10 @@ so that восстановить доступ к своему профилю.
 - [x] [AI-Review][HIGH] Обернуть AuthContainer в Suspense на странице /login для предотвращения деоптимизации рендеринга [src/app/(public)/login/page.tsx]
 - [x] [AI-Review][MEDIUM] Удалить неиспользуемый мок @base-ui/react/button в тестах [tests/unit/features/auth/components/UpdatePasswordForm.test.tsx:5-13]
 - [x] [AI-Review][MEDIUM] Унифицировать выравнивание кнопок и ссылок в ForgotPasswordForm (центровка vs левый край) [src/features/auth/components/ForgotPasswordForm.tsx:62][src/features/auth/components/ForgotPasswordForm.tsx:131]
-- [ ] [AI-Review][MEDIUM] Сбрасывать и системную ошибку `error` при `onChange` в `UpdatePasswordForm.tsx` (сейчас сбрасывается только валидация) [src/features/auth/components/UpdatePasswordForm.tsx:121,147]
-- [ ] [AI-Review][MEDIUM] Вычислять `urlError` в `AuthContainer.tsx` динамически на основе `searchParams` вместо хранения в `useState`, чтобы корректно реагировать на SPA-навигацию [src/features/auth/components/AuthContainer.tsx:21-27]
-- [ ] [AI-Review][LOW] Сделать кнопки адаптивными (w-full max-w-[240px]) вместо жесткой фиксации (w-[240px]) [ForgotPasswordForm.tsx:131, UpdatePasswordForm.tsx:160]
-- [ ] [AI-Review][LOW] Добавить маппинг системных ошибок API на человекочитаемый русский язык в `UpdatePasswordForm.tsx` [src/features/auth/components/UpdatePasswordForm.tsx:62]
+- [x] [AI-Review][MEDIUM] Сбрасывать и системную ошибку `error` при `onChange` в `UpdatePasswordForm.tsx` (сейчас сбрасывается только валидация) [src/features/auth/components/UpdatePasswordForm.tsx:121,147]
+- [x] [AI-Review][MEDIUM] Вычислять `urlError` в `AuthContainer.tsx` динамически на основе `searchParams` вместо хранения в `useState`, чтобы корректно реагировать на SPA-навигацию [src/features/auth/components/AuthContainer.tsx:21-27]
+- [x] [AI-Review][LOW] Сделать кнопки адаптивными (w-full max-w-[240px]) вместо жесткой фиксации (w-[240px]) [ForgotPasswordForm.tsx:131, UpdatePasswordForm.tsx:160]
+- [x] [AI-Review][LOW] Добавить маппинг системных ошибок API на человекочитаемый русский язык в `UpdatePasswordForm.tsx` [src/features/auth/components/UpdatePasswordForm.tsx:62]
 - [x] [AI-Review][LOW] Оптимизировать избыточность `getSession` в `UpdatePasswordForm.tsx` (оставлено как осознанное решение для синхронизации, задокументировано в коде) [src/features/auth/components/UpdatePasswordForm.tsx:68-70]
 
 ## Dev Notes
@@ -173,6 +173,10 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: UpdatePasswordForm.test.tsx — удалён неиспользуемый `vi.mock('@base-ui/react/button', ...)`. Все 323 теста проходят.
 - ✅ Resolved review finding [MEDIUM]: ForgotPasswordForm — успех-стейт: кнопка "Ввести другой email" изменена с `text-left` на `text-center`; ссылка "Вернуться ко входу" получила `text-center`. Выравнивание унифицировано с основной формой. Все 323 теста проходят.
 - ✅ Resolved review finding [LOW]: UpdatePasswordForm — getSession() после updateUser() является чтением in-memory кэша Supabase (не сетевым запросом). updateUser не возвращает session, поэтому вызов обоснован. Добавлен поясняющий комментарий.
+- ✅ Resolved review finding [MEDIUM]: UpdatePasswordForm — onChange обоих полей пароля теперь сбрасывает и `error` (системную) вместе с `validationError`. Покрыто тестом `сбрасывает системную ошибку при вводе в поле пароля (onChange)`.
+- ✅ Resolved review finding [MEDIUM]: AuthContainer — `urlError` теперь вычисляется динамически из `searchParams` (не useState). Добавлен `urlErrorDismissed` boolean state для скрытия при submit. При SPA-навигации к URL без error-параметра ошибка исчезает автоматически. Все существующие тесты проходят.
+- ✅ Resolved review finding [LOW]: ForgotPasswordForm и UpdatePasswordForm — кнопка submit изменена с `w-[240px]` на `w-full max-w-[240px]` для адаптивности на малых экранах. Все 325 тестов проходят.
+- ✅ Resolved review finding [LOW]: UpdatePasswordForm — добавлена функция `mapPasswordError` для маппинга ошибок API на русский язык. Известные ошибки слабого пароля → специфичное сообщение; прочие → нейтральный fallback. Тесты обновлены. Добавлен тест `маппит ошибку слабого пароля от Supabase на русский`.
 - Создан `ForgotPasswordForm` (Smart-контейнер): форма с email, кнопка отправки, anti-enumeration защита (всегда показывает success-сообщение), inline-баннер для сетевых ошибок.
 - Добавлена функция `resetPasswordForEmail` в `auth.ts` с `redirectTo: [origin]/auth/confirm?type=recovery`.
 - Создана страница `/forgot-password/page.tsx`.
@@ -240,6 +244,10 @@ claude-sonnet-4-6
 - `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (изменён — удалён неиспользуемый мок @base-ui/react/button)
 - `src/features/auth/components/ForgotPasswordForm.tsx` (изменён — центрирование кнопок в success-стейте)
 - `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — комментарий к getSession())
+- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — onChange сбрасывает error; mapPasswordError; w-full max-w-[240px])
+- `src/features/auth/components/AuthContainer.tsx` (изменён — urlError динамически из searchParams + urlErrorDismissed state)
+- `src/features/auth/components/ForgotPasswordForm.tsx` (изменён — w-full max-w-[240px] для кнопки)
+- `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (обновлён — тесты маппинга ошибок, тест onChange сброса error)
 
 ### Change Log
 
@@ -263,3 +271,5 @@ claude-sonnet-4-6
 - 2026-03-17: Addressed final 4 review findings (последний раунд, финал) — все исправлено. ✅ [HIGH] Suspense wrapper для AuthContainer на /login. ✅ [MEDIUM] Удалён неиспользуемый vi.mock в UpdatePasswordForm.test.tsx. ✅ [MEDIUM] Унифицировано выравнивание в ForgotPasswordForm (text-center в success-стейте). ✅ [LOW] getSession() — обоснование задокументировано, вызов оставлен. Все 323 теста проходят. Статус: review.
 - 2026-03-17: Addressed final 4 review findings (14-й раунд) — все исправлено. ✅ [MEDIUM] UpdatePasswordForm — добавлена проверка error из getSession(); при ошибке setSession(null). ✅ [MEDIUM] AuthContainer — urlError преобразован в state; сбрасывается при первом взаимодействии с формой (submit). ✅ [LOW] ForgotPasswordForm — onChange теперь сбрасывает и networkError вместе с validationError. ✅ [LOW] update-password/page.tsx — добавлен явный тип `Metadata` из next. Все 323 теста проходят.
 
+- 2026-03-17: Проведен 15-й раунд Adversarial Code Review. Обнаружены 4 новые проблемы (2 Medium, 2 Low). Созданы action items, статус переведен в 'in-progress'.
+- 2026-03-17: Addressed final 4 review findings (15-й раунд) — все исправлено. ✅ [MEDIUM] UpdatePasswordForm onChange сбрасывает и error. ✅ [MEDIUM] AuthContainer urlError вычисляется динамически из searchParams. ✅ [LOW] Кнопки w-full max-w-[240px] в ForgotPasswordForm и UpdatePasswordForm. ✅ [LOW] mapPasswordError — маппинг ошибок API на русский. Все 325 тестов проходят.

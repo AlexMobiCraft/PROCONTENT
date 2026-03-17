@@ -18,16 +18,17 @@ export function AuthContainer() {
   const [networkError, setNetworkError] = useState<string | null>(null)
 
   const rawError = searchParams.get('error')
-  const [urlError, setUrlError] = useState<string | null>(
+  const computedUrlError =
     rawError === 'auth_callback_error' || rawError === 'auth_callback_error_v2'
       ? 'Ссылка недействительна. Запросите новую или войдите по паролю.'
       : rawError === 'link-expired'
       ? 'Срок действия ссылки истёк. Запросите новую ссылку.'
       : null
-  )
+  const [urlErrorDismissed, setUrlErrorDismissed] = useState(false)
+  const urlError = urlErrorDismissed ? null : computedUrlError
 
   async function handleLoginSubmit({ email, password }: { email: string; password?: string }) {
-    setUrlError(null)
+    setUrlErrorDismissed(true)
 
     if (!password) {
       setError('Введите пароль')
