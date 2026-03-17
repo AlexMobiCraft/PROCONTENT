@@ -156,6 +156,23 @@ describe('AuthContainer', () => {
     ).toBeInTheDocument()
   })
 
+  it('скрывает ошибку из URL при вводе в поле email (onChange)', async () => {
+    mockSearchParams.mockReturnValue({
+      get: (key: string) => (key === 'error' ? 'link-expired' : null),
+    })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    // URL-ошибка видна изначально
+    expect(screen.getByText('Срок действия ссылки истёк. Запросите новую ссылку.')).toBeInTheDocument()
+
+    // При вводе в поле email ошибка из URL должна сразу исчезнуть
+    await user.type(screen.getByLabelText('Email'), 'a')
+    expect(
+      screen.queryByText('Срок действия ссылки истёк. Запросите новую ссылку.')
+    ).not.toBeInTheDocument()
+  })
+
   it('сбрасывает ошибку из URL при начале взаимодействия с формой (submit)', async () => {
     mockSearchParams.mockReturnValue({
       get: (key: string) => (key === 'error' ? 'link-expired' : null),

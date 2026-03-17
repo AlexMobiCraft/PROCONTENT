@@ -1,6 +1,6 @@
 # Story 1.8: Сброс и восстановление пароля (Forgot Password)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -90,6 +90,14 @@ so that восстановить доступ к своему профилю.
 - [x] [AI-Review][LOW] Добавить маппинг системных ошибок API на человекочитаемый русский язык в `UpdatePasswordForm.tsx` [src/features/auth/components/UpdatePasswordForm.tsx:62]
 - [x] [AI-Review][LOW] Оптимизировать избыточность `getSession` в `UpdatePasswordForm.tsx` (оставлено как осознанное решение для синхронизации, задокументировано в коде) [src/features/auth/components/UpdatePasswordForm.tsx:68-70]
 
+### Review Follow-ups (AI)
+- [x] [AI-Review][HIGH] Валидировать параметр `next` перед редиректом для защиты от Open Redirect [src/app/auth/confirm/route.ts:36]
+- [x] [AI-Review][MEDIUM] Сбрасывать `urlErrorDismissed` при изменении полей в LoginForm (сейчас ошибка из URL висит до сабмита) [src/features/auth/components/AuthContainer.tsx:28]
+- [x] [AI-Review][MEDIUM] Убедиться, что `mapPasswordError` реально применяется для вывода ошибок в `UpdatePasswordForm.tsx` [src/features/auth/components/UpdatePasswordForm.tsx:62]
+- [x] [AI-Review][LOW] Добавить явный тип `Metadata` к объекту метаданных [src/app/(public)/update-password/page.tsx:7]
+- [x] [AI-Review][LOW] Рассмотреть смену заголовка "Создание пароля" на "Восстановление пароля" для сценария сброса [src/features/auth/components/UpdatePasswordForm.tsx:101]
+- [x] [AI-Review][LOW] Обновить Change Log и синхронизировать статус в sprint-status.yaml.
+
 ## Dev Notes
 
 - **Архитектурные паттерны:** Используйте Feature-based подход. Компоненты для сброса и обновления пароля должны находиться в `src/features/auth/components/`. 
@@ -177,6 +185,11 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: AuthContainer — `urlError` теперь вычисляется динамически из `searchParams` (не useState). Добавлен `urlErrorDismissed` boolean state для скрытия при submit. При SPA-навигации к URL без error-параметра ошибка исчезает автоматически. Все существующие тесты проходят.
 - ✅ Resolved review finding [LOW]: ForgotPasswordForm и UpdatePasswordForm — кнопка submit изменена с `w-[240px]` на `w-full max-w-[240px]` для адаптивности на малых экранах. Все 325 тестов проходят.
 - ✅ Resolved review finding [LOW]: UpdatePasswordForm — добавлена функция `mapPasswordError` для маппинга ошибок API на русский язык. Известные ошибки слабого пароля → специфичное сообщение; прочие → нейтральный fallback. Тесты обновлены. Добавлен тест `маппит ошибку слабого пароля от Supabase на русский`.
+- ✅ Resolved review finding [HIGH]: route.ts — валидация параметра `next` перед редиректом для защиты от Open Redirect: принимаются только относительные пути (начинаются с `/`, но не `//`). Добавлены 2 теста (внешний URL и protocol-relative URL). Все 328 тестов проходят.
+- ✅ Resolved review finding [MEDIUM]: LoginForm — добавлен опциональный prop `onFieldChange?: () => void`, вызывается в onChange email и password. AuthContainer передаёт `onFieldChange={() => setUrlErrorDismissed(true)}` — ошибка из URL исчезает при первом вводе, не дожидаясь submit. Добавлен тест. Все 328 тестов проходят.
+- ✅ Resolved review finding [MEDIUM]: UpdatePasswordForm — добавлена функция `mapPasswordError` и применяется в setError. Слабый пароль → русское сообщение; прочие ошибки → возвращаются как есть. Добавлен тест `маппит ошибку слабого пароля от Supabase на русский (mapPasswordError)`.
+- ✅ Resolved review finding [LOW]: update-password/page.tsx — явный тип `Metadata` уже присутствовал (`import type { Metadata } from 'next'`, `export const metadata: Metadata = {}`). Исправление не требовалось.
+- ✅ Resolved review finding [LOW]: UpdatePasswordForm — заголовок изменён с "Создание пароля" на "Восстановление пароля" для соответствия сценарию восстановления. Все 328 тестов проходят.
 - Создан `ForgotPasswordForm` (Smart-контейнер): форма с email, кнопка отправки, anti-enumeration защита (всегда показывает success-сообщение), inline-баннер для сетевых ошибок.
 - Добавлена функция `resetPasswordForEmail` в `auth.ts` с `redirectTo: [origin]/auth/confirm?type=recovery`.
 - Создана страница `/forgot-password/page.tsx`.
@@ -248,6 +261,13 @@ claude-sonnet-4-6
 - `src/features/auth/components/AuthContainer.tsx` (изменён — urlError динамически из searchParams + urlErrorDismissed state)
 - `src/features/auth/components/ForgotPasswordForm.tsx` (изменён — w-full max-w-[240px] для кнопки)
 - `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (обновлён — тесты маппинга ошибок, тест onChange сброса error)
+- `src/app/auth/confirm/route.ts` (изменён — валидация `next` параметра для защиты от Open Redirect)
+- `src/features/auth/components/LoginForm.tsx` (изменён — добавлен prop `onFieldChange?: () => void`, вызывается в onChange полей)
+- `src/features/auth/components/AuthContainer.tsx` (изменён — передаёт `onFieldChange` в LoginForm для немедленного скрытия urlError)
+- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — добавлена функция `mapPasswordError`; заголовок "Восстановление пароля")
+- `tests/unit/app/auth/confirm/route.test.ts` (обновлён — 2 теста защиты от Open Redirect)
+- `tests/unit/features/auth/components/AuthContainer.test.tsx` (обновлён — тест скрытия urlError при onChange)
+- `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (обновлён — тест mapPasswordError для слабого пароля)
 
 ### Change Log
 
@@ -273,3 +293,5 @@ claude-sonnet-4-6
 
 - 2026-03-17: Проведен 15-й раунд Adversarial Code Review. Обнаружены 4 новые проблемы (2 Medium, 2 Low). Созданы action items, статус переведен в 'in-progress'.
 - 2026-03-17: Addressed final 4 review findings (15-й раунд) — все исправлено. ✅ [MEDIUM] UpdatePasswordForm onChange сбрасывает и error. ✅ [MEDIUM] AuthContainer urlError вычисляется динамически из searchParams. ✅ [LOW] Кнопки w-full max-w-[240px] в ForgotPasswordForm и UpdatePasswordForm. ✅ [LOW] mapPasswordError — маппинг ошибок API на русский. Все 325 тестов проходят.
+- 2026-03-17: Проведен 16-й раунд Adversarial Code Review. Обнаружены 5 новых проблем (1 High, 2 Medium, 2 Low). Статус переведен в 'in-progress'.
+- 2026-03-17: Addressed final 5 review findings (16-й раунд) — все исправлено. ✅ [HIGH] Защита от Open Redirect в /auth/confirm: `next` принимается только если начинается с `/` и не `//`. 2 теста. ✅ [MEDIUM] LoginForm получил `onFieldChange` prop — urlError скрывается при первом вводе, не дожидаясь submit. ✅ [MEDIUM] mapPasswordError добавлена и применяется в UpdatePasswordForm. ✅ [LOW] Тип Metadata уже был — помечено как done. ✅ [LOW] Заголовок "Восстановление пароля". Все 328 тестов проходят. Статус: review.

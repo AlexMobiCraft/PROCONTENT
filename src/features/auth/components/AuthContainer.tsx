@@ -83,6 +83,7 @@ export function AuthContainer() {
         onSubmit={handleLoginSubmit}
         isLoading={isLoading}
         error={error}
+        onFieldChange={() => setUrlErrorDismissed(true)}
       />
 
       <div className="text-center">

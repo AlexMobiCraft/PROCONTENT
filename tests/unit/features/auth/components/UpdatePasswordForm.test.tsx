@@ -218,6 +218,24 @@ describe('UpdatePasswordForm', () => {
     expect(mockPush).not.toHaveBeenCalled()
   })
 
+  it('маппит ошибку слабого пароля от Supabase на русский (mapPasswordError)', async () => {
+    mockUpdatePassword.mockResolvedValue({
+      error: { message: 'Password should be at least 6 characters' },
+    })
+    const user = userEvent.setup()
+    render(<UpdatePasswordForm />)
+
+    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
+    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Пароль слишком слабый. Придумайте более надёжный пароль.'
+      )
+    })
+  })
+
   it('сбрасывает системную ошибку при вводе в поле пароля (onChange)', async () => {
     mockUpdatePassword.mockResolvedValue({ error: { message: 'Database error' } })
     const user = userEvent.setup()

@@ -33,7 +33,12 @@ export async function GET(request: NextRequest) {
   // type=recovery (сброс пароля) → редирект на установку пароля; signup идёт на обычный success path
   const defaultRedirect =
     type === 'recovery' ? '/update-password' : getAuthSuccessRedirectPath()
-  const next = searchParams.get('next') || defaultRedirect
+  const rawNext = searchParams.get('next')
+  // Защита от Open Redirect: принимаем только относительные пути (начинаются с /, но не //)
+  const next =
+    rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//')
+      ? rawNext
+      : defaultRedirect
 
   if ((tokenHash && type) || code) {
     const redirectUrl = request.nextUrl.clone()

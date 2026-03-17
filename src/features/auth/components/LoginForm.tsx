@@ -7,9 +7,10 @@ interface LoginFormProps {
   onSubmit: (data: { email: string; password?: string }) => void
   isLoading: boolean
   error: string | null
+  onFieldChange?: () => void
 }
 
-export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
+export function LoginForm({ onSubmit, isLoading, error, onFieldChange }: LoginFormProps) {
   const [validationError, setValidationError] = useState<string | null>(null)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -58,7 +59,10 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
           disabled={isLoading}
           aria-describedby={displayError ? 'login-error' : undefined}
           aria-invalid={!!displayError}
-          onChange={() => setValidationError(null)}
+          onChange={() => {
+            setValidationError(null)
+            onFieldChange?.()
+          }}
           className={cn(
             'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
             displayError &&
@@ -78,7 +82,10 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
           required
           placeholder="Ваш пароль"
           disabled={isLoading}
-          onChange={() => setValidationError(null)}
+          onChange={() => {
+            setValidationError(null)
+            onFieldChange?.()
+          }}
           className={cn(
             'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
             displayError &&

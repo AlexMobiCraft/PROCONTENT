@@ -94,6 +94,25 @@ describe('GET /auth/confirm', () => {
     expect(response.headers.get('location')).toBe('http://localhost:3000/dashboard')
   })
 
+  it('игнорирует `next` если передан внешний URL — защита от Open Redirect', async () => {
+    const response = await GET(
+      makeRequest('token_hash=test-token&type=email&next=https://evil.com')
+    )
+
+    expect(response.status).toBe(307)
+    // Должен редиректить на default path, а не на внешний URL
+    expect(response.headers.get('location')).toBe('http://localhost:3000/feed')
+  })
+
+  it('игнорирует `next` с protocol-relative URL (//evil.com) — защита от Open Redirect', async () => {
+    const response = await GET(
+      makeRequest('token_hash=test-token&type=email&next=//evil.com')
+    )
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('http://localhost:3000/feed')
+  })
+
   it('отдаёт приоритет query next над AUTH_SUCCESS_REDIRECT_PATH (type=email)', async () => {
     process.env.AUTH_SUCCESS_REDIRECT_PATH = '/dashboard'
 

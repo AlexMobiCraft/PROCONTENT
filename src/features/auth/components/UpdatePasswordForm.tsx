@@ -8,6 +8,15 @@ import { useAuthStore } from '@/features/auth/store'
 import { getAuthSuccessRedirectPath } from '@/lib/app-routes'
 import { cn } from '@/lib/utils'
 
+function mapPasswordError(message: string | undefined): string {
+  if (!message) return 'Не удалось обновить пароль. Попробуйте позже.'
+  const lower = message.toLowerCase()
+  if (lower.includes('password should be at least') || lower.includes('weak password')) {
+    return 'Пароль слишком слабый. Придумайте более надёжный пароль.'
+  }
+  return message
+}
+
 export function UpdatePasswordForm() {
   const router = useRouter()
   const { setUser, setSession } = useAuthStore()
@@ -59,7 +68,7 @@ export function UpdatePasswordForm() {
         router.push('/login?error=link-expired')
         return
       }
-      setError(apiError.message ?? 'Не удалось обновить пароль. Попробуйте позже.')
+      setError(mapPasswordError(apiError.message))
       return
     }
 
@@ -98,7 +107,7 @@ export function UpdatePasswordForm() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="font-heading text-foreground text-2xl font-semibold">
-          Создание пароля
+          Восстановление пароля
         </h1>
         <p className="text-muted-foreground text-sm">
           Придумайте надежный пароль
