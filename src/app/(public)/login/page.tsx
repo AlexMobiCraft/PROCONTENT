@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 
 import { createClient } from '@/lib/supabase/server'
@@ -21,7 +22,9 @@ export default async function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
-        <AuthContainer />
+        <Suspense>
+          <AuthContainer />
+        </Suspense>
       </div>
     </main>
   )

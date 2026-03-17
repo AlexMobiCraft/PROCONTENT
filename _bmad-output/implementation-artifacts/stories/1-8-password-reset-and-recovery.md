@@ -1,6 +1,6 @@
 # Story 1.8: Сброс и восстановление пароля (Forgot Password)
 
-Status: in-progress
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -81,10 +81,14 @@ so that восстановить доступ к своему профилю.
 - [x] [AI-Review][MEDIUM] Реализовать сброс ошибок из URL (query params) при начале взаимодействия с формой логина, чтобы старые уведомления не перекрывали новые сетевые ошибки [src/features/auth/components/AuthContainer.tsx:28-36]
 - [x] [AI-Review][LOW] Сбрасывать networkError в onChange (вместе с validationError), чтобы старое сообщение о сетевой ошибке не висело после начала исправления email [src/features/auth/components/ForgotPasswordForm.tsx:110-112]
 - [x] [AI-Review][LOW] Добавить явный тип Metadata к объекту метаданных в UpdatePasswordPage для консистентности [src/app/(public)/update-password/page.tsx:6]
-- [ ] [AI-Review][HIGH] Обернуть AuthContainer в Suspense на странице /login для предотвращения деоптимизации рендеринга [src/app/(public)/login/page.tsx]
-- [ ] [AI-Review][MEDIUM] Удалить неиспользуемый мок @base-ui/react/button в тестах [tests/unit/features/auth/components/UpdatePasswordForm.test.tsx:5-13]
-- [ ] [AI-Review][MEDIUM] Унифицировать выравнивание кнопок и ссылок в ForgotPasswordForm (центровка vs левый край) [src/features/auth/components/ForgotPasswordForm.tsx:62][src/features/auth/components/ForgotPasswordForm.tsx:131]
-- [ ] [AI-Review][LOW] Рассмотреть устранение избыточного вызова API getSession() после обновления пароля [src/features/auth/components/UpdatePasswordForm.tsx:66]
+- [x] [AI-Review][HIGH] Обернуть AuthContainer в Suspense на странице /login для предотвращения деоптимизации рендеринга [src/app/(public)/login/page.tsx]
+- [x] [AI-Review][MEDIUM] Удалить неиспользуемый мок @base-ui/react/button в тестах [tests/unit/features/auth/components/UpdatePasswordForm.test.tsx:5-13]
+- [x] [AI-Review][MEDIUM] Унифицировать выравнивание кнопок и ссылок в ForgotPasswordForm (центровка vs левый край) [src/features/auth/components/ForgotPasswordForm.tsx:62][src/features/auth/components/ForgotPasswordForm.tsx:131]
+- [ ] [AI-Review][MEDIUM] Сбрасывать и системную ошибку `error` при `onChange` в `UpdatePasswordForm.tsx` (сейчас сбрасывается только валидация) [src/features/auth/components/UpdatePasswordForm.tsx:121,147]
+- [ ] [AI-Review][MEDIUM] Вычислять `urlError` в `AuthContainer.tsx` динамически на основе `searchParams` вместо хранения в `useState`, чтобы корректно реагировать на SPA-навигацию [src/features/auth/components/AuthContainer.tsx:21-27]
+- [ ] [AI-Review][LOW] Сделать кнопки адаптивными (w-full max-w-[240px]) вместо жесткой фиксации (w-[240px]) [ForgotPasswordForm.tsx:131, UpdatePasswordForm.tsx:160]
+- [ ] [AI-Review][LOW] Добавить маппинг системных ошибок API на человекочитаемый русский язык в `UpdatePasswordForm.tsx` [src/features/auth/components/UpdatePasswordForm.tsx:62]
+- [x] [AI-Review][LOW] Оптимизировать избыточность `getSession` в `UpdatePasswordForm.tsx` (оставлено как осознанное решение для синхронизации, задокументировано в коде) [src/features/auth/components/UpdatePasswordForm.tsx:68-70]
 
 ## Dev Notes
 
@@ -165,6 +169,10 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: AuthContainer — magicLinkErrorMessage заменён на urlError state; сбрасывается в начале handleLoginSubmit. Покрыто тестом `сбрасывает ошибку из URL при начале взаимодействия с формой`.
 - ✅ Resolved review finding [LOW]: ForgotPasswordForm — onChange сбрасывает networkError вместе с validationError. Покрыто тестом `сбрасывает сетевую ошибку при вводе в поле email (onChange)`.
 - ✅ Resolved review finding [LOW]: update-password/page.tsx — добавлен явный тип `Metadata` из next. Существующие тесты проходят. Все 323 теста.
+- ✅ Resolved review finding [HIGH]: login/page.tsx — AuthContainer обёрнут в `<Suspense>` для изоляции `useSearchParams()` и предотвращения деоптимизации рендеринга всей страницы. Все 323 теста проходят.
+- ✅ Resolved review finding [MEDIUM]: UpdatePasswordForm.test.tsx — удалён неиспользуемый `vi.mock('@base-ui/react/button', ...)`. Все 323 теста проходят.
+- ✅ Resolved review finding [MEDIUM]: ForgotPasswordForm — успех-стейт: кнопка "Ввести другой email" изменена с `text-left` на `text-center`; ссылка "Вернуться ко входу" получила `text-center`. Выравнивание унифицировано с основной формой. Все 323 теста проходят.
+- ✅ Resolved review finding [LOW]: UpdatePasswordForm — getSession() после updateUser() является чтением in-memory кэша Supabase (не сетевым запросом). updateUser не возвращает session, поэтому вызов обоснован. Добавлен поясняющий комментарий.
 - Создан `ForgotPasswordForm` (Smart-контейнер): форма с email, кнопка отправки, anti-enumeration защита (всегда показывает success-сообщение), inline-баннер для сетевых ошибок.
 - Добавлена функция `resetPasswordForEmail` в `auth.ts` с `redirectTo: [origin]/auth/confirm?type=recovery`.
 - Создана страница `/forgot-password/page.tsx`.
@@ -228,6 +236,10 @@ claude-sonnet-4-6
 - `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (обновлён — тест getSession error → setSession(null))
 - `tests/unit/features/auth/components/AuthContainer.test.tsx` (обновлён — тест сброса urlError при submit)
 - `tests/unit/features/auth/components/ForgotPasswordForm.test.tsx` (обновлён — тест сброса networkError в onChange)
+- `src/app/(public)/login/page.tsx` (изменён — Suspense wrapper для AuthContainer)
+- `tests/unit/features/auth/components/UpdatePasswordForm.test.tsx` (изменён — удалён неиспользуемый мок @base-ui/react/button)
+- `src/features/auth/components/ForgotPasswordForm.tsx` (изменён — центрирование кнопок в success-стейте)
+- `src/features/auth/components/UpdatePasswordForm.tsx` (изменён — комментарий к getSession())
 
 ### Change Log
 
@@ -248,5 +260,6 @@ claude-sonnet-4-6
 - 2026-03-17: Addressed final 2 review findings (13-й раунд) — все исправлено. ✅ [LOW] Удалён дублирующийся тест ForgotPasswordForm (очистка валидации при корректном email — подмножество более общего теста). ✅ [LOW] Порядок router.push()/router.refresh() в UpdatePasswordForm: push() первым для предотвращения мерцания. Все 318 тестов проходят. Статус: review.
 - 2026-03-17: Addressed final 7 review findings (последний раунд) — все исправлено. ✅ [HIGH] Серверная проверка сессии на /update-password восстановлена. ✅ [HIGH] setSession в useAuthStore после updatePassword. ✅ [MEDIUM] Нейтральный текст link-expired. ✅ [MEDIUM] role="status" на success-контейнерах. ✅ [MEDIUM] autoComplete="new-password". ✅ [MEDIUM] router.refresh() перед router.push(). ✅ [LOW] Комментарий архитектурной двухуровневой защиты. Все 320 тестов проходят.
 - 2026-03-17: Проведен 14-й раунд Adversarial Code Review. Обнаружены 4 новые проблемы (2 Medium, 2 Low). Созданы action items, статус переведен в 'in-progress'.
+- 2026-03-17: Addressed final 4 review findings (последний раунд, финал) — все исправлено. ✅ [HIGH] Suspense wrapper для AuthContainer на /login. ✅ [MEDIUM] Удалён неиспользуемый vi.mock в UpdatePasswordForm.test.tsx. ✅ [MEDIUM] Унифицировано выравнивание в ForgotPasswordForm (text-center в success-стейте). ✅ [LOW] getSession() — обоснование задокументировано, вызов оставлен. Все 323 теста проходят. Статус: review.
 - 2026-03-17: Addressed final 4 review findings (14-й раунд) — все исправлено. ✅ [MEDIUM] UpdatePasswordForm — добавлена проверка error из getSession(); при ошибке setSession(null). ✅ [MEDIUM] AuthContainer — urlError преобразован в state; сбрасывается при первом взаимодействии с формой (submit). ✅ [LOW] ForgotPasswordForm — onChange теперь сбрасывает и networkError вместе с validationError. ✅ [LOW] update-password/page.tsx — добавлен явный тип `Metadata` из next. Все 323 теста проходят.
 

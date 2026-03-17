@@ -63,6 +63,8 @@ export function UpdatePasswordForm() {
       return
     }
 
+    // getSession() читает кэш Supabase-клиента (не сетевой запрос).
+    // updateUser не возвращает session, поэтому отдельный вызов необходим для синхронизации useAuthStore.
     const { data: sessionData, error: sessionError } = await getSession()
     setUser(data?.user ?? null)
     setSession(!sessionError && sessionData?.session ? sessionData.session : null)

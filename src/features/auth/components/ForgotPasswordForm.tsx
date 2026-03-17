@@ -59,13 +59,13 @@ export function ForgotPasswordForm() {
         <button
           type="button"
           onClick={() => setSubmitted(false)}
-          className="text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors text-left"
+          className="text-foreground/70 hover:text-foreground text-center text-sm underline underline-offset-4 transition-colors"
         >
           Ввести другой email
         </button>
         <Link
           href="/login"
-          className="text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
+          className="text-center text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
         >
           Вернуться ко входу
         </Link>

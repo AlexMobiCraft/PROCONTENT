@@ -2,16 +2,6 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@base-ui/react/button', () => ({
-  Button: ({
-    children,
-    ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    children?: React.ReactNode
-    render?: unknown
-  }) => <button {...props}>{children}</button>,
-}))
-
 const { mockPush, mockRefresh, mockUpdatePassword, mockSetUser, mockSetSession, mockGetSession } =
   vi.hoisted(() => ({
     mockPush: vi.fn(),
