@@ -1,6 +1,6 @@
 # Story 2.1: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -56,6 +56,14 @@ so that быть в курсе новых материалов клуба без
 - [x] **Task 7: Маппинг данных PostCard** (AC: #1)
   - [x] 7.1 Создать mapper `dbPostToCardData(post: Tables<'posts'>): PostCardData`
   - [x] 7.2 Маппить `author_id` → имя автора (join с `profiles` или хранить в `posts`)
+
+### Review Follow-ups (AI)
+
+- [ ] [AI-Review][CRITICAL] Сброс категории сломан: `handleCategoryChange` в `page.tsx` вызывает `reset()`, что мгновенно возвращает `activeCategory` обратно в `'all'`. [src/app/(app)/feed/page.tsx:14]
+- [ ] [AI-Review][CRITICAL] Блокировка повторной загрузки: защита `initialLoadDone.current` в `FeedContainer.tsx` навсегда блокирует подгрузку при смене категории. [src/features/feed/components/FeedContainer.tsx:27]
+- [ ] [AI-Review][MEDIUM] Производительность Intersection Observer: `useEffect` в `FeedContainer.tsx` постоянно делает `disconnect`/`observe` при каждом изменении `isLoadingMore`. [src/features/feed/components/FeedContainer.tsx:68]
+- [ ] [AI-Review][MEDIUM] Незакоммиченные изменения: файл `supabase/seed_posts.sql` изменен, но не закоммичен. [supabase/seed_posts.sql]
+- [ ] [AI-Review][LOW] Edge-case с пагинацией: использование только `created_at` может пропустить посты с идентичными таймстампами. Стоит рассмотреть составной ключ сортировки `created_at, id`.
 
 ## Dev Notes
 
