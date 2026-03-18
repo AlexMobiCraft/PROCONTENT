@@ -84,6 +84,7 @@ export type Database = {
           display_name: string | null
           email: string
           id: string
+          role: 'member' | 'admin'
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_status: string | null
@@ -95,6 +96,7 @@ export type Database = {
           display_name?: string | null
           email: string
           id: string
+          role?: 'member' | 'admin'
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
@@ -106,6 +108,7 @@ export type Database = {
           display_name?: string | null
           email?: string
           id?: string
+          role?: 'member' | 'admin'
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null

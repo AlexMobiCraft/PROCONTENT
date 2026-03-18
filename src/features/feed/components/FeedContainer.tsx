@@ -6,6 +6,12 @@ import { fetchPosts } from '../api/posts'
 import { useFeedStore } from '../store'
 import { dbPostToCardData } from '../types'
 
+function Skeletons({ count }: { count: number }) {
+  return Array.from({ length: count }).map((_, i) => (
+    <PostCardSkeleton key={i} />
+  ))
+}
+
 export function FeedContainer() {
   const {
     posts,
@@ -94,13 +100,11 @@ export function FeedContainer() {
       ? posts
       : posts.filter((p) => p.category === activeCategory)
 
-  // Состояние загрузки — скелетоны (AC #3)
+  // Состояние начальной загрузки — скелетоны (AC #3)
   if (isLoading) {
     return (
       <div role="status" aria-label="Загрузка ленты">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <PostCardSkeleton key={i} />
-        ))}
+        <Skeletons count={5} />
       </div>
     )
   }
@@ -130,18 +134,19 @@ export function FeedContainer() {
         ))}
       </ul>
 
-      {/* Скелетоны при подгрузке (AC #3) */}
+      {/* Скелетоны при подгрузке следующей страницы (AC #3) */}
       {isLoadingMore && (
         <div role="status" aria-label="Загрузка новых постов">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <PostCardSkeleton key={i} />
-          ))}
+          <Skeletons count={3} />
         </div>
       )}
 
-      {/* Trigger infinite scroll (AC #2) — sentinel всегда в DOM пока есть посты,
-          loadMore проверяет isLoadingMore внутри через getState() */}
-      {hasMore && <div ref={observerRef} aria-hidden />}
+      {/* Trigger infinite scroll (AC #2) — sentinel в DOM только когда есть отображаемые посты.
+          Без этой проверки при клиентской фильтрации по пустой категории sentinel
+          остаётся видимым → loadMore зацикливается, пока hasMore не станет false. */}
+      {hasMore && displayedPosts.length > 0 && (
+        <div ref={observerRef} aria-hidden />
+      )}
 
       {/* End of feed message (AC #4) */}
       {!hasMore && displayedPosts.length > 0 && (

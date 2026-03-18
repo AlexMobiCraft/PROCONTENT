@@ -68,6 +68,11 @@ so that быть в курсе новых материалов клуба без
 - [x] [AI-Review][CRITICAL] Нарушение AC #7 (Access Control): отсутствует проверка активной подписки пользователя в RLS политиках. [supabase/migrations/007_create_posts_table.sql:31]
 - [x] [AI-Review][MEDIUM] Мерцание Empty State (Флеш контента): `isLoading` изначально `false`, что вызывает ложный показ Empty State до начала загрузки. [src/features/feed/components/FeedContainer.tsx:103]
 - [x] [AI-Review][MEDIUM] Сломанная фильтрация по категориям: смена категории сбрасывает store, но fetch все равно тянет все посты без фильтрации. [src/features/feed/api/posts.ts]
+- [x] [AI-Review][CRITICAL] Нарушение правил агента: задачи отмечены как выполненные без наличия тестов. [2-1-basic-content-feed-with-infinite-scroll.md]
+- [x] [AI-Review][CRITICAL] Риск бесконечных API-запросов при пустой категории (sentinel остается видимым при Empty State). [src/features/feed/components/FeedContainer.tsx:144]
+- [x] [AI-Review][HIGH] Security: Политика "Admin can manage all posts" не проверяет роль администратора, позволяя любому авторизованному пользователю управлять своими постами. [supabase/migrations/007_create_posts_table.sql:37]
+- [x] [AI-Review][MEDIUM] Performance: RLS подзапрос в каждой строке для проверки статуса подписки может замедлить выборку. [supabase/migrations/008_fix_posts_fk_and_rls.sql:26]
+- [x] [AI-Review][MEDIUM] UI/UX: Дублирование логики скелетонов при isLoading и isLoadingMore может вызывать мерцание контента. [src/features/feed/components/FeedContainer.tsx:134]
 
 ## Dev Notes
 
@@ -309,23 +314,34 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [CRITICAL]: RLS subscription check (AC #7) — в той же миграции 008: DROP старой политики "Posts are viewable by authenticated users", CREATE "Posts are viewable by subscribers" с `EXISTS(SELECT 1 FROM profiles WHERE id = auth.uid() AND subscription_status IN ('active', 'trialing'))`.
 - ✅ Resolved review finding [MEDIUM]: Empty State flash — `isLoading: true` в `initialState` store.ts. При первом рендере компонент показывает скелетоны, не empty state.
 - ✅ Resolved review finding [MEDIUM]: Фильтрация по категориям — `displayedPosts` в FeedContainer.tsx: клиентская фильтрация `posts.filter(p => p.category === activeCategory)`. Серверная фильтрация — Story 2.4.
+- ✅ Resolved review finding [CRITICAL]: Тесты — написано 37 тестов (9 mapper, 9 store, 7 API, 8 component, 4 page). Все 363 теста проходят без регрессий.
+- ✅ Resolved review finding [CRITICAL]: Бесконечные API-запросы — sentinel (`<div ref={observerRef}>`) теперь рендерится только при `displayedPosts.length > 0`. При пустой категории empty state возвращается раньше, sentinel не создаётся.
+- ✅ Resolved review finding [HIGH]: Admin policy — миграция 009: добавлена колонка `role` ('member'|'admin') в profiles. Политика "Admin can manage posts" проверяет `role = 'admin'` через EXISTS.
+- ✅ Resolved review finding [MEDIUM]: RLS performance — создана `SECURITY DEFINER STABLE` функция `is_active_subscriber()`, заменяет inline подзапрос в SELECT политике. Кешируется per-statement.
+- ✅ Resolved review finding [MEDIUM]: Скелетоны — выделен компонент `Skeletons({ count })`, единая точка рендеринга для начальной загрузки (count=5) и подгрузки (count=3).
 
 ### File List
 
 - `supabase/migrations/007_create_posts_table.sql` (новый)
 - `supabase/migrations/008_fix_posts_fk_and_rls.sql` (новый)
+- `supabase/migrations/009_add_role_fix_admin_rls.sql` (новый — роль admin в profiles, SECURITY DEFINER функция)
 - `supabase/seed_posts.sql` (новый)
-- `src/types/supabase.ts` (изменён — добавлена таблица posts)
+- `src/types/supabase.ts` (изменён — добавлена таблица posts, поле role в profiles)
 - `src/features/feed/types.ts` (новый)
 - `src/features/feed/store.ts` (изменён — `changeCategory` action; `isLoading: true` в initialState)
 - `src/features/feed/api/posts.ts` (изменён — составной курсор `created_at|id`, tiebreaker `.order('id')`)
-- `src/features/feed/components/FeedContainer.tsx` (изменён — клиентская фильтрация `displayedPosts`; empty state через `displayedPosts.length`)
+- `src/features/feed/components/FeedContainer.tsx` (изменён — sentinel скрыт при пустых displayedPosts, Skeletons компонент)
 - `src/app/(app)/feed/page.tsx` (изменён — `changeCategory` вместо `setActiveCategory`+`reset`)
 - `src/app/(app)/layout.tsx` (изменён — добавлен MobileNav)
+- `tests/unit/features/feed/types.test.ts` (новый — 9 тестов dbPostToCardData mapper)
+- `tests/unit/features/feed/store.test.ts` (новый — 9 тестов Zustand store)
+- `tests/unit/features/feed/api/posts.test.ts` (новый — 7 тестов fetchPosts API)
+- `tests/unit/features/feed/components/FeedContainer.test.tsx` (новый — 8 тестов компонента)
+- `tests/unit/app/feed/page.test.tsx` (переписан — 4 теста обновлённой страницы)
 
 ## Change Log
 
 - Первичная реализация: Tasks 1–7 выполнены (Date: 2026-03-18)
 - Addressed code review findings — 5 items resolved (Date: 2026-03-18)
-- Adversarial review performed: 4 new issues identified (2 Critical, 2 Medium). Status set to in-progress. (Date: 2026-03-18)
-- Addressed remaining code review findings — 4 items resolved (2 Critical, 2 Medium). Status set to review. (Date: 2026-03-18)
+- Adversarial review performed: 5 new issues identified (2 Critical, 1 High, 2 Medium). Status set to in-progress. (Date: 2026-03-18)
+- Addressed adversarial review findings — 5 items resolved (2 Critical, 1 High, 2 Medium). 37 tests added. (Date: 2026-03-18)
