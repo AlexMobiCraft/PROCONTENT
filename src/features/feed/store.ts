@@ -23,7 +23,7 @@ const initialState = {
   posts: [] as Post[],
   cursor: null as string | null,
   hasMore: true,
-  isLoading: false,
+  isLoading: true, // true по умолчанию — скелетоны до первой загрузки (устраняет flash empty state)
   isLoadingMore: false,
   activeCategory: 'all',
 }

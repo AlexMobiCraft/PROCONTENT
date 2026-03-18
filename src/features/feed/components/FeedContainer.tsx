@@ -88,6 +88,12 @@ export function FeedContainer() {
     return () => observer.disconnect()
   }, [hasMore, loadMore])
 
+  // Клиентская фильтрация по категории (серверная — в Story 2.4)
+  const displayedPosts =
+    activeCategory === 'all'
+      ? posts
+      : posts.filter((p) => p.category === activeCategory)
+
   // Состояние загрузки — скелетоны (AC #3)
   if (isLoading) {
     return (
@@ -100,7 +106,7 @@ export function FeedContainer() {
   }
 
   // Empty state (AC #5)
-  if (!isLoading && posts.length === 0) {
+  if (displayedPosts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
         <p className="font-heading text-xl font-semibold text-foreground">
@@ -117,7 +123,7 @@ export function FeedContainer() {
     <div>
       {/* Список постов (AC #1) */}
       <ul aria-label="Лента публикаций">
-        {posts.map((post) => (
+        {displayedPosts.map((post) => (
           <li key={post.id}>
             <PostCard post={dbPostToCardData(post)} />
           </li>
@@ -138,7 +144,7 @@ export function FeedContainer() {
       {hasMore && <div ref={observerRef} aria-hidden />}
 
       {/* End of feed message (AC #4) */}
-      {!hasMore && posts.length > 0 && (
+      {!hasMore && displayedPosts.length > 0 && (
         <p className="py-8 text-center text-sm text-muted-foreground">
           Вы просмотрели все публикации
         </p>

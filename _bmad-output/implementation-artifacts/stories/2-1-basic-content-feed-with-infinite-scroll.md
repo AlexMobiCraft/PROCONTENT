@@ -64,6 +64,10 @@ so that быть в курсе новых материалов клуба без
 - [x] [AI-Review][MEDIUM] Производительность Intersection Observer: `useEffect` в `FeedContainer.tsx` постоянно делает `disconnect`/`observe` при каждом изменении `isLoadingMore`. [src/features/feed/components/FeedContainer.tsx:68]
 - [x] [AI-Review][MEDIUM] Незакоммиченные изменения: файл `supabase/seed_posts.sql` изменен, но не закоммичен. [supabase/seed_posts.sql]
 - [x] [AI-Review][LOW] Edge-case с пагинацией: использование только `created_at` может пропустить посты с идентичными таймстампами. Стоит рассмотреть составной ключ сортировки `created_at, id`.
+- [x] [AI-Review][CRITICAL] Запрос постов упадет на клиенте (Runtime Error): отсутствует прямая связь (FK) между `posts` и `profiles` в БД для автоматического join. [src/features/feed/api/posts.ts, supabase/migrations/007_create_posts_table.sql]
+- [x] [AI-Review][CRITICAL] Нарушение AC #7 (Access Control): отсутствует проверка активной подписки пользователя в RLS политиках. [supabase/migrations/007_create_posts_table.sql:31]
+- [x] [AI-Review][MEDIUM] Мерцание Empty State (Флеш контента): `isLoading` изначально `false`, что вызывает ложный показ Empty State до начала загрузки. [src/features/feed/components/FeedContainer.tsx:103]
+- [x] [AI-Review][MEDIUM] Сломанная фильтрация по категориям: смена категории сбрасывает store, но fetch все равно тянет все посты без фильтрации. [src/features/feed/api/posts.ts]
 
 ## Dev Notes
 
@@ -301,16 +305,21 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: IntersectionObserver — `loadMore` читает живое состояние через `useFeedStore.getState()`, нет stale closure, deps observer = `[hasMore]` — пересоздаётся только при конце ленты.
 - ✅ Resolved review finding [MEDIUM]: `supabase/seed_posts.sql` — файл оказался уже зафиксирован в git, рабочее дерево чистое.
 - ✅ Resolved review finding [LOW]: Составной курсор `created_at|id` + `.order('id', { ascending: false })` — стабильная пагинация при постах с одинаковым timestamp.
+- ✅ Resolved review finding [CRITICAL]: FK posts → profiles — создана миграция `008_fix_posts_fk_and_rls.sql`: DROP FK на auth.users, ADD FK на public.profiles(id). Supabase join `profiles!author_id` теперь работает корректно.
+- ✅ Resolved review finding [CRITICAL]: RLS subscription check (AC #7) — в той же миграции 008: DROP старой политики "Posts are viewable by authenticated users", CREATE "Posts are viewable by subscribers" с `EXISTS(SELECT 1 FROM profiles WHERE id = auth.uid() AND subscription_status IN ('active', 'trialing'))`.
+- ✅ Resolved review finding [MEDIUM]: Empty State flash — `isLoading: true` в `initialState` store.ts. При первом рендере компонент показывает скелетоны, не empty state.
+- ✅ Resolved review finding [MEDIUM]: Фильтрация по категориям — `displayedPosts` в FeedContainer.tsx: клиентская фильтрация `posts.filter(p => p.category === activeCategory)`. Серверная фильтрация — Story 2.4.
 
 ### File List
 
 - `supabase/migrations/007_create_posts_table.sql` (новый)
+- `supabase/migrations/008_fix_posts_fk_and_rls.sql` (новый)
 - `supabase/seed_posts.sql` (новый)
 - `src/types/supabase.ts` (изменён — добавлена таблица posts)
 - `src/features/feed/types.ts` (новый)
-- `src/features/feed/store.ts` (изменён — добавлен `changeCategory` action)
+- `src/features/feed/store.ts` (изменён — `changeCategory` action; `isLoading: true` в initialState)
 - `src/features/feed/api/posts.ts` (изменён — составной курсор `created_at|id`, tiebreaker `.order('id')`)
-- `src/features/feed/components/FeedContainer.tsx` (изменён — убран `initialLoadDone`, `loadMore` через `getState()`, deps observer = `[hasMore]`)
+- `src/features/feed/components/FeedContainer.tsx` (изменён — клиентская фильтрация `displayedPosts`; empty state через `displayedPosts.length`)
 - `src/app/(app)/feed/page.tsx` (изменён — `changeCategory` вместо `setActiveCategory`+`reset`)
 - `src/app/(app)/layout.tsx` (изменён — добавлен MobileNav)
 
@@ -318,3 +327,5 @@ claude-sonnet-4-6
 
 - Первичная реализация: Tasks 1–7 выполнены (Date: 2026-03-18)
 - Addressed code review findings — 5 items resolved (Date: 2026-03-18)
+- Adversarial review performed: 4 new issues identified (2 Critical, 2 Medium). Status set to in-progress. (Date: 2026-03-18)
+- Addressed remaining code review findings — 4 items resolved (2 Critical, 2 Medium). Status set to review. (Date: 2026-03-18)
