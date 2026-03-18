@@ -19,38 +19,33 @@ export function FeedContainer() {
     isLoading,
     isLoadingMore,
     activeCategory,
-    setPosts,
-    setLoading,
   } = useFeedStore()
 
   const observerRef = useRef<HTMLDivElement>(null)
 
-  // Начальная загрузка + перезагрузка при смене категории
+  // Начальная загрузка + перезагрузка при смене категории.
+  // Состояние читается через getState() в момент вызова — нет stale closure, не нужен eslint-disable.
   useEffect(() => {
     // Если уже есть данные в store — восстанавливаем из кэша (AC #6)
-    if (posts.length > 0) return
+    if (useFeedStore.getState().posts.length > 0) return
 
     async function loadInitial() {
-      setLoading(true)
+      useFeedStore.getState().setLoading(true)
       try {
         const { posts: newPosts, nextCursor, hasMore } = await fetchPosts()
-        setPosts(newPosts, nextCursor, hasMore)
+        useFeedStore.getState().setPosts(newPosts, nextCursor, hasMore)
       } catch (err) {
         console.error('Ошибка загрузки ленты:', err)
       } finally {
-        setLoading(false)
+        useFeedStore.getState().setLoading(false)
       }
     }
 
     loadInitial()
-    // activeCategory — триггер перезагрузки при смене категории (changeCategory сбрасывает posts)
-    // setLoading/setPosts — стабильные Zustand-экшены, в deps не нужны
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCategory])
 
-  // Загрузка следующей страницы — читает живое состояние через getState() вместо замыканий.
-  // Это устраняет проблему stale closure: loadMore стабилен (deps []),
-  // поэтому IntersectionObserver не пересоздаётся при каждом изменении isLoadingMore.
+  // Загрузка следующей страницы — читает живое состояние через getState().
+  // Стабильная ссылка (deps []) → IntersectionObserver не пересоздаётся при каждом isLoadingMore.
   const loadMore = useCallback(async () => {
     const {
       hasMore,
@@ -71,13 +66,16 @@ export function FeedContainer() {
       appendPosts(newPosts, nextCursor, more)
     } catch (err) {
       console.error('Ошибка подгрузки постов:', err)
+      // При ошибке сбрасываем hasMore=false — прекращаем запросы, скрываем sentinel.
+      // Без этого IntersectionObserver зациклится: sentinel виден → loadMore → ошибка → повтор.
+      appendPosts([], null, false)
     } finally {
       setLoadingMore(false)
     }
-  }, []) // Стабильная ссылка: состояние читается в момент вызова через getState()
+  }, [])
 
   // IntersectionObserver для infinite scroll (AC #2).
-  // Пересоздаётся только при изменении hasMore (конец ленты), не при isLoadingMore.
+  // Пересоздаётся только при изменении hasMore.
   useEffect(() => {
     if (!observerRef.current || !hasMore) return
 
@@ -87,7 +85,7 @@ export function FeedContainer() {
           loadMore()
         }
       },
-      { rootMargin: '200px' } // Начинать подгрузку заранее
+      { rootMargin: '200px' }
     )
 
     observer.observe(observerRef.current)
@@ -100,6 +98,21 @@ export function FeedContainer() {
       ? posts
       : posts.filter((p) => p.category === activeCategory)
 
+  // Когда клиентский фильтр даёт 0 постов, но в БД есть ещё страницы — автоматически подгружаем.
+  // Без этого при пустом displayedPosts компонент уходит в early-return (empty state или skeletons),
+  // sentinel не попадает в DOM, IntersectionObserver не срабатывает — пагинация останавливается.
+  useEffect(() => {
+    if (
+      displayedPosts.length === 0 &&
+      hasMore &&
+      !isLoading &&
+      !isLoadingMore &&
+      posts.length > 0
+    ) {
+      loadMore()
+    }
+  }, [displayedPosts.length, hasMore, isLoading, isLoadingMore, posts.length, loadMore])
+
   // Состояние начальной загрузки — скелетоны (AC #3)
   if (isLoading) {
     return (
@@ -109,8 +122,17 @@ export function FeedContainer() {
     )
   }
 
-  // Empty state (AC #5)
+  // Нет отображаемых постов для текущей категории
   if (displayedPosts.length === 0) {
+    // Ещё подгружаем страницы в поисках постов данной категории — скелетоны вместо пустого экрана
+    if (isLoadingMore) {
+      return (
+        <div role="status" aria-label="Загрузка ленты">
+          <Skeletons count={5} />
+        </div>
+      )
+    }
+    // hasMore=false: постов с такой категорией нет → empty state (AC #5)
     return (
       <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
         <p className="font-heading text-xl font-semibold text-foreground">
@@ -141,15 +163,11 @@ export function FeedContainer() {
         </div>
       )}
 
-      {/* Trigger infinite scroll (AC #2) — sentinel в DOM только когда есть отображаемые посты.
-          Без этой проверки при клиентской фильтрации по пустой категории sentinel
-          остаётся видимым → loadMore зацикливается, пока hasMore не станет false. */}
-      {hasMore && displayedPosts.length > 0 && (
-        <div ref={observerRef} aria-hidden />
-      )}
+      {/* Trigger infinite scroll (AC #2) — sentinel в DOM пока есть ещё данные */}
+      {hasMore && <div ref={observerRef} aria-hidden />}
 
       {/* End of feed message (AC #4) */}
-      {!hasMore && displayedPosts.length > 0 && (
+      {!hasMore && (
         <p className="py-8 text-center text-sm text-muted-foreground">
           Вы просмотрели все публикации
         </p>

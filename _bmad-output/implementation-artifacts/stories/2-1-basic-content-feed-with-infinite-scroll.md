@@ -73,6 +73,11 @@ so that быть в курсе новых материалов клуба без
 - [x] [AI-Review][HIGH] Security: Политика "Admin can manage all posts" не проверяет роль администратора, позволяя любому авторизованному пользователю управлять своими постами. [supabase/migrations/007_create_posts_table.sql:37]
 - [x] [AI-Review][MEDIUM] Performance: RLS подзапрос в каждой строке для проверки статуса подписки может замедлить выборку. [supabase/migrations/008_fix_posts_fk_and_rls.sql:26]
 - [x] [AI-Review][MEDIUM] UI/UX: Дублирование логики скелетонов при isLoading и isLoadingMore может вызывать мерцание контента. [src/features/feed/components/FeedContainer.tsx:134]
+- [x] [AI-Review][CRITICAL] Сломанная пагинация при клиентской фильтрации: скрытие sentinel при пустом отображении навсегда останавливает подгрузку остальных постов. [src/features/feed/components/FeedContainer.tsx:144]
+- [x] [AI-Review][CRITICAL] Бесконечный цикл и DDoS API: в loadMore сбой fetchPosts() проглатывается, hasMore остаётся true, IntersectionObserver зацикленно спамит запросы. [src/features/feed/components/FeedContainer.tsx:62]
+- [x] [AI-Review][MEDIUM] Уязвимость повышения привилегий RLS: SECURITY DEFINER функция is_active_subscriber() не устанавливает search_path. [supabase/migrations/009_add_role_fix_admin_rls.sql:37]
+- [x] [AI-Review][MEDIUM] Костыль с eslint-disable-next-line и Stale Closure: необходимо безопасно читать длину кэша через useFeedStore.getState() внутри начального useEffect. [src/features/feed/components/FeedContainer.tsx:48]
+- [x] [AI-Review][LOW] DB Performance: Отсутствует составной индекс (created_at DESC, id DESC) WHERE is_published = true. [supabase/migrations/007_create_posts_table.sql]
 
 ## Dev Notes
 
@@ -319,6 +324,11 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [HIGH]: Admin policy — миграция 009: добавлена колонка `role` ('member'|'admin') в profiles. Политика "Admin can manage posts" проверяет `role = 'admin'` через EXISTS.
 - ✅ Resolved review finding [MEDIUM]: RLS performance — создана `SECURITY DEFINER STABLE` функция `is_active_subscriber()`, заменяет inline подзапрос в SELECT политике. Кешируется per-statement.
 - ✅ Resolved review finding [MEDIUM]: Скелетоны — выделен компонент `Skeletons({ count })`, единая точка рендеринга для начальной загрузки (count=5) и подгрузки (count=3).
+- ✅ Resolved review finding [CRITICAL]: Сломанная пагинация при клиентской фильтрации — добавлен `useEffect` в `FeedContainer`, который автоматически вызывает `loadMore()` когда `displayedPosts.length === 0 && hasMore && !isLoading && !isLoadingMore && posts.length > 0`. Sentinel скрыт за early-return, поэтому IntersectionObserver не помог — useEffect решает проблему напрямую. Пока `isLoadingMore=true` и постов нет — показываем скелетоны вместо empty state. [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [CRITICAL]: Бесконечный цикл DDoS API — в `catch` блоке `loadMore` теперь вызывается `appendPosts([], null, false)`, устанавливая `hasMore=false`. Sentinel скрывается, IntersectionObserver отключается, цикл прерывается. [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [MEDIUM]: Уязвимость SECURITY DEFINER без search_path — функция `is_active_subscriber()` пересоздана с `SET search_path = public` в миграции 010. [supabase/migrations/010_fix_security_definer_and_perf_index.sql]
+- ✅ Resolved review finding [MEDIUM]: eslint-disable-next-line и stale closure — `loadInitial` в начальном `useEffect` теперь читает `setLoading`, `setPosts` через `useFeedStore.getState()` в момент вызова. Кэш-проверка `posts.length > 0` тоже через `getState()`. Нет замыканий на React state, нет `eslint-disable` комментария. [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [LOW]: Составной индекс — создан `idx_posts_cursor ON posts(created_at DESC, id DESC) WHERE is_published = true` в миграции 010. Покрывает cursor-запросы с tiebreaker по id. [supabase/migrations/010_fix_security_definer_and_perf_index.sql]
 
 ### File List
 
@@ -338,6 +348,7 @@ claude-sonnet-4-6
 - `tests/unit/features/feed/api/posts.test.ts` (новый — 7 тестов fetchPosts API)
 - `tests/unit/features/feed/components/FeedContainer.test.tsx` (новый — 8 тестов компонента)
 - `tests/unit/app/feed/page.test.tsx` (переписан — 4 теста обновлённой страницы)
+- `supabase/migrations/010_fix_security_definer_and_perf_index.sql` (новый — SET search_path=public для is_active_subscriber(), составной индекс idx_posts_cursor)
 
 ## Change Log
 
@@ -345,3 +356,4 @@ claude-sonnet-4-6
 - Addressed code review findings — 5 items resolved (Date: 2026-03-18)
 - Adversarial review performed: 5 new issues identified (2 Critical, 1 High, 2 Medium). Status set to in-progress. (Date: 2026-03-18)
 - Addressed adversarial review findings — 5 items resolved (2 Critical, 1 High, 2 Medium). 37 tests added. (Date: 2026-03-18)
+- Addressed final review findings — 5 items resolved (2 Critical, 2 Medium, 1 Low). Migration 010 added. (Date: 2026-03-18)
