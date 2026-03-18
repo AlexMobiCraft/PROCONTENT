@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
+import { useAuthStore } from '@/features/auth/store'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import { fetchPosts } from '../api/posts'
 import { useFeedStore } from '../store'
@@ -12,16 +13,48 @@ function Skeletons({ count }: { count: number }) {
   ))
 }
 
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
 export function FeedContainer() {
   const {
     posts,
     hasMore,
     isLoading,
     isLoadingMore,
+    error,
     activeCategory,
   } = useFeedStore()
+  const currentUserId = useAuthStore((state) => state.user?.id ?? null)
 
   const observerRef = useRef<HTMLDivElement>(null)
+  const initialLoadAbortRef = useRef<AbortController | null>(null)
+
+  const loadInitial = useCallback(async () => {
+    initialLoadAbortRef.current?.abort()
+    const controller = new AbortController()
+    initialLoadAbortRef.current = controller
+
+    useFeedStore.getState().setLoading(true)
+    useFeedStore.getState().setError(null)
+    try {
+      const { posts: newPosts, nextCursor, hasMore } = await fetchPosts(undefined, {
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return
+      useFeedStore.getState().setPosts(newPosts, nextCursor, hasMore)
+    } catch (err) {
+      if (isAbortError(err)) return
+      console.error('Ошибка загрузки ленты:', err)
+      useFeedStore.getState().setError('Не удалось загрузить ленту. Попробуйте снова.')
+    } finally {
+      if (initialLoadAbortRef.current === controller) {
+        initialLoadAbortRef.current = null
+        useFeedStore.getState().setLoading(false)
+      }
+    }
+  }, [])
 
   // Начальная загрузка + перезагрузка при смене категории.
   // Состояние читается через getState() в момент вызова — нет stale closure, не нужен eslint-disable.
@@ -29,20 +62,13 @@ export function FeedContainer() {
     // Если уже есть данные в store — восстанавливаем из кэша (AC #6)
     if (useFeedStore.getState().posts.length > 0) return
 
-    async function loadInitial() {
-      useFeedStore.getState().setLoading(true)
-      try {
-        const { posts: newPosts, nextCursor, hasMore } = await fetchPosts()
-        useFeedStore.getState().setPosts(newPosts, nextCursor, hasMore)
-      } catch (err) {
-        console.error('Ошибка загрузки ленты:', err)
-      } finally {
-        useFeedStore.getState().setLoading(false)
-      }
-    }
+    void loadInitial()
 
-    loadInitial()
-  }, [activeCategory])
+    return () => {
+      initialLoadAbortRef.current?.abort()
+      initialLoadAbortRef.current = null
+    }
+  }, [activeCategory, loadInitial])
 
   // Загрузка следующей страницы — читает живое состояние через getState().
   // Стабильная ссылка (deps []) → IntersectionObserver не пересоздаётся при каждом isLoadingMore.
@@ -53,10 +79,12 @@ export function FeedContainer() {
       cursor,
       appendPosts,
       setLoadingMore,
+      setError,
     } = useFeedStore.getState()
     if (!hasMore || isLoadingMore || !cursor) return
 
     setLoadingMore(true)
+    setError(null)
     try {
       const {
         posts: newPosts,
@@ -65,24 +93,32 @@ export function FeedContainer() {
       } = await fetchPosts(cursor)
       appendPosts(newPosts, nextCursor, more)
     } catch (err) {
+      if (isAbortError(err)) return
       console.error('Ошибка подгрузки постов:', err)
-      // При ошибке сбрасываем hasMore=false — прекращаем запросы, скрываем sentinel.
-      // Без этого IntersectionObserver зациклится: sentinel виден → loadMore → ошибка → повтор.
-      appendPosts([], null, false)
+      setError('Не удалось загрузить ещё публикации. Попробуйте снова.')
     } finally {
       setLoadingMore(false)
     }
   }, [])
 
+  const handleRetry = useCallback(() => {
+    if (useFeedStore.getState().posts.length === 0) {
+      void loadInitial()
+      return
+    }
+
+    void loadMore()
+  }, [loadInitial, loadMore])
+
   // IntersectionObserver для infinite scroll (AC #2).
   // Пересоздаётся только при изменении hasMore.
   useEffect(() => {
-    if (!observerRef.current || !hasMore) return
+    if (!observerRef.current || !hasMore || error) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          loadMore()
+          void loadMore()
         }
       },
       { rootMargin: '200px' }
@@ -90,7 +126,7 @@ export function FeedContainer() {
 
     observer.observe(observerRef.current)
     return () => observer.disconnect()
-  }, [hasMore, loadMore])
+  }, [error, hasMore, loadMore])
 
   // Клиентская фильтрация по категории (серверная — в Story 2.4)
   const displayedPosts =
@@ -98,26 +134,29 @@ export function FeedContainer() {
       ? posts
       : posts.filter((p) => p.category === activeCategory)
 
-  // Когда клиентский фильтр даёт 0 постов, но в БД есть ещё страницы — автоматически подгружаем.
-  // Без этого при пустом displayedPosts компонент уходит в early-return (empty state или skeletons),
-  // sentinel не попадает в DOM, IntersectionObserver не срабатывает — пагинация останавливается.
-  useEffect(() => {
-    if (
-      displayedPosts.length === 0 &&
-      hasMore &&
-      !isLoading &&
-      !isLoadingMore &&
-      posts.length > 0
-    ) {
-      loadMore()
-    }
-  }, [displayedPosts.length, hasMore, isLoading, isLoadingMore, posts.length, loadMore])
-
   // Состояние начальной загрузки — скелетоны (AC #3)
   if (isLoading) {
     return (
       <div role="status" aria-label="Загрузка ленты">
         <Skeletons count={5} />
+      </div>
+    )
+  }
+
+  if (error && posts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+        <p className="font-heading text-xl font-semibold text-foreground">
+          Не удалось загрузить ленту
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">Проверьте соединение и попробуйте снова</p>
+        <button
+          type="button"
+          onClick={handleRetry}
+          className="mt-4 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
+        >
+          Повторить
+        </button>
       </div>
     )
   }
@@ -136,11 +175,22 @@ export function FeedContainer() {
     return (
       <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
         <p className="font-heading text-xl font-semibold text-foreground">
-          Скоро здесь появится контент
+          {error ? 'Не удалось загрузить публикации' : 'Скоро здесь появится контент'}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Следите за обновлениями клуба
+          {error
+            ? 'Попробуйте ещё раз, чтобы продолжить загрузку'
+            : 'Следите за обновлениями клуба'}
         </p>
+        {(error || (hasMore && activeCategory !== 'all')) && (
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="mt-4 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
+          >
+            {error ? 'Повторить' : 'Загрузить ещё'}
+          </button>
+        )}
       </div>
     )
   }
@@ -151,7 +201,7 @@ export function FeedContainer() {
       <ul aria-label="Лента публикаций">
         {displayedPosts.map((post) => (
           <li key={post.id}>
-            <PostCard post={dbPostToCardData(post)} />
+            <PostCard post={dbPostToCardData(post, currentUserId)} />
           </li>
         ))}
       </ul>
@@ -163,8 +213,21 @@ export function FeedContainer() {
         </div>
       )}
 
+      {error && (
+        <div className="px-4 py-4 text-center" role="alert">
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="mt-3 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
+          >
+            Повторить
+          </button>
+        </div>
+      )}
+
       {/* Trigger infinite scroll (AC #2) — sentinel в DOM пока есть ещё данные */}
-      {hasMore && <div ref={observerRef} aria-hidden />}
+      {hasMore && !error && <div ref={observerRef} aria-hidden data-testid="feed-sentinel" />}
 
       {/* End of feed message (AC #4) */}
       {!hasMore && (

@@ -76,10 +76,23 @@ describe('useFeedStore', () => {
     expect(useFeedStore.getState().isLoadingMore).toBe(true)
   })
 
+  it('setError обновляет текст ошибки', () => {
+    useFeedStore.getState().setError('Ошибка сети')
+    expect(useFeedStore.getState().error).toBe('Ошибка сети')
+  })
+
+  it('setPosts сбрасывает предыдущую ошибку после успешной загрузки', () => {
+    useFeedStore.getState().setError('Ошибка сети')
+    useFeedStore.getState().setPosts([makePost('1')], 'cursor-1', true)
+
+    expect(useFeedStore.getState().error).toBeNull()
+  })
+
   it('reset возвращает к initialState', () => {
     useFeedStore.getState().setPosts([makePost('1')], 'c1', false)
     useFeedStore.getState().setActiveCategory('reels')
     useFeedStore.getState().setLoading(false)
+    useFeedStore.getState().setError('Ошибка сети')
 
     useFeedStore.getState().reset()
     const state = useFeedStore.getState()
@@ -88,6 +101,7 @@ describe('useFeedStore', () => {
     expect(state.cursor).toBeNull()
     expect(state.hasMore).toBe(true)
     expect(state.isLoading).toBe(true)
+    expect(state.error).toBeNull()
     expect(state.activeCategory).toBe('all')
   })
 
@@ -103,6 +117,7 @@ describe('useFeedStore', () => {
     expect(state.cursor).toBeNull()
     expect(state.hasMore).toBe(true)
     expect(state.isLoading).toBe(true) // сброс к initialState
+    expect(state.error).toBeNull()
   })
 
   it('changeCategory на "all" тоже сбрасывает', () => {

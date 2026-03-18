@@ -20,8 +20,11 @@ export interface FeedPage {
 }
 
 // Mapper: строка БД → данные для PostCard
-export function dbPostToCardData(post: Post): PostCardData {
-  const authorName = post.profiles?.display_name ?? 'Автор'
+export function dbPostToCardData(
+  post: Post,
+  currentUserId?: string | null
+): PostCardData {
+  const authorName = post.profiles?.display_name || 'Автор'
   const initials = authorName
     .split(' ')
     .map((w) => w[0])
@@ -45,7 +48,7 @@ export function dbPostToCardData(post: Post): PostCardData {
     author: {
       name: authorName,
       initials,
-      isAuthor: true,
+      isAuthor: currentUserId === post.author_id,
     },
     imageUrl: post.image_url ?? undefined,
     type: post.type,

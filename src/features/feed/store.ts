@@ -9,12 +9,14 @@ interface FeedState {
   hasMore: boolean
   isLoading: boolean
   isLoadingMore: boolean
+  error: string | null
   activeCategory: string
   setPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   appendPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   setActiveCategory: (category: string) => void
   setLoading: (loading: boolean) => void
   setLoadingMore: (loading: boolean) => void
+  setError: (error: string | null) => void
   reset: () => void
   changeCategory: (category: string) => void
 }
@@ -25,6 +27,7 @@ const initialState = {
   hasMore: true,
   isLoading: true, // true по умолчанию — скелетоны до первой загрузки (устраняет flash empty state)
   isLoadingMore: false,
+  error: null as string | null,
   activeCategory: 'all',
 }
 
@@ -32,7 +35,7 @@ export const useFeedStore = create<FeedState>((set) => ({
   ...initialState,
 
   setPosts: (posts, cursor, hasMore) =>
-    set({ posts, cursor, hasMore }),
+    set({ posts, cursor, hasMore, error: null }),
 
   appendPosts: (posts, cursor, hasMore) =>
     set((state) => ({
@@ -47,6 +50,8 @@ export const useFeedStore = create<FeedState>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   setLoadingMore: (isLoadingMore) => set({ isLoadingMore }),
+
+  setError: (error) => set({ error }),
 
   reset: () => set(initialState),
 

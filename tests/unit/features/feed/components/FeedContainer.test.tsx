@@ -1,5 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { useAuthStore } from '@/features/auth/store'
 import { useFeedStore } from '@/features/feed/store'
 import type { Post } from '@/features/feed/types'
 
@@ -10,8 +12,17 @@ vi.mock('@/features/feed/api/posts', () => ({
 }))
 
 vi.mock('@/components/feed/PostCard', () => ({
-  PostCard: ({ post }: { post: { id: string; title: string } }) => (
-    <div data-testid={`post-${post.id}`}>{post.title}</div>
+  PostCard: ({
+    post,
+  }: {
+    post: { id: string; title: string; author?: { isAuthor?: boolean } }
+  }) => (
+    <div
+      data-testid={`post-${post.id}`}
+      data-is-author={String(post.author?.isAuthor ?? false)}
+    >
+      {post.title}
+    </div>
   ),
   PostCardSkeleton: () => <div data-testid="skeleton" />,
 }))
@@ -42,9 +53,12 @@ function makePost(id: string, category = 'insight'): Post {
 // Mock IntersectionObserver
 const mockObserve = vi.fn()
 const mockDisconnect = vi.fn()
+let latestObserverCallback: IntersectionObserverCallback | null = null
 
 class MockIntersectionObserver {
-  constructor(public callback: IntersectionObserverCallback) {}
+  constructor(public callback: IntersectionObserverCallback) {
+    latestObserverCallback = callback
+  }
   observe = mockObserve
   disconnect = mockDisconnect
   unobserve = vi.fn()
@@ -62,6 +76,8 @@ describe('FeedContainer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useFeedStore.getState().reset()
+    useAuthStore.getState().clearAuth()
+    latestObserverCallback = null
   })
 
   it('показывает скелетоны при isLoading (AC #3)', () => {
@@ -104,6 +120,16 @@ describe('FeedContainer', () => {
       expect(screen.getByTestId('post-1')).toBeInTheDocument()
       expect(screen.getByTestId('post-2')).toBeInTheDocument()
     })
+  })
+
+  it('передаёт currentUserId в mapper и показывает isAuthor только для автора', () => {
+    useAuthStore.getState().setUser({ id: 'user-1' } as never)
+    useFeedStore.getState().setPosts([makePost('1')], null, false)
+    useFeedStore.getState().setLoading(false)
+
+    render(<FeedContainer />)
+
+    expect(screen.getByTestId('post-1')).toHaveAttribute('data-is-author', 'true')
   })
 
   it('показывает "Вы просмотрели все публикации" когда hasMore false (AC #4)', async () => {
@@ -150,7 +176,7 @@ describe('FeedContainer', () => {
 
   it('не показывает sentinel при пустой отфильтрованной категории (fix infinite loop)', async () => {
     const posts = [makePost('1', 'insight')]
-    useFeedStore.getState().setPosts(posts, 'cursor', true)
+    useFeedStore.getState().setPosts(posts, null, false)
     useFeedStore.getState().setLoading(false)
     useFeedStore.getState().setActiveCategory('reels') // нет постов в этой категории
 
@@ -163,6 +189,17 @@ describe('FeedContainer', () => {
     expect(mockObserve).not.toHaveBeenCalled()
   })
 
+  it('показывает кнопку "Загрузить ещё" для редкой пустой категории, если страницы ещё остались', () => {
+    const posts = [makePost('1', 'insight')]
+    useFeedStore.getState().setPosts(posts, 'cursor', true)
+    useFeedStore.getState().setLoading(false)
+    useFeedStore.getState().setActiveCategory('reels')
+
+    render(<FeedContainer />)
+
+    expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
+  })
+
   it('подключает IntersectionObserver когда есть посты и hasMore', async () => {
     const posts = [makePost('1')]
     useFeedStore.getState().setPosts(posts, 'cursor', true)
@@ -171,5 +208,107 @@ describe('FeedContainer', () => {
     render(<FeedContainer />)
 
     expect(mockObserve).toHaveBeenCalled()
+  })
+
+  it('показывает error state initial load и позволяет повторить загрузку', async () => {
+    const user = userEvent.setup()
+    mockFetchPosts
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({ posts: [makePost('1')], nextCursor: null, hasMore: false })
+
+    render(<FeedContainer />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Не удалось загрузить ленту')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('post-1')).toBeInTheDocument()
+    })
+    expect(mockFetchPosts).toHaveBeenCalledTimes(2)
+  })
+
+  it('при ошибке loadMore скрывает sentinel и даёт retry-кнопку', async () => {
+    const user = userEvent.setup()
+    useFeedStore
+      .getState()
+      .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+    useFeedStore.getState().setLoading(false)
+    mockFetchPosts
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({ posts: [makePost('2')], nextCursor: null, hasMore: false })
+
+    const { queryByTestId } = render(<FeedContainer />)
+
+    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    })
+
+    expect(queryByTestId('feed-sentinel')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('post-2')).toBeInTheDocument()
+    })
+  })
+
+  it('отменяет предыдущую initial load при быстрой смене категории и не даёт stale-ответу перезаписать state', async () => {
+    type Deferred = {
+      resolve: (value: { posts: Post[]; nextCursor: string | null; hasMore: boolean }) => void
+      signal?: AbortSignal
+    }
+
+    const deferredCalls: Deferred[] = []
+    mockFetchPosts.mockImplementation((_: string | undefined, options?: { signal?: AbortSignal }) => {
+      return new Promise<{ posts: Post[]; nextCursor: string | null; hasMore: boolean }>((resolve) => {
+        deferredCalls.push({ resolve, signal: options?.signal })
+      })
+    })
+
+    render(<FeedContainer />)
+
+    await waitFor(() => {
+      expect(deferredCalls).toHaveLength(1)
+    })
+
+    act(() => {
+      useFeedStore.getState().changeCategory('reels')
+    })
+
+    await waitFor(() => {
+      expect(deferredCalls).toHaveLength(2)
+    })
+
+    expect(deferredCalls[0].signal?.aborted).toBe(true)
+
+    await act(async () => {
+      deferredCalls[0].resolve({
+        posts: [makePost('1', 'insight')],
+        nextCursor: null,
+        hasMore: false,
+      })
+      deferredCalls[1].resolve({
+        posts: [makePost('2', 'reels')],
+        nextCursor: null,
+        hasMore: false,
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('post-2')).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('post-1')).not.toBeInTheDocument()
   })
 })

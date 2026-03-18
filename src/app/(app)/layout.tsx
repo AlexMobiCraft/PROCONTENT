@@ -18,16 +18,8 @@ export default async function AppLayout({
     redirect('/login')
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
-    redirect('/login')
-  }
-
   return (
-    <AuthProvider user={user} session={session}>
+    <AuthProvider user={user} session={null}>
       {children}
       <MobileNav />
     </AuthProvider>

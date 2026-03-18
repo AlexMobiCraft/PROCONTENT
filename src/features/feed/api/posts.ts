@@ -3,7 +3,23 @@ import type { FeedPage, Post } from '../types'
 
 const PAGE_SIZE = 10
 
-export async function fetchPosts(cursor?: string): Promise<FeedPage> {
+const ISO_TIMESTAMP_REGEX =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isValidIsoTimestamp(value: string) {
+  return ISO_TIMESTAMP_REGEX.test(value)
+}
+
+function isValidUuid(value: string) {
+  return UUID_REGEX.test(value)
+}
+
+export async function fetchPosts(
+  cursor?: string,
+  options?: { signal?: AbortSignal }
+): Promise<FeedPage> {
   const supabase = createClient()
 
   let query = supabase
@@ -12,20 +28,31 @@ export async function fetchPosts(cursor?: string): Promise<FeedPage> {
     .eq('is_published', true)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false }) // Tiebreaker: стабильный порядок при одинаковых created_at
-    .limit(PAGE_SIZE + 1) // +1 для определения hasMore
+
+  if (options?.signal) {
+    query = query.abortSignal(options.signal)
+  }
 
   if (cursor) {
-    // Составной курсор "timestamp|uuid" устраняет пропуск постов с одинаковым created_at
     const [cursorAt, cursorId] = cursor.split('|')
     if (cursorAt && cursorId) {
+      if (!isValidIsoTimestamp(cursorAt) || !isValidUuid(cursorId)) {
+        throw new Error('Invalid cursor format')
+      }
+
       query = query.or(
         `created_at.lt.${cursorAt},and(created_at.eq.${cursorAt},id.lt.${cursorId})`
       )
     } else {
-      // Fallback для курсора старого формата (только timestamp)
+      if (!isValidIsoTimestamp(cursor)) {
+        throw new Error('Invalid cursor format')
+      }
+
       query = query.lt('created_at', cursor)
     }
   }
+
+  query = query.limit(PAGE_SIZE + 1) // +1 для определения hasMore
 
   const { data, error } = await query
 

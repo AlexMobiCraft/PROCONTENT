@@ -6,7 +6,7 @@ import { useAuthStore } from '@/features/auth/store'
 
 interface AuthProviderProps {
   user: User
-  session: Session
+  session: Session | null
   children: React.ReactNode
 }
 

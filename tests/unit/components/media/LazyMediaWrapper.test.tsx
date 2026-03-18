@@ -1,16 +1,18 @@
-import { render, screen } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import { vi, describe, it, expect } from 'vitest'
 import { LazyMediaWrapper } from '@/components/media/LazyMediaWrapper'
 
 vi.mock('next/image', () => ({
-  default: (props: any) => <img {...props} />
+  default: ({ alt }: { alt?: string }) => <span>{alt ?? ''}</span>
 }))
 
-window.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}))
+class MockIntersectionObserver {
+  observe = vi.fn()
+  unobserve = vi.fn()
+  disconnect = vi.fn()
+}
+
+vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
 
 describe('LazyMediaWrapper Debug', () => {
   it('применяет класс аспекта', () => {

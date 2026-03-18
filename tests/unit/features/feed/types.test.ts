@@ -48,12 +48,17 @@ describe('dbPostToCardData', () => {
     expect(card.date).toMatch(/март/i)
   })
 
-  it('извлекает имя автора из profiles join', () => {
-    const card = dbPostToCardData(makePost())
+  it('извлекает имя автора из profiles join и ставит isAuthor=true для владельца', () => {
+    const card = dbPostToCardData(makePost(), 'user-1')
 
     expect(card.author.name).toBe('Анна Иванова')
     expect(card.author.initials).toBe('АИ')
     expect(card.author.isAuthor).toBe(true)
+  })
+
+  it('ставит isAuthor=false если текущий пользователь не совпадает с author_id или отсутствует', () => {
+    expect(dbPostToCardData(makePost(), 'user-2').author.isAuthor).toBe(false)
+    expect(dbPostToCardData(makePost()).author.isAuthor).toBe(false)
   })
 
   it('использует fallback "Автор" при null profiles', () => {
@@ -69,6 +74,15 @@ describe('dbPostToCardData', () => {
     )
 
     expect(card.author.name).toBe('Автор')
+  })
+
+  it('использует fallback "Автор" при пустом display_name', () => {
+    const card = dbPostToCardData(
+      makePost({ profiles: { display_name: '', avatar_url: null } })
+    )
+
+    expect(card.author.name).toBe('Автор')
+    expect(card.author.initials).toBe('А')
   })
 
   it('маппит null excerpt в пустую строку', () => {

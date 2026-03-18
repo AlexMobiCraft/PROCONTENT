@@ -6,6 +6,7 @@ const mockOrder = vi.fn()
 const mockLimit = vi.fn()
 const mockOr = vi.fn()
 const mockLt = vi.fn()
+const mockAbortSignal = vi.fn()
 
 function createChain() {
   const chain = {
@@ -15,6 +16,7 @@ function createChain() {
     limit: mockLimit,
     or: mockOr,
     lt: mockLt,
+    abortSignal: mockAbortSignal,
   }
   mockSelect.mockReturnValue(chain)
   mockEq.mockReturnValue(chain)
@@ -22,6 +24,7 @@ function createChain() {
   mockLimit.mockReturnValue(chain)
   mockOr.mockReturnValue(chain)
   mockLt.mockReturnValue(chain)
+  mockAbortSignal.mockReturnValue(chain)
   return chain
 }
 
@@ -85,35 +88,62 @@ describe('fetchPosts', () => {
     const chain = createChain()
     mockFrom.mockReturnValue(chain)
     const posts = [
-      { id: 'abc-123', created_at: '2026-03-10T10:00:00Z' },
+      { id: '123e4567-e89b-42d3-a456-426614174000', created_at: '2026-03-10T10:00:00Z' },
     ]
     mockLimit.mockResolvedValue({ data: posts, error: null })
 
     const result = await fetchPosts()
 
-    expect(result.nextCursor).toBe('2026-03-10T10:00:00Z|abc-123')
+    expect(result.nextCursor).toBe('2026-03-10T10:00:00Z|123e4567-e89b-42d3-a456-426614174000')
   })
 
   it('использует составной курсор для пагинации через .or()', async () => {
     const chain = createChain()
     mockFrom.mockReturnValue(chain)
-    mockOr.mockResolvedValue({ data: [], error: null })
+    mockLimit.mockResolvedValue({ data: [], error: null })
 
-    await fetchPosts('2026-03-10T10:00:00Z|abc-123')
+    await fetchPosts('2026-03-10T10:00:00Z|123e4567-e89b-42d3-a456-426614174000')
 
     expect(mockOr).toHaveBeenCalledWith(
-      'created_at.lt.2026-03-10T10:00:00Z,and(created_at.eq.2026-03-10T10:00:00Z,id.lt.abc-123)'
+      'created_at.lt.2026-03-10T10:00:00Z,and(created_at.eq.2026-03-10T10:00:00Z,id.lt.123e4567-e89b-42d3-a456-426614174000)'
     )
   })
 
   it('fallback: простой курсор без | использует .lt()', async () => {
     const chain = createChain()
     mockFrom.mockReturnValue(chain)
-    mockLt.mockResolvedValue({ data: [], error: null })
+    mockLimit.mockResolvedValue({ data: [], error: null })
 
     await fetchPosts('2026-03-10T10:00:00Z')
 
     expect(mockLt).toHaveBeenCalledWith('created_at', '2026-03-10T10:00:00Z')
+  })
+
+  it('передаёт AbortSignal в Supabase query when provided', async () => {
+    const chain = createChain()
+    const controller = new AbortController()
+    mockFrom.mockReturnValue(chain)
+    mockLimit.mockResolvedValue({ data: [], error: null })
+
+    await fetchPosts(undefined, { signal: controller.signal })
+
+    expect(mockAbortSignal).toHaveBeenCalledWith(controller.signal)
+  })
+
+  it('бросает ошибку при некорректном составном cursor', async () => {
+    const chain = createChain()
+    mockFrom.mockReturnValue(chain)
+
+    await expect(fetchPosts('not-a-date|not-a-uuid')).rejects.toThrow('Invalid cursor format')
+    expect(mockOr).not.toHaveBeenCalled()
+  })
+
+  it('бросает ошибку при некорректном timestamp cursor legacy-формата', async () => {
+    const chain = createChain()
+    mockFrom.mockReturnValue(chain)
+
+    await expect(fetchPosts('not-a-date')).rejects.toThrow('Invalid cursor format')
+    expect(mockLt).not.toHaveBeenCalled()
   })
 
   it('бросает ошибку при Supabase error', async () => {

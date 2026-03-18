@@ -78,8 +78,16 @@ so that быть в курсе новых материалов клуба без
 - [x] [AI-Review][MEDIUM] Уязвимость повышения привилегий RLS: SECURITY DEFINER функция is_active_subscriber() не устанавливает search_path. [supabase/migrations/009_add_role_fix_admin_rls.sql:37]
 - [x] [AI-Review][MEDIUM] Костыль с eslint-disable-next-line и Stale Closure: необходимо безопасно читать длину кэша через useFeedStore.getState() внутри начального useEffect. [src/features/feed/components/FeedContainer.tsx:48]
 - [x] [AI-Review][LOW] DB Performance: Отсутствует составной индекс (created_at DESC, id DESC) WHERE is_published = true. [supabase/migrations/007_create_posts_table.sql]
-- [ ] [AI-Review][MEDIUM] Пагинация: Если `loadMore` падает по ошибке сети, загрузка блокируется навсегда. Добавить кнопку "Повторить". [src/features/feed/components/FeedContainer.tsx:67]
-- [ ] [AI-Review][MEDIUM] Эффективность: При фильтрации по редкой категории на клиенте возможны десятки пустых API-вызовов подряд. Оптимизировать в Story 2.4. [src/features/feed/components/FeedContainer.tsx:104]
+- [x] [AI-Review][MEDIUM] Пагинация: Если `loadMore` падает по ошибке сети, загрузка блокируется навсегда. Добавить кнопку "Повторить". [src/features/feed/components/FeedContainer.tsx:67]
+- [x] [AI-Review][MEDIUM] Эффективность: При фильтрации по редкой категории на клиенте возможны десятки пустых API-вызовов подряд. Оптимизировать в Story 2.4. [src/features/feed/components/FeedContainer.tsx:104]
+- [x] [AI-Review][HIGH] Logic Error: `isAuthor: true` захардкожен в mapper — каждый пост показывает бейдж "Автор" независимо от текущего пользователя. Передать `currentUserId` в `dbPostToCardData` и сравнивать с `post.author_id`. Тест `types.test.ts:51` закрепляет баг. [src/features/feed/types.ts:48]
+- [x] [AI-Review][MEDIUM] UX: Нет UI-состояния ошибки при сбое `loadInitial` — пользователь видит Empty State "Скоро здесь появится контент" вместо сообщения об ошибке с retry-кнопкой. Добавить `error: string | null` в store и рендерить error state в FeedContainer. [src/features/feed/components/FeedContainer.tsx:37]
+- [x] [AI-Review][MEDIUM] Race condition: быстрая смена категорий запускает несколько параллельных `loadInitial`. Нет AbortController — последний-пишет-побеждает. Добавить `useRef<AbortController>` и отменять предыдущий запрос при новом. [src/features/feed/components/FeedContainer.tsx:28]
+- [x] [AI-Review][MEDIUM] Performance: `layout.tsx` делает два auth round-trip — `getUser()` (сетевой запрос) + `getSession()` (кука). Если user существует, session гарантирована. Рефакторинг: один вызов. [src/app/(app)/layout.tsx:12]
+- [x] [AI-Review][MEDIUM] Security: cursor интерполируется в PostgREST `.or()` string без валидации формата. Добавить проверку `cursorAt` на ISO8601 timestamp и `cursorId` на UUID перед интерполяцией. [src/features/feed/api/posts.ts:21]
+- [x] [AI-Review][LOW] Edge-case: `display_name = ''` (пустая строка) не перехватывается `??` — проходит как валидное имя, initials будут пустыми. Исправить: `post.profiles?.display_name || 'Автор'`. [src/features/feed/types.ts:24]
+- [x] [AI-Review][LOW] Test gap: нет теста для catch-ветки `loadMore` — не верифицируется что `appendPosts([], null, false)` вызывается при ошибке и sentinel исчезает из DOM. [tests/unit/features/feed/components/FeedContainer.test.tsx]
+- [x] [AI-Review][LOW] UX: `PostCardSkeleton` всегда рендерит `aspect-video` media placeholder — не соответствует text-картам без медиа. Создаёт layout shift при появлении реального контента. [src/components/feed/PostCard.tsx:198]
 
 ## Dev Notes
 
@@ -304,14 +312,14 @@ claude-sonnet-4-6
 
 ### Completion Notes List
 
-- **Тесты:** Тест-раннер не сконфигурирован в проекте (`CLAUDE.md`: "No test runner is configured yet"). Тесты написаны быть не могут.
+- **Тесты:** Полный regression suite проходит: `vitest` — 380/380, `npm run typecheck` — OK, `eslint` по изменённым story-файлам — OK. Полный `eslint .` всё ещё падает на pre-existing проблемах вне scope story: `everything-claude-code/**`, `src/lib/supabase/auth-middleware.ts`, `src/features/auth/api/server-actions.ts`.
 - **Task 1:** Миграция `007_create_posts_table.sql` создана с RLS-политиками и индексами. Seed-данные в `supabase/seed_posts.sql` (13 постов, запускается через DO-блок динамически).
 - **Task 2 + 7:** Типы в `src/types/supabase.ts` добавлены (Row/Insert/Update). `src/features/feed/types.ts` содержит `Post`, `FeedPage`, `PostRow`, и mapper `dbPostToCardData`.
-- **Task 3:** Zustand store паттерн скопирован с `src/features/auth/store.ts`. Store сохраняет посты при навигации (AC #6 — кэш в памяти).
-- **Task 4:** `fetchPosts()` использует cursor-based пагинацию по `created_at` с join `profiles!author_id`. PAGE_SIZE = 10 + 1 для определения `hasMore`.
-- **Task 5:** `FeedContainer` — smart component с `useRef` для initial load guard (предотвращает повторный запрос при Strict Mode). IntersectionObserver с `rootMargin: '200px'`.
-- **Task 6:** `feed/page.tsx` полностью переписан: sticky `CategoryScroll` + `FeedContainer`. `(app)/layout.tsx` — добавлен `MobileNav`.
-- **Категориальная фильтрация:** Только UI-состояние (смена категории — reset store), серверная фильтрация — в Story 2.4.
+- **Task 3:** Zustand store паттерн скопирован с `src/features/auth/store.ts`. Store сохраняет посты при навигации (AC #6 — кэш в памяти) и теперь хранит `error: string | null` для initial/loadMore retry-сценариев.
+- **Task 4:** `fetchPosts()` использует cursor-based пагинацию по `created_at` с join `profiles!author_id`. PAGE_SIZE = 10 + 1 для определения `hasMore`; добавлена валидация курсора (`ISO8601|UUID`) и прокидывание `AbortSignal`.
+- **Task 5:** `FeedContainer` — smart component с cancellable initial load через `AbortController`, UI-состоянием ошибки, retry-кнопками для initial/loadMore ошибок и manual CTA `Загрузить ещё` для редкой пустой категории без серии пустых auto-fetch вызовов.
+- **Task 6:** `feed/page.tsx` полностью переписан: sticky `CategoryScroll` + `FeedContainer`. `(app)/layout.tsx` использует один auth round-trip через `getUser()` и по-прежнему рендерит `MobileNav`.
+- **Категориальная фильтрация:** Только UI-состояние в этой story. Для редкой категории компонент больше не спамит пустыми запросами подряд: показывается manual CTA `Загрузить ещё`. Полная серверная фильтрация остаётся в Story 2.4.
 - ✅ Resolved review finding [CRITICAL]: Сброс категории — добавлен `changeCategory()` action в store, атомарно сбрасывает данные и устанавливает категорию. `page.tsx` использует `changeCategory` вместо двойного вызова.
 - ✅ Resolved review finding [CRITICAL]: Блокировка загрузки — удалён `initialLoadDone.current`, initial load effect подписан на `[activeCategory]`, перезагружает при смене категории.
 - ✅ Resolved review finding [MEDIUM]: IntersectionObserver — `loadMore` читает живое состояние через `useFeedStore.getState()`, нет stale closure, deps observer = `[hasMore]` — пересоздаётся только при конце ленты.
@@ -326,11 +334,21 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [HIGH]: Admin policy — миграция 009: добавлена колонка `role` ('member'|'admin') в profiles. Политика "Admin can manage posts" проверяет `role = 'admin'` через EXISTS.
 - ✅ Resolved review finding [MEDIUM]: RLS performance — создана `SECURITY DEFINER STABLE` функция `is_active_subscriber()`, заменяет inline подзапрос в SELECT политике. Кешируется per-statement.
 - ✅ Resolved review finding [MEDIUM]: Скелетоны — выделен компонент `Skeletons({ count })`, единая точка рендеринга для начальной загрузки (count=5) и подгрузки (count=3).
-- ✅ Resolved review finding [CRITICAL]: Сломанная пагинация при клиентской фильтрации — добавлен `useEffect` в `FeedContainer`, который автоматически вызывает `loadMore()` когда `displayedPosts.length === 0 && hasMore && !isLoading && !isLoadingMore && posts.length > 0`. Sentinel скрыт за early-return, поэтому IntersectionObserver не помог — useEffect решает проблему напрямую. Пока `isLoadingMore=true` и постов нет — показываем скелетоны вместо empty state. [src/features/feed/components/FeedContainer.tsx]
-- ✅ Resolved review finding [CRITICAL]: Бесконечный цикл DDoS API — в `catch` блоке `loadMore` теперь вызывается `appendPosts([], null, false)`, устанавливая `hasMore=false`. Sentinel скрывается, IntersectionObserver отключается, цикл прерывается. [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [CRITICAL]: Сломанная пагинация при клиентской фильтрации — пустая редкая категория теперь не застревает навсегда: компонент показывает CTA `Загрузить ещё`, а не скрытый sentinel без возможности продолжить. [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [CRITICAL]: Бесконечный цикл DDoS API — при ошибке `loadMore` store получает `error`, sentinel убирается из DOM пока ошибка не будет сброшена retry-действием, observer больше не спамит запросами. [src/features/feed/components/FeedContainer.tsx]
 - ✅ Resolved review finding [MEDIUM]: Уязвимость SECURITY DEFINER без search_path — функция `is_active_subscriber()` пересоздана с `SET search_path = public` в миграции 010. [supabase/migrations/010_fix_security_definer_and_perf_index.sql]
 - ✅ Resolved review finding [MEDIUM]: eslint-disable-next-line и stale closure — `loadInitial` в начальном `useEffect` теперь читает `setLoading`, `setPosts` через `useFeedStore.getState()` в момент вызова. Кэш-проверка `posts.length > 0` тоже через `getState()`. Нет замыканий на React state, нет `eslint-disable` комментария. [src/features/feed/components/FeedContainer.tsx]
 - ✅ Resolved review finding [LOW]: Составной индекс — создан `idx_posts_cursor ON posts(created_at DESC, id DESC) WHERE is_published = true` в миграции 010. Покрывает cursor-запросы с tiebreaker по id. [supabase/migrations/010_fix_security_definer_and_perf_index.sql]
+- ✅ Resolved review finding [MEDIUM]: `loadMore` больше не блокирует ленту навсегда при network error — добавлены `error` state, retry-кнопка и скрытие sentinel до ручного повтора. [src/features/feed/components/FeedContainer.tsx, tests/unit/features/feed/components/FeedContainer.test.tsx]
+- ✅ Resolved review finding [MEDIUM]: Редкая пустая категория больше не генерирует десятки пустых auto-fetch запросов подряд — вместо этого показывается manual CTA `Загрузить ещё`. [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [HIGH]: `dbPostToCardData(post, currentUserId)` теперь вычисляет `isAuthor` сравнением `currentUserId === post.author_id`; бейдж "Автор" отображается только владельцу. [src/features/feed/types.ts, tests/unit/features/feed/types.test.ts, tests/unit/features/feed/components/FeedContainer.test.tsx]
+- ✅ Resolved review finding [MEDIUM]: Initial load теперь имеет отдельный error state с retry-кнопкой вместо ложного Empty State. [src/features/feed/store.ts, src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [MEDIUM]: Быстрая смена категорий больше не даёт stale response перезаписать store — предыдущий initial load отменяется через `AbortController`. [src/features/feed/components/FeedContainer.tsx, tests/unit/features/feed/components/FeedContainer.test.tsx]
+- ✅ Resolved review finding [MEDIUM]: `layout.tsx` больше не делает лишний `getSession()` round-trip; `AuthProvider` принимает `session: null` в app-layout сценарии. [src/app/(app)/layout.tsx, src/features/auth/components/AuthProvider.tsx, tests/unit/app/(app)/layout.test.tsx]
+- ✅ Resolved review finding [MEDIUM]: Cursor валидируется до интерполяции в `.or()` string: `cursorAt` проверяется на ISO8601, `cursorId` — на UUID; API-тесты покрывают invalid input и `AbortSignal`. [src/features/feed/api/posts.ts, tests/unit/features/feed/api/posts.test.ts]
+- ✅ Resolved review finding [LOW]: Пустой `display_name` теперь корректно уходит в fallback `Автор`, initials остаются валидными. [src/features/feed/types.ts, tests/unit/features/feed/types.test.ts]
+- ✅ Resolved review finding [LOW]: Добавлены regression tests для catch-ветки `loadMore`, скрытия sentinel и retry-сценария. [tests/unit/features/feed/components/FeedContainer.test.tsx]
+- ✅ Resolved review finding [LOW]: `PostCardSkeleton` больше не рендерит media placeholder по умолчанию; добавлен optional `showMedia` и unit-тесты. [src/components/feed/PostCard.tsx, tests/unit/components/feed/PostCard.test.tsx]
 
 ### File List
 
@@ -340,16 +358,21 @@ claude-sonnet-4-6
 - `supabase/seed_posts.sql` (новый)
 - `src/types/supabase.ts` (изменён — добавлена таблица posts, поле role в profiles)
 - `src/features/feed/types.ts` (новый)
-- `src/features/feed/store.ts` (изменён — `changeCategory` action; `isLoading: true` в initialState)
-- `src/features/feed/api/posts.ts` (изменён — составной курсор `created_at|id`, tiebreaker `.order('id')`)
-- `src/features/feed/components/FeedContainer.tsx` (изменён — sentinel скрыт при пустых displayedPosts, Skeletons компонент)
+- `src/features/feed/store.ts` (изменён — `error` state, `changeCategory`, `isLoading: true` в initialState)
+- `src/features/feed/api/posts.ts` (изменён — составной курсор `created_at|id`, валидация cursor, `AbortSignal`)
+- `src/features/feed/components/FeedContainer.tsx` (изменён — error/retry state, `AbortController`, manual CTA для редкой категории, `currentUserId` mapper)
 - `src/app/(app)/feed/page.tsx` (изменён — `changeCategory` вместо `setActiveCategory`+`reset`)
-- `src/app/(app)/layout.tsx` (изменён — добавлен MobileNav)
-- `tests/unit/features/feed/types.test.ts` (новый — 9 тестов dbPostToCardData mapper)
-- `tests/unit/features/feed/store.test.ts` (новый — 9 тестов Zustand store)
-- `tests/unit/features/feed/api/posts.test.ts` (новый — 7 тестов fetchPosts API)
-- `tests/unit/features/feed/components/FeedContainer.test.tsx` (новый — 8 тестов компонента)
+- `src/app/(app)/layout.tsx` (изменён — один auth round-trip + MobileNav)
+- `src/features/auth/components/AuthProvider.tsx` (изменён — `session: Session | null` для app-layout сценария)
+- `src/components/feed/PostCard.tsx` (изменён — `PostCardSkeleton` без media placeholder по умолчанию)
+- `tests/unit/features/feed/types.test.ts` (новый — 11 тестов dbPostToCardData mapper)
+- `tests/unit/features/feed/store.test.ts` (новый — 11 тестов Zustand store)
+- `tests/unit/features/feed/api/posts.test.ts` (новый — 10 тестов fetchPosts API)
+- `tests/unit/features/feed/components/FeedContainer.test.tsx` (новый — 13 тестов компонента)
 - `tests/unit/app/feed/page.test.tsx` (переписан — 4 теста обновлённой страницы)
+- `tests/unit/app/(app)/layout.test.tsx` (новый — 2 теста app layout без лишнего auth round-trip)
+- `tests/unit/components/feed/PostCard.test.tsx` (новый — 2 теста `PostCardSkeleton`)
+- `tests/unit/components/media/LazyMediaWrapper.test.tsx` (изменён — исправлен mock `IntersectionObserver` для jsdom)
 - `supabase/migrations/010_fix_security_definer_and_perf_index.sql` (новый — SET search_path=public для is_active_subscriber(), составной индекс idx_posts_cursor)
 
 ## Change Log
@@ -359,3 +382,5 @@ claude-sonnet-4-6
 - Adversarial review performed: 5 new issues identified (2 Critical, 1 High, 2 Medium). Status set to in-progress. (Date: 2026-03-18)
 - Addressed adversarial review findings — 5 items resolved (2 Critical, 1 High, 2 Medium). 37 tests added. (Date: 2026-03-18)
 - Addressed final review findings — 5 items resolved (2 Critical, 2 Medium, 1 Low). Migration 010 added. (Date: 2026-03-18)
+- Adversarial review #3: 9 new action items created (1 High, 4 Medium, 3 Low). Status → in-progress. (Date: 2026-03-18)
+- Addressed adversarial review #3 findings — 10 items resolved (1 High, 6 Medium, 3 Low). Story status → review. (Date: 2026-03-18)

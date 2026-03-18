@@ -183,7 +183,7 @@ export function PostCard({ post, onCommentClick }: PostCardProps) {
 }
 
 // Skeleton loader for PostCard
-export function PostCardSkeleton() {
+export function PostCardSkeleton({ showMedia = false }: { showMedia?: boolean }) {
   return (
     <div className="border-b border-border bg-background px-4 py-5" aria-hidden>
       <div className="flex items-center gap-3 mb-4">
@@ -193,9 +193,8 @@ export function PostCardSkeleton() {
           <div className="h-3 w-16 rounded-full bg-muted animate-pulse" />
         </div>
       </div>
-      
-      {/* Media Skeleton */}
-      <div className="mb-4 aspect-video w-full rounded-lg bg-muted animate-pulse" />
+
+      {showMedia && <div className="mb-4 aspect-video w-full rounded-lg bg-muted animate-pulse" data-testid="post-card-skeleton-media" />}
 
       <div className="flex flex-col gap-2">
         <div className="h-4 w-3/4 rounded-full bg-muted animate-pulse" />
