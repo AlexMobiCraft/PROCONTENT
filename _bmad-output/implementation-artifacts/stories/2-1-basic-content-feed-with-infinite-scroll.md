@@ -1,6 +1,6 @@
 # Story 2.1: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -59,11 +59,11 @@ so that быть в курсе новых материалов клуба без
 
 ### Review Follow-ups (AI)
 
-- [ ] [AI-Review][CRITICAL] Сброс категории сломан: `handleCategoryChange` в `page.tsx` вызывает `reset()`, что мгновенно возвращает `activeCategory` обратно в `'all'`. [src/app/(app)/feed/page.tsx:14]
-- [ ] [AI-Review][CRITICAL] Блокировка повторной загрузки: защита `initialLoadDone.current` в `FeedContainer.tsx` навсегда блокирует подгрузку при смене категории. [src/features/feed/components/FeedContainer.tsx:27]
-- [ ] [AI-Review][MEDIUM] Производительность Intersection Observer: `useEffect` в `FeedContainer.tsx` постоянно делает `disconnect`/`observe` при каждом изменении `isLoadingMore`. [src/features/feed/components/FeedContainer.tsx:68]
-- [ ] [AI-Review][MEDIUM] Незакоммиченные изменения: файл `supabase/seed_posts.sql` изменен, но не закоммичен. [supabase/seed_posts.sql]
-- [ ] [AI-Review][LOW] Edge-case с пагинацией: использование только `created_at` может пропустить посты с идентичными таймстампами. Стоит рассмотреть составной ключ сортировки `created_at, id`.
+- [x] [AI-Review][CRITICAL] Сброс категории сломан: `handleCategoryChange` в `page.tsx` вызывает `reset()`, что мгновенно возвращает `activeCategory` обратно в `'all'`. [src/app/(app)/feed/page.tsx:14]
+- [x] [AI-Review][CRITICAL] Блокировка повторной загрузки: защита `initialLoadDone.current` в `FeedContainer.tsx` навсегда блокирует подгрузку при смене категории. [src/features/feed/components/FeedContainer.tsx:27]
+- [x] [AI-Review][MEDIUM] Производительность Intersection Observer: `useEffect` в `FeedContainer.tsx` постоянно делает `disconnect`/`observe` при каждом изменении `isLoadingMore`. [src/features/feed/components/FeedContainer.tsx:68]
+- [x] [AI-Review][MEDIUM] Незакоммиченные изменения: файл `supabase/seed_posts.sql` изменен, но не закоммичен. [supabase/seed_posts.sql]
+- [x] [AI-Review][LOW] Edge-case с пагинацией: использование только `created_at` может пропустить посты с идентичными таймстампами. Стоит рассмотреть составной ключ сортировки `created_at, id`.
 
 ## Dev Notes
 
@@ -296,6 +296,11 @@ claude-sonnet-4-6
 - **Task 5:** `FeedContainer` — smart component с `useRef` для initial load guard (предотвращает повторный запрос при Strict Mode). IntersectionObserver с `rootMargin: '200px'`.
 - **Task 6:** `feed/page.tsx` полностью переписан: sticky `CategoryScroll` + `FeedContainer`. `(app)/layout.tsx` — добавлен `MobileNav`.
 - **Категориальная фильтрация:** Только UI-состояние (смена категории — reset store), серверная фильтрация — в Story 2.4.
+- ✅ Resolved review finding [CRITICAL]: Сброс категории — добавлен `changeCategory()` action в store, атомарно сбрасывает данные и устанавливает категорию. `page.tsx` использует `changeCategory` вместо двойного вызова.
+- ✅ Resolved review finding [CRITICAL]: Блокировка загрузки — удалён `initialLoadDone.current`, initial load effect подписан на `[activeCategory]`, перезагружает при смене категории.
+- ✅ Resolved review finding [MEDIUM]: IntersectionObserver — `loadMore` читает живое состояние через `useFeedStore.getState()`, нет stale closure, deps observer = `[hasMore]` — пересоздаётся только при конце ленты.
+- ✅ Resolved review finding [MEDIUM]: `supabase/seed_posts.sql` — файл оказался уже зафиксирован в git, рабочее дерево чистое.
+- ✅ Resolved review finding [LOW]: Составной курсор `created_at|id` + `.order('id', { ascending: false })` — стабильная пагинация при постах с одинаковым timestamp.
 
 ### File List
 
@@ -303,8 +308,13 @@ claude-sonnet-4-6
 - `supabase/seed_posts.sql` (новый)
 - `src/types/supabase.ts` (изменён — добавлена таблица posts)
 - `src/features/feed/types.ts` (новый)
-- `src/features/feed/store.ts` (новый)
-- `src/features/feed/api/posts.ts` (новый)
-- `src/features/feed/components/FeedContainer.tsx` (новый)
-- `src/app/(app)/feed/page.tsx` (изменён)
+- `src/features/feed/store.ts` (изменён — добавлен `changeCategory` action)
+- `src/features/feed/api/posts.ts` (изменён — составной курсор `created_at|id`, tiebreaker `.order('id')`)
+- `src/features/feed/components/FeedContainer.tsx` (изменён — убран `initialLoadDone`, `loadMore` через `getState()`, deps observer = `[hasMore]`)
+- `src/app/(app)/feed/page.tsx` (изменён — `changeCategory` вместо `setActiveCategory`+`reset`)
 - `src/app/(app)/layout.tsx` (изменён — добавлен MobileNav)
+
+## Change Log
+
+- Первичная реализация: Tasks 1–7 выполнены (Date: 2026-03-18)
+- Addressed code review findings — 5 items resolved (Date: 2026-03-18)

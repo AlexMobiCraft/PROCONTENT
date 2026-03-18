@@ -16,6 +16,7 @@ interface FeedState {
   setLoading: (loading: boolean) => void
   setLoadingMore: (loading: boolean) => void
   reset: () => void
+  changeCategory: (category: string) => void
 }
 
 const initialState = {
@@ -48,4 +49,8 @@ export const useFeedStore = create<FeedState>((set) => ({
   setLoadingMore: (isLoadingMore) => set({ isLoadingMore }),
 
   reset: () => set(initialState),
+
+  // Атомарная смена категории: сброс данных + установка новой категории за одну операцию
+  changeCategory: (category) =>
+    set({ ...initialState, activeCategory: category }),
 }))

@@ -9,24 +9,18 @@ import { dbPostToCardData } from '../types'
 export function FeedContainer() {
   const {
     posts,
-    cursor,
     hasMore,
     isLoading,
     isLoadingMore,
+    activeCategory,
     setPosts,
-    appendPosts,
     setLoading,
-    setLoadingMore,
   } = useFeedStore()
 
   const observerRef = useRef<HTMLDivElement>(null)
-  const initialLoadDone = useRef(false)
 
-  // Начальная загрузка
+  // Начальная загрузка + перезагрузка при смене категории
   useEffect(() => {
-    if (initialLoadDone.current) return
-    initialLoadDone.current = true
-
     // Если уже есть данные в store — восстанавливаем из кэша (AC #6)
     if (posts.length > 0) return
 
@@ -43,10 +37,22 @@ export function FeedContainer() {
     }
 
     loadInitial()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    // activeCategory — триггер перезагрузки при смене категории (changeCategory сбрасывает posts)
+    // setLoading/setPosts — стабильные Zustand-экшены, в deps не нужны
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory])
 
-  // Загрузка следующей страницы
+  // Загрузка следующей страницы — читает живое состояние через getState() вместо замыканий.
+  // Это устраняет проблему stale closure: loadMore стабилен (deps []),
+  // поэтому IntersectionObserver не пересоздаётся при каждом изменении isLoadingMore.
   const loadMore = useCallback(async () => {
+    const {
+      hasMore,
+      isLoadingMore,
+      cursor,
+      appendPosts,
+      setLoadingMore,
+    } = useFeedStore.getState()
     if (!hasMore || isLoadingMore || !cursor) return
 
     setLoadingMore(true)
@@ -62,11 +68,12 @@ export function FeedContainer() {
     } finally {
       setLoadingMore(false)
     }
-  }, [hasMore, isLoadingMore, cursor, appendPosts, setLoadingMore])
+  }, []) // Стабильная ссылка: состояние читается в момент вызова через getState()
 
-  // IntersectionObserver для infinite scroll (AC #2)
+  // IntersectionObserver для infinite scroll (AC #2).
+  // Пересоздаётся только при изменении hasMore (конец ленты), не при isLoadingMore.
   useEffect(() => {
-    if (!observerRef.current || !hasMore || isLoadingMore) return
+    if (!observerRef.current || !hasMore) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -79,7 +86,7 @@ export function FeedContainer() {
 
     observer.observe(observerRef.current)
     return () => observer.disconnect()
-  }, [hasMore, isLoadingMore, loadMore])
+  }, [hasMore, loadMore])
 
   // Состояние загрузки — скелетоны (AC #3)
   if (isLoading) {
@@ -126,8 +133,9 @@ export function FeedContainer() {
         </div>
       )}
 
-      {/* Trigger infinite scroll (AC #2) */}
-      {hasMore && !isLoadingMore && <div ref={observerRef} aria-hidden />}
+      {/* Trigger infinite scroll (AC #2) — sentinel всегда в DOM пока есть посты,
+          loadMore проверяет isLoadingMore внутри через getState() */}
+      {hasMore && <div ref={observerRef} aria-hidden />}
 
       {/* End of feed message (AC #4) */}
       {!hasMore && posts.length > 0 && (

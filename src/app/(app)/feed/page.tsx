@@ -5,13 +5,12 @@ import { FeedContainer } from '@/features/feed/components/FeedContainer'
 import { useFeedStore } from '@/features/feed/store'
 
 export default function FeedPage() {
-  const { activeCategory, setActiveCategory, reset } = useFeedStore()
+  const { activeCategory, changeCategory } = useFeedStore()
 
   function handleCategoryChange(id: string) {
-    // Фильтрация по категориям — только UI-состояние в этой story (серверная — в 2.4)
-    setActiveCategory(id)
-    // Сбрасываем store при смене категории чтобы перезагрузить данные
-    reset()
+    // Атомарная смена: сброс данных + установка категории за одну операцию (AC #6)
+    // Фильтрация — только UI-состояние в этой story (серверная — в 2.4)
+    changeCategory(id)
   }
 
   return (

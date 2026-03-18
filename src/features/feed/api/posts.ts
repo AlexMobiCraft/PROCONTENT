@@ -11,10 +11,20 @@ export async function fetchPosts(cursor?: string): Promise<FeedPage> {
     .select('*, profiles!author_id(display_name, avatar_url)')
     .eq('is_published', true)
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false }) // Tiebreaker: стабильный порядок при одинаковых created_at
     .limit(PAGE_SIZE + 1) // +1 для определения hasMore
 
   if (cursor) {
-    query = query.lt('created_at', cursor)
+    // Составной курсор "timestamp|uuid" устраняет пропуск постов с одинаковым created_at
+    const [cursorAt, cursorId] = cursor.split('|')
+    if (cursorAt && cursorId) {
+      query = query.or(
+        `created_at.lt.${cursorAt},and(created_at.eq.${cursorAt},id.lt.${cursorId})`
+      )
+    } else {
+      // Fallback для курсора старого формата (только timestamp)
+      query = query.lt('created_at', cursor)
+    }
   }
 
   const { data, error } = await query
@@ -23,8 +33,8 @@ export async function fetchPosts(cursor?: string): Promise<FeedPage> {
 
   const hasMore = data.length > PAGE_SIZE
   const posts = (hasMore ? data.slice(0, PAGE_SIZE) : data) as Post[]
-  const nextCursor =
-    posts.length > 0 ? posts[posts.length - 1].created_at : null
+  const lastPost = posts[posts.length - 1]
+  const nextCursor = lastPost ? `${lastPost.created_at}|${lastPost.id}` : null
 
   return { posts, nextCursor, hasMore }
 }
