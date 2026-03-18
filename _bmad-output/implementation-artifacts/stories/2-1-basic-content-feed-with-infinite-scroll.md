@@ -1,6 +1,6 @@
 # Story 2.1: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,42 +20,42 @@ so that быть в курсе новых материалов клуба без
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Миграция БД — таблица `posts`** (AC: #1, #7)
-  - [ ] 1.1 Создать `supabase/migrations/007_create_posts_table.sql`
-  - [ ] 1.2 Создать таблицу `posts` со всеми полями (см. Dev Notes — Схема БД)
-  - [ ] 1.3 Добавить RLS-политики (SELECT для authenticated, INSERT/UPDATE/DELETE для admin)
-  - [ ] 1.4 Создать индексы для пагинации (`created_at DESC`) и фильтрации (`category`)
-  - [ ] 1.5 Добавить seed-данные (10-15 тестовых постов) в отдельный seed-файл
+- [x] **Task 1: Миграция БД — таблица `posts`** (AC: #1, #7)
+  - [x] 1.1 Создать `supabase/migrations/007_create_posts_table.sql`
+  - [x] 1.2 Создать таблицу `posts` со всеми полями (см. Dev Notes — Схема БД)
+  - [x] 1.3 Добавить RLS-политики (SELECT для authenticated, INSERT/UPDATE/DELETE для admin)
+  - [x] 1.4 Создать индексы для пагинации (`created_at DESC`) и фильтрации (`category`)
+  - [x] 1.5 Добавить seed-данные (10-15 тестовых постов) в отдельный seed-файл
 
-- [ ] **Task 2: Обновить TypeScript-типы Supabase** (AC: #1)
-  - [ ] 2.1 Добавить таблицу `posts` в `src/types/supabase.ts` (Row, Insert, Update)
-  - [ ] 2.2 Создать вспомогательный тип `Post` для клиентского использования
+- [x] **Task 2: Обновить TypeScript-типы Supabase** (AC: #1)
+  - [x] 2.1 Добавить таблицу `posts` в `src/types/supabase.ts` (Row, Insert, Update)
+  - [x] 2.2 Создать вспомогательный тип `Post` для клиентского использования
 
-- [ ] **Task 3: Создать Zustand feed store** (AC: #6)
-  - [ ] 3.1 Создать `src/features/feed/store.ts` с состоянием ленты
-  - [ ] 3.2 Реализовать actions: `fetchPosts`, `fetchNextPage`, `reset`
-  - [ ] 3.3 Реализовать cursor-based пагинацию через `created_at`
+- [x] **Task 3: Создать Zustand feed store** (AC: #6)
+  - [x] 3.1 Создать `src/features/feed/store.ts` с состоянием ленты
+  - [x] 3.2 Реализовать actions: `fetchPosts`, `fetchNextPage`, `reset`
+  - [x] 3.3 Реализовать cursor-based пагинацию через `created_at`
 
-- [ ] **Task 4: Создать API-слой для ленты** (AC: #1, #2)
-  - [ ] 4.1 Создать `src/features/feed/api/posts.ts`
-  - [ ] 4.2 Реализовать `fetchPosts(cursor?, limit?)` через Supabase client
-  - [ ] 4.3 Возвращать `{ posts, nextCursor, hasMore }`
+- [x] **Task 4: Создать API-слой для ленты** (AC: #1, #2)
+  - [x] 4.1 Создать `src/features/feed/api/posts.ts`
+  - [x] 4.2 Реализовать `fetchPosts(cursor?, limit?)` через Supabase client
+  - [x] 4.3 Возвращать `{ posts, nextCursor, hasMore }`
 
-- [ ] **Task 5: Реализовать Smart Container FeedContainer** (AC: #1, #2, #3, #5, #6)
-  - [ ] 5.1 Создать `src/features/feed/components/FeedContainer.tsx` (`'use client'`)
-  - [ ] 5.2 Подключить к Zustand feed store
-  - [ ] 5.3 Рендерить `PostCard` для каждого поста, `PostCardSkeleton` при загрузке
-  - [ ] 5.4 Реализовать empty state при отсутствии постов
-  - [ ] 5.5 Добавить IntersectionObserver для trigger "load more"
+- [x] **Task 5: Реализовать Smart Container FeedContainer** (AC: #1, #2, #3, #5, #6)
+  - [x] 5.1 Создать `src/features/feed/components/FeedContainer.tsx` (`'use client'`)
+  - [x] 5.2 Подключить к Zustand feed store
+  - [x] 5.3 Рендерить `PostCard` для каждого поста, `PostCardSkeleton` при загрузке
+  - [x] 5.4 Реализовать empty state при отсутствии постов
+  - [x] 5.5 Добавить IntersectionObserver для trigger "load more"
 
-- [ ] **Task 6: Обновить страницу `/feed`** (AC: #1, #2, #3)
-  - [ ] 6.1 Заменить placeholder в `src/app/(app)/feed/page.tsx`
-  - [ ] 6.2 Добавить `CategoryScroll` (sticky сверху) + `FeedContainer`
-  - [ ] 6.3 Добавить `MobileNav` в `(app)/layout.tsx` если ещё не подключён
+- [x] **Task 6: Обновить страницу `/feed`** (AC: #1, #2, #3)
+  - [x] 6.1 Заменить placeholder в `src/app/(app)/feed/page.tsx`
+  - [x] 6.2 Добавить `CategoryScroll` (sticky сверху) + `FeedContainer`
+  - [x] 6.3 Добавить `MobileNav` в `(app)/layout.tsx` если ещё не подключён
 
-- [ ] **Task 7: Маппинг данных PostCard** (AC: #1)
-  - [ ] 7.1 Создать mapper `dbPostToCardData(post: Tables<'posts'>): PostCardData`
-  - [ ] 7.2 Маппить `author_id` → имя автора (join с `profiles` или хранить в `posts`)
+- [x] **Task 7: Маппинг данных PostCard** (AC: #1)
+  - [x] 7.1 Создать mapper `dbPostToCardData(post: Tables<'posts'>): PostCardData`
+  - [x] 7.2 Маппить `author_id` → имя автора (join с `profiles` или хранить в `posts`)
 
 ## Dev Notes
 
@@ -271,10 +271,32 @@ interface PostCardData {
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-sonnet-4-6
 
 ### Debug Log References
 
+- TypeScript ошибка: `posts.author_id` Relationship указывал на `auth.users`, а не `public.profiles`. Исправлено в `src/types/supabase.ts` — referencedRelation изменён на `profiles`.
+- Pre-existing ESLint errors в `auth-middleware.ts` (TS2352) и `server-actions.ts` (unused vars) — не относятся к этой story.
+
 ### Completion Notes List
 
+- **Тесты:** Тест-раннер не сконфигурирован в проекте (`CLAUDE.md`: "No test runner is configured yet"). Тесты написаны быть не могут.
+- **Task 1:** Миграция `007_create_posts_table.sql` создана с RLS-политиками и индексами. Seed-данные в `supabase/seed_posts.sql` (13 постов, запускается через DO-блок динамически).
+- **Task 2 + 7:** Типы в `src/types/supabase.ts` добавлены (Row/Insert/Update). `src/features/feed/types.ts` содержит `Post`, `FeedPage`, `PostRow`, и mapper `dbPostToCardData`.
+- **Task 3:** Zustand store паттерн скопирован с `src/features/auth/store.ts`. Store сохраняет посты при навигации (AC #6 — кэш в памяти).
+- **Task 4:** `fetchPosts()` использует cursor-based пагинацию по `created_at` с join `profiles!author_id`. PAGE_SIZE = 10 + 1 для определения `hasMore`.
+- **Task 5:** `FeedContainer` — smart component с `useRef` для initial load guard (предотвращает повторный запрос при Strict Mode). IntersectionObserver с `rootMargin: '200px'`.
+- **Task 6:** `feed/page.tsx` полностью переписан: sticky `CategoryScroll` + `FeedContainer`. `(app)/layout.tsx` — добавлен `MobileNav`.
+- **Категориальная фильтрация:** Только UI-состояние (смена категории — reset store), серверная фильтрация — в Story 2.4.
+
 ### File List
+
+- `supabase/migrations/007_create_posts_table.sql` (новый)
+- `supabase/seed_posts.sql` (новый)
+- `src/types/supabase.ts` (изменён — добавлена таблица posts)
+- `src/features/feed/types.ts` (новый)
+- `src/features/feed/store.ts` (новый)
+- `src/features/feed/api/posts.ts` (новый)
+- `src/features/feed/components/FeedContainer.tsx` (новый)
+- `src/app/(app)/feed/page.tsx` (изменён)
+- `src/app/(app)/layout.tsx` (изменён — добавлен MobileNav)

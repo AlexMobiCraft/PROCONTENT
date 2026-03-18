@@ -14,6 +14,68 @@ export type Database = {
   }
   public: {
     Tables: {
+      posts: {
+        Row: {
+          id: string
+          author_id: string
+          title: string
+          excerpt: string | null
+          content: string | null
+          category: string
+          type: 'text' | 'photo' | 'video'
+          image_url: string | null
+          likes_count: number
+          comments_count: number
+          is_published: boolean
+          is_landing_preview: boolean
+          is_onboarding: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          author_id: string
+          title: string
+          excerpt?: string | null
+          content?: string | null
+          category?: string
+          type?: 'text' | 'photo' | 'video'
+          image_url?: string | null
+          likes_count?: number
+          comments_count?: number
+          is_published?: boolean
+          is_landing_preview?: boolean
+          is_onboarding?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          author_id?: string
+          title?: string
+          excerpt?: string | null
+          content?: string | null
+          category?: string
+          type?: 'text' | 'photo' | 'video'
+          image_url?: string | null
+          likes_count?: number
+          comments_count?: number
+          is_published?: boolean
+          is_landing_preview?: boolean
+          is_onboarding?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'posts_author_id_fkey'
+            columns: ['author_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          }
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
