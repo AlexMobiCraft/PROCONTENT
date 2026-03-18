@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 
 export interface PostCardData {
   id: string
@@ -77,6 +78,18 @@ export function PostCard({ post, onCommentClick }: PostCardProps) {
           </svg>
         </button>
       </header>
+
+      {/* Media Content */}
+      {post.imageUrl && (
+        <div className="mb-4">
+          <LazyMediaWrapper
+            src={post.imageUrl}
+            alt={post.title}
+            aspectRatio={post.type === 'video' ? '16/9' : '4/5'}
+            type={post.type === 'video' ? 'video' : 'photo'}
+          />
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex flex-col gap-2">
@@ -180,6 +193,10 @@ export function PostCardSkeleton() {
           <div className="h-3 w-16 rounded-full bg-muted animate-pulse" />
         </div>
       </div>
+      
+      {/* Media Skeleton */}
+      <div className="mb-4 aspect-video w-full rounded-lg bg-muted animate-pulse" />
+
       <div className="flex flex-col gap-2">
         <div className="h-4 w-3/4 rounded-full bg-muted animate-pulse" />
         <div className="h-3.5 w-full rounded-full bg-muted animate-pulse" />

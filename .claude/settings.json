@@ -28,5 +28,8 @@
         ]
       }
     ]
+  },
+  "env": {
+    "SUPABASE_ACCESS_TOKEN": "sbp_9af611ba607bac139af44b21f8f989ef0d16d46e"
   }
 }

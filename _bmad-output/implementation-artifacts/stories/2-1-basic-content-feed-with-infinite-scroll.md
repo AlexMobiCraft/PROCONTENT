@@ -78,6 +78,8 @@ so that быть в курсе новых материалов клуба без
 - [x] [AI-Review][MEDIUM] Уязвимость повышения привилегий RLS: SECURITY DEFINER функция is_active_subscriber() не устанавливает search_path. [supabase/migrations/009_add_role_fix_admin_rls.sql:37]
 - [x] [AI-Review][MEDIUM] Костыль с eslint-disable-next-line и Stale Closure: необходимо безопасно читать длину кэша через useFeedStore.getState() внутри начального useEffect. [src/features/feed/components/FeedContainer.tsx:48]
 - [x] [AI-Review][LOW] DB Performance: Отсутствует составной индекс (created_at DESC, id DESC) WHERE is_published = true. [supabase/migrations/007_create_posts_table.sql]
+- [ ] [AI-Review][MEDIUM] Пагинация: Если `loadMore` падает по ошибке сети, загрузка блокируется навсегда. Добавить кнопку "Повторить". [src/features/feed/components/FeedContainer.tsx:67]
+- [ ] [AI-Review][MEDIUM] Эффективность: При фильтрации по редкой категории на клиенте возможны десятки пустых API-вызовов подряд. Оптимизировать в Story 2.4. [src/features/feed/components/FeedContainer.tsx:104]
 
 ## Dev Notes
 
