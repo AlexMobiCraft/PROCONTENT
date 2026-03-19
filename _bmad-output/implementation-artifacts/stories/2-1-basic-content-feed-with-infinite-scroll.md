@@ -88,6 +88,13 @@ so that быть в курсе новых материалов клуба без
 - [x] [AI-Review][LOW] Edge-case: `display_name = ''` (пустая строка) не перехватывается `??` — проходит как валидное имя, initials будут пустыми. Исправить: `post.profiles?.display_name || 'Автор'`. [src/features/feed/types.ts:24]
 - [x] [AI-Review][LOW] Test gap: нет теста для catch-ветки `loadMore` — не верифицируется что `appendPosts([], null, false)` вызывается при ошибке и sentinel исчезает из DOM. [tests/unit/features/feed/components/FeedContainer.test.tsx]
 - [x] [AI-Review][LOW] UX: `PostCardSkeleton` всегда рендерит `aspect-video` media placeholder — не соответствует text-картам без медиа. Создаёт layout shift при появлении реального контента. [src/components/feed/PostCard.tsx:198]
+- [ ] [AI-Review][CRITICAL] `isAbortError` никогда не срабатывает: Supabase возвращает PostgrestError, не DOMException, из-за чего все реальные ошибки выглядят как "ошибка загрузки". Исправить тип-проверку AbortError. [src/features/feed/components/FeedContainer.tsx:16]
+- [ ] [AI-Review][CRITICAL] Нет отмены и валидации в `loadMore`: ответ от старой категории добавляется в новую и ломает курсор. Нужен AbortController/guard. [src/features/feed/components/FeedContainer.tsx:75]
+- [ ] [AI-Review][CRITICAL] `AuthProvider` мутирует Zustand store прямо в render-phase через getState().setUser(), что нарушает React concurrent/strict mode. Перенести в effect или использовать initializeStore. [src/features/auth/components/AuthProvider.tsx:18]
+- [ ] [AI-Review][MEDIUM] В миграции 007 отсутствует триггер обновления `updated_at`; колонка не меняется после INSERT. Добавить trigger/DEFAULT с moddatetime. [supabase/migrations/007_create_posts_table.sql:19]
+- [ ] [AI-Review][MEDIUM] `AppLayout` всегда передаёт `session={null}` и перезаписывает реальную сессию при SSR/refresh. Нужно получать session и прокидывать в AuthProvider. [src/app/(app)/layout.tsx:22]
+- [ ] [AI-Review][LOW] Компонент `Skeletons` использует индекс массива в качестве key, что мешает React diff и анимациям. Добавить стабильные ключи. [src/features/feed/components/FeedContainer.tsx:10]
+- [ ] [AI-Review][LOW] `appendPosts` просто конкатенирует массивы, возможны дубликаты и key collisions при совпадающих курсорах. Нужна фильтрация по id. [src/features/feed/store.ts:40]
 
 ## Dev Notes
 
