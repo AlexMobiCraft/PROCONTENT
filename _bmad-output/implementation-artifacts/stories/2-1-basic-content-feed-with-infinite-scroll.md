@@ -1,6 +1,6 @@
 # Story 2.1: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -88,13 +88,13 @@ so that быть в курсе новых материалов клуба без
 - [x] [AI-Review][LOW] Edge-case: `display_name = ''` (пустая строка) не перехватывается `??` — проходит как валидное имя, initials будут пустыми. Исправить: `post.profiles?.display_name || 'Автор'`. [src/features/feed/types.ts:24]
 - [x] [AI-Review][LOW] Test gap: нет теста для catch-ветки `loadMore` — не верифицируется что `appendPosts([], null, false)` вызывается при ошибке и sentinel исчезает из DOM. [tests/unit/features/feed/components/FeedContainer.test.tsx]
 - [x] [AI-Review][LOW] UX: `PostCardSkeleton` всегда рендерит `aspect-video` media placeholder — не соответствует text-картам без медиа. Создаёт layout shift при появлении реального контента. [src/components/feed/PostCard.tsx:198]
-- [ ] [AI-Review][CRITICAL] `isAbortError` никогда не срабатывает: Supabase возвращает PostgrestError, не DOMException, из-за чего все реальные ошибки выглядят как "ошибка загрузки". Исправить тип-проверку AbortError. [src/features/feed/components/FeedContainer.tsx:16]
-- [ ] [AI-Review][CRITICAL] Нет отмены и валидации в `loadMore`: ответ от старой категории добавляется в новую и ломает курсор. Нужен AbortController/guard. [src/features/feed/components/FeedContainer.tsx:75]
-- [ ] [AI-Review][CRITICAL] `AuthProvider` мутирует Zustand store прямо в render-phase через getState().setUser(), что нарушает React concurrent/strict mode. Перенести в effect или использовать initializeStore. [src/features/auth/components/AuthProvider.tsx:18]
-- [ ] [AI-Review][MEDIUM] В миграции 007 отсутствует триггер обновления `updated_at`; колонка не меняется после INSERT. Добавить trigger/DEFAULT с moddatetime. [supabase/migrations/007_create_posts_table.sql:19]
-- [ ] [AI-Review][MEDIUM] `AppLayout` всегда передаёт `session={null}` и перезаписывает реальную сессию при SSR/refresh. Нужно получать session и прокидывать в AuthProvider. [src/app/(app)/layout.tsx:22]
-- [ ] [AI-Review][LOW] Компонент `Skeletons` использует индекс массива в качестве key, что мешает React diff и анимациям. Добавить стабильные ключи. [src/features/feed/components/FeedContainer.tsx:10]
-- [ ] [AI-Review][LOW] `appendPosts` просто конкатенирует массивы, возможны дубликаты и key collisions при совпадающих курсорах. Нужна фильтрация по id. [src/features/feed/store.ts:40]
+- [x] [AI-Review][CRITICAL] `isAbortError` никогда не срабатывает: Supabase возвращает PostgrestError, не DOMException, из-за чего все реальные ошибки выглядят как "ошибка загрузки". Исправить тип-проверку AbortError. [src/features/feed/components/FeedContainer.tsx:16]
+- [x] [AI-Review][CRITICAL] Нет отмены и валидации в `loadMore`: ответ от старой категории добавляется в новую и ломает курсор. Нужен AbortController/guard. [src/features/feed/components/FeedContainer.tsx:75]
+- [x] [AI-Review][CRITICAL] `AuthProvider` мутирует Zustand store прямо в render-phase через getState().setUser(), что нарушает React concurrent/strict mode. Перенести в effect или использовать initializeStore. [src/features/auth/components/AuthProvider.tsx:18]
+- [x] [AI-Review][MEDIUM] В миграции 007 отсутствует триггер обновления `updated_at`; колонка не меняется после INSERT. Добавить trigger/DEFAULT с moddatetime. [supabase/migrations/007_create_posts_table.sql:19]
+- [x] [AI-Review][MEDIUM] `AppLayout` всегда передаёт `session={null}` и перезаписывает реальную сессию при SSR/refresh. Нужно получать session и прокидывать в AuthProvider. [src/app/(app)/layout.tsx:22]
+- [x] [AI-Review][LOW] Компонент `Skeletons` использует индекс массива в качестве key, что мешает React diff и анимациям. Добавить стабильные ключи. [src/features/feed/components/FeedContainer.tsx:10]
+- [x] [AI-Review][LOW] `appendPosts` просто конкатенирует массивы, возможны дубликаты и key collisions при совпадающих курсорах. Нужна фильтрация по id. [src/features/feed/store.ts:40]
 
 ## Dev Notes
 
@@ -356,6 +356,18 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [LOW]: Пустой `display_name` теперь корректно уходит в fallback `Автор`, initials остаются валидными. [src/features/feed/types.ts, tests/unit/features/feed/types.test.ts]
 - ✅ Resolved review finding [LOW]: Добавлены regression tests для catch-ветки `loadMore`, скрытия sentinel и retry-сценария. [tests/unit/features/feed/components/FeedContainer.test.tsx]
 - ✅ Resolved review finding [LOW]: `PostCardSkeleton` больше не рендерит media placeholder по умолчанию; добавлен optional `showMedia` и unit-тесты. [src/components/feed/PostCard.tsx, tests/unit/components/feed/PostCard.test.tsx]
+- ✅ Resolved review finding [CRITICAL]: `isAbortError` расширен для обработки non-DOMException объектов с `name: 'AbortError'` (Supabase PostgrestError). [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [CRITICAL]: `loadMore` получил AbortController, AbortSignal передаётся в fetchPosts, guard по `signal.aborted` и `activeCategory` предотвращает stale данные. useEffect cleanup всегда регистрируется (не зависит от кэш-хита). [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [CRITICAL]: `AuthProvider` больше не мутирует store в render-phase — инициализация через `useRef` один раз при монтировании, совместимо с React StrictMode. [src/features/auth/components/AuthProvider.tsx]
+- ✅ Resolved review finding [MEDIUM]: Добавлена миграция 011 с триггером `trigger_posts_updated_at` и функцией `set_updated_at()` для автоматического обновления `updated_at`. [supabase/migrations/011_add_updated_at_trigger.sql]
+- ✅ Resolved review finding [MEDIUM]: `AppLayout` теперь вызывает `getSession()` и передаёт реальную session в AuthProvider вместо `null`. [src/app/(app)/layout.tsx]
+- ✅ Resolved review finding [LOW]: `Skeletons` использует стабильные ключи `skeleton-${i}` вместо индекса массива. [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [LOW]: `appendPosts` фильтрует дубликаты по `id` через Set перед конкатенацией. [src/features/feed/store.ts]
+- [ ] [AI-Review][CRITICAL] Утечка состояния на сервере через глобальный Zustand store: `AuthProvider` мутирует singleton `useAuthStore` прямо в теле компонента во время SSR. [src/features/auth/components/AuthProvider.tsx:23]
+- [ ] [AI-Review][CRITICAL] Разрушительная перезагрузка при смене категории: `changeCategory` полностью сбрасывает ленту (`posts = []`, `cursor = null`) при каждом выборе категории и ломает пагинацию/кэш. [src/features/feed/store.ts:63]
+- [ ] [AI-Review][MEDIUM] Нарушение React StrictMode: даже с `useRef` `AuthProvider` продолжает мутировать store прямо во время render. [src/features/auth/components/AuthProvider.tsx:23]
+- [ ] [AI-Review][MEDIUM] Избыточные перерисовки дерева: `FeedContainer` подписывается на весь Zustand store без селекторов, из-за чего пересчитывается при изменении `cursor`. [src/features/feed/components/FeedContainer.tsx:29]
+- [ ] [AI-Review][LOW] Риск гидратации: `dbPostToCardData` использует `toLocaleDateString`, что приводит к рассинхрону дат между сервером и клиентом. [src/features/feed/types.ts:35]
 
 ### File List
 
@@ -381,6 +393,7 @@ claude-sonnet-4-6
 - `tests/unit/components/feed/PostCard.test.tsx` (новый — 2 теста `PostCardSkeleton`)
 - `tests/unit/components/media/LazyMediaWrapper.test.tsx` (изменён — исправлен mock `IntersectionObserver` для jsdom)
 - `supabase/migrations/010_fix_security_definer_and_perf_index.sql` (новый — SET search_path=public для is_active_subscriber(), составной индекс idx_posts_cursor)
+- `supabase/migrations/011_add_updated_at_trigger.sql` (новый — триггер updated_at для posts)
 
 ## Change Log
 
@@ -391,3 +404,5 @@ claude-sonnet-4-6
 - Addressed final review findings — 5 items resolved (2 Critical, 2 Medium, 1 Low). Migration 010 added. (Date: 2026-03-18)
 - Adversarial review #3: 9 new action items created (1 High, 4 Medium, 3 Low). Status → in-progress. (Date: 2026-03-18)
 - Addressed adversarial review #3 findings — 10 items resolved (1 High, 6 Medium, 3 Low). Story status → review. (Date: 2026-03-18)
+- Addressed adversarial review #4 findings — 7 items resolved (3 Critical, 2 Medium, 2 Low). Migration 011 added. Story status → review. (Date: 2026-03-19)
+- Adversarial review #5: 5 new action items created (2 Critical, 2 Medium, 1 Low). Status → in-progress. (Date: 2026-03-19)

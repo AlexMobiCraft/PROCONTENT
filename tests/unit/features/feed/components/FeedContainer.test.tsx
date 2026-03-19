@@ -264,6 +264,79 @@ describe('FeedContainer', () => {
     })
   })
 
+  it('loadMore передаёт AbortSignal в fetchPosts', async () => {
+    useFeedStore
+      .getState()
+      .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+    useFeedStore.getState().setLoading(false)
+    mockFetchPosts.mockResolvedValue({ posts: [makePost('2')], nextCursor: null, hasMore: false })
+
+    render(<FeedContainer />)
+
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    await waitFor(() => {
+      expect(mockFetchPosts).toHaveBeenCalledWith(
+        '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000',
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+    })
+  })
+
+  it('loadMore не добавляет stale данные при смене категории во время запроса', async () => {
+    useFeedStore
+      .getState()
+      .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+    useFeedStore.getState().setLoading(false)
+
+    const loadMoreCalls: {
+      resolve: (v: { posts: Post[]; nextCursor: string | null; hasMore: boolean }) => void
+      signal?: AbortSignal
+    }[] = []
+    mockFetchPosts.mockImplementation((_cursor: string | undefined, opts?: { signal?: AbortSignal }) => {
+      return new Promise((resolve) => {
+        loadMoreCalls.push({ resolve, signal: opts?.signal })
+      })
+    })
+
+    render(<FeedContainer />)
+
+    // Trigger loadMore через observer
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    // loadMore вызвал fetchPosts — ждёт ответа
+    await waitFor(() => {
+      expect(loadMoreCalls.length).toBeGreaterThanOrEqual(1)
+    })
+    const loadMoreCall = loadMoreCalls.find((c) => c.signal)!
+
+    // Меняем категорию — useEffect cleanup должен abort-нуть контроллер
+    await act(async () => {
+      useFeedStore.getState().changeCategory('reels')
+    })
+
+    // Контроллер должен быть aborted
+    expect(loadMoreCall.signal?.aborted).toBe(true)
+
+    // Резолвим loadMore — ответ должен быть проигнорирован (aborted)
+    await act(async () => {
+      loadMoreCall.resolve({ posts: [makePost('stale')], nextCursor: null, hasMore: false })
+    })
+
+    // stale пост не должен быть в store
+    expect(useFeedStore.getState().posts.find((p) => p.id === 'stale')).toBeUndefined()
+  })
+
   it('отменяет предыдущую initial load при быстрой смене категории и не даёт stale-ответу перезаписать state', async () => {
     type Deferred = {
       resolve: (value: { posts: Post[]; nextCursor: string | null; hasMore: boolean }) => void

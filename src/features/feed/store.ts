@@ -38,11 +38,15 @@ export const useFeedStore = create<FeedState>((set) => ({
     set({ posts, cursor, hasMore, error: null }),
 
   appendPosts: (posts, cursor, hasMore) =>
-    set((state) => ({
-      posts: [...state.posts, ...posts],
-      cursor,
-      hasMore,
-    })),
+    set((state) => {
+      const existingIds = new Set(state.posts.map((p) => p.id))
+      const uniqueNew = posts.filter((p) => !existingIds.has(p.id))
+      return {
+        posts: [...state.posts, ...uniqueNew],
+        cursor,
+        hasMore,
+      }
+    }),
 
   setActiveCategory: (category) =>
     set({ activeCategory: category }),

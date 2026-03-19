@@ -51,15 +51,15 @@ describe('AppLayout', () => {
     mockGetSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
   })
 
-  it('рендерит AuthProvider, children и MobileNav без лишнего getSession round-trip', async () => {
+  it('рендерит AuthProvider с session, children и MobileNav', async () => {
     const page = await AppLayout({ children: <div>child</div> })
     render(page)
 
     expect(screen.getByTestId('auth-provider')).toHaveAttribute('data-user-id', 'user-123')
-    expect(screen.getByTestId('auth-provider')).toHaveAttribute('data-session-null', 'true')
+    expect(screen.getByTestId('auth-provider')).toHaveAttribute('data-session-null', 'false')
     expect(screen.getByText('child')).toBeInTheDocument()
     expect(screen.getByTestId('mobile-nav')).toBeInTheDocument()
-    expect(mockGetSession).not.toHaveBeenCalled()
+    expect(mockGetSession).toHaveBeenCalledOnce()
   })
 
   it('редиректит на /login если пользователь не авторизован', async () => {

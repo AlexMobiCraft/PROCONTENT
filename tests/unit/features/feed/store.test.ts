@@ -128,4 +128,13 @@ describe('useFeedStore', () => {
     expect(useFeedStore.getState().activeCategory).toBe('all')
     expect(useFeedStore.getState().posts).toEqual([])
   })
+
+  it('appendPosts фильтрует дубликаты по id', () => {
+    useFeedStore.getState().setPosts([makePost('1'), makePost('2')], 'c1', true)
+    useFeedStore.getState().appendPosts([makePost('2'), makePost('3')], 'c2', false)
+
+    const state = useFeedStore.getState()
+    expect(state.posts).toHaveLength(3)
+    expect(state.posts.map((p) => p.id)).toEqual(['1', '2', '3'])
+  })
 })

@@ -9,12 +9,20 @@ import { dbPostToCardData } from '../types'
 
 function Skeletons({ count }: { count: number }) {
   return Array.from({ length: count }).map((_, i) => (
-    <PostCardSkeleton key={i} />
+    <PostCardSkeleton key={`skeleton-${i}`} />
   ))
 }
 
-function isAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === 'AbortError'
+function isAbortError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') return true
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    (error as { name: string }).name === 'AbortError'
+  )
+    return true
+  return false
 }
 
 export function FeedContainer() {
@@ -30,6 +38,7 @@ export function FeedContainer() {
 
   const observerRef = useRef<HTMLDivElement>(null)
   const initialLoadAbortRef = useRef<AbortController | null>(null)
+  const loadMoreAbortRef = useRef<AbortController | null>(null)
 
   const loadInitial = useCallback(async () => {
     initialLoadAbortRef.current?.abort()
@@ -60,13 +69,16 @@ export function FeedContainer() {
   // Состояние читается через getState() в момент вызова — нет stale closure, не нужен eslint-disable.
   useEffect(() => {
     // Если уже есть данные в store — восстанавливаем из кэша (AC #6)
-    if (useFeedStore.getState().posts.length > 0) return
+    if (useFeedStore.getState().posts.length === 0) {
+      void loadInitial()
+    }
 
-    void loadInitial()
-
+    // Cleanup всегда регистрируется — при смене категории отменяем и initial, и loadMore запросы
     return () => {
       initialLoadAbortRef.current?.abort()
       initialLoadAbortRef.current = null
+      loadMoreAbortRef.current?.abort()
+      loadMoreAbortRef.current = null
     }
   }, [activeCategory, loadInitial])
 
@@ -77,11 +89,16 @@ export function FeedContainer() {
       hasMore,
       isLoadingMore,
       cursor,
+      activeCategory: categoryBefore,
       appendPosts,
       setLoadingMore,
       setError,
     } = useFeedStore.getState()
     if (!hasMore || isLoadingMore || !cursor) return
+
+    loadMoreAbortRef.current?.abort()
+    const controller = new AbortController()
+    loadMoreAbortRef.current = controller
 
     setLoadingMore(true)
     setError(null)
@@ -90,13 +107,19 @@ export function FeedContainer() {
         posts: newPosts,
         nextCursor,
         hasMore: more,
-      } = await fetchPosts(cursor)
+      } = await fetchPosts(cursor, { signal: controller.signal })
+      // Guard: если запрос отменён или категория сменилась — не добавлять stale данные
+      if (controller.signal.aborted) return
+      if (useFeedStore.getState().activeCategory !== categoryBefore) return
       appendPosts(newPosts, nextCursor, more)
     } catch (err) {
       if (isAbortError(err)) return
       console.error('Ошибка подгрузки постов:', err)
       setError('Не удалось загрузить ещё публикации. Попробуйте снова.')
     } finally {
+      if (loadMoreAbortRef.current === controller) {
+        loadMoreAbortRef.current = null
+      }
       setLoadingMore(false)
     }
   }, [])
