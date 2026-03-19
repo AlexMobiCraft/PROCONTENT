@@ -59,7 +59,8 @@ export const useFeedStore = create<FeedState>((set) => ({
 
   reset: () => set(initialState),
 
-  // Атомарная смена категории: сброс данных + установка новой категории за одну операцию
-  changeCategory: (category) =>
-    set({ ...initialState, activeCategory: category }),
+  // Смена категории: только обновляет activeCategory.
+  // Данные ленты НЕ сбрасываются — клиентская фильтрация работает на кэшированных постах.
+  // Это предотвращает разрушительную перезагрузку при переключении между категориями.
+  changeCategory: (category) => set({ activeCategory: category }),
 }))

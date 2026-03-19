@@ -73,15 +73,15 @@ describe('AuthProvider', () => {
     expect(mockSetSession).toHaveBeenCalledWith(mockSession)
   })
 
-  it('инициализирует store синхронно — без waitFor', () => {
-    // Проверяем, что store заполнен сразу после render, без useEffect
+  it('инициализирует store в useEffect при монтировании', () => {
+    // useEffect выполняется внутри act() при render() в Testing Library,
+    // поэтому store заполнен сразу после render без явного waitFor
     render(
       <AuthProvider user={mockUser} session={mockSession}>
         <div>child</div>
       </AuthProvider>
     )
 
-    // Без waitFor: store должен быть заполнен в момент рендера
     expect(mockSetUser).toHaveBeenCalledWith(mockUser)
     expect(mockSetSession).toHaveBeenCalledWith(mockSession)
   })

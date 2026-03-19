@@ -32,9 +32,12 @@ export function dbPostToCardData(
     .slice(0, 2)
     .toUpperCase()
 
+  // timeZone: 'UTC' обеспечивает идентичный вывод на сервере и клиенте,
+  // устраняя риск гидратации при несоответствии часовых поясов Node.js/браузера
   const date = new Date(post.created_at).toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
+    timeZone: 'UTC',
   })
 
   return {

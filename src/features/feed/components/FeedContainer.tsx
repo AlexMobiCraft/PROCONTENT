@@ -26,14 +26,14 @@ function isAbortError(error: unknown): boolean {
 }
 
 export function FeedContainer() {
-  const {
-    posts,
-    hasMore,
-    isLoading,
-    isLoadingMore,
-    error,
-    activeCategory,
-  } = useFeedStore()
+  // Индивидуальные селекторы — компонент перерисовывается только при изменении
+  // нужных полей, а не при любом изменении store (например, cursor после appendPosts)
+  const posts = useFeedStore((s) => s.posts)
+  const hasMore = useFeedStore((s) => s.hasMore)
+  const isLoading = useFeedStore((s) => s.isLoading)
+  const isLoadingMore = useFeedStore((s) => s.isLoadingMore)
+  const error = useFeedStore((s) => s.error)
+  const activeCategory = useFeedStore((s) => s.activeCategory)
   const currentUserId = useAuthStore((state) => state.user?.id ?? null)
 
   const observerRef = useRef<HTMLDivElement>(null)

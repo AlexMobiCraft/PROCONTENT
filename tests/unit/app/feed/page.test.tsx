@@ -57,7 +57,7 @@ describe('FeedPage', () => {
     expect(useFeedStore.getState().activeCategory).toBe('reels')
   })
 
-  it('changeCategory сбрасывает посты при смене категории', async () => {
+  it('changeCategory НЕ сбрасывает посты — клиентская фильтрация из кэша', async () => {
     const user = userEvent.setup()
     // Предзагружаем store
     useFeedStore.getState().setPosts(
@@ -88,8 +88,8 @@ describe('FeedPage', () => {
     render(<FeedPage />)
     await user.click(screen.getByText('Reels'))
 
-    // changeCategory сбрасывает посты
-    expect(useFeedStore.getState().posts).toEqual([])
+    // changeCategory только меняет активную категорию, не сбрасывает кэш постов
     expect(useFeedStore.getState().activeCategory).toBe('reels')
+    expect(useFeedStore.getState().posts).toHaveLength(1)
   })
 })

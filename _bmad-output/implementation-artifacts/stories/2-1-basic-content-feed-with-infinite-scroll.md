@@ -1,6 +1,6 @@
 # Story 2.1: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -363,11 +363,16 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: `AppLayout` теперь вызывает `getSession()` и передаёт реальную session в AuthProvider вместо `null`. [src/app/(app)/layout.tsx]
 - ✅ Resolved review finding [LOW]: `Skeletons` использует стабильные ключи `skeleton-${i}` вместо индекса массива. [src/features/feed/components/FeedContainer.tsx]
 - ✅ Resolved review finding [LOW]: `appendPosts` фильтрует дубликаты по `id` через Set перед конкатенацией. [src/features/feed/store.ts]
-- [ ] [AI-Review][CRITICAL] Утечка состояния на сервере через глобальный Zustand store: `AuthProvider` мутирует singleton `useAuthStore` прямо в теле компонента во время SSR. [src/features/auth/components/AuthProvider.tsx:23]
-- [ ] [AI-Review][CRITICAL] Разрушительная перезагрузка при смене категории: `changeCategory` полностью сбрасывает ленту (`posts = []`, `cursor = null`) при каждом выборе категории и ломает пагинацию/кэш. [src/features/feed/store.ts:63]
-- [ ] [AI-Review][MEDIUM] Нарушение React StrictMode: даже с `useRef` `AuthProvider` продолжает мутировать store прямо во время render. [src/features/auth/components/AuthProvider.tsx:23]
-- [ ] [AI-Review][MEDIUM] Избыточные перерисовки дерева: `FeedContainer` подписывается на весь Zustand store без селекторов, из-за чего пересчитывается при изменении `cursor`. [src/features/feed/components/FeedContainer.tsx:29]
-- [ ] [AI-Review][LOW] Риск гидратации: `dbPostToCardData` использует `toLocaleDateString`, что приводит к рассинхрону дат между сервером и клиентом. [src/features/feed/types.ts:35]
+- ✅ Resolved review finding [CRITICAL]: `AuthProvider` перенесён из render-body в `useEffect` — устранена SSR-утечка singleton Zustand store и нарушение React StrictMode. `useRef` удалён. [src/features/auth/components/AuthProvider.tsx]
+- ✅ Resolved review finding [CRITICAL]: `changeCategory` больше не сбрасывает ленту (`posts`, `cursor`, `hasMore`, `isLoading`) — только обновляет `activeCategory`. Клиентская фильтрация работает из кэша, переключение категорий не вызывает лишних re-fetch. [src/features/feed/store.ts]
+- ✅ Resolved review finding [MEDIUM]: React StrictMode совместимость — следствие переноса AuthProvider в `useEffect` (тот же fix). [src/features/auth/components/AuthProvider.tsx]
+- ✅ Resolved review finding [MEDIUM]: FeedContainer использует индивидуальные Zustand-селекторы вместо подписки на весь store — ре-рендер только при изменении нужных полей (не при изменении cursor после appendPosts). [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [LOW]: `dbPostToCardData` добавлен `timeZone: 'UTC'` в `toLocaleDateString` — идентичный вывод дат на сервере и клиенте, устранён риск гидратации. [src/features/feed/types.ts]
+- [x] [AI-Review][CRITICAL] Утечка состояния на сервере через глобальный Zustand store: `AuthProvider` мутирует singleton `useAuthStore` прямо в теле компонента во время SSR. [src/features/auth/components/AuthProvider.tsx:23]
+- [x] [AI-Review][CRITICAL] Разрушительная перезагрузка при смене категории: `changeCategory` полностью сбрасывает ленту (`posts = []`, `cursor = null`) при каждом выборе категории и ломает пагинацию/кэш. [src/features/feed/store.ts:63]
+- [x] [AI-Review][MEDIUM] Нарушение React StrictMode: даже с `useRef` `AuthProvider` продолжает мутировать store прямо во время render. [src/features/auth/components/AuthProvider.tsx:23]
+- [x] [AI-Review][MEDIUM] Избыточные перерисовки дерева: `FeedContainer` подписывается на весь Zustand store без селекторов, из-за чего пересчитывается при изменении `cursor`. [src/features/feed/components/FeedContainer.tsx:29]
+- [x] [AI-Review][LOW] Риск гидратации: `dbPostToCardData` использует `toLocaleDateString`, что приводит к рассинхрону дат между сервером и клиентом. [src/features/feed/types.ts:35]
 
 ### File List
 
@@ -394,6 +399,9 @@ claude-sonnet-4-6
 - `tests/unit/components/media/LazyMediaWrapper.test.tsx` (изменён — исправлен mock `IntersectionObserver` для jsdom)
 - `supabase/migrations/010_fix_security_definer_and_perf_index.sql` (новый — SET search_path=public для is_active_subscriber(), составной индекс idx_posts_cursor)
 - `supabase/migrations/011_add_updated_at_trigger.sql` (новый — триггер updated_at для posts)
+- `tests/unit/features/auth/components/AuthProvider.test.tsx` (изменён — обновлён тест под useEffect семантику)
+- `tests/unit/features/feed/store.test.ts` (изменён — обновлены тесты changeCategory под новое поведение без сброса данных)
+- `tests/unit/app/feed/page.test.tsx` (изменён — обновлён тест changeCategory)
 
 ## Change Log
 
@@ -406,3 +414,4 @@ claude-sonnet-4-6
 - Addressed adversarial review #3 findings — 10 items resolved (1 High, 6 Medium, 3 Low). Story status → review. (Date: 2026-03-18)
 - Addressed adversarial review #4 findings — 7 items resolved (3 Critical, 2 Medium, 2 Low). Migration 011 added. Story status → review. (Date: 2026-03-19)
 - Adversarial review #5: 5 new action items created (2 Critical, 2 Medium, 1 Low). Status → in-progress. (Date: 2026-03-19)
+- Addressed adversarial review #5 findings — 5 items resolved (2 Critical, 2 Medium, 1 Low). 383 tests passing. Story status → review. (Date: 2026-03-19)

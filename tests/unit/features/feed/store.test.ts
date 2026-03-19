@@ -105,7 +105,7 @@ describe('useFeedStore', () => {
     expect(state.activeCategory).toBe('all')
   })
 
-  it('changeCategory атомарно сбрасывает данные и устанавливает категорию', () => {
+  it('changeCategory обновляет только activeCategory без сброса данных', () => {
     useFeedStore.getState().setPosts([makePost('1')], 'c1', false)
     useFeedStore.getState().setLoading(false)
 
@@ -113,20 +113,23 @@ describe('useFeedStore', () => {
     const state = useFeedStore.getState()
 
     expect(state.activeCategory).toBe('razobory')
-    expect(state.posts).toEqual([])
-    expect(state.cursor).toBeNull()
-    expect(state.hasMore).toBe(true)
-    expect(state.isLoading).toBe(true) // сброс к initialState
+    // Данные НЕ сбрасываются — клиентская фильтрация работает на кэше
+    expect(state.posts).toHaveLength(1)
+    expect(state.cursor).toBe('c1')
+    expect(state.hasMore).toBe(false)
+    expect(state.isLoading).toBe(false) // не затрагивается
     expect(state.error).toBeNull()
   })
 
-  it('changeCategory на "all" тоже сбрасывает', () => {
+  it('changeCategory на "all" тоже только обновляет activeCategory', () => {
     useFeedStore.getState().setPosts([makePost('1')], 'c1', false)
     useFeedStore.getState().setActiveCategory('reels')
 
     useFeedStore.getState().changeCategory('all')
     expect(useFeedStore.getState().activeCategory).toBe('all')
-    expect(useFeedStore.getState().posts).toEqual([])
+    // Посты сохранены — нет разрушительного сброса
+    expect(useFeedStore.getState().posts).toHaveLength(1)
+    expect(useFeedStore.getState().cursor).toBe('c1')
   })
 
   it('appendPosts фильтрует дубликаты по id', () => {
