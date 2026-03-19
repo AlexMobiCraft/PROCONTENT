@@ -80,6 +80,11 @@
 - [x] [AI-Review][Medium] UX стагнации: при `isScrollStalled=true` пользователь вынужден вручную повторять загрузку, даже если сервер снова вернёт нерелевантные категории. Нужна стратегия обхода (например, запрос другой категории или ограничение попыток). [src/features/feed/components/FeedContainer.tsx]
 - [x] [AI-Review][Low] CLS empty state: блоки пустых состояний/ошибок не имеют фиксированной высоты, что вызывает скачки при появлении/исчезновении. Добавьте минимальную высоту или резервное пространство. [src/features/feed/components/FeedContainer.tsx]
 
+### Review Follow-ups (AI) - Iteration 9
+- [ ] [AI-Review][High] Ложное исправление LCP (Архитектура): FeedContainer загружает данные на клиенте (CSR), поэтому `<Image priority>` появляется в DOM слишком поздно, чтобы браузер мог выполнить предзагрузку. Для честного LCP необходимо рендерить первый экран на сервере или передавать initial state из Server Component. [src/features/feed/components/FeedContainer.tsx]
+- [ ] [AI-Review][High] Регрессия CLS при гидрации: Компонент `Skeletons` для состояния `hydration` не передаёт проп `showMedia="alternate"`. Начальный SSR-рендер происходит без медиа-плейсхолдеров, что вызывает скачок контента после загрузки постов. [src/features/feed/components/FeedContainer.tsx]
+- [ ] [AI-Review][Medium] Сломанный Infinite Scroll для редких категорий: Если при смене категории нет постов, выводится empty state с ручной кнопкой, и `observerRef` (sentinel) не рендерится. Автоматический поиск постов останавливается. Нужно адаптировать логику показа sentinel, чтобы лента могла продолжать поиск. [src/features/feed/components/FeedContainer.tsx]
+
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
