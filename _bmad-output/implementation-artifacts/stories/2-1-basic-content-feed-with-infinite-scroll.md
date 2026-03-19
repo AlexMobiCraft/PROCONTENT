@@ -1,6 +1,6 @@
 # Story 2.1: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -101,6 +101,12 @@ so that быть в курсе новых материалов клуба без
 - [x] [AI-Review][HIGH] CI/Lint падает: apply-migrations*.js используют require() в ES-модуле, eslint запрещает `no-require-imports`. [apply-migrations.js:3]
 - [x] [AI-Review][MEDIUM] Тесты FeedContainer спамят предупреждения об отсутствии act(...), что скрывает реальные ошибки в CI. [tests/unit/features/feed/components/FeedContainer.test.tsx:50]
 - [x] [AI-Review][MEDIUM] UX редких категорий: когда постов категории нет в текущем кэше, пользователь вынужден вручную нажимать «Загрузить ещё», хотя данные доступны серверно. [src/features/feed/components/FeedContainer.tsx:188]
+
+- [ ] [AI-Review][CRITICAL] IntersectionObserver застревает при клиентской фильтрации: если следующая страница не содержит постов выбранной категории, sentinel остаётся в DOM, и бесконечная прокрутка блокируется. [src/features/feed/components/FeedContainer.tsx:199-229]
+- [ ] [AI-Review][HIGH] AuthProvider не подписан на onAuthStateChange — после клиентского refresh Zustand хранит протухший токен и session не обновляется. [src/features/auth/components/AuthProvider.tsx:18-35]
+- [ ] [AI-Review][MEDIUM] Формат даты жёстко зафиксирован в UTC, из-за чего пользователи в других часовых поясах видят неверный день публикации. [src/features/feed/types.ts:35-55]
+- [ ] [AI-Review][MEDIUM] В миграции posts отсутствуют CHECK-ограничения `likes_count >= 0` и `comments_count >= 0`, что позволяет записывать отрицательные значения. [supabase/migrations/007_create_posts_table.sql:7-25]
+- [ ] [AI-Review][LOW] loadMore всегда вызывает `setLoadingMore(false)` даже после отмены AbortController, создавая race-condition при смене категории. [src/features/feed/components/FeedContainer.tsx:104-125]
 
 ## Dev Notes
 
