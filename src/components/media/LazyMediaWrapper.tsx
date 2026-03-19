@@ -70,6 +70,8 @@ export function LazyMediaWrapper({
       {isError && (
         <div
           data-testid="media-error-fallback"
+          role="img"
+          aria-label={alt}
           className="absolute inset-0 flex items-center justify-center text-muted-foreground/40"
         >
           <svg

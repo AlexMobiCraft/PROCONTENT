@@ -2,7 +2,7 @@
 
 ## Статус
 - [ ] Отработка в спринте: Epic 2
-- [ ] Приоритет: Medium
+- [x] Приоритет: Medium
 - [x] Статус: review
 
 ## Контекст
@@ -54,6 +54,13 @@
 - [x] [AI-Review][Medium] Нестабильный Sentinel в `FeedContainer`: Элемент-триггер для бесконечной ленты не имеет физических размеров (нет `className`). Нужно добавить ему минимальные размеры (например, `className="h-px w-full"`), чтобы избежать "схлопывания" и поломки бесконечной подгрузки. [src/features/feed/components/FeedContainer.tsx]
 - [x] [AI-Review][Low] Пропущенные тесты на onError: Обновить мок `next/image` и тесты в `tests/unit/components/media/LazyMediaWrapper.test.tsx`, чтобы покрыть ветку с `onError`. [tests/unit/components/media/LazyMediaWrapper.test.tsx]
 
+### Review Follow-ups (AI) - Iteration 5
+- [x] [AI-Review][High] LCP: `FeedContainer` → `PostCard` не прокидывает `priority`, поэтому даже первый экран медиа грузится лениво и ломает NFR1 (LCP ≤ 2.5c). Нужно передавать `priority` для первых карточек. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][High] Доступность фоллбека: при `onError` `<Image>` исчезает, а SVG помечен `aria-hidden`. Следует обеспечить передачу `alt` через `role="img"/aria-label`, иначе screen reader теряет описание. [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Medium] CLS скелетонов: `PostCardSkeleton` всегда использует `aspect-video`, в то время как реальные фото — `aspect-[4/5]`, из-за чего после загрузки происходит вертикальный скачок. Необходимо синхронизировать пропорции скелетона с типом медиа. [src/components/feed/PostCard.tsx]
+- [x] [AI-Review][Medium] Конфиг image remotePatterns: в dev-режиме пустой `NEXT_PUBLIC_SUPABASE_URL` не вызывает ошибку, `remotePatterns` становится `[]`, и Next/Image молча падает позже. Стоит валидировать переменную и в development. [next.config.ts]
+- [x] [AI-Review][Low] Поведение скелетонов: утилита `Skeletons` жёстко чередует `showMedia` по индексу (`i % 2 === 0`), что затрудняет переиспользование и управление видами скелетона. [src/features/feed/components/FeedContainer.tsx]
+
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
@@ -61,6 +68,8 @@
 - `src/features/feed/components/FeedContainer.tsx` (modify)
 - `next.config.ts` (modify)
 - `tests/unit/components/media/LazyMediaWrapper.test.tsx` (modify)
+- `tests/unit/components/feed/PostCard.test.tsx` (modify)
+- `tests/unit/features/feed/components/FeedContainer.test.tsx` (modify)
 
 ## Dev Notes
 - Использовать стандартный `next/image` для фото.
@@ -106,9 +115,18 @@
 ✅ Resolved [Medium] Sentinel: добавлен `className="h-px w-full"` на feed-sentinel div в FeedContainer — элемент теперь имеет физические размеры, нет риска "схлопывания".
 ✅ Resolved [Low] Тесты onError: мок next/image обновлён (добавлен `onError`); 3 новых теста: animate-pulse снимается при onError (priority), fallback-элемент появляется, lazy-загрузка + onError. 409/409 тестов проходят.
 
+**Iteration 5 Review Follow-ups (5 items) — 2026-03-19:**
+✅ Resolved [High] LCP priority prop: добавлен `priority?: boolean` в PostCardProps; FeedContainer передаёт `priority={index < 2}` для первых двух постов — первый экран грузится без lazy и не ломает NFR1.
+✅ Resolved [High] A11y fallback: добавлены `role="img"` и `aria-label={alt}` на div data-testid="media-error-fallback" — screen reader получает описание при ошибке загрузки.
+✅ Resolved [Medium] CLS скелетонов: PostCardSkeleton получил проп `mediaType?: 'photo' | 'video'`; фото → `aspect-[4/5]`, видео → `aspect-video`; скелетон синхронизирован с реальным контентом.
+✅ Resolved [Medium] next.config.ts: условие изменено с `NODE_ENV === 'production'` на `NODE_ENV !== 'test'` — валидация работает в development, не ломает тестовую среду.
+✅ Resolved [Low] Skeletons рефакторинг: убрана жёсткая логика `i % 2 === 0`; добавлен проп `showMedia?: boolean` (default false) — вызывающий код контролирует отображение медиа-скелетонов.
+416/416 тестов проходят (7 новых).
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
 - 2026-03-19: Review Follow-ups Iteration 1 (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
 - 2026-03-19: Review Follow-ups Iteration 2 (5 items) — LCP fix (no fade-in for priority), aspectRatio photo=4/5/video=16/9, 3 новых теста onLoad, config throw on invalid URL, aria-hidden на SVG Play. 403/403 тестов.
 - 2026-03-19: Review Follow-ups Iteration 3 (6 items) — стабильные тесты (vi.stubGlobal в beforeEach + afterEach unstubAllGlobals), disconnect при пустом registry (утечка памяти), 3 новых теста (unobserve on unmount, disconnect on last unmount, partial unmount), ref={priority ? undefined : ref} явное поведение, aria-hidden="true", sizes как проп с дефолтом для одноколоночной ленты. 406/406 тестов.
 - 2026-03-19: Review Follow-ups Iteration 4 (3 items) — onError handler (fallback SVG, стоп пульсация), sentinel h-px w-full, 3 новых теста onError. 409/409 тестов.
+- 2026-03-19: Review Follow-ups Iteration 5 (5 items) — priority prop в PostCard (LCP для первых 2 карточек), role/aria-label на fallback div (a11y), PostCardSkeleton mediaType prop с aspect-[4/5]/aspect-video (CLS fix), next.config.ts валидация в development (!== 'test'), Skeletons рефакторинг showMedia prop (убрана жёсткая логика i%2===0). 7 новых тестов. 416/416 тестов.

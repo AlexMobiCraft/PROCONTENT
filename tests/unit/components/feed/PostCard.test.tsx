@@ -2,10 +2,46 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/components/media/LazyMediaWrapper', () => ({
-  LazyMediaWrapper: () => <div data-testid="lazy-media" />,
+  LazyMediaWrapper: ({ priority }: { priority?: boolean }) => (
+    <div data-testid="lazy-media" data-priority={String(priority ?? false)} />
+  ),
 }))
 
-import { PostCardSkeleton } from '@/components/feed/PostCard'
+import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
+import type { PostCardData } from '@/components/feed/PostCard'
+
+function makeCardData(overrides?: Partial<PostCardData>): PostCardData {
+  return {
+    id: '1',
+    category: 'insight',
+    title: 'Test post',
+    excerpt: 'Description',
+    date: '01.01.2026',
+    likes: 0,
+    comments: 0,
+    author: { name: 'Автор', initials: 'А' },
+    imageUrl: 'https://example.com/img.jpg',
+    type: 'photo',
+    ...overrides,
+  }
+}
+
+describe('PostCard', () => {
+  it('передаёт priority=true в LazyMediaWrapper если задан (LCP)', () => {
+    render(<PostCard post={makeCardData()} priority />)
+    expect(screen.getByTestId('lazy-media')).toHaveAttribute('data-priority', 'true')
+  })
+
+  it('передаёт priority=false в LazyMediaWrapper по умолчанию', () => {
+    render(<PostCard post={makeCardData()} />)
+    expect(screen.getByTestId('lazy-media')).toHaveAttribute('data-priority', 'false')
+  })
+
+  it('не рендерит LazyMediaWrapper если imageUrl отсутствует', () => {
+    render(<PostCard post={makeCardData({ imageUrl: undefined })} />)
+    expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
+  })
+})
 
 describe('PostCardSkeleton', () => {
   it('по умолчанию не рендерит media placeholder для text-карточек', () => {
@@ -18,5 +54,17 @@ describe('PostCardSkeleton', () => {
     render(<PostCardSkeleton showMedia />)
 
     expect(screen.getByTestId('post-card-skeleton-media')).toBeInTheDocument()
+  })
+
+  it('media placeholder использует aspect-[4/5] для фото по умолчанию (CLS fix)', () => {
+    render(<PostCardSkeleton showMedia />)
+    const media = screen.getByTestId('post-card-skeleton-media')
+    expect(media.className).toContain('aspect-[4/5]')
+  })
+
+  it('media placeholder использует aspect-video для типа video (CLS fix)', () => {
+    render(<PostCardSkeleton showMedia mediaType="video" />)
+    const media = screen.getByTestId('post-card-skeleton-media')
+    expect(media.className).toContain('aspect-video')
   })
 })

@@ -7,9 +7,17 @@ import { fetchPosts } from '../api/posts'
 import { useFeedStore } from '../store'
 import { dbPostToCardData } from '../types'
 
-function Skeletons({ count, context }: { count: number; context: string }) {
+function Skeletons({
+  count,
+  context,
+  showMedia = false,
+}: {
+  count: number
+  context: string
+  showMedia?: boolean
+}) {
   return Array.from({ length: count }).map((_, i) => (
-    <PostCardSkeleton key={`${context}-${i}`} showMedia={i % 2 === 0} />
+    <PostCardSkeleton key={`${context}-${i}`} showMedia={showMedia} />
   ))
 }
 
@@ -276,9 +284,9 @@ export function FeedContainer() {
     <div>
       {/* Список постов (AC #1) */}
       <ul aria-label="Лента публикаций">
-        {displayedPosts.map((post) => (
+        {displayedPosts.map((post, index) => (
           <li key={post.id}>
-            <PostCard post={dbPostToCardData(post, currentUserId)} />
+            <PostCard post={dbPostToCardData(post, currentUserId)} priority={index < 2} />
           </li>
         ))}
       </ul>

@@ -14,12 +14,15 @@ vi.mock('@/features/feed/api/posts', () => ({
 vi.mock('@/components/feed/PostCard', () => ({
   PostCard: ({
     post,
+    priority,
   }: {
     post: { id: string; title: string; author?: { isAuthor?: boolean } }
+    priority?: boolean
   }) => (
     <div
       data-testid={`post-${post.id}`}
       data-is-author={String(post.author?.isAuthor ?? false)}
+      data-priority={String(priority ?? false)}
     >
       {post.title}
     </div>
@@ -121,6 +124,20 @@ describe('FeedContainer', () => {
       expect(screen.getByTestId('post-1')).toBeInTheDocument()
       expect(screen.getByTestId('post-2')).toBeInTheDocument()
     })
+  })
+
+  it('передаёт priority=true первым двум постам, остальным false (LCP)', () => {
+    const posts = [makePost('1'), makePost('2'), makePost('3')]
+    act(() => {
+      useFeedStore.getState().setPosts(posts, null, false)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    render(<FeedContainer />)
+
+    expect(screen.getByTestId('post-1')).toHaveAttribute('data-priority', 'true')
+    expect(screen.getByTestId('post-2')).toHaveAttribute('data-priority', 'true')
+    expect(screen.getByTestId('post-3')).toHaveAttribute('data-priority', 'false')
   })
 
   it('передаёт currentUserId в mapper и показывает isAuthor только для автора', () => {

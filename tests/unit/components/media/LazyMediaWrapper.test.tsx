@@ -266,6 +266,18 @@ describe('LazyMediaWrapper', () => {
     })
   })
 
+  describe('доступность fallback при ошибке (a11y AC 2)', () => {
+    it('error fallback имеет role="img" и aria-label для screen reader', () => {
+      const { container, getByRole } = render(
+        <LazyMediaWrapper src="https://example.com/broken.jpg" alt="Описание медиа" priority />
+      )
+      fireEvent.error(getByRole('img', { name: 'Описание медиа' }))
+      const fallback = container.querySelector('[data-testid="media-error-fallback"]')
+      expect(fallback).toHaveAttribute('role', 'img')
+      expect(fallback).toHaveAttribute('aria-label', 'Описание медиа')
+    })
+  })
+
   describe('onLoad: снятие скелетона и видимость изображения', () => {
     it('убирает animate-pulse после события onLoad (priority=true)', () => {
       const { container, getByRole } = render(

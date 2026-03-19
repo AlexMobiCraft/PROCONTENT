@@ -23,10 +23,11 @@ export interface PostCardData {
 
 interface PostCardProps {
   post: PostCardData
+  priority?: boolean
   onCommentClick?: (postId: string) => void
 }
 
-export function PostCard({ post, onCommentClick }: PostCardProps) {
+export function PostCard({ post, priority = false, onCommentClick }: PostCardProps) {
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(post.likes)
 
@@ -87,6 +88,7 @@ export function PostCard({ post, onCommentClick }: PostCardProps) {
             alt={post.title}
             aspectRatio={post.type === 'video' ? '16/9' : '4/5'}
             type={post.type === 'video' ? 'video' : 'photo'}
+            priority={priority}
           />
         </div>
       )}
@@ -183,7 +185,14 @@ export function PostCard({ post, onCommentClick }: PostCardProps) {
 }
 
 // Skeleton loader for PostCard
-export function PostCardSkeleton({ showMedia = false }: { showMedia?: boolean }) {
+export function PostCardSkeleton({
+  showMedia = false,
+  mediaType = 'photo',
+}: {
+  showMedia?: boolean
+  mediaType?: 'photo' | 'video'
+}) {
+  const mediaAspectClass = mediaType === 'video' ? 'aspect-video' : 'aspect-[4/5]'
   return (
     <div className="border-b border-border bg-background px-4 py-5" aria-hidden>
       <div className="flex items-center gap-3 mb-4">
@@ -194,7 +203,7 @@ export function PostCardSkeleton({ showMedia = false }: { showMedia?: boolean })
         </div>
       </div>
 
-      {showMedia && <div className="mb-4 aspect-video w-full rounded-lg bg-muted animate-pulse" data-testid="post-card-skeleton-media" />}
+      {showMedia && <div className={`mb-4 ${mediaAspectClass} w-full rounded-lg bg-muted animate-pulse`} data-testid="post-card-skeleton-media" />}
 
       <div className="flex flex-col gap-2">
         <div className="h-4 w-3/4 rounded-full bg-muted animate-pulse" />
