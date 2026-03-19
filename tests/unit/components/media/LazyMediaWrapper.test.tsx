@@ -253,7 +253,7 @@ describe('LazyMediaWrapper', () => {
 
       act(() => {
         capturedCallback?.(
-          [{ isIntersecting: true, target: wrapper } as IntersectionObserverEntry],
+          [{ isIntersecting: true, target: wrapper } as unknown as IntersectionObserverEntry],
           {} as IntersectionObserver
         )
       })
@@ -275,6 +275,63 @@ describe('LazyMediaWrapper', () => {
       const fallback = container.querySelector('[data-testid="media-error-fallback"]')
       expect(fallback).toHaveAttribute('role', 'img')
       expect(fallback).toHaveAttribute('aria-label', 'Описание медиа')
+    })
+  })
+
+  describe('сброс состояния при смене src', () => {
+    it('сбрасывает isLoaded при смене src — скелетон появляется снова', () => {
+      const { container, getByRole, rerender } = render(
+        <LazyMediaWrapper src="https://example.com/image1.jpg" alt="Test" priority />
+      )
+      const wrapper = container.firstChild as HTMLElement
+
+      fireEvent.load(getByRole('img', { name: 'Test' }))
+      expect(wrapper.className).not.toContain('animate-pulse')
+
+      rerender(<LazyMediaWrapper src="https://example.com/image2.jpg" alt="Test" priority />)
+
+      expect(wrapper.className).toContain('animate-pulse')
+    })
+
+    it('сбрасывает isError при смене src — fallback исчезает', () => {
+      const { container, getByRole, rerender } = render(
+        <LazyMediaWrapper src="https://example.com/broken.jpg" alt="Test" priority />
+      )
+
+      fireEvent.error(getByRole('img', { name: 'Test' }))
+      expect(container.querySelector('[data-testid="media-error-fallback"]')).toBeTruthy()
+
+      rerender(<LazyMediaWrapper src="https://example.com/good.jpg" alt="Test" priority />)
+
+      expect(container.querySelector('[data-testid="media-error-fallback"]')).toBeNull()
+    })
+  })
+
+  describe('защита от двойного обращения к уничтоженному observer', () => {
+    it('после intersection не вызывает unobserve при анмаунте (observer уже disconnected)', () => {
+      const { container, unmount } = render(
+        <LazyMediaWrapper src="https://example.com/image.jpg" alt="Test" />
+      )
+      const wrapper = container.firstChild as HTMLElement
+
+      // Симулируем попадание в viewport → callback: unobserve + disconnect
+      act(() => {
+        capturedCallback?.(
+          [{ isIntersecting: true, target: wrapper } as unknown as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      })
+
+      expect(unobserveMock).toHaveBeenCalledTimes(1)
+      expect(disconnectMock).toHaveBeenCalledTimes(1)
+      unobserveMock.mockClear()
+      disconnectMock.mockClear()
+
+      // Анмаунт — cleanup НЕ должен вызывать unobserve на уже уничтоженном observer
+      unmount()
+
+      expect(unobserveMock).not.toHaveBeenCalled()
+      expect(disconnectMock).not.toHaveBeenCalled()
     })
   })
 
@@ -315,7 +372,7 @@ describe('LazyMediaWrapper', () => {
       // Симулируем попадание в viewport
       act(() => {
         capturedCallback?.(
-          [{ isIntersecting: true, target: wrapper } as IntersectionObserverEntry],
+          [{ isIntersecting: true, target: wrapper } as unknown as IntersectionObserverEntry],
           {} as IntersectionObserver
         )
       })

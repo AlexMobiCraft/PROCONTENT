@@ -68,8 +68,12 @@ export function useInView(enabled = true): {
 
     return () => {
       registry.delete(el)
-      observer.unobserve(el)
-      // Освобождаем ресурсы когда все подписчики отписались
+      // Защита от обращения к уже уничтоженному инстансу:
+      // если callback уже вызвал disconnect (sharedObserver=null или заменён),
+      // вызывать unobserve на старом инстансе небезопасно.
+      if (sharedObserver === observer) {
+        observer.unobserve(el)
+      }
       if (registry.size === 0 && sharedObserver) {
         sharedObserver.disconnect()
         sharedObserver = null

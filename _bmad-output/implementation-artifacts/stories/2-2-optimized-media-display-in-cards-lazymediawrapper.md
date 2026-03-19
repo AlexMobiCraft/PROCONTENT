@@ -67,6 +67,12 @@
 - [x] [AI-Review][Medium] Слепая зона в тестах: Мок `PostCardSkeleton` не проверяет, передаётся ли проп `showMedia`, что позволило регрессии CLS пройти тесты. [tests/unit/features/feed/components/FeedContainer.test.tsx]
 - [x] [AI-Review][Low] Утечка производительности: Маппер `dbPostToCardData` вызывается инлайн внутри `.map()`, создавая новые ссылки на объекты при каждом рендере. Нужно мемоизировать преобразование. [src/features/feed/components/FeedContainer.tsx]
 
+### Review Follow-ups (AI) - Iteration 7
+- [x] [AI-Review][High] Бесконечная лента зависает на высоких экранах: `IntersectionObserver` в `FeedContainer.tsx` не реагирует на `isLoadingMore`, поэтому после подгрузки новая партия постов может не вытолкнуть sentinel из viewport, и `loadMore` больше не вызовется. Нужно временно отключать/повторно подписывать observer, когда активна подгрузка. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] LazyMediaWrapper не сбрасывает `isLoaded`/`isError` при смене `src`. При повторном использовании с новым URL компонент либо остаётся в состоянии ошибки, либо не показывает скелетон. Требуется эффект, который очищает состояния при смене входных данных. [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Medium] `aspectRatio="auto"` ведёт к невидимому блоку: контейнер получает класс `aspect-auto`, но с `next/image` и `fill` высота схлопывается до 0px. Нужно либо запретить `auto`, либо автоматически переключаться на натянутую обёртку с явной высотой. [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Low] Двойное отключение IntersectionObserver в `useInView.ts`: `disconnect()` вызывается и в колбэке, и в cleanup, что приводит к обращениям к уже уничтоженному инстансу. Следует централизовать освобождение ресурса. [src/hooks/useInView.ts]
+
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
@@ -136,6 +142,13 @@
 ✅ Resolved [Low] Мемоизация маппера: `cardDataList = useMemo(() => displayedPosts.map(dbPostToCardData), [displayedPosts, currentUserId])` — стабильные ссылки, нет лишних рендеров PostCard.
 417/417 тестов проходят (+1 новый).
 
+**Iteration 7 Review Follow-ups (4 items) — 2026-03-19:**
+✅ Resolved [High] Лента зависает на высоких экранах: добавлен `isLoadingMore` в deps и guard `|| isLoadingMore` в IO useEffect — при isLoadingMore=true observer отключается; при false (загрузка завершена) пересоздаётся и немедленно срабатывает если sentinel всё ещё в viewport. Добавлен тест «повторно подписывает observer после завершения loadMore».
+✅ Resolved [Medium] Сброс состояния при смене src: добавлен `useEffect([src])` с `setIsLoaded(false); setIsError(false)` — компонент корректно показывает скелетон и не остаётся в состоянии ошибки при переиспользовании. 2 новых теста (isLoaded reset, isError reset).
+✅ Resolved [Medium] aspectRatio="auto" схлопывает высоту: 'auto' удалён из union-типа `LazyMediaWrapperProps.aspectRatio` — compile-time защита, `aspect-auto` класс больше невозможен.
+✅ Resolved [Low] Двойное обращение к уничтоженному observer: в cleanup `useInView.ts` добавлен гард `if (sharedObserver === observer)` перед `unobserve` — после того как callback вызвал disconnect (sharedObserver=null), cleanup не обращается к старому инстансу. Добавлен тест «после intersection не вызывает unobserve при анмаунте».
+421/421 тестов проходят (+4 новых).
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
 - 2026-03-19: Review Follow-ups Iteration 1 (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
@@ -144,3 +157,4 @@
 - 2026-03-19: Review Follow-ups Iteration 4 (3 items) — onError handler (fallback SVG, стоп пульсация), sentinel h-px w-full, 3 новых теста onError. 409/409 тестов.
 - 2026-03-19: Review Follow-ups Iteration 5 (5 items) — priority prop в PostCard (LCP для первых 2 карточек), role/aria-label на fallback div (a11y), PostCardSkeleton mediaType prop с aspect-[4/5]/aspect-video (CLS fix), next.config.ts валидация в development (!== 'test'), Skeletons рефакторинг showMedia prop (убрана жёсткая логика i%2===0). 7 новых тестов. 416/416 тестов.
 - 2026-03-19: Review Follow-ups Iteration 6 (4 items) — Skeletons alternate showMedia (CLS fix), видео-иконка при isError постера, мок PostCardSkeleton с data-show-media + 1 новый тест, мемоизация cardDataList через useMemo. 417/417 тестов.
+- 2026-03-19: Review Follow-ups Iteration 7 (4 items) — isLoadingMore в deps IO observer (fix лента зависает на высоких экранах) + 1 тест, сброс isLoaded/isError при смене src + 2 теста, удалён 'auto' из типа aspectRatio (схлопывание высоты), гард sharedObserver===observer в cleanup (double-access fix) + 1 тест. 421/421 тестов.

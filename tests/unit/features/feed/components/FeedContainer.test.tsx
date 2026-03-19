@@ -486,6 +486,47 @@ describe('FeedContainer', () => {
     })
   })
 
+  it('повторно подписывает observer на sentinel после завершения loadMore (fix для высоких экранов)', async () => {
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    let resolveLoadMore!: (v: { posts: Post[]; nextCursor: string | null; hasMore: boolean }) => void
+    mockFetchPosts.mockImplementation(
+      () => new Promise((r) => { resolveLoadMore = r })
+    )
+
+    render(<FeedContainer />)
+
+    // Начальная подписка
+    expect(mockObserve).toHaveBeenCalledTimes(1)
+    mockObserve.mockClear()
+
+    // Sentinel во viewport → loadMore запускается → isLoadingMore=true → observer отключается
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    // Пока isLoadingMore=true новый observer не создаётся
+    expect(mockObserve).not.toHaveBeenCalled()
+
+    // loadMore завершается → isLoadingMore=false → observer пересоздаётся
+    await act(async () => {
+      resolveLoadMore({ posts: [makePost('2')], nextCursor: 'cursor-2', hasMore: true })
+    })
+
+    // Observer должен быть пересоздан и подписан на sentinel
+    await waitFor(() => {
+      expect(mockObserve).toHaveBeenCalled()
+    })
+  })
+
   it('сбрасывает isLoadingMore в false после abort loadMore при смене категории', async () => {
     // Настройка: посты загружены, есть cursor для loadMore
     act(() => {

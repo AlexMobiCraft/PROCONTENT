@@ -8,7 +8,7 @@ import { useInView } from '@/hooks/useInView'
 interface LazyMediaWrapperProps {
   src: string
   alt: string
-  aspectRatio?: '16/9' | '4/5' | '1/1' | 'auto'
+  aspectRatio?: '16/9' | '4/5' | '1/1'
   className?: string
   priority?: boolean
   type?: 'photo' | 'video'
@@ -26,8 +26,16 @@ export function LazyMediaWrapper({
   type = 'photo',
   sizes = '(max-width: 640px) 100vw, 600px',
 }: LazyMediaWrapperProps) {
-  const [isLoaded, setIsLoaded] = useState(false)
-  const [isError, setIsError] = useState(false)
+  // loadState привязан к src: при смене src isLoaded/isError автоматически false.
+  // Паттерн "derived state from props" — без useEffect, без лишнего рендера.
+  const [loadState, setLoadState] = useState<{ src: string; loaded: boolean; error: boolean }>({
+    src,
+    loaded: false,
+    error: false,
+  })
+
+  const isLoaded = loadState.loaded && loadState.src === src
+  const isError = loadState.error && loadState.src === src
   // enabled=false когда priority=true: хук не подписывает элемент на observer.
   // ref присваивается только при !priority, чтобы не создавать ложный DOM-attachment.
   const { ref, isInView } = useInView(!priority)
@@ -37,7 +45,6 @@ export function LazyMediaWrapper({
     '16/9': 'aspect-video',
     '4/5': 'aspect-[4/5]',
     '1/1': 'aspect-square',
-    auto: 'aspect-auto',
   }[aspectRatio]
 
   return (
@@ -61,8 +68,8 @@ export function LazyMediaWrapper({
             !priority && 'transition-opacity duration-700 ease-in-out',
             !priority && (isLoaded ? 'opacity-100' : 'opacity-0')
           )}
-          onLoad={() => setIsLoaded(true)}
-          onError={() => setIsError(true)}
+          onLoad={() => setLoadState({ src, loaded: true, error: false })}
+          onError={() => setLoadState({ src, loaded: false, error: true })}
           sizes={sizes}
         />
       )}

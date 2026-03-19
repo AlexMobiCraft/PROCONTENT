@@ -188,10 +188,13 @@ export function FeedContainer() {
   }, [loadInitial, loadMoreWithStallDetection])
 
   // IntersectionObserver для infinite scroll (AC #2).
-  // Пересоздаётся при изменении hasMore, error, isScrollStalled.
+  // Пересоздаётся при изменении hasMore, error, isScrollStalled, isLoadingMore.
+  // При isLoadingMore=true observer отключается: после завершения подгрузки
+  // эффект пересоздаёт observer, который немедленно сработает если sentinel
+  // всё ещё в viewport (fix: бесконечная лента зависает на высоких экранах).
   // При isScrollStalled=true observer не создаётся — используется ручной CTA.
   useEffect(() => {
-    if (!observerRef.current || !hasMore || error || isScrollStalled) return
+    if (!observerRef.current || !hasMore || error || isScrollStalled || isLoadingMore) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -204,7 +207,7 @@ export function FeedContainer() {
 
     observer.observe(observerRef.current)
     return () => observer.disconnect()
-  }, [error, hasMore, isScrollStalled, loadMoreWithStallDetection])
+  }, [error, hasMore, isScrollStalled, isLoadingMore, loadMoreWithStallDetection])
 
   // Клиентская фильтрация по категории (серверная — в Story 2.4).
   // Мемоизация предотвращает лишний .filter() на каждом ре-рендере.
