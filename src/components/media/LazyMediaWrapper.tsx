@@ -12,6 +12,9 @@ interface LazyMediaWrapperProps {
   className?: string
   priority?: boolean
   type?: 'photo' | 'video'
+  /** Значение атрибута sizes для next/image — передаётся вызывающим компонентом
+   *  в зависимости от реального места в сетке. По умолчанию — одноколоночная лента. */
+  sizes?: string
 }
 
 export function LazyMediaWrapper({
@@ -21,8 +24,11 @@ export function LazyMediaWrapper({
   className,
   priority = false,
   type = 'photo',
+  sizes = '(max-width: 640px) 100vw, 600px',
 }: LazyMediaWrapperProps) {
   const [isLoaded, setIsLoaded] = useState(false)
+  // enabled=false когда priority=true: хук не подписывает элемент на observer.
+  // ref присваивается только при !priority, чтобы не создавать ложный DOM-attachment.
   const { ref, isInView } = useInView(!priority)
   const showImage = priority || isInView
 
@@ -35,7 +41,7 @@ export function LazyMediaWrapper({
 
   return (
     <div
-      ref={ref}
+      ref={priority ? undefined : ref}
       className={cn(
         'relative overflow-hidden bg-muted transition-colors duration-500',
         ratioClass,
@@ -55,7 +61,7 @@ export function LazyMediaWrapper({
             !priority && (isLoaded ? 'opacity-100' : 'opacity-0')
           )}
           onLoad={() => setIsLoaded(true)}
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          sizes={sizes}
         />
       )}
 

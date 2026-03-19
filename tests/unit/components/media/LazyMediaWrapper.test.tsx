@@ -1,5 +1,5 @@
 import { render, fireEvent, act } from '@testing-library/react'
-import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { LazyMediaWrapper } from '@/components/media/LazyMediaWrapper'
 import { _resetSharedObserver } from '@/hooks/useInView'
 
@@ -35,15 +35,22 @@ class MockIntersectionObserver {
   disconnect = disconnectMock
 }
 
-vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
-
 beforeEach(() => {
-  // Сбрасываем shared singleton между тестами
+  // Стабим глобал ДО сброса синглтона — чтобы следующий getSharedObserver()
+  // создал экземпляр через наш мок, а не через предыдущий стаб
+  vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
   _resetSharedObserver()
   capturedCallback = undefined
   observeMock.mockClear()
   unobserveMock.mockClear()
   disconnectMock.mockClear()
+})
+
+afterEach(() => {
+  // Восстанавливаем оригинальный глобал после каждого теста
+  vi.unstubAllGlobals()
+  // Сбрасываем синглтон чтобы следующий beforeEach начал чисто
+  _resetSharedObserver()
 })
 
 describe('LazyMediaWrapper', () => {
@@ -66,6 +73,7 @@ describe('LazyMediaWrapper', () => {
     it('создаёт IntersectionObserver с rootMargin 200px', () => {
       let capturedOptions: IntersectionObserverInit | undefined
 
+      // Заменяем стаб локальным классом, захватывающим опции
       vi.stubGlobal(
         'IntersectionObserver',
         class {
@@ -78,14 +86,12 @@ describe('LazyMediaWrapper', () => {
           disconnect = disconnectMock
         }
       )
+      // Сбрасываем синглтон, чтобы новый стаб вступил в силу
+      _resetSharedObserver()
 
       render(<LazyMediaWrapper src="https://example.com/image.jpg" alt="Test" />)
 
       expect(capturedOptions?.rootMargin).toBe('200px')
-
-      // Восстанавливаем оригинальный мок для следующих тестов
-      _resetSharedObserver()
-      vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
     })
 
     it('не рендерит изображение до пересечения viewport', () => {
@@ -107,6 +113,53 @@ describe('LazyMediaWrapper', () => {
       expect(observeMock).toHaveBeenCalledTimes(2)
       expect(observeMock).toHaveBeenCalledWith(c1.firstChild)
       expect(observeMock).toHaveBeenCalledWith(c2.firstChild)
+    })
+  })
+
+  describe('управление ресурсами обсервера', () => {
+    it('вызывает unobserve при анмаунте компонента (enabled=true → cleanup)', () => {
+      const { container, unmount } = render(
+        <LazyMediaWrapper src="https://example.com/image.jpg" alt="Test" />
+      )
+      const wrapper = container.firstChild as HTMLElement
+
+      expect(observeMock).toHaveBeenCalledWith(wrapper)
+
+      unmount()
+
+      expect(unobserveMock).toHaveBeenCalledWith(wrapper)
+    })
+
+    it('вызывает disconnect когда анмаунтится последний наблюдаемый компонент', () => {
+      const { unmount: u1 } = render(
+        <LazyMediaWrapper src="https://example.com/img1.jpg" alt="First" />
+      )
+      const { unmount: u2 } = render(
+        <LazyMediaWrapper src="https://example.com/img2.jpg" alt="Second" />
+      )
+
+      expect(observeMock).toHaveBeenCalledTimes(2)
+
+      // Анмаунт первого — registry ещё не пуст, disconnect не вызывается
+      u1()
+      expect(disconnectMock).not.toHaveBeenCalled()
+
+      // Анмаунт последнего — registry пуст, disconnect освобождает ресурсы
+      u2()
+      expect(disconnectMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('не вызывает disconnect при анмаунте одного из нескольких компонентов', () => {
+      const { unmount: u1 } = render(
+        <LazyMediaWrapper src="https://example.com/img1.jpg" alt="First" />
+      )
+      render(<LazyMediaWrapper src="https://example.com/img2.jpg" alt="Second" />)
+      render(<LazyMediaWrapper src="https://example.com/img3.jpg" alt="Third" />)
+
+      u1()
+
+      expect(disconnectMock).not.toHaveBeenCalled()
+      expect(unobserveMock).toHaveBeenCalledTimes(1)
     })
   })
 

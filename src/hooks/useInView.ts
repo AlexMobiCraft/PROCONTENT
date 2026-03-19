@@ -30,6 +30,14 @@ export function _resetSharedObserver(): void {
   registry.clear()
 }
 
+/**
+ * Подписывает элемент на shared IntersectionObserver и возвращает `isInView`.
+ *
+ * @param enabled — управляет подпиской реактивно: при смене `false→true` элемент
+ *   начинает наблюдаться; при `true→false` — немедленно отписывается через
+ *   cleanup useEffect. Когда `enabled=false`, `ref` не наблюдается, но может
+ *   быть присвоен DOM-узлу — это безопасно и неопасно для производительности.
+ */
 export function useInView(enabled = true): {
   ref: React.RefObject<HTMLDivElement | null>
   isInView: boolean
@@ -48,6 +56,11 @@ export function useInView(enabled = true): {
         setIsInView(true)
         registry.delete(el)
         observer.unobserve(el)
+        // Освобождаем обсервер если больше нет наблюдателей
+        if (registry.size === 0 && sharedObserver) {
+          sharedObserver.disconnect()
+          sharedObserver = null
+        }
       }
     })
 
@@ -56,6 +69,11 @@ export function useInView(enabled = true): {
     return () => {
       registry.delete(el)
       observer.unobserve(el)
+      // Освобождаем ресурсы когда все подписчики отписались
+      if (registry.size === 0 && sharedObserver) {
+        sharedObserver.disconnect()
+        sharedObserver = null
+      }
     }
   }, [enabled])
 

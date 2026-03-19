@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [ ] Приоритет: Medium
-- [x] Статус: in-progress
+- [x] Статус: review
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -40,6 +40,14 @@
 - [x] [AI-Review][Medium] Неполное покрытие тестами: Тесты не симулируют событие `onLoad` и не проверяют снятие скелетона/появление картинки. [tests/unit/components/media/LazyMediaWrapper.test.tsx]
 - [x] [AI-Review][Low] Скрытые ошибки конфигурации: Ошибки парсинга URL проглатываются, оставляя remotePatterns пустым, что приведёт к silent фейлам. Нужно падать с понятной ошибкой на этапе билда, если нет корректного URL. [next.config.ts]
 - [x] [AI-Review][Low] Accessibility: SVG иконка "Play" для видео не имеет атрибута aria-hidden="true". [src/components/media/LazyMediaWrapper.tsx]
+
+### Review Follow-ups (AI) - Iteration 3
+- [x] [AI-Review][High] Ошибка типизации/мока в тестах: В `tests/unit/components/media/LazyMediaWrapper.test.tsx` замокан `IntersectionObserver`, но `useInView` использует кастомный `getSharedObserver`, который кеширует инстанс обсервера. Из-за этого тесты могут быть flaky (хрупкими) при параллельном запуске или в другом окружении. [tests/unit/components/media/LazyMediaWrapper.test.tsx]
+- [x] [AI-Review][Medium] Утечка памяти в `useInView`: Массив коллбэков `registry` очищается при анмаунте компонента (`registry.delete(el)`), но `sharedObserver` никогда не делает `disconnect()`, даже когда `registry` становится пустым. Это означает, что обсервер будет "висеть" в памяти навсегда. [src/hooks/useInView.ts]
+- [x] [AI-Review][Medium] Отсутствие отписки обсервера: `sharedObserver.unobserve(el)` вызывается только в `useEffect` cleanup, но не вызывается, если компонент просто скрывается/отрисовывается с `enabled=false`. Нужно убедиться, что `enabled` реактивно обновляет состояние подписки. [src/hooks/useInView.ts]
+- [x] [AI-Review][Medium] Несоответствие типов: `useInView` возвращает `isInView: boolean`, но в `LazyMediaWrapper` мы делаем `const showImage = priority || isInView`. Если `priority=true`, `isInView` останется `false`, а `ref` будет создан, но обсервер не будет слушать `el` (так как `!priority` = `false`). Однако `ref` все равно присваивался в div. Исправлено: `ref={priority ? undefined : ref}` — явное поведение. [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Low] Accessibility: Элемент `aria-hidden` data-testid="feed-sentinel" в `FeedContainer.tsx` имеет `aria-hidden` без указания `true` или `false`. Стоит писать `aria-hidden="true"`. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Low] Hardcoded sizes в Next/Image: `sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"` в `LazyMediaWrapper.tsx`. Карточки постов могут занимать разную ширину в зависимости от сетки. [src/components/media/LazyMediaWrapper.tsx]
 
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
@@ -79,7 +87,17 @@
 ✅ Resolved [Low] Config: next.config.ts бросает Error с понятным сообщением при невалидном NEXT_PUBLIC_SUPABASE_URL; в production — ошибка при отсутствии переменной.
 ✅ Resolved [Low] A11y: SVG Play-иконка получила aria-hidden="true". 403/403 тестов проходят.
 
+**Iteration 3 Review Follow-ups (6 items) — 2026-03-19:**
+✅ Resolved [High] Flaky тесты: vi.stubGlobal перенесён в beforeEach, добавлен afterEach с vi.unstubAllGlobals() + _resetSharedObserver(). Каждый тест получает изолированный мок IO. Rootmargin-тест упрощён — ручной restore удалён.
+✅ Resolved [Medium] Утечка памяти useInView: добавлен disconnect() + sharedObserver=null в cleanup и в onIntersect-callback когда registry.size===0. Обсервер освобождается при отсутствии подписчиков.
+✅ Resolved [Medium] Отписка enabled: задокументировано через JSDoc, добавлены 3 теста (unobserve on unmount, disconnect on last unmount, no disconnect on partial unmount). Поведение подтверждено тестами — enabled реактивно управляет подпиской через useEffect([enabled]).
+✅ Resolved [Medium] Несоответствие ref: LazyMediaWrapper изменён на `ref={priority ? undefined : ref}` — явное поведение, priority-элементы не получают ref.
+✅ Resolved [Low] A11y: aria-hidden="true" явно в FeedContainer sentinel div.
+✅ Resolved [Low] Hardcoded sizes: sizes вынесен в проп LazyMediaWrapperProps с дефолтом '(max-width: 640px) 100vw, 600px' (одноколоночная лента); вызывающий компонент может переопределить.
+406/406 тестов проходят (17 в LazyMediaWrapper, 33 файла).
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
 - 2026-03-19: Review Follow-ups Iteration 1 (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
 - 2026-03-19: Review Follow-ups Iteration 2 (5 items) — LCP fix (no fade-in for priority), aspectRatio photo=4/5/video=16/9, 3 новых теста onLoad, config throw on invalid URL, aria-hidden на SVG Play. 403/403 тестов.
+- 2026-03-19: Review Follow-ups Iteration 3 (6 items) — стабильные тесты (vi.stubGlobal в beforeEach + afterEach unstubAllGlobals), disconnect при пустом registry (утечка памяти), 3 новых теста (unobserve on unmount, disconnect on last unmount, partial unmount), ref={priority ? undefined : ref} явное поведение, aria-hidden="true", sizes как проп с дефолтом для одноколоночной ленты. 406/406 тестов.
