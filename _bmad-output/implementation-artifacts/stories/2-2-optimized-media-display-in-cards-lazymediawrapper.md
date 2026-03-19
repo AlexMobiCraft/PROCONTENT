@@ -27,11 +27,20 @@
     - [x] Написать unit-тест для `LazyMediaWrapper` (проверка вызова `observe`).
     - [x] Визуальная проверка CLS (Cumulative Layout Shift) в Lighthouse/DevTools.
 
+### Review Follow-ups (AI)
+- [x] [AI-Review][High] Утечка производительности: Использовать один разделяемый IntersectionObserver для всех медиа (например, `react-intersection-observer` или кастомный хук) [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Medium] Привязка к окружению: Заменить жесткий хост `esbutggkvetajkuvrjcb.supabase.co` в `next.config.ts` на переменную окружения `SUPABASE_URL` или аналогичную [next.config.ts]
+- [x] [AI-Review][Medium] Layout Shift при загрузке: Добавить поддержку отображения скелетона с медиа по умолчанию при загрузке ленты, чтобы не было прыжков высоты [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] Принудительное обрезание фотографий: Адаптировать `aspectRatio` в `PostCard.tsx` так, чтобы изображения не обрезались слишком агрессивно, возможно использование оригинальных пропорций [src/components/feed/PostCard.tsx]
+- [x] [AI-Review][Low] Хрупкие моки: Улучшить мок `IntersectionObserver` в тестах, чтобы он не ломался при рендере нескольких медиа элементов [tests/unit/components/media/LazyMediaWrapper.test.tsx]
+
 ## File List
-- `src/components/media/LazyMediaWrapper.tsx` (new)
+- `src/components/media/LazyMediaWrapper.tsx` (modify)
+- `src/hooks/useInView.ts` (new)
 - `src/components/feed/PostCard.tsx` (modify)
+- `src/features/feed/components/FeedContainer.tsx` (modify)
 - `next.config.ts` (modify)
-- `tests/unit/components/media/LazyMediaWrapper.test.tsx` (new)
+- `tests/unit/components/media/LazyMediaWrapper.test.tsx` (modify)
 
 ## Dev Notes
 - Использовать стандартный `next/image` для фото.
@@ -50,5 +59,12 @@
 ### Completion Notes
 ✅ Story 2.2 полностью завершена. Все AC выполнены: lazy loading через IntersectionObserver (200px margin), placeholder animate-pulse с aspect-ratio, next/image для оптимизации WebP/AVIF, video poster через imageUrl.
 
+✅ Resolved review finding [High]: Создан `src/hooks/useInView.ts` — shared IntersectionObserver через модульный singleton + Map-registry. LazyMediaWrapper переработан на хук, устранено N экземпляров IO.
+✅ Resolved review finding [Medium]: `next.config.ts` — hostname извлекается из `NEXT_PUBLIC_SUPABASE_URL` через `new URL()`, жёсткий хост удалён.
+✅ Resolved review finding [Medium]: `FeedContainer.tsx` — скелетоны теперь чередуют `showMedia={true/false}` для предотвращения height jump при начальной загрузке ленты.
+✅ Resolved review finding [Medium]: `PostCard.tsx` — `aspectRatio` для фото изменён с `4/5` на `16/9` (менее агрессивное кадрирование).
+✅ Resolved review finding [Low]: тесты `LazyMediaWrapper.test.tsx` — мок IO переработан: один `capturedCallback`, `_resetSharedObserver()` в `beforeEach`, добавлен тест на N экземпляров через shared observer. 400/400 тестов проходят.
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
+- 2026-03-19: Review Follow-ups (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.

@@ -9,7 +9,7 @@ import { dbPostToCardData } from '../types'
 
 function Skeletons({ count, context }: { count: number; context: string }) {
   return Array.from({ length: count }).map((_, i) => (
-    <PostCardSkeleton key={`${context}-${i}`} />
+    <PostCardSkeleton key={`${context}-${i}`} showMedia={i % 2 === 0} />
   ))
 }
 

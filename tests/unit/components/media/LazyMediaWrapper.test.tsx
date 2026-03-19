@@ -1,36 +1,48 @@
 import { render } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { LazyMediaWrapper } from '@/components/media/LazyMediaWrapper'
+import { _resetSharedObserver } from '@/hooks/useInView'
 
 vi.mock('next/image', () => ({
-  default: ({ alt, className, onLoad }: { alt?: string; className?: string; onLoad?: () => void }) => (
+  default: ({
+    alt,
+    className,
+    onLoad,
+  }: {
+    alt?: string
+    className?: string
+    onLoad?: () => void
+  }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img alt={alt ?? ''} className={className} onLoad={onLoad} />
   ),
 }))
 
 const observeMock = vi.fn()
+const unobserveMock = vi.fn()
 const disconnectMock = vi.fn()
 
-class MockIntersectionObserver {
-  callback: IntersectionObserverCallback
+// Один разделяемый callback — имитирует shared IntersectionObserver из useInView.ts
+let capturedCallback: IntersectionObserverCallback | undefined
 
+class MockIntersectionObserver {
   constructor(callback: IntersectionObserverCallback) {
-    this.callback = callback
-    MockIntersectionObserver.lastInstance = this
+    capturedCallback = callback
   }
 
   observe = observeMock
-  unobserve = vi.fn()
+  unobserve = unobserveMock
   disconnect = disconnectMock
-
-  static lastInstance: MockIntersectionObserver
 }
 
 vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
 
 beforeEach(() => {
+  // Сбрасываем shared singleton между тестами
+  _resetSharedObserver()
+  capturedCallback = undefined
   observeMock.mockClear()
+  unobserveMock.mockClear()
   disconnectMock.mockClear()
 })
 
@@ -47,23 +59,23 @@ describe('LazyMediaWrapper', () => {
     })
 
     it('не вызывает observe при priority=true', () => {
-      render(
-        <LazyMediaWrapper src="https://example.com/image.jpg" alt="Test" priority />
-      )
+      render(<LazyMediaWrapper src="https://example.com/image.jpg" alt="Test" priority />)
       expect(observeMock).not.toHaveBeenCalled()
     })
 
     it('создаёт IntersectionObserver с rootMargin 200px', () => {
-      const OriginalIO = IntersectionObserver
       let capturedOptions: IntersectionObserverInit | undefined
 
       vi.stubGlobal(
         'IntersectionObserver',
-        class extends MockIntersectionObserver {
+        class {
           constructor(cb: IntersectionObserverCallback, opts?: IntersectionObserverInit) {
-            super(cb)
+            capturedCallback = cb
             capturedOptions = opts
           }
+          observe = observeMock
+          unobserve = unobserveMock
+          disconnect = disconnectMock
         }
       )
 
@@ -71,7 +83,9 @@ describe('LazyMediaWrapper', () => {
 
       expect(capturedOptions?.rootMargin).toBe('200px')
 
-      vi.stubGlobal('IntersectionObserver', OriginalIO)
+      // Восстанавливаем оригинальный мок для следующих тестов
+      _resetSharedObserver()
+      vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
     })
 
     it('не рендерит изображение до пересечения viewport', () => {
@@ -79,6 +93,20 @@ describe('LazyMediaWrapper', () => {
         <LazyMediaWrapper src="https://example.com/image.jpg" alt="Lazy image" />
       )
       expect(queryByRole('img')).toBeNull()
+    })
+
+    it('корректно обрабатывает несколько экземпляров через один shared observer', () => {
+      const { container: c1 } = render(
+        <LazyMediaWrapper src="https://example.com/img1.jpg" alt="First" />
+      )
+      const { container: c2 } = render(
+        <LazyMediaWrapper src="https://example.com/img2.jpg" alt="Second" />
+      )
+
+      // Оба элемента зарегистрированы через один и тот же IO
+      expect(observeMock).toHaveBeenCalledTimes(2)
+      expect(observeMock).toHaveBeenCalledWith(c1.firstChild)
+      expect(observeMock).toHaveBeenCalledWith(c2.firstChild)
     })
   })
 

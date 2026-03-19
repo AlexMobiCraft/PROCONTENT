@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState } from 'react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
+import { useInView } from '@/hooks/useInView'
 
 interface LazyMediaWrapperProps {
   src: string
@@ -19,43 +20,22 @@ export function LazyMediaWrapper({
   aspectRatio = '16/9',
   className,
   priority = false,
-  type = 'photo'
+  type = 'photo',
 }: LazyMediaWrapperProps) {
   const [isLoaded, setIsLoaded] = useState(false)
-  const [isInView, setIsInView] = useState(priority)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    // Если приоритет — сразу загружаем
-    if (priority) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsInView(true)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: '200px' } // Начинаем загрузку за 200px до появления
-    )
-
-    if (containerRef.current) {
-      observer.observe(containerRef.current)
-    }
-
-    return () => observer.disconnect()
-  }, [priority])
+  const { ref, isInView } = useInView(!priority)
+  const showImage = priority || isInView
 
   const ratioClass = {
     '16/9': 'aspect-video',
     '4/5': 'aspect-[4/5]',
     '1/1': 'aspect-square',
-    'auto': 'aspect-auto'
+    auto: 'aspect-auto',
   }[aspectRatio]
 
   return (
     <div
-      ref={containerRef}
+      ref={ref}
       className={cn(
         'relative overflow-hidden bg-muted transition-colors duration-500',
         ratioClass,
@@ -63,7 +43,7 @@ export function LazyMediaWrapper({
         className
       )}
     >
-      {isInView && (
+      {showImage && (
         <Image
           src={src}
           alt={alt}
@@ -77,7 +57,7 @@ export function LazyMediaWrapper({
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
       )}
-      
+
       {/* Мягкий индикатор типа контента (опционально) */}
       {type === 'video' && isLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
