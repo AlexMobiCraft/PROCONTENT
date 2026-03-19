@@ -34,6 +34,7 @@ export function FeedContainer() {
   const isLoadingMore = useFeedStore((s) => s.isLoadingMore)
   const error = useFeedStore((s) => s.error)
   const activeCategory = useFeedStore((s) => s.activeCategory)
+  const isAuthReady = useAuthStore((state) => state.isReady)
   const currentUserId = useAuthStore((state) => state.user?.id ?? null)
 
   const observerRef = useRef<HTMLDivElement>(null)
@@ -157,6 +158,16 @@ export function FeedContainer() {
     () => (activeCategory === 'all' ? posts : posts.filter((p) => p.category === activeCategory)),
     [posts, activeCategory]
   )
+
+  // Защита гидрации: ждём пока AuthProvider инициализирует store
+  // Это предотвращает неправильное вычисление isAuthor до появления currentUserId
+  if (!isAuthReady) {
+    return (
+      <div role="status" aria-label="Загрузка приложения">
+        <Skeletons count={5} context="hydration" />
+      </div>
+    )
+  }
 
   // Состояние начальной загрузки — скелетоны (AC #3)
   if (isLoading) {

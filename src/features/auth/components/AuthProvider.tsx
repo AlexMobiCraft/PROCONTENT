@@ -16,11 +16,22 @@ interface AuthProviderProps {
 // что корректно с React StrictMode/concurrent mode и не вызывает SSR-утечек.
 export function AuthProvider({ user, session, children }: AuthProviderProps) {
   useEffect(() => {
-    const currentUser = useAuthStore.getState().user
+    const state = useAuthStore.getState()
+    const currentUser = state.user
+    const currentSession = state.session
+
+    // Обновляем user если изменился user.id или если user стал null
     if (!currentUser || currentUser.id !== user.id) {
-      useAuthStore.getState().setUser(user)
-      useAuthStore.getState().setSession(session)
+      state.setUser(user)
     }
+
+    // Обновляем session независимо — может обновиться без изменения user.id (token refresh)
+    if (currentSession?.access_token !== session?.access_token) {
+      state.setSession(session)
+    }
+
+    // Сигнализируем что hydration завершена
+    state.setReady(true)
   }, [user, session])
 
   return <>{children}</>

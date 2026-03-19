@@ -77,6 +77,7 @@ describe('FeedContainer', () => {
     vi.clearAllMocks()
     useFeedStore.getState().reset()
     useAuthStore.getState().clearAuth()
+    useAuthStore.getState().setReady(true) // Hydration завершена в тестах
     latestObserverCallback = null
   })
 
@@ -123,9 +124,11 @@ describe('FeedContainer', () => {
   })
 
   it('передаёт currentUserId в mapper и показывает isAuthor только для автора', () => {
-    useAuthStore.getState().setUser({ id: 'user-1' } as never)
-    useFeedStore.getState().setPosts([makePost('1')], null, false)
-    useFeedStore.getState().setLoading(false)
+    act(() => {
+      useAuthStore.getState().setUser({ id: 'user-1' } as never)
+      useFeedStore.getState().setPosts([makePost('1')], null, false)
+      useFeedStore.getState().setLoading(false)
+    })
 
     render(<FeedContainer />)
 
@@ -152,8 +155,10 @@ describe('FeedContainer', () => {
   it('восстанавливает из кэша без повторного запроса (AC #6)', async () => {
     // Предзагружаем store
     const posts = [makePost('1')]
-    useFeedStore.getState().setPosts(posts, 'cursor', true)
-    useFeedStore.getState().setLoading(false)
+    act(() => {
+      useFeedStore.getState().setPosts(posts, 'cursor', true)
+      useFeedStore.getState().setLoading(false)
+    })
 
     render(<FeedContainer />)
 
@@ -164,9 +169,11 @@ describe('FeedContainer', () => {
 
   it('фильтрует посты по activeCategory на клиенте', async () => {
     const posts = [makePost('1', 'insight'), makePost('2', 'reels')]
-    useFeedStore.getState().setPosts(posts, null, false)
-    useFeedStore.getState().setLoading(false)
-    useFeedStore.getState().setActiveCategory('reels')
+    act(() => {
+      useFeedStore.getState().setPosts(posts, null, false)
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('reels')
+    })
 
     render(<FeedContainer />)
 
@@ -176,9 +183,11 @@ describe('FeedContainer', () => {
 
   it('не показывает sentinel при пустой отфильтрованной категории (fix infinite loop)', async () => {
     const posts = [makePost('1', 'insight')]
-    useFeedStore.getState().setPosts(posts, null, false)
-    useFeedStore.getState().setLoading(false)
-    useFeedStore.getState().setActiveCategory('reels') // нет постов в этой категории
+    act(() => {
+      useFeedStore.getState().setPosts(posts, null, false)
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('reels') // нет постов в этой категории
+    })
 
     render(<FeedContainer />)
 
@@ -191,9 +200,11 @@ describe('FeedContainer', () => {
 
   it('показывает кнопку "Загрузить ещё" для редкой пустой категории, если страницы ещё остались', () => {
     const posts = [makePost('1', 'insight')]
-    useFeedStore.getState().setPosts(posts, 'cursor', true)
-    useFeedStore.getState().setLoading(false)
-    useFeedStore.getState().setActiveCategory('reels')
+    act(() => {
+      useFeedStore.getState().setPosts(posts, 'cursor', true)
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('reels')
+    })
 
     render(<FeedContainer />)
 
@@ -202,8 +213,10 @@ describe('FeedContainer', () => {
 
   it('подключает IntersectionObserver когда есть посты и hasMore', async () => {
     const posts = [makePost('1')]
-    useFeedStore.getState().setPosts(posts, 'cursor', true)
-    useFeedStore.getState().setLoading(false)
+    act(() => {
+      useFeedStore.getState().setPosts(posts, 'cursor', true)
+      useFeedStore.getState().setLoading(false)
+    })
 
     render(<FeedContainer />)
 
@@ -232,10 +245,12 @@ describe('FeedContainer', () => {
 
   it('при ошибке loadMore скрывает sentinel и даёт retry-кнопку', async () => {
     const user = userEvent.setup()
-    useFeedStore
-      .getState()
-      .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
-    useFeedStore.getState().setLoading(false)
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+      useFeedStore.getState().setLoading(false)
+    })
     mockFetchPosts
       .mockRejectedValueOnce(new Error('network'))
       .mockResolvedValueOnce({ posts: [makePost('2')], nextCursor: null, hasMore: false })
@@ -265,10 +280,12 @@ describe('FeedContainer', () => {
   })
 
   it('loadMore передаёт AbortSignal в fetchPosts', async () => {
-    useFeedStore
-      .getState()
-      .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
-    useFeedStore.getState().setLoading(false)
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+      useFeedStore.getState().setLoading(false)
+    })
     mockFetchPosts.mockResolvedValue({ posts: [makePost('2')], nextCursor: null, hasMore: false })
 
     render(<FeedContainer />)
@@ -289,10 +306,12 @@ describe('FeedContainer', () => {
   })
 
   it('loadMore не добавляет stale данные при смене категории во время запроса', async () => {
-    useFeedStore
-      .getState()
-      .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
-    useFeedStore.getState().setLoading(false)
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+      useFeedStore.getState().setLoading(false)
+    })
 
     const loadMoreCalls: {
       resolve: (v: { posts: Post[]; nextCursor: string | null; hasMore: boolean }) => void
