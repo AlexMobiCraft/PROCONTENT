@@ -85,7 +85,7 @@ export function PostCard({ post, onCommentClick }: PostCardProps) {
           <LazyMediaWrapper
             src={post.imageUrl}
             alt={post.title}
-            aspectRatio="16/9"
+            aspectRatio={post.type === 'video' ? '16/9' : '4/5'}
             type={post.type === 'video' ? 'video' : 'photo'}
           />
         </div>

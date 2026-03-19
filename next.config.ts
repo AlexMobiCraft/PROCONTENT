@@ -1,11 +1,22 @@
 import type { NextConfig } from 'next'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+if (!supabaseUrl && process.env.NODE_ENV === 'production') {
+  throw new Error(
+    '[next.config.ts] NEXT_PUBLIC_SUPABASE_URL обязателен для production-сборки'
+  )
+}
+
 let supabaseHostname = ''
-try {
-  supabaseHostname = supabaseUrl ? new URL(supabaseUrl).hostname : ''
-} catch {
-  // невалидный URL — hostname остаётся пустым
+if (supabaseUrl) {
+  try {
+    supabaseHostname = new URL(supabaseUrl).hostname
+  } catch {
+    throw new Error(
+      `[next.config.ts] NEXT_PUBLIC_SUPABASE_URL не является валидным URL: "${supabaseUrl}"`
+    )
+  }
 }
 
 const nextConfig: NextConfig = {

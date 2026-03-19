@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [ ] Приоритет: Medium
-- [x] Статус: review
+- [x] Статус: in-progress
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -33,6 +33,13 @@
 - [x] [AI-Review][Medium] Layout Shift при загрузке: Добавить поддержку отображения скелетона с медиа по умолчанию при загрузке ленты, чтобы не было прыжков высоты [src/features/feed/components/FeedContainer.tsx]
 - [x] [AI-Review][Medium] Принудительное обрезание фотографий: Адаптировать `aspectRatio` в `PostCard.tsx` так, чтобы изображения не обрезались слишком агрессивно, возможно использование оригинальных пропорций [src/components/feed/PostCard.tsx]
 - [x] [AI-Review][Low] Хрупкие моки: Улучшить мок `IntersectionObserver` в тестах, чтобы он не ломался при рендере нескольких медиа элементов [tests/unit/components/media/LazyMediaWrapper.test.tsx]
+
+### Review Follow-ups (AI) - Iteration 2
+- [x] [AI-Review][High] LCP Performance Degradation: priority изображения всё равно используют opacity-0 и fade-in, задерживая отрисовку критичных элементов. Убрать анимацию и opacity-0 для priority=true. [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Medium] Агрессивное кадрирование фото: Жёсткий aspectRatio="16/9" для всех медиа в PostCard обрезает вертикальные фото. Использовать разные пропорции в зависимости от типа/исходников или 'auto'. [src/components/feed/PostCard.tsx]
+- [x] [AI-Review][Medium] Неполное покрытие тестами: Тесты не симулируют событие `onLoad` и не проверяют снятие скелетона/появление картинки. [tests/unit/components/media/LazyMediaWrapper.test.tsx]
+- [x] [AI-Review][Low] Скрытые ошибки конфигурации: Ошибки парсинга URL проглатываются, оставляя remotePatterns пустым, что приведёт к silent фейлам. Нужно падать с понятной ошибкой на этапе билда, если нет корректного URL. [next.config.ts]
+- [x] [AI-Review][Low] Accessibility: SVG иконка "Play" для видео не имеет атрибута aria-hidden="true". [src/components/media/LazyMediaWrapper.tsx]
 
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
@@ -65,6 +72,14 @@
 ✅ Resolved review finding [Medium]: `PostCard.tsx` — `aspectRatio` для фото изменён с `4/5` на `16/9` (менее агрессивное кадрирование).
 ✅ Resolved review finding [Low]: тесты `LazyMediaWrapper.test.tsx` — мок IO переработан: один `capturedCallback`, `_resetSharedObserver()` в `beforeEach`, добавлен тест на N экземпляров через shared observer. 400/400 тестов проходят.
 
+**Iteration 2 Review Follow-ups (5 items) — 2026-03-19:**
+✅ Resolved [High] LCP: убрана анимация opacity-0/fade-in для priority=true в LazyMediaWrapper; priority-изображения отображаются мгновенно без transition.
+✅ Resolved [Medium] Кадрирование: PostCard теперь использует `aspectRatio="4/5"` для фото и `aspectRatio="16/9"` для видео — вертикальные фото не обрезаются агрессивно.
+✅ Resolved [Medium] Тесты: добавлены 3 новых теста (onLoad снимает animate-pulse, priority=true без opacity-0, intersection+onLoad → opacity-100). Итого 14 тестов в файле.
+✅ Resolved [Low] Config: next.config.ts бросает Error с понятным сообщением при невалидном NEXT_PUBLIC_SUPABASE_URL; в production — ошибка при отсутствии переменной.
+✅ Resolved [Low] A11y: SVG Play-иконка получила aria-hidden="true". 403/403 тестов проходят.
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
-- 2026-03-19: Review Follow-ups (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
+- 2026-03-19: Review Follow-ups Iteration 1 (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
+- 2026-03-19: Review Follow-ups Iteration 2 (5 items) — LCP fix (no fade-in for priority), aspectRatio photo=4/5/video=16/9, 3 новых теста onLoad, config throw on invalid URL, aria-hidden на SVG Play. 403/403 тестов.

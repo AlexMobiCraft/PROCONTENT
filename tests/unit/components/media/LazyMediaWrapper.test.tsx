@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, fireEvent, act } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { LazyMediaWrapper } from '@/components/media/LazyMediaWrapper'
 import { _resetSharedObserver } from '@/hooks/useInView'
@@ -163,6 +163,62 @@ describe('LazyMediaWrapper', () => {
       // SVG с иконкой play появляется только после onLoad — до загрузки его нет
       const playIcon = container.querySelector('svg path[d="M8 5v14l11-7z"]')
       expect(playIcon).toBeNull()
+    })
+  })
+
+  describe('onLoad: снятие скелетона и видимость изображения', () => {
+    it('убирает animate-pulse после события onLoad (priority=true)', () => {
+      const { container, getByRole } = render(
+        <LazyMediaWrapper src="https://example.com/image.jpg" alt="Test" priority />
+      )
+      const wrapper = container.firstChild as HTMLElement
+
+      // До загрузки — скелетон активен
+      expect(wrapper.className).toContain('animate-pulse')
+
+      // Симулируем загрузку изображения
+      fireEvent.load(getByRole('img', { name: 'Test' }))
+
+      // После загрузки — скелетон снят
+      expect(wrapper.className).not.toContain('animate-pulse')
+    })
+
+    it('не применяет opacity-0 на изображении при priority=true (LCP)', () => {
+      const { getByRole } = render(
+        <LazyMediaWrapper src="https://example.com/image.jpg" alt="Priority" priority />
+      )
+      const img = getByRole('img', { name: 'Priority' })
+      expect(img.className).not.toContain('opacity-0')
+    })
+
+    it('показывает изображение (opacity-100) после intersection и onLoad (priority=false)', () => {
+      const { container, getByRole, queryByRole } = render(
+        <LazyMediaWrapper src="https://example.com/image.jpg" alt="Lazy" />
+      )
+      const wrapper = container.firstChild as HTMLElement
+
+      // До intersection — изображения нет
+      expect(queryByRole('img')).toBeNull()
+
+      // Симулируем попадание в viewport
+      act(() => {
+        capturedCallback?.(
+          [{ isIntersecting: true, target: wrapper } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      })
+
+      // Изображение появилось в DOM с opacity-0 (до onLoad)
+      const img = getByRole('img', { name: 'Lazy' })
+      expect(img.className).toContain('opacity-0')
+
+      // Симулируем завершение загрузки
+      fireEvent.load(img)
+
+      // Скелетон снят, opacity-100
+      expect(wrapper.className).not.toContain('animate-pulse')
+      expect(img.className).toContain('opacity-100')
+      expect(img.className).not.toContain('opacity-0')
     })
   })
 })
