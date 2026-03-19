@@ -32,12 +32,11 @@ export function dbPostToCardData(
     .slice(0, 2)
     .toUpperCase()
 
-  // timeZone: 'UTC' обеспечивает идентичный вывод на сервере и клиенте,
-  // устраняя риск гидратации при несоответствии часовых поясов Node.js/браузера
+  // Используем браузерный часовой пояс — дата отображается в локальном времени пользователя.
+  // FeedContainer — 'use client', рендер только на клиенте, гидратация не затронута.
   const date = new Date(post.created_at).toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
-    timeZone: 'UTC',
   })
 
   return {

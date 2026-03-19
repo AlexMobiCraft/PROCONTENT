@@ -356,6 +356,144 @@ describe('FeedContainer', () => {
     expect(useFeedStore.getState().posts.find((p) => p.id === 'stale')).toBeUndefined()
   })
 
+  it('заменяет sentinel на CTA когда loadMore не добавил видимых постов для текущей категории', async () => {
+    // Настройка: есть 1 пост категории 'razobory' (displayedPosts.length > 0)
+    const razboroyPost = makePost('1', 'razobory')
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts(
+          [razboroyPost],
+          '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000',
+          true
+        )
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('razobory')
+    })
+
+    // loadMore вернёт только 'insight' посты — ни один не 'razobory'
+    mockFetchPosts.mockResolvedValue({
+      posts: [makePost('2', 'insight'), makePost('3', 'insight')],
+      nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      hasMore: true,
+    })
+
+    render(<FeedContainer />)
+
+    // sentinel видим — есть razobory пост, hasMore=true
+    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+
+    // Триггерим loadMore через observer
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    // После загрузки: видимые посты не добавились — sentinel заменяется на CTA
+    await waitFor(() => {
+      expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
+    })
+
+    // Razobory пост остаётся видимым
+    expect(screen.getByTestId('post-1')).toBeInTheDocument()
+  })
+
+  it('сбрасывает stall и возобновляет sentinel когда loadMore добавил видимые посты', async () => {
+    const razboroyPost1 = makePost('1', 'razobory')
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts(
+          [razboroyPost1],
+          '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000',
+          true
+        )
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('razobory')
+    })
+
+    // Первый вызов: только insight (stall)
+    // Второй вызов: добавляет razobory пост (stall сбрасывается)
+    mockFetchPosts
+      .mockResolvedValueOnce({
+        posts: [makePost('2', 'insight')],
+        nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        hasMore: true,
+      })
+      .mockResolvedValueOnce({
+        posts: [makePost('3', 'razobory')],
+        nextCursor: null,
+        hasMore: false,
+      })
+
+    render(<FeedContainer />)
+
+    // Первый observer trigger → stall
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
+    })
+
+    // Нажимаем CTA → loadMore снова → добавляет razobory пост → stall сброшен
+    const user = (await import('@testing-library/user-event')).default.setup()
+    await user.click(screen.getByRole('button', { name: 'Загрузить ещё' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('post-3')).toBeInTheDocument()
+    })
+  })
+
+  it('сбрасывает isLoadingMore в false после abort loadMore при смене категории', async () => {
+    // Настройка: посты загружены, есть cursor для loadMore
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts([makePost('1')], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    // loadMore виснет (pending promise)
+    let resolveLoadMore!: (v: { posts: typeof makePost extends (id: string) => infer R ? R[] : never; nextCursor: string | null; hasMore: boolean }) => void
+    mockFetchPosts.mockImplementation(() => new Promise((resolve) => { resolveLoadMore = resolve as typeof resolveLoadMore }))
+
+    render(<FeedContainer />)
+
+    // Триггерим loadMore
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    // isLoadingMore должен быть true пока запрос не завершился
+    expect(useFeedStore.getState().isLoadingMore).toBe(true)
+
+    // Меняем категорию — cleanup должен abort-нуть loadMore и сбросить isLoadingMore
+    await act(async () => {
+      useFeedStore.getState().changeCategory('reels')
+    })
+
+    // После cleanup isLoadingMore должен быть false
+    expect(useFeedStore.getState().isLoadingMore).toBe(false)
+
+    // Резолвим зависший запрос — не должно влиять на состояние
+    await act(async () => {
+      resolveLoadMore({ posts: [], nextCursor: null, hasMore: false })
+    })
+
+    expect(useFeedStore.getState().isLoadingMore).toBe(false)
+  })
+
   it('отменяет предыдущую initial load при быстрой смене категории и не даёт stale-ответу перезаписать state', async () => {
     type Deferred = {
       resolve: (value: { posts: Post[]; nextCursor: string | null; hasMore: boolean }) => void

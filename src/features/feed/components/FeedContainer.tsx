@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import { useAuthStore } from '@/features/auth/store'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import { fetchPosts } from '../api/posts'
@@ -41,6 +41,10 @@ export function FeedContainer() {
   const initialLoadAbortRef = useRef<AbortController | null>(null)
   const loadMoreAbortRef = useRef<AbortController | null>(null)
 
+  // Отслеживает стагнацию: loadMore загрузил страницу, но ни один пост
+  // не прошёл клиентский фильтр. Скрывает sentinel, показывает ручной CTA.
+  const [isScrollStalled, setIsScrollStalled] = useState(false)
+
   const loadInitial = useCallback(async () => {
     initialLoadAbortRef.current?.abort()
     const controller = new AbortController()
@@ -67,24 +71,31 @@ export function FeedContainer() {
   }, [])
 
   // Начальная загрузка + перезагрузка при смене категории.
-  // Состояние читается через getState() в момент вызова — нет stale closure, не нужен eslint-disable.
+  // Состояние читается через getState() в момент вызова — нет stale closure.
   useEffect(() => {
     // Если уже есть данные в store — восстанавливаем из кэша (AC #6)
     if (useFeedStore.getState().posts.length === 0) {
       void loadInitial()
     }
 
-    // Cleanup всегда регистрируется — при смене категории отменяем и initial, и loadMore запросы
+    // Cleanup всегда регистрируется — при смене категории отменяем запросы
+    // и сбрасываем isLoadingMore, чтобы он не завис после abort
     return () => {
       initialLoadAbortRef.current?.abort()
       initialLoadAbortRef.current = null
       loadMoreAbortRef.current?.abort()
       loadMoreAbortRef.current = null
+      useFeedStore.getState().setLoadingMore(false)
     }
   }, [activeCategory, loadInitial])
 
+  // Сбрасываем stall при смене категории
+  useEffect(() => {
+    setIsScrollStalled(false)
+  }, [activeCategory])
+
   // Загрузка следующей страницы — читает живое состояние через getState().
-  // Стабильная ссылка (deps []) → IntersectionObserver не пересоздаётся при каждом isLoadingMore.
+  // Стабильная ссылка (deps []) → не пересоздаётся при каждом isLoadingMore.
   const loadMore = useCallback(async () => {
     const {
       hasMore,
@@ -118,31 +129,63 @@ export function FeedContainer() {
       console.error('Ошибка подгрузки постов:', err)
       setError('Не удалось загрузить ещё публикации. Попробуйте снова.')
     } finally {
+      // setLoadingMore(false) только если этот контроллер всё ещё активный.
+      // Если он был aborted и заменён новым — новый сам управляет своим состоянием.
       if (loadMoreAbortRef.current === controller) {
         loadMoreAbortRef.current = null
+        setLoadingMore(false)
       }
-      setLoadingMore(false)
     }
   }, [])
+
+  // Обёртка loadMore с детекцией стагнации клиентской фильтрации.
+  // Если страница загружена, но ни один новый пост не прошёл фильтр —
+  // устанавливает isScrollStalled, скрывает sentinel, показывает ручной CTA.
+  const loadMoreWithStallDetection = useCallback(async () => {
+    const { posts: postsBefore, activeCategory: cat } = useFeedStore.getState()
+    const visibleBefore =
+      cat === 'all' ? postsBefore.length : postsBefore.filter((p) => p.category === cat).length
+
+    await loadMore()
+
+    const storeAfter = useFeedStore.getState()
+    // Игнорируем результат если категория сменилась во время запроса
+    if (storeAfter.activeCategory !== cat) return
+
+    if (storeAfter.hasMore && !storeAfter.error) {
+      const visibleAfter =
+        cat === 'all'
+          ? storeAfter.posts.length
+          : storeAfter.posts.filter((p) => p.category === cat).length
+
+      if (visibleAfter === visibleBefore) {
+        // Страница не добавила видимых постов — останавливаем автопрокрутку
+        setIsScrollStalled(true)
+      } else {
+        // Новые видимые посты найдены — возобновляем автопрокрутку
+        setIsScrollStalled(false)
+      }
+    }
+  }, [loadMore])
 
   const handleRetry = useCallback(() => {
     if (useFeedStore.getState().posts.length === 0) {
       void loadInitial()
       return
     }
-
-    void loadMore()
-  }, [loadInitial, loadMore])
+    void loadMoreWithStallDetection()
+  }, [loadInitial, loadMoreWithStallDetection])
 
   // IntersectionObserver для infinite scroll (AC #2).
-  // Пересоздаётся только при изменении hasMore.
+  // Пересоздаётся при изменении hasMore, error, isScrollStalled.
+  // При isScrollStalled=true observer не создаётся — используется ручной CTA.
   useEffect(() => {
-    if (!observerRef.current || !hasMore || error) return
+    if (!observerRef.current || !hasMore || error || isScrollStalled) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          void loadMore()
+          void loadMoreWithStallDetection()
         }
       },
       { rootMargin: '200px' }
@@ -150,17 +193,16 @@ export function FeedContainer() {
 
     observer.observe(observerRef.current)
     return () => observer.disconnect()
-  }, [error, hasMore, loadMore])
+  }, [error, hasMore, isScrollStalled, loadMoreWithStallDetection])
 
   // Клиентская фильтрация по категории (серверная — в Story 2.4).
-  // Мемоизация предотвращает лишний .filter() на каждом ре-рендере (смена isLoadingMore, error).
+  // Мемоизация предотвращает лишний .filter() на каждом ре-рендере.
   const displayedPosts = useMemo(
     () => (activeCategory === 'all' ? posts : posts.filter((p) => p.category === activeCategory)),
     [posts, activeCategory]
   )
 
   // Защита гидрации: ждём пока AuthProvider инициализирует store
-  // Это предотвращает неправильное вычисление isAuthor до появления currentUserId
   if (!isAuthReady) {
     return (
       <div role="status" aria-label="Загрузка приложения">
@@ -261,8 +303,23 @@ export function FeedContainer() {
         </div>
       )}
 
-      {/* Trigger infinite scroll (AC #2) — sentinel в DOM пока есть ещё данные */}
-      {hasMore && !error && <div ref={observerRef} aria-hidden data-testid="feed-sentinel" />}
+      {/* Trigger infinite scroll (AC #2) — sentinel в DOM пока есть ещё данные и нет stall */}
+      {hasMore && !error && !isScrollStalled && (
+        <div ref={observerRef} aria-hidden data-testid="feed-sentinel" />
+      )}
+
+      {/* Ручной CTA когда автопрокрутка застряла на редкой категории */}
+      {hasMore && !error && isScrollStalled && (
+        <div className="px-4 py-4 text-center">
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
+          >
+            Загрузить ещё
+          </button>
+        </div>
+      )}
 
       {/* End of feed message (AC #4) */}
       {!hasMore && (

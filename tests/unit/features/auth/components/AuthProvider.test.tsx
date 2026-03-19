@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { act, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockSetUser = vi.fn()
@@ -30,6 +30,19 @@ vi.mock('@/features/auth/store', () => ({
   ),
 }))
 
+const mockUnsubscribe = vi.fn()
+let capturedAuthCallback: ((event: string, session: unknown) => void) | null = null
+const mockOnAuthStateChange = vi.fn().mockImplementation((callback: (event: string, session: unknown) => void) => {
+  capturedAuthCallback = callback
+  return { data: { subscription: { unsubscribe: mockUnsubscribe } } }
+})
+
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: { onAuthStateChange: mockOnAuthStateChange },
+  }),
+}))
+
 import { AuthProvider } from '@/features/auth/components/AuthProvider'
 import type { Session, User } from '@supabase/supabase-js'
 
@@ -41,6 +54,7 @@ describe('AuthProvider', () => {
     vi.clearAllMocks()
     mockStoreUser = null
     mockStoreSession = null
+    capturedAuthCallback = null
   })
 
   it('инициализирует store при пустом user в store', () => {
@@ -104,5 +118,60 @@ describe('AuthProvider', () => {
     )
 
     expect(getByText('inner content')).toBeInTheDocument()
+  })
+
+  it('подписывается на onAuthStateChange при монтировании', () => {
+    render(
+      <AuthProvider user={mockUser} session={mockSession}>
+        <div />
+      </AuthProvider>
+    )
+
+    expect(mockOnAuthStateChange).toHaveBeenCalledTimes(1)
+    expect(capturedAuthCallback).toBeTypeOf('function')
+  })
+
+  it('отписывается от onAuthStateChange при размонтировании', () => {
+    const { unmount } = render(
+      <AuthProvider user={mockUser} session={mockSession}>
+        <div />
+      </AuthProvider>
+    )
+
+    unmount()
+
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('обновляет store через onAuthStateChange при token refresh', () => {
+    render(
+      <AuthProvider user={mockUser} session={mockSession}>
+        <div />
+      </AuthProvider>
+    )
+
+    const newSession = { access_token: 'refreshed-tok', user: mockUser } as unknown as Session
+
+    act(() => {
+      capturedAuthCallback?.('TOKEN_REFRESHED', newSession)
+    })
+
+    expect(mockSetSession).toHaveBeenCalledWith(newSession)
+    expect(mockSetUser).toHaveBeenCalledWith(mockUser)
+  })
+
+  it('очищает user в store через onAuthStateChange при sign-out (session=null)', () => {
+    render(
+      <AuthProvider user={mockUser} session={mockSession}>
+        <div />
+      </AuthProvider>
+    )
+
+    act(() => {
+      capturedAuthCallback?.('SIGNED_OUT', null)
+    })
+
+    expect(mockSetSession).toHaveBeenCalledWith(null)
+    expect(mockSetUser).toHaveBeenCalledWith(null)
   })
 })

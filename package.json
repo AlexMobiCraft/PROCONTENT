@@ -43,7 +43,7 @@
     "pg": "^8.20.0",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
-    "supabase": "^2.81.3",
+    "supabase": "^2.82.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.0.18"
