@@ -305,7 +305,7 @@ export function FeedContainer() {
 
       {/* Trigger infinite scroll (AC #2) — sentinel в DOM пока есть ещё данные и нет stall */}
       {hasMore && !error && !isScrollStalled && (
-        <div ref={observerRef} aria-hidden="true" data-testid="feed-sentinel" />
+        <div ref={observerRef} aria-hidden="true" data-testid="feed-sentinel" className="h-px w-full" />
       )}
 
       {/* Ручной CTA когда автопрокрутка застряла на редкой категории */}

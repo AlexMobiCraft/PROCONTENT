@@ -8,13 +8,15 @@ vi.mock('next/image', () => ({
     alt,
     className,
     onLoad,
+    onError,
   }: {
     alt?: string
     className?: string
     onLoad?: () => void
+    onError?: () => void
   }) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img alt={alt ?? ''} className={className} onLoad={onLoad} />
+    <img alt={alt ?? ''} className={className} onLoad={onLoad} onError={onError} />
   ),
 }))
 
@@ -216,6 +218,51 @@ describe('LazyMediaWrapper', () => {
       // SVG с иконкой play появляется только после onLoad — до загрузки его нет
       const playIcon = container.querySelector('svg path[d="M8 5v14l11-7z"]')
       expect(playIcon).toBeNull()
+    })
+  })
+
+  describe('обработка ошибок загрузки onError (AC 1)', () => {
+    it('убирает animate-pulse после onError (priority=true)', () => {
+      const { container, getByRole } = render(
+        <LazyMediaWrapper src="https://example.com/broken.jpg" alt="Broken" priority />
+      )
+      const wrapper = container.firstChild as HTMLElement
+
+      expect(wrapper.className).toContain('animate-pulse')
+
+      fireEvent.error(getByRole('img', { name: 'Broken' }))
+
+      expect(wrapper.className).not.toContain('animate-pulse')
+    })
+
+    it('показывает fallback-элемент после onError', () => {
+      const { container, getByRole } = render(
+        <LazyMediaWrapper src="https://example.com/broken.jpg" alt="Fallback" priority />
+      )
+
+      fireEvent.error(getByRole('img', { name: 'Fallback' }))
+
+      expect(container.querySelector('[data-testid="media-error-fallback"]')).toBeTruthy()
+    })
+
+    it('убирает animate-pulse после onError при lazy-загрузке (priority=false)', () => {
+      const { container } = render(
+        <LazyMediaWrapper src="https://example.com/broken.jpg" alt="Lazy broken" />
+      )
+      const wrapper = container.firstChild as HTMLElement
+
+      act(() => {
+        capturedCallback?.(
+          [{ isIntersecting: true, target: wrapper } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      })
+
+      const img = container.querySelector('img')!
+      fireEvent.error(img)
+
+      expect(wrapper.className).not.toContain('animate-pulse')
+      expect(container.querySelector('[data-testid="media-error-fallback"]')).toBeTruthy()
     })
   })
 

@@ -49,6 +49,11 @@
 - [x] [AI-Review][Low] Accessibility: Элемент `aria-hidden` data-testid="feed-sentinel" в `FeedContainer.tsx` имеет `aria-hidden` без указания `true` или `false`. Стоит писать `aria-hidden="true"`. [src/features/feed/components/FeedContainer.tsx]
 - [x] [AI-Review][Low] Hardcoded sizes в Next/Image: `sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"` в `LazyMediaWrapper.tsx`. Карточки постов могут занимать разную ширину в зависимости от сетки. [src/components/media/LazyMediaWrapper.tsx]
 
+### Review Follow-ups (AI) - Iteration 4
+- [x] [AI-Review][High] Отсутствие обработки ошибок загрузки изображений в `LazyMediaWrapper`: Добавить обработчик `onError` для `<Image>`, который будет отключать пульсацию и показывать fallback-состояние, иначе при ошибке пользователь будет видеть бесконечно пульсирующий серый прямоугольник. [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Medium] Нестабильный Sentinel в `FeedContainer`: Элемент-триггер для бесконечной ленты не имеет физических размеров (нет `className`). Нужно добавить ему минимальные размеры (например, `className="h-px w-full"`), чтобы избежать "схлопывания" и поломки бесконечной подгрузки. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Low] Пропущенные тесты на onError: Обновить мок `next/image` и тесты в `tests/unit/components/media/LazyMediaWrapper.test.tsx`, чтобы покрыть ветку с `onError`. [tests/unit/components/media/LazyMediaWrapper.test.tsx]
+
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
@@ -96,8 +101,14 @@
 ✅ Resolved [Low] Hardcoded sizes: sizes вынесен в проп LazyMediaWrapperProps с дефолтом '(max-width: 640px) 100vw, 600px' (одноколоночная лента); вызывающий компонент может переопределить.
 406/406 тестов проходят (17 в LazyMediaWrapper, 33 файла).
 
+**Iteration 4 Review Follow-ups (3 items) — 2026-03-19:**
+✅ Resolved [High] onError: добавлен `isError` state в LazyMediaWrapper; `onError={() => setIsError(true)}` на Image; снята пульсация при ошибке (`!isError` в условии); показывается fallback SVG (data-testid="media-error-fallback"); Image не рендерится после ошибки (`showImage && !isError`).
+✅ Resolved [Medium] Sentinel: добавлен `className="h-px w-full"` на feed-sentinel div в FeedContainer — элемент теперь имеет физические размеры, нет риска "схлопывания".
+✅ Resolved [Low] Тесты onError: мок next/image обновлён (добавлен `onError`); 3 новых теста: animate-pulse снимается при onError (priority), fallback-элемент появляется, lazy-загрузка + onError. 409/409 тестов проходят.
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
 - 2026-03-19: Review Follow-ups Iteration 1 (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
 - 2026-03-19: Review Follow-ups Iteration 2 (5 items) — LCP fix (no fade-in for priority), aspectRatio photo=4/5/video=16/9, 3 новых теста onLoad, config throw on invalid URL, aria-hidden на SVG Play. 403/403 тестов.
 - 2026-03-19: Review Follow-ups Iteration 3 (6 items) — стабильные тесты (vi.stubGlobal в beforeEach + afterEach unstubAllGlobals), disconnect при пустом registry (утечка памяти), 3 новых теста (unobserve on unmount, disconnect on last unmount, partial unmount), ref={priority ? undefined : ref} явное поведение, aria-hidden="true", sizes как проп с дефолтом для одноколоночной ленты. 406/406 тестов.
+- 2026-03-19: Review Follow-ups Iteration 4 (3 items) — onError handler (fallback SVG, стоп пульсация), sentinel h-px w-full, 3 новых теста onError. 409/409 тестов.
