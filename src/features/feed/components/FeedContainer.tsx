@@ -1,15 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAuthStore } from '@/features/auth/store'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import { fetchPosts } from '../api/posts'
 import { useFeedStore } from '../store'
 import { dbPostToCardData } from '../types'
 
-function Skeletons({ count }: { count: number }) {
+function Skeletons({ count, context }: { count: number; context: string }) {
   return Array.from({ length: count }).map((_, i) => (
-    <PostCardSkeleton key={`skeleton-${i}`} />
+    <PostCardSkeleton key={`${context}-${i}`} />
   ))
 }
 
@@ -151,17 +151,18 @@ export function FeedContainer() {
     return () => observer.disconnect()
   }, [error, hasMore, loadMore])
 
-  // Клиентская фильтрация по категории (серверная — в Story 2.4)
-  const displayedPosts =
-    activeCategory === 'all'
-      ? posts
-      : posts.filter((p) => p.category === activeCategory)
+  // Клиентская фильтрация по категории (серверная — в Story 2.4).
+  // Мемоизация предотвращает лишний .filter() на каждом ре-рендере (смена isLoadingMore, error).
+  const displayedPosts = useMemo(
+    () => (activeCategory === 'all' ? posts : posts.filter((p) => p.category === activeCategory)),
+    [posts, activeCategory]
+  )
 
   // Состояние начальной загрузки — скелетоны (AC #3)
   if (isLoading) {
     return (
       <div role="status" aria-label="Загрузка ленты">
-        <Skeletons count={5} />
+        <Skeletons count={5} context="initial" />
       </div>
     )
   }
@@ -190,7 +191,7 @@ export function FeedContainer() {
     if (isLoadingMore) {
       return (
         <div role="status" aria-label="Загрузка ленты">
-          <Skeletons count={5} />
+          <Skeletons count={5} context="initial" />
         </div>
       )
     }
@@ -232,7 +233,7 @@ export function FeedContainer() {
       {/* Скелетоны при подгрузке следующей страницы (AC #3) */}
       {isLoadingMore && (
         <div role="status" aria-label="Загрузка новых постов">
-          <Skeletons count={3} />
+          <Skeletons count={3} context="more" />
         </div>
       )}
 

@@ -211,8 +211,8 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
             }
           }
         }
-      } catch (e: any) {
-        console.error('[middleware] Fallback check FAILED:', e.message)
+      } catch (e: unknown) {
+        console.error('[middleware] Fallback check FAILED:', e instanceof Error ? e.message : String(e))
       }
     }
 

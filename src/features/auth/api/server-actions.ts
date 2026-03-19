@@ -36,17 +36,8 @@ export async function signUpAction(formData: FormData) {
       const session = await stripe.checkout.sessions.retrieve(sessionId)
       
       if (session.payment_status === 'paid' || session.payment_status === 'no_payment_required') {
-        const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
-        const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id
-
-        // Используем admin-клиент или надеемся на то, что триггер уже создал профиль.
-        // Так как это серверная часть, мы можем обновить профиль.
-        // Важно: на этом этапе RLS может не пустить обычного юзера, 
-        // поэтому лучше дождаться подтверждения почты или использовать сервисную роль.
-        // Но проще всего — если Webhook всё же сработает позже.
-        
-        // Для надежности мы просто логируем это здесь, а основную работу 
-        // сделает Webhook, который мы сейчас ТОЖЕ починим.
+        // Основную работу по обновлению профиля выполнит Stripe Webhook.
+        // Здесь только логируем факт наличия оплаченной сессии.
         console.info(`[signUpAction] Найдена оплаченная сессия для нового юзера ${userId}`)
       }
     } catch (e) {

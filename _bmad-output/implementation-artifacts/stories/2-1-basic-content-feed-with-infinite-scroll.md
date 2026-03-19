@@ -96,6 +96,12 @@ so that быть в курсе новых материалов клуба без
 - [x] [AI-Review][LOW] Компонент `Skeletons` использует индекс массива в качестве key, что мешает React diff и анимациям. Добавить стабильные ключи. [src/features/feed/components/FeedContainer.tsx:10]
 - [x] [AI-Review][LOW] `appendPosts` просто конкатенирует массивы, возможны дубликаты и key collisions при совпадающих курсорах. Нужна фильтрация по id. [src/features/feed/store.ts:40]
 
+- [ ] [AI-Review][CRITICAL] AuthProvider не обновляет session если user.id не меняется — Zustand хранит протухший токен после refresh. [src/features/auth/components/AuthProvider.tsx:20]
+- [ ] [AI-Review][HIGH] Стор остаётся пустым при SSR/первой гидратации: AuthProvider инициализирует Zustand только в useEffect, из-за чего компоненты мерцают и ломают защиту isAuthor. [src/features/auth/components/AuthProvider.tsx:14]
+- [ ] [AI-Review][HIGH] CI/Lint падает: apply-migrations*.js используют require() в ES-модуле, eslint запрещает `no-require-imports`. [apply-migrations.js:3]
+- [ ] [AI-Review][MEDIUM] Тесты FeedContainer спамят предупреждения об отсутствии act(...), что скрывает реальные ошибки в CI. [tests/unit/features/feed/components/FeedContainer.test.tsx:50]
+- [ ] [AI-Review][MEDIUM] UX редких категорий: когда постов категории нет в текущем кэше, пользователь вынужден вручную нажимать «Загрузить ещё», хотя данные доступны серверно. [src/features/feed/components/FeedContainer.tsx:188]
+
 ## Dev Notes
 
 ### Схема БД — таблица `posts`
@@ -368,11 +374,27 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: React StrictMode совместимость — следствие переноса AuthProvider в `useEffect` (тот же fix). [src/features/auth/components/AuthProvider.tsx]
 - ✅ Resolved review finding [MEDIUM]: FeedContainer использует индивидуальные Zustand-селекторы вместо подписки на весь store — ре-рендер только при изменении нужных полей (не при изменении cursor после appendPosts). [src/features/feed/components/FeedContainer.tsx]
 - ✅ Resolved review finding [LOW]: `dbPostToCardData` добавлен `timeZone: 'UTC'` в `toLocaleDateString` — идентичный вывод дат на сервере и клиенте, устранён риск гидратации. [src/features/feed/types.ts]
+- ✅ Resolved review finding [CRITICAL]: Добавлен CHECK constraint для `posts.category` в миграции 012 — значения ограничены ('insight','razobory','syomka','reels','brendy','tema'). [supabase/migrations/012_add_category_check_constraint.sql]
+- ✅ Resolved review finding [HIGH]: `npm run lint` теперь проходит чисто — `catch (e: any)` → `catch (e: unknown)` в auth-middleware.ts; удалены неиспользуемые var declarations в server-actions.ts. `npm run lint` и `npm run typecheck` — OK. [src/lib/supabase/auth-middleware.ts, src/features/auth/api/server-actions.ts]
+- ✅ Resolved review finding [MEDIUM]: `displayedPosts` мемоизирован через `useMemo([posts, activeCategory])` — фильтрация не выполняется при изменении `isLoadingMore`, `error` и других несвязанных полей. [src/features/feed/components/FeedContainer.tsx]
+- ✅ Resolved review finding [MEDIUM]: Seed-данные переведены на русский язык — все 13 постов с кириллическими заголовками и описаниями, позволяют валидировать локализацию. [supabase/seed_posts.sql]
+- ✅ Resolved review finding [LOW]: `Skeletons` получил обязательный `context: string` prop — ключи формируются как `${context}-${i}` (initial-0..4, more-0..2). Ключи уникальны между начальной загрузкой и подгрузкой, не коллидируют между деревьями. [src/features/feed/components/FeedContainer.tsx]
 - [x] [AI-Review][CRITICAL] Утечка состояния на сервере через глобальный Zustand store: `AuthProvider` мутирует singleton `useAuthStore` прямо в теле компонента во время SSR. [src/features/auth/components/AuthProvider.tsx:23]
 - [x] [AI-Review][CRITICAL] Разрушительная перезагрузка при смене категории: `changeCategory` полностью сбрасывает ленту (`posts = []`, `cursor = null`) при каждом выборе категории и ломает пагинацию/кэш. [src/features/feed/store.ts:63]
 - [x] [AI-Review][MEDIUM] Нарушение React StrictMode: даже с `useRef` `AuthProvider` продолжает мутировать store прямо во время render. [src/features/auth/components/AuthProvider.tsx:23]
 - [x] [AI-Review][MEDIUM] Избыточные перерисовки дерева: `FeedContainer` подписывается на весь Zustand store без селекторов, из-за чего пересчитывается при изменении `cursor`. [src/features/feed/components/FeedContainer.tsx:29]
 - [x] [AI-Review][LOW] Риск гидратации: `dbPostToCardData` использует `toLocaleDateString`, что приводит к рассинхрону дат между сервером и клиентом. [src/features/feed/types.ts:35]
+- [x] [AI-Review][CRITICAL] Отсутствует `CHECK` constraint для `posts.category`, из-за чего в таблицу можно записать любую строку и сломать фильтрацию. [supabase/migrations/007_create_posts_table.sql:10]
+- [x] [AI-Review][HIGH] `npm run lint` падает: `auth-middleware.ts` содержит `any`, `server-actions.ts` — неиспользуемые переменные; CI нельзя считать зелёным. [src/lib/supabase/auth-middleware.ts:214]
+- [x] [AI-Review][MEDIUM] В `FeedContainer` фильтрация `displayedPosts` выполняется на каждом рендере без мемоизации, что приводит к деградации FPS при длинной ленте. [src/features/feed/components/FeedContainer.tsx:155]
+- [x] [AI-Review][MEDIUM] Seed-данные заполнены текстом на словенском/хорватском, что не позволяет валидировать кириллицу и локализацию интерфейса. [supabase/seed_posts.sql:16]
+- [x] [AI-Review][LOW] Компонент `Skeletons` по-прежнему использует индекс цикла в key (`skeleton-${i}`), что эквивалентно анти-паттерну `index` и ломает анимации. [src/features/feed/components/FeedContainer.tsx:10]
+
+- `supabase/migrations/012_add_category_check_constraint.sql` (новый — CHECK constraint для posts.category)
+- `src/lib/supabase/auth-middleware.ts` (изменён — catch (e: unknown) вместо any)
+- `src/features/auth/api/server-actions.ts` (изменён — удалены неиспользуемые var declarations customerId/subscriptionId)
+- `src/features/feed/components/FeedContainer.tsx` (изменён — useMemo для displayedPosts, context prop в Skeletons)
+- `supabase/seed_posts.sql` (изменён — перевод seed-данных на русский)
 
 ### File List
 
@@ -415,3 +437,5 @@ claude-sonnet-4-6
 - Addressed adversarial review #4 findings — 7 items resolved (3 Critical, 2 Medium, 2 Low). Migration 011 added. Story status → review. (Date: 2026-03-19)
 - Adversarial review #5: 5 new action items created (2 Critical, 2 Medium, 1 Low). Status → in-progress. (Date: 2026-03-19)
 - Addressed adversarial review #5 findings — 5 items resolved (2 Critical, 2 Medium, 1 Low). 383 tests passing. Story status → review. (Date: 2026-03-19)
+- Adversarial review #6: выявлено 5 новых action items (1 Critical, 1 High, 2 Medium, 1 Low). Story status → in-progress. (Date: 2026-03-19)
+- Addressed adversarial review #6 findings — 5 items resolved (1 Critical, 1 High, 2 Medium, 1 Low). Migration 012 added. 383 tests passing. Story status → review. (Date: 2026-03-19)
