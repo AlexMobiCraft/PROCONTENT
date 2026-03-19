@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: Medium
-- [x] Статус: review
+- [x] Статус: in-progress
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -60,6 +60,12 @@
 - [x] [AI-Review][Medium] CLS скелетонов: `PostCardSkeleton` всегда использует `aspect-video`, в то время как реальные фото — `aspect-[4/5]`, из-за чего после загрузки происходит вертикальный скачок. Необходимо синхронизировать пропорции скелетона с типом медиа. [src/components/feed/PostCard.tsx]
 - [x] [AI-Review][Medium] Конфиг image remotePatterns: в dev-режиме пустой `NEXT_PUBLIC_SUPABASE_URL` не вызывает ошибку, `remotePatterns` становится `[]`, и Next/Image молча падает позже. Стоит валидировать переменную и в development. [next.config.ts]
 - [x] [AI-Review][Low] Поведение скелетонов: утилита `Skeletons` жёстко чередует `showMedia` по индексу (`i % 2 === 0`), что затрудняет переиспользование и управление видами скелетона. [src/features/feed/components/FeedContainer.tsx]
+
+### Review Follow-ups (AI) - Iteration 6
+- [ ] [AI-Review][Medium] Регрессия предотвращения CLS: в `FeedContainer.tsx` для функции `Skeletons` не передается `showMedia=true/false` для создания микса скелетонов с медиа и без, из-за чего все скелетоны текстовые, что вызывает layout shift при загрузке постов. [src/features/feed/components/FeedContainer.tsx]
+- [ ] [AI-Review][Medium] Сломанный UX при ошибке загрузки видео: Если постер видео не удается загрузить, индикатор воспроизведения видео скрывается. Нужно показывать значок видео даже при ошибке загрузки постера. [src/components/media/LazyMediaWrapper.tsx]
+- [ ] [AI-Review][Medium] Слепая зона в тестах: Мок `PostCardSkeleton` не проверяет, передаётся ли проп `showMedia`, что позволило регрессии CLS пройти тесты. [tests/unit/features/feed/components/FeedContainer.test.tsx]
+- [ ] [AI-Review][Low] Утечка производительности: Маппер `dbPostToCardData` вызывается инлайн внутри `.map()`, создавая новые ссылки на объекты при каждом рендере. Нужно мемоизировать преобразование. [src/features/feed/components/FeedContainer.tsx]
 
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
