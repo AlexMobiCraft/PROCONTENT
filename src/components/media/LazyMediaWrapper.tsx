@@ -92,7 +92,7 @@ export function LazyMediaWrapper({
       )}
 
       {/* Мягкий индикатор типа контента (опционально) */}
-      {type === 'video' && isLoaded && (
+      {type === 'video' && (isLoaded || isError) && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
           <div className="size-12 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center text-white border border-white/20">
             <svg className="size-6 ml-1" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">

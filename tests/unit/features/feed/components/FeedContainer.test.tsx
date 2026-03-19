@@ -27,7 +27,9 @@ vi.mock('@/components/feed/PostCard', () => ({
       {post.title}
     </div>
   ),
-  PostCardSkeleton: () => <div data-testid="skeleton" />,
+  PostCardSkeleton: ({ showMedia }: { showMedia?: boolean }) => (
+    <div data-testid="skeleton" data-show-media={String(showMedia ?? false)} />
+  ),
 }))
 
 import { FeedContainer } from '@/features/feed/components/FeedContainer'
@@ -96,6 +98,21 @@ describe('FeedContainer', () => {
       'aria-label',
       'Загрузка ленты'
     )
+  })
+
+  it('скелетоны при начальной загрузке чередуют showMedia для предотвращения CLS', () => {
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
+
+    render(<FeedContainer />)
+
+    const skeletons = screen.getAllByTestId('skeleton')
+    expect(skeletons).toHaveLength(5)
+
+    const withMedia = skeletons.filter((s) => s.getAttribute('data-show-media') === 'true')
+    const withoutMedia = skeletons.filter((s) => s.getAttribute('data-show-media') === 'false')
+    // alternate: i%2===0 → индексы 0,2,4 = true; 1,3 = false
+    expect(withMedia).toHaveLength(3)
+    expect(withoutMedia).toHaveLength(2)
   })
 
   it('показывает empty state когда постов нет (AC #5)', async () => {

@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: Medium
-- [x] Статус: in-progress
+- [x] Статус: review
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -62,10 +62,10 @@
 - [x] [AI-Review][Low] Поведение скелетонов: утилита `Skeletons` жёстко чередует `showMedia` по индексу (`i % 2 === 0`), что затрудняет переиспользование и управление видами скелетона. [src/features/feed/components/FeedContainer.tsx]
 
 ### Review Follow-ups (AI) - Iteration 6
-- [ ] [AI-Review][Medium] Регрессия предотвращения CLS: в `FeedContainer.tsx` для функции `Skeletons` не передается `showMedia=true/false` для создания микса скелетонов с медиа и без, из-за чего все скелетоны текстовые, что вызывает layout shift при загрузке постов. [src/features/feed/components/FeedContainer.tsx]
-- [ ] [AI-Review][Medium] Сломанный UX при ошибке загрузки видео: Если постер видео не удается загрузить, индикатор воспроизведения видео скрывается. Нужно показывать значок видео даже при ошибке загрузки постера. [src/components/media/LazyMediaWrapper.tsx]
-- [ ] [AI-Review][Medium] Слепая зона в тестах: Мок `PostCardSkeleton` не проверяет, передаётся ли проп `showMedia`, что позволило регрессии CLS пройти тесты. [tests/unit/features/feed/components/FeedContainer.test.tsx]
-- [ ] [AI-Review][Low] Утечка производительности: Маппер `dbPostToCardData` вызывается инлайн внутри `.map()`, создавая новые ссылки на объекты при каждом рендере. Нужно мемоизировать преобразование. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] Регрессия предотвращения CLS: в `FeedContainer.tsx` для функции `Skeletons` не передается `showMedia=true/false` для создания микса скелетонов с медиа и без, из-за чего все скелетоны текстовые, что вызывает layout shift при загрузке постов. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] Сломанный UX при ошибке загрузки видео: Если постер видео не удается загрузить, индикатор воспроизведения видео скрывается. Нужно показывать значок видео даже при ошибке загрузки постера. [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Medium] Слепая зона в тестах: Мок `PostCardSkeleton` не проверяет, передаётся ли проп `showMedia`, что позволило регрессии CLS пройти тесты. [tests/unit/features/feed/components/FeedContainer.test.tsx]
+- [x] [AI-Review][Low] Утечка производительности: Маппер `dbPostToCardData` вызывается инлайн внутри `.map()`, создавая новые ссылки на объекты при каждом рендере. Нужно мемоизировать преобразование. [src/features/feed/components/FeedContainer.tsx]
 
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
@@ -129,6 +129,13 @@
 ✅ Resolved [Low] Skeletons рефакторинг: убрана жёсткая логика `i % 2 === 0`; добавлен проп `showMedia?: boolean` (default false) — вызывающий код контролирует отображение медиа-скелетонов.
 416/416 тестов проходят (7 новых).
 
+**Iteration 6 Review Follow-ups (4 items) — 2026-03-19:**
+✅ Resolved [Medium] CLS регрессия: Skeletons получил поддержку `showMedia='alternate'`; initial/more скелетоны передают `showMedia="alternate"` — чередование true/false по индексу (3 с медиа, 2 без при count=5).
+✅ Resolved [Medium] Видео UX при ошибке: условие `type === 'video' && isLoaded` → `type === 'video' && (isLoaded || isError)` — play-иконка показывается и при fallback постера.
+✅ Resolved [Medium] Слепая зона тестов: мок PostCardSkeleton расширен атрибутом `data-show-media`; добавлен тест «скелетоны чередуют showMedia для предотвращения CLS» (3 с медиа + 2 без = 5 total).
+✅ Resolved [Low] Мемоизация маппера: `cardDataList = useMemo(() => displayedPosts.map(dbPostToCardData), [displayedPosts, currentUserId])` — стабильные ссылки, нет лишних рендеров PostCard.
+417/417 тестов проходят (+1 новый).
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
 - 2026-03-19: Review Follow-ups Iteration 1 (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
@@ -136,3 +143,4 @@
 - 2026-03-19: Review Follow-ups Iteration 3 (6 items) — стабильные тесты (vi.stubGlobal в beforeEach + afterEach unstubAllGlobals), disconnect при пустом registry (утечка памяти), 3 новых теста (unobserve on unmount, disconnect on last unmount, partial unmount), ref={priority ? undefined : ref} явное поведение, aria-hidden="true", sizes как проп с дефолтом для одноколоночной ленты. 406/406 тестов.
 - 2026-03-19: Review Follow-ups Iteration 4 (3 items) — onError handler (fallback SVG, стоп пульсация), sentinel h-px w-full, 3 новых теста onError. 409/409 тестов.
 - 2026-03-19: Review Follow-ups Iteration 5 (5 items) — priority prop в PostCard (LCP для первых 2 карточек), role/aria-label на fallback div (a11y), PostCardSkeleton mediaType prop с aspect-[4/5]/aspect-video (CLS fix), next.config.ts валидация в development (!== 'test'), Skeletons рефакторинг showMedia prop (убрана жёсткая логика i%2===0). 7 новых тестов. 416/416 тестов.
+- 2026-03-19: Review Follow-ups Iteration 6 (4 items) — Skeletons alternate showMedia (CLS fix), видео-иконка при isError постера, мок PostCardSkeleton с data-show-media + 1 новый тест, мемоизация cardDataList через useMemo. 417/417 тестов.

@@ -14,10 +14,13 @@ function Skeletons({
 }: {
   count: number
   context: string
-  showMedia?: boolean
+  showMedia?: boolean | 'alternate'
 }) {
   return Array.from({ length: count }).map((_, i) => (
-    <PostCardSkeleton key={`${context}-${i}`} showMedia={showMedia} />
+    <PostCardSkeleton
+      key={`${context}-${i}`}
+      showMedia={showMedia === 'alternate' ? i % 2 === 0 : showMedia}
+    />
   ))
 }
 
@@ -210,6 +213,12 @@ export function FeedContainer() {
     [posts, activeCategory]
   )
 
+  // Мемоизация маппинга — стабильные ссылки на объекты, нет лишних рендеров PostCard.
+  const cardDataList = useMemo(
+    () => displayedPosts.map((post) => dbPostToCardData(post, currentUserId)),
+    [displayedPosts, currentUserId]
+  )
+
   // Защита гидрации: ждём пока AuthProvider инициализирует store
   if (!isAuthReady) {
     return (
@@ -223,7 +232,7 @@ export function FeedContainer() {
   if (isLoading) {
     return (
       <div role="status" aria-label="Загрузка ленты">
-        <Skeletons count={5} context="initial" />
+        <Skeletons count={5} context="initial" showMedia="alternate" />
       </div>
     )
   }
@@ -252,7 +261,7 @@ export function FeedContainer() {
     if (isLoadingMore) {
       return (
         <div role="status" aria-label="Загрузка ленты">
-          <Skeletons count={5} context="initial" />
+          <Skeletons count={5} context="initial" showMedia="alternate" />
         </div>
       )
     }
@@ -284,9 +293,9 @@ export function FeedContainer() {
     <div>
       {/* Список постов (AC #1) */}
       <ul aria-label="Лента публикаций">
-        {displayedPosts.map((post, index) => (
-          <li key={post.id}>
-            <PostCard post={dbPostToCardData(post, currentUserId)} priority={index < 2} />
+        {cardDataList.map((cardData, index) => (
+          <li key={cardData.id}>
+            <PostCard post={cardData} priority={index < 2} />
           </li>
         ))}
       </ul>
@@ -294,7 +303,7 @@ export function FeedContainer() {
       {/* Скелетоны при подгрузке следующей страницы (AC #3) */}
       {isLoadingMore && (
         <div role="status" aria-label="Загрузка новых постов">
-          <Skeletons count={3} context="more" />
+          <Skeletons count={3} context="more" showMedia="alternate" />
         </div>
       )}
 
