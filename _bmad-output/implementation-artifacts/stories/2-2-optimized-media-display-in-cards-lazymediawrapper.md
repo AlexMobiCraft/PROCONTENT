@@ -73,6 +73,13 @@
 - [x] [AI-Review][Medium] `aspectRatio="auto"` ведёт к невидимому блоку: контейнер получает класс `aspect-auto`, но с `next/image` и `fill` высота схлопывается до 0px. Нужно либо запретить `auto`, либо автоматически переключаться на натянутую обёртку с явной высотой. [src/components/media/LazyMediaWrapper.tsx]
 - [x] [AI-Review][Low] Двойное отключение IntersectionObserver в `useInView.ts`: `disconnect()` вызывается и в колбэке, и в cleanup, что приводит к обращениям к уже уничтоженному инстансу. Следует централизовать освобождение ресурса. [src/hooks/useInView.ts]
 
+### Review Follow-ups (AI) - Iteration 8
+- [x] [AI-Review][High] LCP блокируется: `FeedContainer` возвращает скелетоны до завершения `isAuthReady`, из-за чего Next.js не может прелоадить priority-изображения. Нужно рендерить критичные карточки без ожидания клиентской гидрации или вынести `priority` медиа за условие `isAuthReady`. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][High] A11y: кнопки лайка/комментариев в `PostCard` имеют `aria-label`, который скрывает числовые значения от скринридеров. Требуется либо использовать `aria-live`/`aria-describedby`, либо включать счётчики в label. [src/components/feed/PostCard.tsx]
+- [x] [AI-Review][Medium] Потенциальная утечка памяти в `useInView`: `registry` хранит DOM-элементы в `Map`, препятствуя GC после анмаунта. Следует заменить на `WeakMap`. [src/hooks/useInView.ts]
+- [x] [AI-Review][Medium] UX стагнации: при `isScrollStalled=true` пользователь вынужден вручную повторять загрузку, даже если сервер снова вернёт нерелевантные категории. Нужна стратегия обхода (например, запрос другой категории или ограничение попыток). [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Low] CLS empty state: блоки пустых состояний/ошибок не имеют фиксированной высоты, что вызывает скачки при появлении/исчезновении. Добавьте минимальную высоту или резервное пространство. [src/features/feed/components/FeedContainer.tsx]
+
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
@@ -149,6 +156,14 @@
 ✅ Resolved [Low] Двойное обращение к уничтоженному observer: в cleanup `useInView.ts` добавлен гард `if (sharedObserver === observer)` перед `unobserve` — после того как callback вызвал disconnect (sharedObserver=null), cleanup не обращается к старому инстансу. Добавлен тест «после intersection не вызывает unobserve при анмаунте».
 421/421 тестов проходят (+4 новых).
 
+**Iteration 8 Review Follow-ups (5 items) — 2026-03-19:**
+✅ Resolved [High] LCP блокируется при isAuthReady=false: условие `if (!isAuthReady)` изменено на `if (!isAuthReady && posts.length === 0)` — если посты уже есть в кэше, они рендерятся немедленно, priority-изображения прелоадятся браузером, NFR1 не ломается. Добавлен тест «рендерит посты из кэша даже при isAuthReady=false».
+✅ Resolved [High] A11y aria-label лайка: `aria-label` кнопки лайка обновлён — `\`Поставить лайк, ${likeCount}\`` / `\`Убрать лайк, ${likeCount}\`` — счётчик включён в label, screen reader сообщает количество. Добавлен тест «кнопка лайка имеет aria-label с количеством лайков».
+✅ Resolved [Medium] Утечка памяти Map→WeakMap: `registry` в `useInView.ts` заменён на `WeakMap<Element, InViewCallback>` + отдельный счётчик `registrySize` с guards `registry.has(el)` перед декрементом — DOM-элементы могут быть GC'd после анмаунта без явного удаления.
+✅ Resolved [Medium] UX стагнации — ограничение попыток: добавлены `stallCount` state и `MAX_STALL_RETRIES = 3`; при stall `stallCount++`, при успехе сброс; после 3 подряд pустых страниц CTA заменяется сообщением «Больше публикаций в этой категории не найдено». Добавлен тест на 3 последовательных stall.
+✅ Resolved [Low] CLS empty state: добавлен `min-h-[60vh]` на error (posts.length===0) и empty-state контейнеры — фиксированное пространство предотвращает CLS при появлении/исчезновении.
+424/424 тестов проходят (+3 новых).
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
 - 2026-03-19: Review Follow-ups Iteration 1 (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
@@ -158,3 +173,4 @@
 - 2026-03-19: Review Follow-ups Iteration 5 (5 items) — priority prop в PostCard (LCP для первых 2 карточек), role/aria-label на fallback div (a11y), PostCardSkeleton mediaType prop с aspect-[4/5]/aspect-video (CLS fix), next.config.ts валидация в development (!== 'test'), Skeletons рефакторинг showMedia prop (убрана жёсткая логика i%2===0). 7 новых тестов. 416/416 тестов.
 - 2026-03-19: Review Follow-ups Iteration 6 (4 items) — Skeletons alternate showMedia (CLS fix), видео-иконка при isError постера, мок PostCardSkeleton с data-show-media + 1 новый тест, мемоизация cardDataList через useMemo. 417/417 тестов.
 - 2026-03-19: Review Follow-ups Iteration 7 (4 items) — isLoadingMore в deps IO observer (fix лента зависает на высоких экранах) + 1 тест, сброс isLoaded/isError при смене src + 2 теста, удалён 'auto' из типа aspectRatio (схлопывание высоты), гард sharedObserver===observer в cleanup (double-access fix) + 1 тест. 421/421 тестов.
+- 2026-03-19: Review Follow-ups Iteration 8 (5 items) — LCP fix (посты из кэша при !isAuthReady) + 1 тест, a11y aria-label лайка с likeCount + 1 тест, Map→WeakMap в useInView (GC утечка), stall limit MAX_STALL_RETRIES=3 (UX стагнации) + 1 тест, min-h-[60vh] на empty/error state (CLS). 424/424 тестов.

@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 
 type InViewCallback = (entry: IntersectionObserverEntry) => void
 
-const registry = new Map<Element, InViewCallback>()
+// WeakMap позволяет GC собирать элементы после анмаунта без явного удаления,
+// устраняя риск утечки памяти при разрыве между unobserve и GC.
+const registry = new WeakMap<Element, InViewCallback>()
+let registrySize = 0
 let sharedObserver: IntersectionObserver | null = null
 
 function getSharedObserver(): IntersectionObserver {
@@ -27,7 +30,9 @@ export function _resetSharedObserver(): void {
     sharedObserver.disconnect()
     sharedObserver = null
   }
-  registry.clear()
+  // WeakMap не поддерживает .clear(); сбрасываем счётчик — достаточно для тестов,
+  // так как между тестами все элементы анмаунтятся и GC'ятся.
+  registrySize = 0
 }
 
 /**
@@ -54,27 +59,38 @@ export function useInView(enabled = true): {
     registry.set(el, (entry) => {
       if (entry.isIntersecting) {
         setIsInView(true)
-        registry.delete(el)
+        // Проверяем registry.has перед удалением — защита от двойного декремента
+        // в случае если cleanup вызывается раньше callback
+        if (registry.has(el)) {
+          registry.delete(el)
+          registrySize--
+        }
         observer.unobserve(el)
         // Освобождаем обсервер если больше нет наблюдателей
-        if (registry.size === 0 && sharedObserver) {
+        if (registrySize === 0 && sharedObserver) {
           sharedObserver.disconnect()
           sharedObserver = null
         }
       }
     })
+    registrySize++
 
     observer.observe(el)
 
     return () => {
-      registry.delete(el)
+      // Проверяем наличие перед удалением — если callback уже удалил el,
+      // не уменьшаем счётчик повторно
+      if (registry.has(el)) {
+        registry.delete(el)
+        registrySize--
+      }
       // Защита от обращения к уже уничтоженному инстансу:
       // если callback уже вызвал disconnect (sharedObserver=null или заменён),
       // вызывать unobserve на старом инстансе небезопасно.
       if (sharedObserver === observer) {
         observer.unobserve(el)
       }
-      if (registry.size === 0 && sharedObserver) {
+      if (registrySize === 0 && sharedObserver) {
         sharedObserver.disconnect()
         sharedObserver = null
       }

@@ -55,6 +55,10 @@ export function FeedContainer() {
   // Отслеживает стагнацию: loadMore загрузил страницу, но ни один пост
   // не прошёл клиентский фильтр. Скрывает sentinel, показывает ручной CTA.
   const [isScrollStalled, setIsScrollStalled] = useState(false)
+  // Количество последовательных stall-загрузок. После MAX_STALL_RETRIES
+  // подряд пустых страниц — прекращаем показывать CTA, показываем сообщение.
+  const [stallCount, setStallCount] = useState(0)
+  const MAX_STALL_RETRIES = 3
 
   const loadInitial = useCallback(async () => {
     initialLoadAbortRef.current?.abort()
@@ -100,9 +104,10 @@ export function FeedContainer() {
     }
   }, [activeCategory, loadInitial])
 
-  // Сбрасываем stall при смене категории
+  // Сбрасываем stall и счётчик при смене категории
   useEffect(() => {
     setIsScrollStalled(false)
+    setStallCount(0)
   }, [activeCategory])
 
   // Загрузка следующей страницы — читает живое состояние через getState().
@@ -172,9 +177,11 @@ export function FeedContainer() {
       if (visibleAfter === visibleBefore) {
         // Страница не добавила видимых постов — останавливаем автопрокрутку
         setIsScrollStalled(true)
+        setStallCount((c) => c + 1)
       } else {
         // Новые видимые посты найдены — возобновляем автопрокрутку
         setIsScrollStalled(false)
+        setStallCount(0)
       }
     }
   }, [loadMore])
@@ -222,8 +229,10 @@ export function FeedContainer() {
     [displayedPosts, currentUserId]
   )
 
-  // Защита гидрации: ждём пока AuthProvider инициализирует store
-  if (!isAuthReady) {
+  // Защита гидрации: ждём пока AuthProvider инициализирует store.
+  // Если посты уже есть в кэше — рендерим их сразу (priority-изображения
+  // прелоадятся браузером, не ломается LCP NFR1).
+  if (!isAuthReady && posts.length === 0) {
     return (
       <div role="status" aria-label="Загрузка приложения">
         <Skeletons count={5} context="hydration" />
@@ -242,7 +251,7 @@ export function FeedContainer() {
 
   if (error && posts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] py-20 px-4 text-center">
         <p className="font-heading text-xl font-semibold text-foreground">
           Не удалось загрузить ленту
         </p>
@@ -270,7 +279,7 @@ export function FeedContainer() {
     }
     // hasMore=false: постов с такой категорией нет → empty state (AC #5)
     return (
-      <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] py-20 px-4 text-center">
         <p className="font-heading text-xl font-semibold text-foreground">
           {error ? 'Не удалось загрузить публикации' : 'Скоро здесь появится контент'}
         </p>
@@ -329,7 +338,7 @@ export function FeedContainer() {
       )}
 
       {/* Ручной CTA когда автопрокрутка застряла на редкой категории */}
-      {hasMore && !error && isScrollStalled && (
+      {hasMore && !error && isScrollStalled && stallCount < MAX_STALL_RETRIES && (
         <div className="px-4 py-4 text-center">
           <button
             type="button"
@@ -339,6 +348,13 @@ export function FeedContainer() {
             Загрузить ещё
           </button>
         </div>
+      )}
+
+      {/* После MAX_STALL_RETRIES неудачных попыток — конечное сообщение для категории */}
+      {hasMore && !error && isScrollStalled && stallCount >= MAX_STALL_RETRIES && (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          Больше публикаций в этой категории не найдено
+        </p>
       )}
 
       {/* End of feed message (AC #4) */}

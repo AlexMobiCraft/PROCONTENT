@@ -130,7 +130,7 @@ export function PostCard({ post, priority = false, onCommentClick }: PostCardPro
         <button
           type="button"
           onClick={handleLike}
-          aria-label={liked ? 'Убрать лайк' : 'Поставить лайк'}
+          aria-label={liked ? `Убрать лайк, ${likeCount}` : `Поставить лайк, ${likeCount}`}
           aria-pressed={liked}
           className={cn(
             'flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-lg px-2 text-sm transition-colors',

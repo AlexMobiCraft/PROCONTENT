@@ -527,6 +527,68 @@ describe('FeedContainer', () => {
     })
   })
 
+  it('рендерит посты из кэша даже при isAuthReady=false (LCP fix)', () => {
+    const posts = [makePost('1'), makePost('2')]
+    act(() => {
+      useFeedStore.getState().setPosts(posts, null, false)
+      useFeedStore.getState().setLoading(false)
+      useAuthStore.getState().setReady(false)
+    })
+
+    render(<FeedContainer />)
+
+    expect(screen.getByTestId('post-1')).toBeInTheDocument()
+    expect(screen.getByTestId('post-2')).toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Загрузка приложения' })).not.toBeInTheDocument()
+  })
+
+  it('после MAX_STALL_RETRIES=3 последовательных stall-ов скрывает CTA и показывает конечное сообщение', async () => {
+    const razboroyPost = makePost('1', 'razobory')
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts([razboroyPost], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('razobory')
+    })
+
+    // Всегда возвращает только insight (stall для razobory)
+    mockFetchPosts.mockResolvedValue({
+      posts: [makePost('x', 'insight')],
+      nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      hasMore: true,
+    })
+
+    const user = userEvent.setup()
+    render(<FeedContainer />)
+
+    // Stall #1 — через observer
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
+    })
+
+    // Stall #2 — через CTA
+    await user.click(screen.getByRole('button', { name: 'Загрузить ещё' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
+    })
+
+    // Stall #3 — через CTA → CTA исчезает, появляется конечное сообщение
+    await user.click(screen.getByRole('button', { name: 'Загрузить ещё' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Загрузить ещё' })).not.toBeInTheDocument()
+      expect(
+        screen.getByText('Больше публикаций в этой категории не найдено')
+      ).toBeInTheDocument()
+    })
+  })
+
   it('сбрасывает isLoadingMore в false после abort loadMore при смене категории', async () => {
     // Настройка: посты загружены, есть cursor для loadMore
     act(() => {
