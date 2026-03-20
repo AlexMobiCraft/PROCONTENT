@@ -212,6 +212,11 @@ export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) 
     void loadMoreWithStallDetection()
   }, [loadInitial, loadMoreWithStallDetection])
 
+  // Сброс счётчика стагнации — возобновляет автопоиск без перезагрузки страницы.
+  const handleSearchMore = useCallback(() => {
+    setStallCount(0)
+  }, [])
+
   // IntersectionObserver для infinite scroll (AC #2).
   // Sentinel активен пока stallCount < MAX_STALL_RETRIES — автопрокрутка
   // без ручного CTA (fix: автопоиск обрывается после первой пустой страницы).
@@ -291,7 +296,7 @@ export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) 
 
   if (error && posts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] py-20 px-4 text-center">
+      <div role="alert" className="flex flex-col items-center justify-center min-h-[60vh] py-20 px-4 text-center">
         <p className="font-heading text-xl font-semibold text-foreground">
           Не удалось загрузить ленту
         </p>
@@ -347,6 +352,16 @@ export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) 
             className="h-px w-full"
           />
         )}
+        {/* После MAX_STALL_RETRIES — предлагаем пользователю продолжить поиск вручную */}
+        {hasMore && !error && stallCount >= MAX_STALL_RETRIES && (
+          <button
+            type="button"
+            onClick={handleSearchMore}
+            className="mt-4 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
+          >
+            Искать дальше
+          </button>
+        )}
       </div>
     )
   }
@@ -393,11 +408,20 @@ export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) 
         />
       )}
 
-      {/* После MAX_STALL_RETRIES неудачных попыток — конечное сообщение для категории */}
+      {/* После MAX_STALL_RETRIES неудачных попыток — предлагаем продолжить поиск вручную */}
       {hasMore && !error && stallCount >= MAX_STALL_RETRIES && (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Больше публикаций в этой категории не найдено
-        </p>
+        <div className="py-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            Больше публикаций в этой категории не найдено
+          </p>
+          <button
+            type="button"
+            onClick={handleSearchMore}
+            className="mt-3 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
+          >
+            Искать дальше
+          </button>
+        </div>
       )}
 
       {/* End of feed message (AC #4) */}

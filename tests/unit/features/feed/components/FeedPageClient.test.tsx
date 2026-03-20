@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useFeedStore } from '@/features/feed/store'
 import type { Post } from '@/features/feed/types'
@@ -78,5 +78,25 @@ describe('FeedPageClient', () => {
     )
 
     expect(screen.getByTestId('category-scroll')).toBeInTheDocument()
+  })
+
+  // --- Iteration 11: Item 2 (Zustand Anti-pattern — точечные селекторы) ---
+
+  it('не падает при изменении несвязанных полей store (использует точечные селекторы)', () => {
+    render(
+      <FeedPageClient initialData={{ posts: [], nextCursor: null, hasMore: false }} />
+    )
+
+    // Изменяем поля store, не связанные с activeCategory/changeCategory —
+    // компонент должен остаться работоспособным без лишних ре-рендеров
+    expect(() => {
+      act(() => {
+        useFeedStore.getState().setLoading(true)
+        useFeedStore.getState().setLoading(false)
+      })
+    }).not.toThrow()
+
+    expect(screen.getByTestId('category-scroll')).toBeInTheDocument()
+    expect(screen.getByTestId('feed-container')).toBeInTheDocument()
   })
 })

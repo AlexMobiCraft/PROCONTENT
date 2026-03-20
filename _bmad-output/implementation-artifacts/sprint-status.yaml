@@ -54,7 +54,7 @@ development_status:
 
   epic-2: in-progress
   "2-1-basic-content-feed-with-infinite-scroll": "done"
-  2-2-optimized-media-display-in-cards-lazymediawrapper: in-progress
+  2-2-optimized-media-display-in-cards-lazymediawrapper: review
   2-3-detailed-view-of-multiformat-post: backlog
   2-4-horizontal-category-filters-sticky-pill-filters: backlog
   2-5-search-across-the-entire-knowledge-base: backlog

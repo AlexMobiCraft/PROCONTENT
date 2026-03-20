@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: Medium
-- [x] Статус: in-progress
+- [x] Статус: review
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -92,9 +92,9 @@
 - [x] [AI-Review][Medium] Нулевой рост sentinel не триггерит observer при фильтрах: когда посты категории отсутствуют, высота ленты не меняется и `IntersectionObserver` больше не срабатывает, даже если sentinel в DOM. Требуется программно инициировать повторную проверку (например, `requestIdleCallback` + ручной `loadMore`) или временно увеличивать область наблюдения. [src/features/feed/components/FeedContainer.tsx]
 
 ### Review Follow-ups (AI) - Iteration 11
-- [ ] [AI-Review][High] UX Dead End (Блокировка ленты): После достижения `MAX_STALL_RETRIES` лента скрывает sentinel и останавливает поиск постов для редкой категории. Так как в предыдущей итерации был удален ручной CTA (кнопка "Загрузить ещё"), пользователь навсегда застревает на экране "Скоро здесь появится контент" без возможности продолжить поиск. Нужно вернуть кнопку "Искать дальше" при достижении лимита стагнации. [src/features/feed/components/FeedContainer.tsx]
-- [ ] [AI-Review][Medium] Zustand Anti-pattern (Лишние ререндеры): В `FeedPageClient.tsx` используется `const { activeCategory, changeCategory } = useFeedStore()`. Это подписывает компонент на **весь** стор. Каждая подгрузка новой страницы вызывает перерисовку всей страницы. Нужно использовать точечные селекторы. [src/features/feed/components/FeedPageClient.tsx]
-- [ ] [AI-Review][Low] A11y (Доступность): Экран ошибки начальной загрузки (`posts.length === 0`) не имеет `role="alert"`. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][High] UX Dead End (Блокировка ленты): После достижения `MAX_STALL_RETRIES` лента скрывает sentinel и останавливает поиск постов для редкой категории. Так как в предыдущей итерации был удален ручной CTA (кнопка "Загрузить ещё"), пользователь навсегда застревает на экране "Скоро здесь появится контент" без возможности продолжить поиск. Нужно вернуть кнопку "Искать дальше" при достижении лимита стагнации. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] Zustand Anti-pattern (Лишние ререндеры): В `FeedPageClient.tsx` используется `const { activeCategory, changeCategory } = useFeedStore()`. Это подписывает компонент на **весь** стор. Каждая подгрузка новой страницы вызывает перерисовку всей страницы. Нужно использовать точечные селекторы. [src/features/feed/components/FeedPageClient.tsx]
+- [x] [AI-Review][Low] A11y (Доступность): Экран ошибки начальной загрузки (`posts.length === 0`) не имеет `role="alert"`. [src/features/feed/components/FeedContainer.tsx]
 
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
@@ -185,6 +185,12 @@
 ✅ Resolved [Low] CLS empty state: добавлен `min-h-[60vh]` на error (posts.length===0) и empty-state контейнеры — фиксированное пространство предотвращает CLS при появлении/исчезновении.
 424/424 тестов проходят (+3 новых).
 
+**Iteration 11 Review Follow-ups (3 items) — 2026-03-20:**
+✅ Resolved [High] UX Dead End: добавлен `handleSearchMore` (сброс `stallCount`); кнопка "Искать дальше" рендерится при `hasMore && !error && stallCount >= MAX_STALL_RETRIES` в двух местах: в главной ленте (ниже текста "Больше публикаций не найдено") и в empty state. Клик сбрасывает stallCount→0, sentinel появляется вновь, автопоиск возобновляется. 2 новых теста.
+✅ Resolved [Medium] Zustand Anti-pattern: `FeedPageClient.tsx` переведён на точечные селекторы `useFeedStore((s) => s.activeCategory)` и `useFeedStore((s) => s.changeCategory)` — компонент перерисовывается только при изменении этих двух полей. 1 новый тест.
+✅ Resolved [Low] A11y: добавлен `role="alert"` на `<div>` экрана ошибки начальной загрузки (`error && posts.length === 0`). 1 новый тест.
+437/437 тестов проходят (4 новых; 1 pre-existing flaky тест "сбрасывает isLoadingMore в false после abort loadMore при смене категории" флакает только при параллельном запуске — существовал до Iteration 11, подтверждено git stash проверкой).
+
 **Iteration 10 Review Follow-ups (4 items) — 2026-03-20:**
 ✅ Resolved [High] SSR state leak: убран `FeedStoreInitializer` из `FeedPageClient`; `initialData` передаётся напрямую в `FeedContainer` как проп; гидрация store перенесена в `useEffect` (SSR-safe — не мутирует Zustand singleton на сервере). 3 новых теста в FeedPageClient.test.tsx.
 ✅ Resolved [High] Автопоиск обрывается при empty state: удалён `isScrollStalled` state; используется только `stallCount`; sentinel остаётся активным пока `stallCount < MAX_STALL_RETRIES`; CTA "Загрузить ещё" убран — автопрокрутка без ручного клика. IO useEffect обновлён.
@@ -210,3 +216,4 @@
 - 2026-03-19: Review Follow-ups Iteration 8 (5 items) — LCP fix (посты из кэша при !isAuthReady) + 1 тест, a11y aria-label лайка с likeCount + 1 тест, Map→WeakMap в useInView (GC утечка), stall limit MAX_STALL_RETRIES=3 (UX стагнации) + 1 тест, min-h-[60vh] на empty/error state (CLS). 424/424 тестов.
 - 2026-03-20: Review Follow-ups Iteration 9 (3 items) — архитектурный LCP fix: FeedPage→Server Component + serverPosts.ts + FeedPageClient + FeedStoreInitializer (серверная загрузка начальных постов), showMedia="alternate" для hydration-скелетонов (CLS fix), sentinel в empty state при hasMore=true (fix бесконечного scroll). 5 новых тестов. 429/429 тестов.
 - 2026-03-20: Review Follow-ups Iteration 10 (4 items) — SSR state leak fix: FeedStoreInitializer удалён, initialData передаётся в FeedContainer через props, гидрация store в useEffect; автопоиск fix: isScrollStalled удалён, sentinel активен до MAX_STALL_RETRIES без ручного CTA; антипаттерн гидрации fix: useEffect вместо render side-effect, derived vars для no-flash первого render; auto-trigger fix: setTimeout(0) при displayedPosts.length===0 для нулевого роста sentinel. 8 новых тестов. 433/433 тестов.
+- 2026-03-20: Review Follow-ups Iteration 11 (3 items) — UX Dead End fix: handleSearchMore + кнопка "Искать дальше" при stallCount>=MAX_STALL_RETRIES в main feed и empty state; Zustand Anti-pattern fix: точечные селекторы в FeedPageClient; A11y fix: role="alert" на экран ошибки начальной загрузки. 4 новых теста. 437/437 тестов (1 pre-existing flaky в параллельном запуске).

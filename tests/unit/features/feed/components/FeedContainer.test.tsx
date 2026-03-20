@@ -789,6 +789,117 @@ describe('FeedContainer', () => {
 
   // --- Iteration 10: Item 4 (auto-trigger loadMore при нулевом росте sentinel) ---
 
+  // --- Iteration 11: Items 1+3 (UX Dead End + A11y) ---
+
+  it('экран ошибки начальной загрузки (posts.length===0) имеет role="alert"', async () => {
+    mockFetchPosts.mockRejectedValueOnce(new Error('network'))
+
+    render(<FeedContainer />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+      expect(screen.getByText('Не удалось загрузить ленту')).toBeInTheDocument()
+    })
+  })
+
+  it('кнопка "Искать дальше" появляется после MAX_STALL_RETRIES в главной ленте и сбрасывает поиск', async () => {
+    const user = userEvent.setup()
+    const razboroyPost = makePost('1', 'razobory')
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts([razboroyPost], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('razobory')
+    })
+
+    // Всегда возвращает только insight (stall для razobory)
+    mockFetchPosts.mockResolvedValue({
+      posts: [makePost('x', 'insight')],
+      nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      hasMore: true,
+    })
+
+    render(<FeedContainer />)
+
+    // Симулируем 3 stall через observer
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        latestObserverCallback?.(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      })
+      await waitFor(() => expect(useFeedStore.getState().isLoadingMore).toBe(false))
+    }
+
+    // После 3 stall: кнопка "Искать дальше" появилась, sentinel скрыт
+    await waitFor(() => {
+      expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Искать дальше' })).toBeInTheDocument()
+    })
+
+    // Клик "Искать дальше" → сбрасывает stallCount → sentinel снова видим
+    await user.click(screen.getByRole('button', { name: 'Искать дальше' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Искать дальше' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('кнопка "Искать дальше" появляется в empty state после MAX_STALL_RETRIES и сбрасывает поиск', async () => {
+    const user = userEvent.setup()
+    // Настройка: есть insight пост, активна категория reels (empty state)
+    const insightPost = makePost('1', 'insight')
+    act(() => {
+      useFeedStore
+        .getState()
+        .setPosts([insightPost], '2026-03-15T10:00:00Z|123e4567-e89b-42d3-a456-426614174000', true)
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('reels')
+    })
+
+    // Всегда возвращает только insight (stall для reels)
+    mockFetchPosts.mockResolvedValue({
+      posts: [makePost('x', 'insight')],
+      nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      hasMore: true,
+    })
+
+    render(<FeedContainer />)
+
+    // Empty state виден, sentinel активен (stallCount=0 < 3)
+    expect(screen.getByText('Скоро здесь появится контент')).toBeInTheDocument()
+    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+
+    // Симулируем 3 stall (через auto-trigger + observer)
+    for (let i = 0; i < 3; i++) {
+      await waitFor(() => expect(useFeedStore.getState().isLoadingMore).toBe(false))
+      await act(async () => {
+        latestObserverCallback?.(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      })
+      await waitFor(() => expect(useFeedStore.getState().isLoadingMore).toBe(false))
+    }
+
+    // Кнопка "Искать дальше" появилась в empty state, sentinel скрыт
+    await waitFor(() => {
+      expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Искать дальше' })).toBeInTheDocument()
+    })
+
+    // Клик → stallCount сбрасывается → sentinel снова активен
+    await user.click(screen.getByRole('button', { name: 'Искать дальше' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Искать дальше' })).not.toBeInTheDocument()
+    })
+  })
+
   it('автоматически запускает loadMore через setTimeout когда displayedPosts.length === 0 (fix нулевой рост sentinel)', async () => {
     // Setup: insight посты загружены, переключились на reels → displayedPosts=[]
     // IO sentinel в DOM но не срабатывает (sentinel не уходил из viewport)

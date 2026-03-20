@@ -10,7 +10,10 @@ import type { FeedPage } from '../types'
 // в render фазе (fix: SSR state leak + антипаттерн гидрации).
 // FeedContainer гидратирует store в useEffect (только клиент).
 export function FeedPageClient({ initialData }: { initialData: FeedPage }) {
-  const { activeCategory, changeCategory } = useFeedStore()
+  // Точечные селекторы — компонент перерисовывается только при изменении
+  // activeCategory или changeCategory, а не при любом изменении store.
+  const activeCategory = useFeedStore((s) => s.activeCategory)
+  const changeCategory = useFeedStore((s) => s.changeCategory)
 
   return (
     <main className="flex min-h-screen flex-col pb-[60px]">
