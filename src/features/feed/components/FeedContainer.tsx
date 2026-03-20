@@ -36,6 +36,10 @@ function isAbortError(error: unknown): boolean {
   return false
 }
 
+// Максимальное количество последовательных пустых страниц до показа CTA.
+// Константа вынесена на уровень модуля — не пересоздаётся при каждом рендере.
+const MAX_STALL_RETRIES = 3
+
 export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) {
   // Индивидуальные селекторы — компонент перерисовывается только при изменении
   // нужных полей, а не при любом изменении store
@@ -55,7 +59,6 @@ export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) 
   // Количество последовательных stall-загрузок. Sentinel остаётся активным
   // пока stallCount < MAX_STALL_RETRIES — автопрокрутка без ручного CTA.
   const [stallCount, setStallCount] = useState(0)
-  const MAX_STALL_RETRIES = 3
 
   // SSR-safe гидрация store из серверных данных.
   // useEffect выполняется только на клиенте — не мутирует глобальный Zustand
@@ -178,6 +181,8 @@ export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) 
   // Если страница загружена, но ни один новый пост не прошёл фильтр —
   // увеличивает stallCount. Sentinel остаётся активным пока < MAX_STALL_RETRIES.
   const loadMoreWithStallDetection = useCallback(async () => {
+    if (useFeedStore.getState().isLoadingMore) return
+
     const { posts: postsBefore, activeCategory: cat } = useFeedStore.getState()
     const visibleBefore =
       cat === 'all' ? postsBefore.length : postsBefore.filter((p) => p.category === cat).length
@@ -426,7 +431,7 @@ export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) 
 
       {/* End of feed message (AC #4) */}
       {!hasMore && (
-        <p className="py-8 text-center text-sm text-muted-foreground">
+        <p role="status" aria-live="polite" className="py-8 text-center text-sm text-muted-foreground">
           Вы просмотрели все публикации
         </p>
       )}

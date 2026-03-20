@@ -42,9 +42,10 @@ describe('PostCard', () => {
     expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
   })
 
-  it('кнопка лайка имеет aria-label с количеством лайков (a11y)', () => {
+  it('кнопка лайка имеет aria-label без дублирования счётчика (a11y)', () => {
     render(<PostCard post={makeCardData({ likes: 7 })} />)
-    expect(screen.getByRole('button', { name: 'Поставить лайк, 7' })).toBeInTheDocument()
+    // aria-label содержит только действие — счётчик рендерится в <span> и не дублируется AT
+    expect(screen.getByRole('button', { name: 'Поставить лайк' })).toBeInTheDocument()
   })
 })
 

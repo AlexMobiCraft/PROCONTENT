@@ -658,9 +658,16 @@ describe('FeedContainer', () => {
       useFeedStore.getState().setLoading(false)
     })
 
-    // loadMore виснет (pending promise)
-    let resolveLoadMore!: (v: { posts: typeof makePost extends (id: string) => infer R ? R[] : never; nextCursor: string | null; hasMore: boolean }) => void
-    mockFetchPosts.mockImplementation(() => new Promise((resolve) => { resolveLoadMore = resolve as typeof resolveLoadMore }))
+    // loadMore виснет (pending promise), запоминаем AbortSignal
+    const loadMoreCalls: Array<{
+      resolve: (v: { posts: Post[]; nextCursor: string | null; hasMore: boolean }) => void
+      signal?: AbortSignal
+    }> = []
+    mockFetchPosts.mockImplementation((_cursor: string | undefined, opts?: { signal?: AbortSignal }) => {
+      return new Promise<{ posts: Post[]; nextCursor: string | null; hasMore: boolean }>((resolve) => {
+        loadMoreCalls.push({ resolve, signal: opts?.signal })
+      })
+    })
 
     render(<FeedContainer />)
 
@@ -680,15 +687,20 @@ describe('FeedContainer', () => {
       useFeedStore.getState().changeCategory('reels')
     })
 
-    // После cleanup isLoadingMore должен быть false
+    // После cleanup isLoadingMore сброшен в false
     expect(useFeedStore.getState().isLoadingMore).toBe(false)
 
-    // Резолвим зависший запрос — не должно влиять на состояние
+    // AbortSignal первого запроса должен быть aborted
+    await waitFor(() => expect(loadMoreCalls.length).toBeGreaterThanOrEqual(1))
+    expect(loadMoreCalls[0].signal?.aborted).toBe(true)
+
+    // Резолвим зависший запрос со "stale" постом — stale данные должны быть проигнорированы
     await act(async () => {
-      resolveLoadMore({ posts: [], nextCursor: null, hasMore: false })
+      loadMoreCalls[0].resolve({ posts: [makePost('stale-aborted')], nextCursor: null, hasMore: false })
     })
 
-    expect(useFeedStore.getState().isLoadingMore).toBe(false)
+    // Stale пост из отменённого запроса не должен попасть в store
+    expect(useFeedStore.getState().posts.find((p) => p.id === 'stale-aborted')).toBeUndefined()
   })
 
   it('отменяет предыдущую initial load при быстрой смене категории и не даёт stale-ответу перезаписать state', async () => {
@@ -897,6 +909,70 @@ describe('FeedContainer', () => {
     await waitFor(() => {
       expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Искать дальше' })).not.toBeInTheDocument()
+    })
+  })
+
+  // --- Iteration 12: Items 2+3 (Race condition guard + A11y конец ленты) ---
+
+  it('loadMoreWithStallDetection не запускает параллельный loadMore если isLoadingMore=true (race condition guard)', async () => {
+    act(() => {
+      useFeedStore.getState().setPosts([makePost('1')], 'cursor', true)
+      useFeedStore.getState().setLoading(false)
+      // Симулируем состояние: loadMore уже выполняется
+      useFeedStore.getState().setLoadingMore(true)
+    })
+
+    let resolveLoadMore!: (v: { posts: Post[]; nextCursor: string | null; hasMore: boolean }) => void
+    mockFetchPosts.mockImplementation(() => new Promise((r) => { resolveLoadMore = r }))
+
+    render(<FeedContainer />)
+
+    // При isLoadingMore=true IO useEffect не создаёт observer — latestObserverCallback=null
+    // Имитируем завершение предыдущего loadMore → isLoadingMore=false → observer пересоздаётся
+    await act(async () => {
+      useFeedStore.getState().setLoadingMore(false)
+    })
+
+    // Observer создан и подписан
+    expect(mockObserve).toHaveBeenCalled()
+
+    // Триггерим loadMore
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    // isLoadingMore=true теперь из нашего вызова
+    expect(useFeedStore.getState().isLoadingMore).toBe(true)
+
+    // Второй trigger — loadMoreWithStallDetection должен вернуть early (guard)
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    // fetchPosts вызван ровно 1 раз, несмотря на 2 callback вызова
+    expect(mockFetchPosts).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveLoadMore({ posts: [makePost('2')], nextCursor: null, hasMore: false })
+    })
+  })
+
+  it('сообщение "Вы просмотрели все публикации" имеет role="status" для AT (a11y)', async () => {
+    const posts = [makePost('1')]
+    mockFetchPosts.mockResolvedValue({ posts, nextCursor: null, hasMore: false })
+
+    render(<FeedContainer />)
+
+    await waitFor(() => {
+      const el = screen.getByText('Вы просмотрели все публикации')
+      expect(el).toHaveAttribute('role', 'status')
+      expect(el).toHaveAttribute('aria-live', 'polite')
     })
   })
 

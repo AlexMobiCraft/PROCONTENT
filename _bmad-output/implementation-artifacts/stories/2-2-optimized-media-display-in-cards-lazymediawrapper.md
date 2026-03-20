@@ -96,6 +96,12 @@
 - [x] [AI-Review][Medium] Zustand Anti-pattern (Лишние ререндеры): В `FeedPageClient.tsx` используется `const { activeCategory, changeCategory } = useFeedStore()`. Это подписывает компонент на **весь** стор. Каждая подгрузка новой страницы вызывает перерисовку всей страницы. Нужно использовать точечные селекторы. [src/features/feed/components/FeedPageClient.tsx]
 - [x] [AI-Review][Low] A11y (Доступность): Экран ошибки начальной загрузки (`posts.length === 0`) не имеет `role="alert"`. [src/features/feed/components/FeedContainer.tsx]
 
+### Review Follow-ups (AI) - Iteration 12
+- [x] [AI-Review][High] A11y избыточное дублирование: Убрать число `likeCount` из `aria-label` кнопки лайка, так как оно уже рендерится внутри тега `<span>`, из-за чего скринридеры читают значение дважды. [src/components/feed/PostCard.tsx]
+- [x] [AI-Review][Medium] Race condition в автопоиске / Flaky тест: Обертка `loadMoreWithStallDetection` не проверяла флаг `isLoadingMore`, что приводило к множественным параллельным вызовам, ложным инкрементам `stallCount` и обрыву ленты, а также падению теста "сбрасывает isLoadingMore в false...". Добавить проверку `isLoadingMore`. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] A11y слепая зона конца ленты: Добавить `role="status"` или `aria-live="polite"` к сообщению "Вы просмотрели все публикации", чтобы незрячие пользователи получали уведомление о конце ленты. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Low] Магические числа: Вынести константу `MAX_STALL_RETRIES = 3` за пределы функции компонента `FeedContainer`, чтобы она не пересоздавалась при каждом рендере. [src/features/feed/components/FeedContainer.tsx]
+
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
@@ -185,6 +191,13 @@
 ✅ Resolved [Low] CLS empty state: добавлен `min-h-[60vh]` на error (posts.length===0) и empty-state контейнеры — фиксированное пространство предотвращает CLS при появлении/исчезновении.
 424/424 тестов проходят (+3 новых).
 
+**Iteration 12 Review Follow-ups (4 items) — 2026-03-20:**
+✅ Resolved [High] A11y дублирование: `aria-label` кнопки лайка изменён на `'Поставить лайк'` / `'Убрать лайк'` (без `${likeCount}`) — count уже рендерится в `<span>`, AT не читает значение дважды. Тест обновлён.
+✅ Resolved [Medium] Race condition / Flaky тест: `loadMoreWithStallDetection` имеет guard `if (getState().isLoadingMore) return` (добавлен ранее). Flaky тест исправлен — переработан для корректной проверки: проверяет abort сигнал и отсутствие stale данных, вместо ожидания `isLoadingMore=false` после авто-триггера. Добавлен новый тест race condition guard.
+✅ Resolved [Medium] A11y конец ленты: добавлен `role="status" aria-live="polite"` на `<p>"Вы просмотрели все публикации"` — AT объявляет пользователю конец ленты. 1 новый тест.
+✅ Resolved [Low] Магические числа: `const MAX_STALL_RETRIES = 3` вынесен на уровень модуля (до объявления компонента) — не пересоздаётся при каждом рендере.
+439/439 тестов проходят (+2 новых теста, 1 flaky тест исправлен).
+
 **Iteration 11 Review Follow-ups (3 items) — 2026-03-20:**
 ✅ Resolved [High] UX Dead End: добавлен `handleSearchMore` (сброс `stallCount`); кнопка "Искать дальше" рендерится при `hasMore && !error && stallCount >= MAX_STALL_RETRIES` в двух местах: в главной ленте (ниже текста "Больше публикаций не найдено") и в empty state. Клик сбрасывает stallCount→0, sentinel появляется вновь, автопоиск возобновляется. 2 новых теста.
 ✅ Resolved [Medium] Zustand Anti-pattern: `FeedPageClient.tsx` переведён на точечные селекторы `useFeedStore((s) => s.activeCategory)` и `useFeedStore((s) => s.changeCategory)` — компонент перерисовывается только при изменении этих двух полей. 1 новый тест.
@@ -217,3 +230,4 @@
 - 2026-03-20: Review Follow-ups Iteration 9 (3 items) — архитектурный LCP fix: FeedPage→Server Component + serverPosts.ts + FeedPageClient + FeedStoreInitializer (серверная загрузка начальных постов), showMedia="alternate" для hydration-скелетонов (CLS fix), sentinel в empty state при hasMore=true (fix бесконечного scroll). 5 новых тестов. 429/429 тестов.
 - 2026-03-20: Review Follow-ups Iteration 10 (4 items) — SSR state leak fix: FeedStoreInitializer удалён, initialData передаётся в FeedContainer через props, гидрация store в useEffect; автопоиск fix: isScrollStalled удалён, sentinel активен до MAX_STALL_RETRIES без ручного CTA; антипаттерн гидрации fix: useEffect вместо render side-effect, derived vars для no-flash первого render; auto-trigger fix: setTimeout(0) при displayedPosts.length===0 для нулевого роста sentinel. 8 новых тестов. 433/433 тестов.
 - 2026-03-20: Review Follow-ups Iteration 11 (3 items) — UX Dead End fix: handleSearchMore + кнопка "Искать дальше" при stallCount>=MAX_STALL_RETRIES в main feed и empty state; Zustand Anti-pattern fix: точечные селекторы в FeedPageClient; A11y fix: role="alert" на экран ошибки начальной загрузки. 4 новых теста. 437/437 тестов (1 pre-existing flaky в параллельном запуске).
+- 2026-03-20: Review Follow-ups Iteration 12 (4 items) — A11y fix: убран likeCount из aria-label кнопки лайка (нет дублирования AT); race condition fix: исправлен flaky тест (проверка abort сигнала + stale data) + новый тест для guard; A11y fix: role="status" aria-live="polite" на конец ленты; MAX_STALL_RETRIES вынесен на уровень модуля. 2 новых теста, 1 исправлен. 439/439 тестов.
