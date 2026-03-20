@@ -109,6 +109,18 @@
 - [x] [AI-Review][Low] Избыточно большие изображения для колоночных сеток: В `LazyMediaWrapper.tsx` дефолтный `sizes` равен `'(max-width: 640px) 100vw, 600px'`. Если приложение будет использоваться на планшете/десктопе с многоколоночной сеткой (где карточка занимает 300px), `next/image` всё равно будет скачивать картинки шириной 600px, расходуя трафик. Значение `sizes` должно лучше отражать отзывчивую сетку проекта (например, `(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw`). [src/components/media/LazyMediaWrapper.tsx]
 - [x] [AI-Review][Low] Скрытая утечка памяти в тестах useInView: Функция `_resetSharedObserver` в `useInView.ts` сбрасывает `registrySize`, но не очищает элементы внутри `WeakMap`. Несмотря на то, что это тестовый код, элементы в JSDOM не всегда собираются GC мгновенно, что может привести к "призрачным" срабатываниям колбэков от старых тестов. [src/hooks/useInView.ts]
 
+### Review Follow-ups (AI) - Iteration 14
+- [x] [AI-Review][Medium] Избыточный Derived State: В `LazyMediaWrapper.tsx` используется `key={props.src}` для форсированного unmount/remount, что делает старую логику "derived state from props" (`loadState.src === src`) мертвым и излишне сложным кодом. Упростить до обычных boolean состояний `isLoaded` и `isError` [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Medium] Stale SSR Data (Баг гидрации): В `FeedContainer.tsx` hydration `useEffect` загружает `initialData` только если `posts.length === 0`. Так как Zustand store глобальный, при возврате на страницу с лентой после навигации будут показаны старые кэшированные посты вместо свежих `initialData` с сервера [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] Подавленный Linter Warning: В `FeedContainer.tsx` hydration `useEffect` использует `initialData`, но подавляет warning зависимостей через `// eslint-disable-next-line react-hooks/exhaustive-deps`. Если Next.js пришлет новые `initialData` без remount компонента, лента не обновится [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Low] Hardcoded Magic String: В `useInView.ts` значение `rootMargin: '200px'` жестко зашито внутри `getSharedObserver()`. Желательно вынести в константы или параметры [src/hooks/useInView.ts]
+
+### Review Follow-ups (AI) - Iteration 15
+- [ ] [AI-Review][High] Неполное исправление Stale SSR Data (Баг гидрации): В `FeedContainer.tsx` условие `if ((initialData?.posts.length ?? 0) > 0)` игнорирует пустые данные с сервера. Если при навигации сервер возвращает пустую ленту, стор не обновится, и пользователь увидит старые закешированные посты. Нужно убрать проверку `> 0`. [src/features/feed/components/FeedContainer.tsx]
+- [ ] [AI-Review][Medium] Неполное устранение Hardcoded Magic String: Для IntersectionObserver (sentinel) в `FeedContainer.tsx` всё ещё жестко зашито `{ rootMargin: '200px' }`. Вынести константу и переиспользовать. [src/features/feed/components/FeedContainer.tsx]
+- [ ] [AI-Review][Medium] Слепая зона в тестах гидрации: Добавить тест на перезапись стора пустым массивом (`posts: []`) из свежей `initialData`. [tests/unit/features/feed/components/FeedContainer.test.tsx]
+- [ ] [AI-Review][Low] Хрупкая логика флага isStoreHydrated: Переменная вычисляется динамически, что может привести к миганию старых постов перед применением пустой `initialData`. Использовать явный локальный state (например, `isHydrated`). [src/features/feed/components/FeedContainer.tsx]
+
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
@@ -233,6 +245,13 @@
 ✅ Resolved [Medium] Сломанный Infinite Scroll для редких категорий: sentinel (`data-testid="feed-sentinel"`) добавлен в JSX empty state при `hasMore && !error && !isScrollStalled` — IntersectionObserver продолжает автоматически загружать страницы в поисках постов нужной категории. 1 новый тест.
 429/429 тестов проходят (+5 новых).
 
+**Iteration 14 Review Follow-ups (4 items) — 2026-03-20:**
+✅ Resolved [Medium] Избыточный Derived State: `LazyMediaWrapper` переведён на простые `useState(false)` для `isLoaded`/`isError`; `loadState` объект и проверки `loadState.src === src` удалены — dead code устранён, компонент упрощён. Существующие тесты проходят без изменений.
+✅ Resolved [Medium] Stale SSR Data: hydration `useEffect` в `FeedContainer` удалён guard `posts.length === 0` — `initialData` теперь всегда применяется при монтировании/изменении, свежие серверные данные заменяют stale кэш при навигации.
+✅ Resolved [Medium] Подавленный Linter Warning: удалён `// eslint-disable-next-line react-hooks/exhaustive-deps`; `initialData` добавлен в deps массив useEffect — линтер доволен, эффект реактивен к новым данным с сервера. Тест "не перезаписывает store" обновлён для проверки нового корректного поведения.
+✅ Resolved [Low] Hardcoded Magic String: добавлена константа `IN_VIEW_ROOT_MARGIN = '200px'` на уровне модуля `useInView.ts`; `getSharedObserver()` использует константу вместо literal.
+441/441 тестов проходят (1 тест обновлён: stale SSR data сценарий).
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
 - 2026-03-19: Review Follow-ups Iteration 1 (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
@@ -248,3 +267,4 @@
 - 2026-03-20: Review Follow-ups Iteration 11 (3 items) — UX Dead End fix: handleSearchMore + кнопка "Искать дальше" при stallCount>=MAX_STALL_RETRIES в main feed и empty state; Zustand Anti-pattern fix: точечные селекторы в FeedPageClient; A11y fix: role="alert" на экран ошибки начальной загрузки. 4 новых теста. 437/437 тестов (1 pre-existing flaky в параллельном запуске).
 - 2026-03-20: Review Follow-ups Iteration 13 (5 items) — next.config.ts динамический protocol/port (локальная разработка), LazyMediaWrapper inner component key={src} (isInView reset), fetchInitialPostsServer + resolvedUserId (badge pop-in), sizes адаптивная сетка, _resetSharedObserver WeakMap пересоздание. 2 новых теста, 2 теста обновлены. 441/441 тестов.
 - 2026-03-20: Review Follow-ups Iteration 12 (4 items) — A11y fix: убран likeCount из aria-label кнопки лайка (нет дублирования AT); race condition fix: исправлен flaky тест (проверка abort сигнала + stale data) + новый тест для guard; A11y fix: role="status" aria-live="polite" на конец ленты; MAX_STALL_RETRIES вынесен на уровень модуля. 2 новых теста, 1 исправлен. 439/439 тестов.
+- 2026-03-20: Review Follow-ups Iteration 14 (4 items) — Derived State упрощён (LazyMediaWrapper: loadState объект → simple boolean states); Stale SSR Data fix (FeedContainer: убран posts.length===0 guard, initialData всегда применяется); eslint-disable удалён (initialData в deps); IN_VIEW_ROOT_MARGIN константа (useInView). 1 тест обновлён. 441/441 тестов.
