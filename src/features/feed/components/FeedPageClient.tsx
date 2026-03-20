@@ -9,7 +9,14 @@ import type { FeedPage } from '../types'
 // безопасный способ передачи серверных данных без мутации глобального Zustand store
 // в render фазе (fix: SSR state leak + антипаттерн гидрации).
 // FeedContainer гидратирует store в useEffect (только клиент).
-export function FeedPageClient({ initialData }: { initialData: FeedPage }) {
+// initialUserId передаётся для устранения badge pop-in при гидрации auth store.
+export function FeedPageClient({
+  initialData,
+  initialUserId,
+}: {
+  initialData: FeedPage
+  initialUserId?: string | null
+}) {
   // Точечные селекторы — компонент перерисовывается только при изменении
   // activeCategory или changeCategory, а не при любом изменении store.
   const activeCategory = useFeedStore((s) => s.activeCategory)
@@ -21,7 +28,7 @@ export function FeedPageClient({ initialData }: { initialData: FeedPage }) {
         <CategoryScroll activeCategory={activeCategory} onCategoryChange={changeCategory} />
       </div>
 
-      <FeedContainer initialData={initialData} />
+      <FeedContainer initialData={initialData} initialUserId={initialUserId} />
     </main>
   )
 }

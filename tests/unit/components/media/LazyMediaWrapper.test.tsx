@@ -283,14 +283,16 @@ describe('LazyMediaWrapper', () => {
       const { container, getByRole, rerender } = render(
         <LazyMediaWrapper src="https://example.com/image1.jpg" alt="Test" priority />
       )
-      const wrapper = container.firstChild as HTMLElement
 
       fireEvent.load(getByRole('img', { name: 'Test' }))
-      expect(wrapper.className).not.toContain('animate-pulse')
+      // До смены src — animate-pulse снят (загружено)
+      expect((container.firstChild as HTMLElement).className).not.toContain('animate-pulse')
 
       rerender(<LazyMediaWrapper src="https://example.com/image2.jpg" alt="Test" priority />)
 
-      expect(wrapper.className).toContain('animate-pulse')
+      // После смены src inner component remount-ится (key=src) → fresh state → animate-pulse вернулся.
+      // container.firstChild обновляется на новый DOM-элемент нового LazyMediaWrapperContent.
+      expect((container.firstChild as HTMLElement).className).toContain('animate-pulse')
     })
 
     it('сбрасывает isError при смене src — fallback исчезает', () => {
@@ -306,6 +308,32 @@ describe('LazyMediaWrapper', () => {
       expect(container.querySelector('[data-testid="media-error-fallback"]')).toBeNull()
     })
   })
+
+  describe('сброс isInView при смене src (key={src} ремаунт)', () => {
+    it('сбрасывает isInView при смене src — ленивое изображение не показывается до нового пересечения', () => {
+      const { container, queryByRole, rerender } = render(
+        <LazyMediaWrapper src="https://example.com/image1.jpg" alt="Test" />
+      )
+      const wrapper = container.firstChild as HTMLElement
+
+      // Симулируем попадание в viewport — isInView=true
+      act(() => {
+        capturedCallback?.(
+          [{ isIntersecting: true, target: wrapper } as unknown as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      })
+
+      expect(queryByRole('img')).not.toBeNull()
+
+      // Меняем src — LazyMediaWrapperContent remount-ится (key=src), isInView сбрасывается в false
+      rerender(<LazyMediaWrapper src="https://example.com/image2.jpg" alt="Test" />)
+
+      // Новый компонент ещё не попал в viewport → изображение не должно рендериться
+      expect(queryByRole('img')).toBeNull()
+    })
+  })
+
 
   describe('защита от двойного обращения к уничтоженному observer', () => {
     it('после intersection не вызывает unobserve при анмаунте (observer уже disconnected)', () => {

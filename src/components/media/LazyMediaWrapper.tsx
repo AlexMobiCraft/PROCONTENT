@@ -13,18 +13,30 @@ interface LazyMediaWrapperProps {
   priority?: boolean
   type?: 'photo' | 'video'
   /** Значение атрибута sizes для next/image — передаётся вызывающим компонентом
-   *  в зависимости от реального места в сетке. По умолчанию — одноколоночная лента. */
+   *  в зависимости от реального места в сетке. По умолчанию — адаптивная сетка
+   *  (одноколоночная на mobile, двухколоночная на планшете, трёхколоночная на desktop). */
   sizes?: string
 }
 
-export function LazyMediaWrapper({
+/**
+ * Форсированный сброс isInView при смене src достигается через key={props.src}
+ * на внутреннем компоненте — React remount-ит LazyMediaWrapperContent
+ * при смене key, сбрасывая все hooks-состояния, включая isInView из useInView.
+ * Это предотвращает eager-загрузку нового изображения, когда компонент
+ * переиспользуется с новым src (например, при редактировании поста).
+ */
+export function LazyMediaWrapper(props: LazyMediaWrapperProps) {
+  return <LazyMediaWrapperContent key={props.src} {...props} />
+}
+
+function LazyMediaWrapperContent({
   src,
   alt,
   aspectRatio = '16/9',
   className,
   priority = false,
   type = 'photo',
-  sizes = '(max-width: 640px) 100vw, 600px',
+  sizes = '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw',
 }: LazyMediaWrapperProps) {
   // loadState привязан к src: при смене src isLoaded/isError автоматически false.
   // Паттерн "derived state from props" — без useEffect, без лишнего рендера.

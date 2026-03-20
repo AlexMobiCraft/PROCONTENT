@@ -40,7 +40,10 @@ function isAbortError(error: unknown): boolean {
 // Константа вынесена на уровень модуля — не пересоздаётся при каждом рендере.
 const MAX_STALL_RETRIES = 3
 
-export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) {
+export function FeedContainer({
+  initialData,
+  initialUserId,
+}: { initialData?: FeedPage; initialUserId?: string | null } = {}) {
   // Индивидуальные селекторы — компонент перерисовывается только при изменении
   // нужных полей, а не при любом изменении store
   const storePosts = useFeedStore((s) => s.posts)
@@ -51,6 +54,12 @@ export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) 
   const activeCategory = useFeedStore((s) => s.activeCategory)
   const isAuthReady = useAuthStore((state) => state.isReady)
   const currentUserId = useAuthStore((state) => state.user?.id ?? null)
+
+  // Стабильный userId: используем initialUserId (с сервера) до инициализации auth store.
+  // После isAuthReady=true переключаемся на живое значение из auth store.
+  // Это предотвращает badge pop-in: SSR-рендер → гидрация → auth ready —
+  // все три фазы получают одинаковый userId без микро-сдвига UI.
+  const resolvedUserId = isAuthReady ? currentUserId : (initialUserId ?? null)
 
   const observerRef = useRef<HTMLDivElement>(null)
   const initialLoadAbortRef = useRef<AbortController | null>(null)
@@ -258,9 +267,10 @@ export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) 
   )
 
   // Мемоизация маппинга — стабильные ссылки на объекты, нет лишних рендеров PostCard.
+  // resolvedUserId (не currentUserId) предотвращает badge pop-in при гидрации auth store.
   const cardDataList = useMemo(
-    () => displayedPosts.map((post) => dbPostToCardData(post, currentUserId)),
-    [displayedPosts, currentUserId]
+    () => displayedPosts.map((post) => dbPostToCardData(post, resolvedUserId)),
+    [displayedPosts, resolvedUserId]
   )
 
   // Auto-trigger loadMore когда displayedPosts.length === 0 и sentinel в DOM,

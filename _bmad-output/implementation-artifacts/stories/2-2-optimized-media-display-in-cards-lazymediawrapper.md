@@ -102,6 +102,13 @@
 - [x] [AI-Review][Medium] A11y слепая зона конца ленты: Добавить `role="status"` или `aria-live="polite"` к сообщению "Вы просмотрели все публикации", чтобы незрячие пользователи получали уведомление о конце ленты. [src/features/feed/components/FeedContainer.tsx]
 - [x] [AI-Review][Low] Магические числа: Вынести константу `MAX_STALL_RETRIES = 3` за пределы функции компонента `FeedContainer`, чтобы она не пересоздавалась при каждом рендере. [src/features/feed/components/FeedContainer.tsx]
 
+### Review Follow-ups (AI) - Iteration 13
+- [x] [AI-Review][High] Сломанная локальная разработка (next.config.ts): В конфигурации `remotePatterns` жестко зашит `protocol: 'https'` и игнорируется порт. Если локальный Supabase работает на `http://127.0.0.1:54321`, `next/image` будет блокировать все изображения с ошибкой "protocol must be https" или из-за отсутствия порта. Необходимо динамически извлекать `protocol` и `port` из `URL(supabaseUrl)`. [next.config.ts]
+- [x] [AI-Review][Medium] Слепая зона в кэшировании useInView: При смене `src` у `LazyMediaWrapper` (например, при редактировании поста), `loadState` обновляется и показывает скелетон, однако внутренний статус `isInView` из `useInView` не сбрасывается. Если изображение было вне viewport в момент смены, оно мгновенно загрузится (игнорируя отложенную загрузку), так как `showImage = priority || isInView` останется `true`. Требуется форсированный сброс обсервера (например, через привязку `key={src}` к контейнеру). [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Medium] Задержка отображения бейджа автора из-за SSR: `FeedContainer` рендерит карточки синхронно из `initialData` на сервере с `currentUserId = null`. На клиенте `isAuthReady` изначально `false`, поэтому рендерятся карточки без бейджа "Автор". Когда `useAuthStore` инициализируется, карточка перерендеривается и появляется бейдж, вызывая микро-сдвиг UI (Layout Pop-in). Следует учитывать состояние гидрации при отрисовке условных блоков. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Low] Избыточно большие изображения для колоночных сеток: В `LazyMediaWrapper.tsx` дефолтный `sizes` равен `'(max-width: 640px) 100vw, 600px'`. Если приложение будет использоваться на планшете/десктопе с многоколоночной сеткой (где карточка занимает 300px), `next/image` всё равно будет скачивать картинки шириной 600px, расходуя трафик. Значение `sizes` должно лучше отражать отзывчивую сетку проекта (например, `(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw`). [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Low] Скрытая утечка памяти в тестах useInView: Функция `_resetSharedObserver` в `useInView.ts` сбрасывает `registrySize`, но не очищает элементы внутри `WeakMap`. Несмотря на то, что это тестовый код, элементы в JSDOM не всегда собираются GC мгновенно, что может привести к "призрачным" срабатываниям колбэков от старых тестов. [src/hooks/useInView.ts]
+
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
@@ -116,6 +123,7 @@
 - `tests/unit/features/feed/components/FeedContainer.test.tsx` (modify)
 - `tests/unit/features/feed/components/FeedPageClient.test.tsx` (new)
 - `tests/unit/app/feed/page.test.tsx` (modify)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modify)
 
 ## Dev Notes
 - Использовать стандартный `next/image` для фото.
@@ -191,6 +199,14 @@
 ✅ Resolved [Low] CLS empty state: добавлен `min-h-[60vh]` на error (posts.length===0) и empty-state контейнеры — фиксированное пространство предотвращает CLS при появлении/исчезновении.
 424/424 тестов проходят (+3 новых).
 
+**Iteration 13 Review Follow-ups (5 items) — 2026-03-20:**
+✅ Resolved [High] next.config.ts локальная разработка: `protocol` и `port` теперь извлекаются динамически из `new URL(supabaseUrl)` — `supabaseRemotePattern` включает `port` только при явном наличии в URL; локальный Supabase на `http://127.0.0.1:54321` обрабатывается корректно.
+✅ Resolved [Medium] isInView не сбрасывается при смене src: введён внутренний компонент `LazyMediaWrapperContent` с `key={props.src}` на обёртке `LazyMediaWrapper` — React remount-ит inner при смене src, сбрасывая все hooks-состояния включая `isInView`. 1 новый тест (isInView reset на новое изображение). Существующие тесты обновлены (fresh `container.firstChild` после rerender).
+✅ Resolved [Medium] Author badge pop-in: `fetchInitialPostsServer()` теперь параллельно загружает `currentUserId` через `supabase.auth.getUser()` и возвращает `{ feedPage, currentUserId }`; `FeedPage` передаёт `initialUserId` через `FeedPageClient` в `FeedContainer`; `resolvedUserId = isAuthReady ? currentUserId : initialUserId` предотвращает badge pop-in — все три фазы SSR/гидрация/auth-ready получают корректный userId. 1 новый тест.
+✅ Resolved [Low] Дефолтный sizes для адаптивной сетки: изменён с `'(max-width: 640px) 100vw, 600px'` на `'(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw'` — охватывает планшет и desktop с многоколоночной сеткой.
+✅ Resolved [Low] Скрытая утечка памяти в тестах useInView: `_resetSharedObserver` теперь создаёт `registry = new WeakMap()` вместо простого сброса счётчика — старые записи становятся недостижимы при GC, "призрачные" срабатывания коллбэков между тестами устранены. `const` → `let`.
+441/441 тестов проходят (+2 новых теста).
+
 **Iteration 12 Review Follow-ups (4 items) — 2026-03-20:**
 ✅ Resolved [High] A11y дублирование: `aria-label` кнопки лайка изменён на `'Поставить лайк'` / `'Убрать лайк'` (без `${likeCount}`) — count уже рендерится в `<span>`, AT не читает значение дважды. Тест обновлён.
 ✅ Resolved [Medium] Race condition / Flaky тест: `loadMoreWithStallDetection` имеет guard `if (getState().isLoadingMore) return` (добавлен ранее). Flaky тест исправлен — переработан для корректной проверки: проверяет abort сигнал и отсутствие stale данных, вместо ожидания `isLoadingMore=false` после авто-триггера. Добавлен новый тест race condition guard.
@@ -230,4 +246,5 @@
 - 2026-03-20: Review Follow-ups Iteration 9 (3 items) — архитектурный LCP fix: FeedPage→Server Component + serverPosts.ts + FeedPageClient + FeedStoreInitializer (серверная загрузка начальных постов), showMedia="alternate" для hydration-скелетонов (CLS fix), sentinel в empty state при hasMore=true (fix бесконечного scroll). 5 новых тестов. 429/429 тестов.
 - 2026-03-20: Review Follow-ups Iteration 10 (4 items) — SSR state leak fix: FeedStoreInitializer удалён, initialData передаётся в FeedContainer через props, гидрация store в useEffect; автопоиск fix: isScrollStalled удалён, sentinel активен до MAX_STALL_RETRIES без ручного CTA; антипаттерн гидрации fix: useEffect вместо render side-effect, derived vars для no-flash первого render; auto-trigger fix: setTimeout(0) при displayedPosts.length===0 для нулевого роста sentinel. 8 новых тестов. 433/433 тестов.
 - 2026-03-20: Review Follow-ups Iteration 11 (3 items) — UX Dead End fix: handleSearchMore + кнопка "Искать дальше" при stallCount>=MAX_STALL_RETRIES в main feed и empty state; Zustand Anti-pattern fix: точечные селекторы в FeedPageClient; A11y fix: role="alert" на экран ошибки начальной загрузки. 4 новых теста. 437/437 тестов (1 pre-existing flaky в параллельном запуске).
+- 2026-03-20: Review Follow-ups Iteration 13 (5 items) — next.config.ts динамический protocol/port (локальная разработка), LazyMediaWrapper inner component key={src} (isInView reset), fetchInitialPostsServer + resolvedUserId (badge pop-in), sizes адаптивная сетка, _resetSharedObserver WeakMap пересоздание. 2 новых теста, 2 теста обновлены. 441/441 тестов.
 - 2026-03-20: Review Follow-ups Iteration 12 (4 items) — A11y fix: убран likeCount из aria-label кнопки лайка (нет дублирования AT); race condition fix: исправлен flaky тест (проверка abort сигнала + stale data) + новый тест для guard; A11y fix: role="status" aria-live="polite" на конец ленты; MAX_STALL_RETRIES вынесен на уровень модуля. 2 новых теста, 1 исправлен. 439/439 тестов.

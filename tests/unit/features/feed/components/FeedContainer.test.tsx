@@ -1000,4 +1000,26 @@ describe('FeedContainer', () => {
       expect(mockFetchPosts).toHaveBeenCalled()
     })
   })
+
+  // --- Iteration 13: Item 3 (Author badge pop-in fix — initialUserId) ---
+
+  it('initialUserId используется для isAuthor до инициализации auth store (предотвращение badge pop-in)', () => {
+    // Auth store не готов (isAuthReady=false) — имитация SSR-to-CSR перехода до гидрации
+    act(() => {
+      useAuthStore.getState().clearAuth()
+      // setReady(false) — auth ещё не инициализирован
+    })
+
+    const post = makePost('1') // author_id = 'user-1'
+    act(() => {
+      useFeedStore.getState().setPosts([post], null, false)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    // Передаём initialUserId с сервера — пользователь 'user-1' (автор поста)
+    render(<FeedContainer initialUserId="user-1" />)
+
+    // isAuthor=true, несмотря на isAuthReady=false — badge не мигает при гидрации
+    expect(screen.getByTestId('post-1')).toHaveAttribute('data-is-author', 'true')
+  })
 })

@@ -6,7 +6,9 @@ type InViewCallback = (entry: IntersectionObserverEntry) => void
 
 // WeakMap позволяет GC собирать элементы после анмаунта без явного удаления,
 // устраняя риск утечки памяти при разрыве между unobserve и GC.
-const registry = new WeakMap<Element, InViewCallback>()
+// let (не const) — _resetSharedObserver создаёт новый экземпляр между тестами,
+// предотвращая "призрачные" срабатывания коллбэков от элементов предыдущих тестов.
+let registry = new WeakMap<Element, InViewCallback>()
 let registrySize = 0
 let sharedObserver: IntersectionObserver | null = null
 
@@ -30,8 +32,10 @@ export function _resetSharedObserver(): void {
     sharedObserver.disconnect()
     sharedObserver = null
   }
-  // WeakMap не поддерживает .clear(); сбрасываем счётчик — достаточно для тестов,
-  // так как между тестами все элементы анмаунтятся и GC'ятся.
+  // Создаём новый WeakMap — старый остаётся доступен GC без явного clear().
+  // Это предотвращает "призрачные" срабатывания коллбэков в JSDOM, где элементы
+  // могут не собираться GC мгновенно после анмаунта между тестами.
+  registry = new WeakMap()
   registrySize = 0
 }
 
