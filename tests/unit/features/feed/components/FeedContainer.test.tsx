@@ -527,6 +527,46 @@ describe('FeedContainer', () => {
     })
   })
 
+  it('скелетоны гидрации (isAuthReady=false, posts=[]) чередуют showMedia для предотвращения CLS', () => {
+    // Отменяем готовность auth — FeedContainer покажет hydration-скелетоны
+    act(() => {
+      useAuthStore.getState().setReady(false)
+      // posts.length === 0 из reset() в beforeEach
+    })
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
+
+    render(<FeedContainer />)
+
+    // Гидрационные скелетоны (aria-label "Загрузка приложения")
+    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Загрузка приложения')
+    const skeletons = screen.getAllByTestId('skeleton')
+    expect(skeletons).toHaveLength(5)
+
+    // alternate: i%2===0 → индексы 0,2,4 = true; 1,3 = false (3 с медиа, 2 без)
+    const withMedia = skeletons.filter((s) => s.getAttribute('data-show-media') === 'true')
+    const withoutMedia = skeletons.filter((s) => s.getAttribute('data-show-media') === 'false')
+    expect(withMedia).toHaveLength(3)
+    expect(withoutMedia).toHaveLength(2)
+  })
+
+  it('рендерит sentinel в empty state когда нет постов для категории и hasMore=true (fix бесконечного scroll)', () => {
+    // Есть посты другой категории, hasMore=true — sentinel должен быть в empty state
+    const posts = [makePost('1', 'insight')]
+    act(() => {
+      useFeedStore.getState().setPosts(posts, 'cursor', true) // hasMore=true
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('reels') // нет 'reels' постов → empty state
+    })
+
+    render(<FeedContainer />)
+
+    // Empty state виден
+    expect(screen.getByText('Скоро здесь появится контент')).toBeInTheDocument()
+    // Sentinel присутствует — auto-scroll может продолжать поиск постов
+    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+    expect(mockObserve).toHaveBeenCalled()
+  })
+
   it('рендерит посты из кэша даже при isAuthReady=false (LCP fix)', () => {
     const posts = [makePost('1'), makePost('2')]
     act(() => {

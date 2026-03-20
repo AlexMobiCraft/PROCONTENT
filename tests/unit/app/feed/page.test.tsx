@@ -22,16 +22,20 @@ vi.mock('@/features/feed/components/FeedContainer', () => ({
   FeedContainer: () => <div data-testid="feed-container" />,
 }))
 
-import FeedPage from '@/app/(app)/feed/page'
+// Тестируем FeedPageClient — клиентский wrapper с логикой категорий.
+// FeedPage теперь Server Component (async), все интерактивные тесты — здесь.
+import { FeedPageClient } from '@/features/feed/components/FeedPageClient'
 
-describe('FeedPage', () => {
+const emptyInitialData = { posts: [], nextCursor: null, hasMore: true }
+
+describe('FeedPage (FeedPageClient)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useFeedStore.getState().reset()
   })
 
   it('рендерит CategoryScroll и FeedContainer', () => {
-    render(<FeedPage />)
+    render(<FeedPageClient initialData={emptyInitialData} />)
 
     expect(screen.getByTestId('category-scroll')).toBeInTheDocument()
     expect(screen.getByTestId('feed-container')).toBeInTheDocument()
@@ -40,7 +44,7 @@ describe('FeedPage', () => {
   it('передаёт activeCategory из store в CategoryScroll', () => {
     useFeedStore.getState().setActiveCategory('reels')
 
-    render(<FeedPage />)
+    render(<FeedPageClient initialData={emptyInitialData} />)
 
     expect(screen.getByTestId('category-scroll')).toHaveAttribute(
       'data-active',
@@ -50,7 +54,7 @@ describe('FeedPage', () => {
 
   it('вызывает changeCategory при смене категории', async () => {
     const user = userEvent.setup()
-    render(<FeedPage />)
+    render(<FeedPageClient initialData={emptyInitialData} />)
 
     await user.click(screen.getByText('Reels'))
 
@@ -85,7 +89,7 @@ describe('FeedPage', () => {
       true
     )
 
-    render(<FeedPage />)
+    render(<FeedPageClient initialData={emptyInitialData} />)
     await user.click(screen.getByText('Reels'))
 
     // changeCategory только меняет активную категорию, не сбрасывает кэш постов

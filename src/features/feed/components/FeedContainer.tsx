@@ -235,7 +235,7 @@ export function FeedContainer() {
   if (!isAuthReady && posts.length === 0) {
     return (
       <div role="status" aria-label="Загрузка приложения">
-        <Skeletons count={5} context="hydration" />
+        <Skeletons count={5} context="hydration" showMedia="alternate" />
       </div>
     )
   }
@@ -296,6 +296,10 @@ export function FeedContainer() {
           >
             {error ? 'Повторить' : 'Загрузить ещё'}
           </button>
+        )}
+        {/* Sentinel остаётся в empty state пока hasMore=true — автопрокрутка продолжает искать посты */}
+        {hasMore && !error && !isScrollStalled && (
+          <div ref={observerRef} aria-hidden="true" data-testid="feed-sentinel" className="h-px w-full" />
         )}
       </div>
     )

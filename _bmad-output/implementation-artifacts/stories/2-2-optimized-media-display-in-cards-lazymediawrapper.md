@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: Medium
-- [ ] Статус: in-progress
+- [x] Статус: review
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -81,19 +81,30 @@
 - [x] [AI-Review][Low] CLS empty state: блоки пустых состояний/ошибок не имеют фиксированной высоты, что вызывает скачки при появлении/исчезновении. Добавьте минимальную высоту или резервное пространство. [src/features/feed/components/FeedContainer.tsx]
 
 ### Review Follow-ups (AI) - Iteration 9
-- [ ] [AI-Review][High] Ложное исправление LCP (Архитектура): FeedContainer загружает данные на клиенте (CSR), поэтому `<Image priority>` появляется в DOM слишком поздно, чтобы браузер мог выполнить предзагрузку. Для честного LCP необходимо рендерить первый экран на сервере или передавать initial state из Server Component. [src/features/feed/components/FeedContainer.tsx]
-- [ ] [AI-Review][High] Регрессия CLS при гидрации: Компонент `Skeletons` для состояния `hydration` не передаёт проп `showMedia="alternate"`. Начальный SSR-рендер происходит без медиа-плейсхолдеров, что вызывает скачок контента после загрузки постов. [src/features/feed/components/FeedContainer.tsx]
-- [ ] [AI-Review][Medium] Сломанный Infinite Scroll для редких категорий: Если при смене категории нет постов, выводится empty state с ручной кнопкой, и `observerRef` (sentinel) не рендерится. Автоматический поиск постов останавливается. Нужно адаптировать логику показа sentinel, чтобы лента могла продолжать поиск. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][High] Ложное исправление LCP (Архитектура): FeedContainer загружает данные на клиенте (CSR), поэтому `<Image priority>` появляется в DOM слишком поздно, чтобы браузер мог выполнить предзагрузку. Для честного LCP необходимо рендерить первый экран на сервере или передавать initial state из Server Component. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][High] Регрессия CLS при гидрации: Компонент `Skeletons` для состояния `hydration` не передаёт проп `showMedia="alternate"`. Начальный SSR-рендер происходит без медиа-плейсхолдеров, что вызывает скачок контента после загрузки постов. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] Сломанный Infinite Scroll для редких категорий: Если при смене категории нет постов, выводится empty state с ручной кнопкой, и `observerRef` (sentinel) не рендерится. Автоматический поиск постов останавливается. Нужно адаптировать логику показа sentinel, чтобы лента могла продолжать поиск. [src/features/feed/components/FeedContainer.tsx]
+
+### Review Follow-ups (AI) - Iteration 10
+- [ ] [AI-Review][High] SSR state leak: `FeedStoreInitializer` мутирует глобальный Zustand store во время серверного рендера, из-за чего посты одного пользователя попадают в HTML/rehydration других сессий. Нужно исключить мутацию стора на сервере и пробрасывать `initialData` в клиентский слой безопасным способом. [src/features/feed/components/FeedPageClient.tsx]
+- [ ] [AI-Review][High] Автопоиск обрывается при empty state: условие `hasMore && !error && !isScrollStalled` удаляет sentinel сразу после первой пустой страницы, поэтому Infinite Scroll не делает новых попыток без ручного клика. Требуется сохранять sentinel активным и перезапускать observer до исчерпания `MAX_STALL_RETRIES`. [src/features/feed/components/FeedContainer.tsx]
+- [ ] [AI-Review][Medium] Антипаттерн гидрации: `FeedStoreInitializer` вызывает `setPosts` синхронно в рендере, что нарушает правила React и блокирует честный LCP. Нужно переносить инициализацию в эффект или в отдельный провайдер, либо передавать данные напрямую в `FeedContainer` без сторонних сайд-эффектов. [src/features/feed/components/FeedPageClient.tsx]
+- [ ] [AI-Review][Medium] Нулевой рост sentinel не триггерит observer при фильтрах: когда посты категории отсутствуют, высота ленты не меняется и `IntersectionObserver` больше не срабатывает, даже если sentinel в DOM. Требуется программно инициировать повторную проверку (например, `requestIdleCallback` + ручной `loadMore`) или временно увеличивать область наблюдения. [src/features/feed/components/FeedContainer.tsx]
 
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
 - `src/components/feed/PostCard.tsx` (modify)
 - `src/features/feed/components/FeedContainer.tsx` (modify)
+- `src/features/feed/components/FeedPageClient.tsx` (new)
+- `src/features/feed/api/serverPosts.ts` (new)
+- `src/app/(app)/feed/page.tsx` (modify)
 - `next.config.ts` (modify)
 - `tests/unit/components/media/LazyMediaWrapper.test.tsx` (modify)
 - `tests/unit/components/feed/PostCard.test.tsx` (modify)
 - `tests/unit/features/feed/components/FeedContainer.test.tsx` (modify)
+- `tests/unit/features/feed/components/FeedPageClient.test.tsx` (new)
+- `tests/unit/app/feed/page.test.tsx` (modify)
 
 ## Dev Notes
 - Использовать стандартный `next/image` для фото.
@@ -169,6 +180,12 @@
 ✅ Resolved [Low] CLS empty state: добавлен `min-h-[60vh]` на error (posts.length===0) и empty-state контейнеры — фиксированное пространство предотвращает CLS при появлении/исчезновении.
 424/424 тестов проходят (+3 новых).
 
+**Iteration 9 Review Follow-ups (3 items) — 2026-03-20:**
+✅ Resolved [High] Ложное исправление LCP (Архитектура): создан `src/features/feed/api/serverPosts.ts` (серверная загрузка через Supabase server client); `src/app/(app)/feed/page.tsx` конвертирован в async Server Component (без 'use client'); создан `src/features/feed/components/FeedPageClient.tsx` с `FeedStoreInitializer` — синхронно гидратирует Zustand store серверными данными до первого рендера FeedContainer; priority-изображения попадают в первый render → браузер preload-ит их немедленно → LCP не ломается. 3 новых теста в FeedPageClient.test.tsx.
+✅ Resolved [High] Регрессия CLS при гидрации: hydration-скелетоны (`!isAuthReady && posts.length===0`) теперь передают `showMedia="alternate"` — 3 с медиа + 2 без = соответствует реальным карточкам → CLS при гидрации устранён. 1 новый тест.
+✅ Resolved [Medium] Сломанный Infinite Scroll для редких категорий: sentinel (`data-testid="feed-sentinel"`) добавлен в JSX empty state при `hasMore && !error && !isScrollStalled` — IntersectionObserver продолжает автоматически загружать страницы в поисках постов нужной категории. 1 новый тест.
+429/429 тестов проходят (+5 новых).
+
 ## Change Log
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
 - 2026-03-19: Review Follow-ups Iteration 1 (5 items) — устранены все замечания AI-ревью: shared IO хук, env var hostname, media skeletons, aspectRatio, улучшенный мок. 400/400 тестов.
@@ -179,3 +196,4 @@
 - 2026-03-19: Review Follow-ups Iteration 6 (4 items) — Skeletons alternate showMedia (CLS fix), видео-иконка при isError постера, мок PostCardSkeleton с data-show-media + 1 новый тест, мемоизация cardDataList через useMemo. 417/417 тестов.
 - 2026-03-19: Review Follow-ups Iteration 7 (4 items) — isLoadingMore в deps IO observer (fix лента зависает на высоких экранах) + 1 тест, сброс isLoaded/isError при смене src + 2 теста, удалён 'auto' из типа aspectRatio (схлопывание высоты), гард sharedObserver===observer в cleanup (double-access fix) + 1 тест. 421/421 тестов.
 - 2026-03-19: Review Follow-ups Iteration 8 (5 items) — LCP fix (посты из кэша при !isAuthReady) + 1 тест, a11y aria-label лайка с likeCount + 1 тест, Map→WeakMap в useInView (GC утечка), stall limit MAX_STALL_RETRIES=3 (UX стагнации) + 1 тест, min-h-[60vh] на empty/error state (CLS). 424/424 тестов.
+- 2026-03-20: Review Follow-ups Iteration 9 (3 items) — архитектурный LCP fix: FeedPage→Server Component + serverPosts.ts + FeedPageClient + FeedStoreInitializer (серверная загрузка начальных постов), showMedia="alternate" для hydration-скелетонов (CLS fix), sentinel в empty state при hasMore=true (fix бесконечного scroll). 5 новых тестов. 429/429 тестов.
