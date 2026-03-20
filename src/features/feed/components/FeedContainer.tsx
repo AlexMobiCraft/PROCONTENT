@@ -5,7 +5,7 @@ import { useAuthStore } from '@/features/auth/store'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import { fetchPosts } from '../api/posts'
 import { useFeedStore } from '../store'
-import { dbPostToCardData } from '../types'
+import { dbPostToCardData, type FeedPage } from '../types'
 
 function Skeletons({
   count,
@@ -36,14 +36,14 @@ function isAbortError(error: unknown): boolean {
   return false
 }
 
-export function FeedContainer() {
+export function FeedContainer({ initialData }: { initialData?: FeedPage } = {}) {
   // Индивидуальные селекторы — компонент перерисовывается только при изменении
-  // нужных полей, а не при любом изменении store (например, cursor после appendPosts)
-  const posts = useFeedStore((s) => s.posts)
-  const hasMore = useFeedStore((s) => s.hasMore)
-  const isLoading = useFeedStore((s) => s.isLoading)
+  // нужных полей, а не при любом изменении store
+  const storePosts = useFeedStore((s) => s.posts)
+  const storeHasMore = useFeedStore((s) => s.hasMore)
+  const storeIsLoading = useFeedStore((s) => s.isLoading)
   const isLoadingMore = useFeedStore((s) => s.isLoadingMore)
-  const error = useFeedStore((s) => s.error)
+  const storeError = useFeedStore((s) => s.error)
   const activeCategory = useFeedStore((s) => s.activeCategory)
   const isAuthReady = useAuthStore((state) => state.isReady)
   const currentUserId = useAuthStore((state) => state.user?.id ?? null)
@@ -52,13 +52,36 @@ export function FeedContainer() {
   const initialLoadAbortRef = useRef<AbortController | null>(null)
   const loadMoreAbortRef = useRef<AbortController | null>(null)
 
-  // Отслеживает стагнацию: loadMore загрузил страницу, но ни один пост
-  // не прошёл клиентский фильтр. Скрывает sentinel, показывает ручной CTA.
-  const [isScrollStalled, setIsScrollStalled] = useState(false)
-  // Количество последовательных stall-загрузок. После MAX_STALL_RETRIES
-  // подряд пустых страниц — прекращаем показывать CTA, показываем сообщение.
+  // Количество последовательных stall-загрузок. Sentinel остаётся активным
+  // пока stallCount < MAX_STALL_RETRIES — автопрокрутка без ручного CTA.
   const [stallCount, setStallCount] = useState(0)
   const MAX_STALL_RETRIES = 3
+
+  // SSR-safe гидрация store из серверных данных.
+  // useEffect выполняется только на клиенте — не мутирует глобальный Zustand
+  // singleton во время серверного рендера (fix: SSR state leak между запросами).
+  // Условие posts.length === 0 защищает кэшированные данные при навигации назад.
+  useEffect(() => {
+    if (useFeedStore.getState().posts.length === 0 && (initialData?.posts.length ?? 0) > 0) {
+      useFeedStore.getState().setPosts(
+        initialData!.posts,
+        initialData!.nextCursor,
+        initialData!.hasMore
+      )
+      useFeedStore.getState().setLoading(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // только один раз при mount
+
+  // До гидрации store (useEffect ещё не выполнился): использовать initialData
+  // для первого render — избегаем flash скелетонов при SSR→CSR переходе.
+  // После гидрации: storePosts.length > 0, используем store.
+  // isStoreHydrated=true когда: store заполнен ИЛИ initialData пустой/отсутствует.
+  const isStoreHydrated = storePosts.length > 0 || (initialData?.posts.length ?? 0) === 0
+  const posts = isStoreHydrated ? storePosts : (initialData?.posts ?? [])
+  const hasMore = isStoreHydrated ? storeHasMore : (initialData?.hasMore ?? true)
+  const isLoading = isStoreHydrated ? storeIsLoading : false
+  const error = isStoreHydrated ? storeError : null
 
   const loadInitial = useCallback(async () => {
     initialLoadAbortRef.current?.abort()
@@ -104,9 +127,8 @@ export function FeedContainer() {
     }
   }, [activeCategory, loadInitial])
 
-  // Сбрасываем stall и счётчик при смене категории
+  // Сбрасываем счётчик stall при смене категории
   useEffect(() => {
-    setIsScrollStalled(false)
     setStallCount(0)
   }, [activeCategory])
 
@@ -145,8 +167,6 @@ export function FeedContainer() {
       console.error('Ошибка подгрузки постов:', err)
       setError('Не удалось загрузить ещё публикации. Попробуйте снова.')
     } finally {
-      // setLoadingMore(false) только если этот контроллер всё ещё активный.
-      // Если он был aborted и заменён новым — новый сам управляет своим состоянием.
       if (loadMoreAbortRef.current === controller) {
         loadMoreAbortRef.current = null
         setLoadingMore(false)
@@ -156,7 +176,7 @@ export function FeedContainer() {
 
   // Обёртка loadMore с детекцией стагнации клиентской фильтрации.
   // Если страница загружена, но ни один новый пост не прошёл фильтр —
-  // устанавливает isScrollStalled, скрывает sentinel, показывает ручной CTA.
+  // увеличивает stallCount. Sentinel остаётся активным пока < MAX_STALL_RETRIES.
   const loadMoreWithStallDetection = useCallback(async () => {
     const { posts: postsBefore, activeCategory: cat } = useFeedStore.getState()
     const visibleBefore =
@@ -175,12 +195,10 @@ export function FeedContainer() {
           : storeAfter.posts.filter((p) => p.category === cat).length
 
       if (visibleAfter === visibleBefore) {
-        // Страница не добавила видимых постов — останавливаем автопрокрутку
-        setIsScrollStalled(true)
+        // Стагнация: инкрементируем счётчик — sentinel остаётся активным
         setStallCount((c) => c + 1)
       } else {
-        // Новые видимые посты найдены — возобновляем автопрокрутку
-        setIsScrollStalled(false)
+        // Новые видимые посты найдены — сбрасываем счётчик
         setStallCount(0)
       }
     }
@@ -195,13 +213,19 @@ export function FeedContainer() {
   }, [loadInitial, loadMoreWithStallDetection])
 
   // IntersectionObserver для infinite scroll (AC #2).
-  // Пересоздаётся при изменении hasMore, error, isScrollStalled, isLoadingMore.
+  // Sentinel активен пока stallCount < MAX_STALL_RETRIES — автопрокрутка
+  // без ручного CTA (fix: автопоиск обрывается после первой пустой страницы).
   // При isLoadingMore=true observer отключается: после завершения подгрузки
-  // эффект пересоздаёт observer, который немедленно сработает если sentinel
-  // всё ещё в viewport (fix: бесконечная лента зависает на высоких экранах).
-  // При isScrollStalled=true observer не создаётся — используется ручной CTA.
+  // эффект пересоздаёт observer, который немедленно сработает если sentinel в viewport.
   useEffect(() => {
-    if (!observerRef.current || !hasMore || error || isScrollStalled || isLoadingMore) return
+    if (
+      !observerRef.current ||
+      !hasMore ||
+      error ||
+      isLoadingMore ||
+      stallCount >= MAX_STALL_RETRIES
+    )
+      return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -214,7 +238,7 @@ export function FeedContainer() {
 
     observer.observe(observerRef.current)
     return () => observer.disconnect()
-  }, [error, hasMore, isScrollStalled, isLoadingMore, loadMoreWithStallDetection])
+  }, [error, hasMore, isLoadingMore, stallCount, loadMoreWithStallDetection])
 
   // Клиентская фильтрация по категории (серверная — в Story 2.4).
   // Мемоизация предотвращает лишний .filter() на каждом ре-рендере.
@@ -228,6 +252,22 @@ export function FeedContainer() {
     () => displayedPosts.map((post) => dbPostToCardData(post, currentUserId)),
     [displayedPosts, currentUserId]
   )
+
+  // Auto-trigger loadMore когда displayedPosts.length === 0 и sentinel в DOM,
+  // но IO не срабатывает повторно (sentinel не уходил из viewport между пересозданиями).
+  // Fix: "нулевой рост sentinel не триггерит observer при фильтрах".
+  useEffect(() => {
+    if (
+      !isLoadingMore &&
+      displayedPosts.length === 0 &&
+      hasMore &&
+      !error &&
+      stallCount < MAX_STALL_RETRIES
+    ) {
+      const id = setTimeout(() => void loadMoreWithStallDetection(), 0)
+      return () => clearTimeout(id)
+    }
+  }, [isLoadingMore, displayedPosts.length, hasMore, error, stallCount, loadMoreWithStallDetection])
 
   // Защита гидрации: ждём пока AuthProvider инициализирует store.
   // Если посты уже есть в кэше — рендерим их сразу (priority-изображения
@@ -288,18 +328,24 @@ export function FeedContainer() {
             ? 'Попробуйте ещё раз, чтобы продолжить загрузку'
             : 'Следите за обновлениями клуба'}
         </p>
-        {(error || (hasMore && activeCategory !== 'all')) && (
+        {error && (
           <button
             type="button"
             onClick={handleRetry}
             className="mt-4 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
           >
-            {error ? 'Повторить' : 'Загрузить ещё'}
+            Повторить
           </button>
         )}
-        {/* Sentinel остаётся в empty state пока hasMore=true — автопрокрутка продолжает искать посты */}
-        {hasMore && !error && !isScrollStalled && (
-          <div ref={observerRef} aria-hidden="true" data-testid="feed-sentinel" className="h-px w-full" />
+        {/* Sentinel остаётся активным пока есть страницы и не исчерпаны попытки —
+            auto-scroll и auto-trigger продолжают искать посты нужной категории */}
+        {hasMore && !error && stallCount < MAX_STALL_RETRIES && (
+          <div
+            ref={observerRef}
+            aria-hidden="true"
+            data-testid="feed-sentinel"
+            className="h-px w-full"
+          />
         )}
       </div>
     )
@@ -336,26 +382,19 @@ export function FeedContainer() {
         </div>
       )}
 
-      {/* Trigger infinite scroll (AC #2) — sentinel в DOM пока есть ещё данные и нет stall */}
-      {hasMore && !error && !isScrollStalled && (
-        <div ref={observerRef} aria-hidden="true" data-testid="feed-sentinel" className="h-px w-full" />
-      )}
-
-      {/* Ручной CTA когда автопрокрутка застряла на редкой категории */}
-      {hasMore && !error && isScrollStalled && stallCount < MAX_STALL_RETRIES && (
-        <div className="px-4 py-4 text-center">
-          <button
-            type="button"
-            onClick={handleRetry}
-            className="min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
-          >
-            Загрузить ещё
-          </button>
-        </div>
+      {/* Sentinel активен пока stallCount < MAX_STALL_RETRIES —
+          автопрокрутка без ручного CTA (fix: автопоиск обрывается при empty state) */}
+      {hasMore && !error && stallCount < MAX_STALL_RETRIES && (
+        <div
+          ref={observerRef}
+          aria-hidden="true"
+          data-testid="feed-sentinel"
+          className="h-px w-full"
+        />
       )}
 
       {/* После MAX_STALL_RETRIES неудачных попыток — конечное сообщение для категории */}
-      {hasMore && !error && isScrollStalled && stallCount >= MAX_STALL_RETRIES && (
+      {hasMore && !error && stallCount >= MAX_STALL_RETRIES && (
         <p className="py-8 text-center text-sm text-muted-foreground">
           Больше публикаций в этой категории не найдено
         </p>

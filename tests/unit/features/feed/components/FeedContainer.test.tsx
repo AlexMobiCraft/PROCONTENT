@@ -232,7 +232,7 @@ describe('FeedContainer', () => {
     expect(mockObserve).not.toHaveBeenCalled()
   })
 
-  it('показывает кнопку "Загрузить ещё" для редкой пустой категории, если страницы ещё остались', () => {
+  it('показывает sentinel (не CTA) в empty state для редкой категории пока есть страницы', () => {
     const posts = [makePost('1', 'insight')]
     act(() => {
       useFeedStore.getState().setPosts(posts, 'cursor', true)
@@ -240,9 +240,17 @@ describe('FeedContainer', () => {
       useFeedStore.getState().setActiveCategory('reels')
     })
 
+    mockFetchPosts.mockResolvedValue({
+      posts: [],
+      nextCursor: null,
+      hasMore: false,
+    })
+
     render(<FeedContainer />)
 
-    expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
+    // Sentinel активен — автопрокрутка без ручного CTA
+    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Загрузить ещё' })).not.toBeInTheDocument()
   })
 
   it('подключает IntersectionObserver когда есть посты и hasMore', async () => {
@@ -390,7 +398,7 @@ describe('FeedContainer', () => {
     expect(useFeedStore.getState().posts.find((p) => p.id === 'stale')).toBeUndefined()
   })
 
-  it('заменяет sentinel на CTA когда loadMore не добавил видимых постов для текущей категории', async () => {
+  it('sentinel остаётся активным при stall — автопрокрутка без ручного CTA', async () => {
     // Настройка: есть 1 пост категории 'razobory' (displayedPosts.length > 0)
     const razboroyPost = makePost('1', 'razobory')
     act(() => {
@@ -405,7 +413,7 @@ describe('FeedContainer', () => {
       useFeedStore.getState().setActiveCategory('razobory')
     })
 
-    // loadMore вернёт только 'insight' посты — ни один не 'razobory'
+    // loadMore вернёт только 'insight' посты — ни один не 'razobory' → stall
     mockFetchPosts.mockResolvedValue({
       posts: [makePost('2', 'insight'), makePost('3', 'insight')],
       nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
@@ -414,7 +422,7 @@ describe('FeedContainer', () => {
 
     render(<FeedContainer />)
 
-    // sentinel видим — есть razobory пост, hasMore=true
+    // sentinel видим — есть razobory пост, hasMore=true, stallCount=0
     expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
 
     // Триггерим loadMore через observer
@@ -425,17 +433,18 @@ describe('FeedContainer', () => {
       )
     })
 
-    // После загрузки: видимые посты не добавились — sentinel заменяется на CTA
+    // После стагнации: sentinel ОСТАЁТСЯ (stallCount=1 < 3), нет CTA "Загрузить ещё"
     await waitFor(() => {
-      expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
+      expect(useFeedStore.getState().isLoadingMore).toBe(false)
     })
+    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Загрузить ещё' })).not.toBeInTheDocument()
 
     // Razobory пост остаётся видимым
     expect(screen.getByTestId('post-1')).toBeInTheDocument()
   })
 
-  it('сбрасывает stall и возобновляет sentinel когда loadMore добавил видимые посты', async () => {
+  it('сбрасывает stallCount и sentinel остаётся когда loadMore добавил видимые посты', async () => {
     const razboroyPost1 = makePost('1', 'razobory')
     act(() => {
       useFeedStore
@@ -450,7 +459,7 @@ describe('FeedContainer', () => {
     })
 
     // Первый вызов: только insight (stall)
-    // Второй вызов: добавляет razobory пост (stall сбрасывается)
+    // Второй вызов: добавляет razobory пост (stallCount сбрасывается)
     mockFetchPosts
       .mockResolvedValueOnce({
         posts: [makePost('2', 'insight')],
@@ -465,7 +474,7 @@ describe('FeedContainer', () => {
 
     render(<FeedContainer />)
 
-    // Первый observer trigger → stall
+    // Первый observer trigger → stall (stallCount=1), sentinel остаётся
     await act(async () => {
       latestObserverCallback?.(
         [{ isIntersecting: true } as IntersectionObserverEntry],
@@ -474,12 +483,18 @@ describe('FeedContainer', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
+      expect(useFeedStore.getState().isLoadingMore).toBe(false)
     })
+    // sentinel должен оставаться (stallCount=1 < 3)
+    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
 
-    // Нажимаем CTA → loadMore снова → добавляет razobory пост → stall сброшен
-    const user = (await import('@testing-library/user-event')).default.setup()
-    await user.click(screen.getByRole('button', { name: 'Загрузить ещё' }))
+    // Второй observer trigger → добавляет razobory пост → stallCount сброшен в 0
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
 
     await waitFor(() => {
       expect(screen.getByTestId('post-3')).toBeInTheDocument()
@@ -582,7 +597,7 @@ describe('FeedContainer', () => {
     expect(screen.queryByRole('status', { name: 'Загрузка приложения' })).not.toBeInTheDocument()
   })
 
-  it('после MAX_STALL_RETRIES=3 последовательных stall-ов скрывает CTA и показывает конечное сообщение', async () => {
+  it('после MAX_STALL_RETRIES=3 последовательных stall-ов убирает sentinel и показывает конечное сообщение', async () => {
     const razboroyPost = makePost('1', 'razobory')
     act(() => {
       useFeedStore
@@ -599,10 +614,27 @@ describe('FeedContainer', () => {
       hasMore: true,
     })
 
-    const user = userEvent.setup()
     render(<FeedContainer />)
 
-    // Stall #1 — через observer
+    // Stall #1 — через observer (sentinel есть → IO срабатывает)
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+    await waitFor(() => expect(useFeedStore.getState().isLoadingMore).toBe(false))
+
+    // Stall #2 — через observer (sentinel пересоздан после isLoadingMore=false)
+    await act(async () => {
+      latestObserverCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+    await waitFor(() => expect(useFeedStore.getState().isLoadingMore).toBe(false))
+
+    // Stall #3 — через observer → stallCount=3 → sentinel убирается, конечное сообщение
     await act(async () => {
       latestObserverCallback?.(
         [{ isIntersecting: true } as IntersectionObserverEntry],
@@ -610,19 +642,7 @@ describe('FeedContainer', () => {
       )
     })
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
-    })
-
-    // Stall #2 — через CTA
-    await user.click(screen.getByRole('button', { name: 'Загрузить ещё' }))
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Загрузить ещё' })).toBeInTheDocument()
-    })
-
-    // Stall #3 — через CTA → CTA исчезает, появляется конечное сообщение
-    await user.click(screen.getByRole('button', { name: 'Загрузить ещё' }))
-    await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'Загрузить ещё' })).not.toBeInTheDocument()
+      expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
       expect(
         screen.getByText('Больше публикаций в этой категории не найдено')
       ).toBeInTheDocument()
@@ -717,5 +737,80 @@ describe('FeedContainer', () => {
       expect(screen.getByTestId('post-2')).toBeInTheDocument()
     })
     expect(screen.queryByTestId('post-1')).not.toBeInTheDocument()
+  })
+
+  // --- Iteration 10: Items 1+3 (SSR-safe гидрация через initialData проп) ---
+
+  it('гидратирует store из initialData в useEffect (SSR-safe, не в render)', async () => {
+    const posts = [makePost('1'), makePost('2')]
+    // Store пуст до рендера
+    expect(useFeedStore.getState().posts).toHaveLength(0)
+
+    render(<FeedContainer initialData={{ posts, nextCursor: 'cursor', hasMore: true }} />)
+
+    // После useEffect store гидратирован и посты видны
+    await waitFor(() => {
+      expect(screen.getByTestId('post-1')).toBeInTheDocument()
+      expect(screen.getByTestId('post-2')).toBeInTheDocument()
+    })
+    expect(useFeedStore.getState().posts).toHaveLength(2)
+    expect(useFeedStore.getState().isLoading).toBe(false)
+    // fetchPosts не вызван — данные из initialData
+    expect(mockFetchPosts).not.toHaveBeenCalled()
+  })
+
+  it('не перезаписывает store из initialData если store уже заполнен (защита кэша навигации)', async () => {
+    const cachedPosts = [makePost('1'), makePost('2'), makePost('3')]
+    act(() => {
+      useFeedStore.getState().setPosts(cachedPosts, null, false)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    // initialData содержит только 1 пост — не должен перезаписать кэш
+    render(<FeedContainer initialData={{ posts: [makePost('x')], nextCursor: null, hasMore: false }} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('post-1')).toBeInTheDocument()
+    })
+    // Store остаётся с 3 кэшированными постами
+    expect(useFeedStore.getState().posts).toHaveLength(3)
+  })
+
+  it('использует initialData для первого render пока store пуст (нет flash скелетонов)', () => {
+    const posts = [makePost('1'), makePost('2')]
+    // Store пуст (isLoading=true), но initialData есть — показываем посты без скелетонов
+    render(<FeedContainer initialData={{ posts, nextCursor: null, hasMore: false }} />)
+
+    // Посты видны сразу при первом render — нет flash скелетонов
+    expect(screen.getByTestId('post-1')).toBeInTheDocument()
+    expect(screen.getByTestId('post-2')).toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Загрузка ленты' })).not.toBeInTheDocument()
+  })
+
+  // --- Iteration 10: Item 4 (auto-trigger loadMore при нулевом росте sentinel) ---
+
+  it('автоматически запускает loadMore через setTimeout когда displayedPosts.length === 0 (fix нулевой рост sentinel)', async () => {
+    // Setup: insight посты загружены, переключились на reels → displayedPosts=[]
+    // IO sentinel в DOM но не срабатывает (sentinel не уходил из viewport)
+    const posts = [makePost('1', 'insight')]
+    act(() => {
+      useFeedStore.getState().setPosts(posts, 'cursor', true)
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('reels')
+    })
+
+    mockFetchPosts.mockResolvedValue({
+      posts: [makePost('2', 'reels')],
+      nextCursor: null,
+      hasMore: false,
+    })
+
+    render(<FeedContainer />)
+
+    // auto-trigger useEffect должен вызвать loadMore через setTimeout(0)
+    // даже без явного срабатывания IO observer
+    await waitFor(() => {
+      expect(mockFetchPosts).toHaveBeenCalled()
+    })
   })
 })
