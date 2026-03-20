@@ -86,7 +86,7 @@ describe('FeedContainer', () => {
     latestObserverCallback = null
   })
 
-  it('показывает скелетоны при isLoading (AC #3)', () => {
+  it('показывает скелетоны при isLoading (AC #3)', async () => {
     // isLoading = true по умолчанию в initialState
     mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
 
@@ -98,9 +98,14 @@ describe('FeedContainer', () => {
       'aria-label',
       'Загрузка ленты'
     )
+
+    // Дожидаемся завершения загрузки чтобы не было act warning
+    await waitFor(() => {
+      expect(useFeedStore.getState().isLoading).toBe(false)
+    })
   })
 
-  it('скелетоны при начальной загрузке чередуют showMedia для предотвращения CLS', () => {
+  it('скелетоны при начальной загрузке чередуют showMedia для предотвращения CLS', async () => {
     mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
 
     render(<FeedContainer />)
@@ -113,6 +118,11 @@ describe('FeedContainer', () => {
     // alternate: i%2===0 → индексы 0,2,4 = true; 1,3 = false
     expect(withMedia).toHaveLength(3)
     expect(withoutMedia).toHaveLength(2)
+
+    // Дожидаемся завершения загрузки чтобы не было act warning
+    await waitFor(() => {
+      expect(useFeedStore.getState().isLoading).toBe(false)
+    })
   })
 
   it('показывает empty state когда постов нет (AC #5)', async () => {
@@ -232,7 +242,7 @@ describe('FeedContainer', () => {
     expect(mockObserve).not.toHaveBeenCalled()
   })
 
-  it('показывает sentinel (не CTA) в empty state для редкой категории пока есть страницы', () => {
+  it('показывает sentinel (не CTA) в empty state для редкой категории пока есть страницы', async () => {
     const posts = [makePost('1', 'insight')]
     act(() => {
       useFeedStore.getState().setPosts(posts, 'cursor', true)
@@ -251,6 +261,11 @@ describe('FeedContainer', () => {
     // Sentinel активен — автопрокрутка без ручного CTA
     expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Загрузить ещё' })).not.toBeInTheDocument()
+
+    // Дожидаемся завершения auto-trigger чтобы избежать act warning
+    await waitFor(() => {
+      expect(useFeedStore.getState().isLoadingMore).toBe(false)
+    })
   })
 
   it('подключает IntersectionObserver когда есть посты и hasMore', async () => {
@@ -564,7 +579,7 @@ describe('FeedContainer', () => {
     expect(withoutMedia).toHaveLength(2)
   })
 
-  it('рендерит sentinel в empty state когда нет постов для категории и hasMore=true (fix бесконечного scroll)', () => {
+  it('рендерит sentinel в empty state когда нет постов для категории и hasMore=true (fix бесконечного scroll)', async () => {
     // Есть посты другой категории, hasMore=true — sentinel должен быть в empty state
     const posts = [makePost('1', 'insight')]
     act(() => {
@@ -580,6 +595,11 @@ describe('FeedContainer', () => {
     // Sentinel присутствует — auto-scroll может продолжать поиск постов
     expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
     expect(mockObserve).toHaveBeenCalled()
+
+    // Дожидаемся завершения auto-trigger чтобы избежать act warning
+    await waitFor(() => {
+      expect(useFeedStore.getState().isLoadingMore).toBe(false)
+    })
   })
 
   it('рендерит посты из кэша даже при isAuthReady=false (LCP fix)', () => {
@@ -771,21 +791,25 @@ describe('FeedContainer', () => {
     expect(mockFetchPosts).not.toHaveBeenCalled()
   })
 
-  it('не перезаписывает store из initialData если store уже заполнен (защита кэша навигации)', async () => {
+  it('обновляет store из свежей initialData даже если store уже содержит посты (stale SSR data fix)', async () => {
+    // Имитируем возврат на страницу: store содержит старые кэшированные посты,
+    // а initialData несёт свежие данные с сервера (новый SSR-рендер при навигации).
     const cachedPosts = [makePost('1'), makePost('2'), makePost('3')]
     act(() => {
       useFeedStore.getState().setPosts(cachedPosts, null, false)
       useFeedStore.getState().setLoading(false)
     })
 
-    // initialData содержит только 1 пост — не должен перезаписать кэш
+    // initialData содержит свежие посты — должен заменить stale кэш
     render(<FeedContainer initialData={{ posts: [makePost('x')], nextCursor: null, hasMore: false }} />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('post-1')).toBeInTheDocument()
+      // Свежие данные из initialData применились
+      expect(screen.getByTestId('post-x')).toBeInTheDocument()
+      expect(screen.queryByTestId('post-1')).not.toBeInTheDocument()
     })
-    // Store остаётся с 3 кэшированными постами
-    expect(useFeedStore.getState().posts).toHaveLength(3)
+    // Store обновился: 1 пост из initialData
+    expect(useFeedStore.getState().posts).toHaveLength(1)
   })
 
   it('использует initialData для первого render пока store пуст (нет flash скелетонов)', () => {
@@ -1002,6 +1026,31 @@ describe('FeedContainer', () => {
   })
 
   // --- Iteration 13: Item 3 (Author badge pop-in fix — initialUserId) ---
+
+  // --- Iteration 15: Item 3 (Слепая зона в тестах гидрации) ---
+
+  it('обновляет store пустым массивом posts:[] из свежей initialData (пустой SSR ответ)', async () => {
+    // Store содержит старые закэшированные посты
+    const cachedPosts = [makePost('1'), makePost('2')]
+    act(() => {
+      useFeedStore.getState().setPosts(cachedPosts, 'cursor', true)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    // loadInitial может быть вызван после hydration (store очищается) — моком возвращаем пустоту
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
+
+    // initialData несёт пустой ответ сервера — store должен очиститься
+    render(<FeedContainer initialData={{ posts: [], nextCursor: null, hasMore: false }} />)
+
+    // После useEffect: stale посты заменены пустым массивом из initialData
+    await waitFor(() => {
+      expect(screen.queryByTestId('post-1')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('post-2')).not.toBeInTheDocument()
+    })
+    expect(useFeedStore.getState().posts).toHaveLength(0)
+    expect(useFeedStore.getState().hasMore).toBe(false)
+  })
 
   it('initialUserId используется для isAuthor до инициализации auth store (предотвращение badge pop-in)', () => {
     // Auth store не готов (isAuthReady=false) — имитация SSR-to-CSR перехода до гидрации

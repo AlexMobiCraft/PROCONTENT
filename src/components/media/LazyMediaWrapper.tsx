@@ -19,11 +19,10 @@ interface LazyMediaWrapperProps {
 }
 
 /**
- * Форсированный сброс isInView при смене src достигается через key={props.src}
- * на внутреннем компоненте — React remount-ит LazyMediaWrapperContent
- * при смене key, сбрасывая все hooks-состояния, включая isInView из useInView.
- * Это предотвращает eager-загрузку нового изображения, когда компонент
- * переиспользуется с новым src (например, при редактировании поста).
+ * key={props.src} форсирует remount LazyMediaWrapperContent при смене src,
+ * сбрасывая все hooks-состояния включая isInView и isLoaded/isError.
+ * Это устраняет необходимость в "derived state from props" — достаточно
+ * простых boolean состояний без привязки к значению src.
  */
 export function LazyMediaWrapper(props: LazyMediaWrapperProps) {
   return <LazyMediaWrapperContent key={props.src} {...props} />
@@ -38,16 +37,10 @@ function LazyMediaWrapperContent({
   type = 'photo',
   sizes = '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw',
 }: LazyMediaWrapperProps) {
-  // loadState привязан к src: при смене src isLoaded/isError автоматически false.
-  // Паттерн "derived state from props" — без useEffect, без лишнего рендера.
-  const [loadState, setLoadState] = useState<{ src: string; loaded: boolean; error: boolean }>({
-    src,
-    loaded: false,
-    error: false,
-  })
-
-  const isLoaded = loadState.loaded && loadState.src === src
-  const isError = loadState.error && loadState.src === src
+  // key={props.src} на обёртке гарантирует remount при смене src —
+  // оба состояния сбрасываются автоматически без дополнительной логики.
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [isError, setIsError] = useState(false)
   // enabled=false когда priority=true: хук не подписывает элемент на observer.
   // ref присваивается только при !priority, чтобы не создавать ложный DOM-attachment.
   const { ref, isInView } = useInView(!priority)
@@ -80,8 +73,8 @@ function LazyMediaWrapperContent({
             !priority && 'transition-opacity duration-700 ease-in-out',
             !priority && (isLoaded ? 'opacity-100' : 'opacity-0')
           )}
-          onLoad={() => setLoadState({ src, loaded: true, error: false })}
-          onError={() => setLoadState({ src, loaded: false, error: true })}
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setIsError(true)}
           sizes={sizes}
         />
       )}

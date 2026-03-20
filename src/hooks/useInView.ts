@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 
 type InViewCallback = (entry: IntersectionObserverEntry) => void
 
+/** Расстояние до viewport, при котором начинается загрузка медиа. */
+const IN_VIEW_ROOT_MARGIN = '200px'
+
 // WeakMap позволяет GC собирать элементы после анмаунта без явного удаления,
 // устраняя риск утечки памяти при разрыве между unobserve и GC.
 // let (не const) — _resetSharedObserver создаёт новый экземпляр между тестами,
@@ -20,7 +23,7 @@ function getSharedObserver(): IntersectionObserver {
           registry.get(entry.target)?.(entry)
         })
       },
-      { rootMargin: '200px' }
+      { rootMargin: IN_VIEW_ROOT_MARGIN }
     )
   }
   return sharedObserver

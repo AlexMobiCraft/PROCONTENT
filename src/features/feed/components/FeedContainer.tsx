@@ -40,6 +40,9 @@ function isAbortError(error: unknown): boolean {
 // Константа вынесена на уровень модуля — не пересоздаётся при каждом рендере.
 const MAX_STALL_RETRIES = 3
 
+// rootMargin для IntersectionObserver sentinel бесконечной прокрутки.
+const SENTINEL_ROOT_MARGIN = '200px'
+
 export function FeedContainer({
   initialData,
   initialUserId,
@@ -69,31 +72,37 @@ export function FeedContainer({
   // пока stallCount < MAX_STALL_RETRIES — автопрокрутка без ручного CTA.
   const [stallCount, setStallCount] = useState(0)
 
+  // Явный флаг завершения SSR→CSR гидрации.
+  // false до выполнения useEffect → первый render использует initialData напрямую.
+  // true после useEffect → используем store (который уже содержит initialData).
+  // Если initialData отсутствует — сразу true, используем store.
+  const [isHydrated, setIsHydrated] = useState(() => !initialData)
+
   // SSR-safe гидрация store из серверных данных.
   // useEffect выполняется только на клиенте — не мутирует глобальный Zustand
   // singleton во время серверного рендера (fix: SSR state leak между запросами).
-  // Условие posts.length === 0 защищает кэшированные данные при навигации назад.
+  // initialData в deps: при возврате на страницу (новый SSR-рендер) store
+  // обновляется свежими данными, а не показывает stale кэш (fix: stale SSR data).
+  // Проверка `> 0` убрана: пустые initialData.posts тоже должны очищать stale кэш.
   useEffect(() => {
-    if (useFeedStore.getState().posts.length === 0 && (initialData?.posts.length ?? 0) > 0) {
+    if (initialData) {
       useFeedStore.getState().setPosts(
-        initialData!.posts,
-        initialData!.nextCursor,
-        initialData!.hasMore
+        initialData.posts,
+        initialData.nextCursor,
+        initialData.hasMore
       )
       useFeedStore.getState().setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // только один раз при mount
+    setIsHydrated(true)
+  }, [initialData])
 
-  // До гидрации store (useEffect ещё не выполнился): использовать initialData
-  // для первого render — избегаем flash скелетонов при SSR→CSR переходе.
-  // После гидрации: storePosts.length > 0, используем store.
-  // isStoreHydrated=true когда: store заполнен ИЛИ initialData пустой/отсутствует.
-  const isStoreHydrated = storePosts.length > 0 || (initialData?.posts.length ?? 0) === 0
-  const posts = isStoreHydrated ? storePosts : (initialData?.posts ?? [])
-  const hasMore = isStoreHydrated ? storeHasMore : (initialData?.hasMore ?? true)
-  const isLoading = isStoreHydrated ? storeIsLoading : false
-  const error = isStoreHydrated ? storeError : null
+  // До гидрации (useEffect ещё не выполнился): первый render использует initialData
+  // напрямую — нет flash скелетонов и нет показа stale store.
+  // После гидрации (isHydrated=true): store синхронизирован с initialData, используем store.
+  const posts = isHydrated ? storePosts : (initialData?.posts ?? [])
+  const hasMore = isHydrated ? storeHasMore : (initialData?.hasMore ?? true)
+  const isLoading = isHydrated ? storeIsLoading : false
+  const error = isHydrated ? storeError : null
 
   const loadInitial = useCallback(async () => {
     initialLoadAbortRef.current?.abort()
@@ -252,7 +261,7 @@ export function FeedContainer({
           void loadMoreWithStallDetection()
         }
       },
-      { rootMargin: '200px' }
+      { rootMargin: SENTINEL_ROOT_MARGIN }
     )
 
     observer.observe(observerRef.current)
