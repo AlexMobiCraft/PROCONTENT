@@ -298,6 +298,8 @@ describe('FeedContainer', () => {
       expect(screen.getByTestId('post-1')).toBeInTheDocument()
     })
     expect(mockFetchPosts).toHaveBeenCalledTimes(2)
+    // Macrotask-checkpoint: дренирует microtask queue (Zustand→React subscription chain)
+    await act(async () => { await new Promise<void>(r => setTimeout(r, 0)) })
   })
 
   it('при ошибке loadMore скрывает sentinel и даёт retry-кнопку', async () => {
@@ -334,6 +336,8 @@ describe('FeedContainer', () => {
     await waitFor(() => {
       expect(screen.getByTestId('post-2')).toBeInTheDocument()
     })
+    // Macrotask-checkpoint: дренирует microtask queue (Zustand→React subscription chain)
+    await act(async () => { await new Promise<void>(r => setTimeout(r, 0)) })
   })
 
   it('loadMore передаёт AbortSignal в fetchPosts', async () => {
@@ -557,7 +561,7 @@ describe('FeedContainer', () => {
     })
   })
 
-  it('скелетоны гидрации (isAuthReady=false, posts=[]) чередуют showMedia для предотвращения CLS', () => {
+  it('скелетоны гидрации (isAuthReady=false, posts=[]) чередуют showMedia для предотвращения CLS', async () => {
     // Отменяем готовность auth — FeedContainer покажет hydration-скелетоны
     act(() => {
       useAuthStore.getState().setReady(false)
@@ -577,6 +581,11 @@ describe('FeedContainer', () => {
     const withoutMedia = skeletons.filter((s) => s.getAttribute('data-show-media') === 'false')
     expect(withMedia).toHaveLength(3)
     expect(withoutMedia).toHaveLength(2)
+
+    // Дожидаемся завершения loadInitial (запускается в useEffect даже при гидрационных скелетонах)
+    await waitFor(() => {
+      expect(useFeedStore.getState().isLoading).toBe(false)
+    })
   })
 
   it('рендерит sentinel в empty state когда нет постов для категории и hasMore=true (fix бесконечного scroll)', async () => {
@@ -836,6 +845,8 @@ describe('FeedContainer', () => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
       expect(screen.getByText('Не удалось загрузить ленту')).toBeInTheDocument()
     })
+    // Macrotask-checkpoint: дренирует microtask queue (Zustand→React subscription chain)
+    await act(async () => { await new Promise<void>(r => setTimeout(r, 0)) })
   })
 
   it('кнопка "Искать дальше" появляется после MAX_STALL_RETRIES в главной ленте и сбрасывает поиск', async () => {
@@ -1026,6 +1037,40 @@ describe('FeedContainer', () => {
   })
 
   // --- Iteration 13: Item 3 (Author badge pop-in fix — initialUserId) ---
+
+  // --- Iteration 16: Item 2 (API Spam debounce 500ms) ---
+
+  it('auto-trigger при displayedPosts.length=0 использует задержку 500ms (debounce)', async () => {
+    vi.useFakeTimers()
+
+    const posts = [makePost('1', 'insight')]
+    act(() => {
+      useFeedStore.getState().setPosts(posts, 'cursor', true)
+      useFeedStore.getState().setLoading(false)
+      useFeedStore.getState().setActiveCategory('reels')
+    })
+
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
+
+    render(<FeedContainer />)
+
+    // loadMore не должен быть вызван до истечения задержки
+    expect(mockFetchPosts).not.toHaveBeenCalled()
+
+    // Через 499ms — ещё не вызван
+    act(() => { vi.advanceTimersByTime(499) })
+    expect(mockFetchPosts).not.toHaveBeenCalled()
+
+    // Через ещё 1ms (итого 500ms) — вызван
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(mockFetchPosts).toHaveBeenCalled()
+
+    // Восстанавливаем реальные таймеры и дожидаемся разрешения pending промисов
+    vi.useRealTimers()
+    await waitFor(() => {
+      expect(useFeedStore.getState().isLoadingMore).toBe(false)
+    })
+  })
 
   // --- Iteration 15: Item 3 (Слепая зона в тестах гидрации) ---
 

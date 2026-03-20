@@ -91,12 +91,10 @@ export function useInView(enabled = true): {
         registry.delete(el)
         registrySize--
       }
-      // Защита от обращения к уже уничтоженному инстансу:
-      // если callback уже вызвал disconnect (sharedObserver=null или заменён),
-      // вызывать unobserve на старом инстансе небезопасно.
-      if (sharedObserver === observer) {
-        observer.unobserve(el)
-      }
+      // Опциональная цепочка защищает от TypeError при null sharedObserver:
+      // если callback уже вызвал disconnect (sharedObserver=null),
+      // вызов игнорируется без исключения.
+      sharedObserver?.unobserve(el)
       if (registrySize === 0 && sharedObserver) {
         sharedObserver.disconnect()
         sharedObserver = null

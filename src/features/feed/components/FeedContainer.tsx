@@ -293,7 +293,7 @@ export function FeedContainer({
       !error &&
       stallCount < MAX_STALL_RETRIES
     ) {
-      const id = setTimeout(() => void loadMoreWithStallDetection(), 0)
+      const id = setTimeout(() => void loadMoreWithStallDetection(), 500)
       return () => clearTimeout(id)
     }
   }, [isLoadingMore, displayedPosts.length, hasMore, error, stallCount, loadMoreWithStallDetection])

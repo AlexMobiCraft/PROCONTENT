@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: Medium
-- [x] Статус: in-progress
+- [x] Статус: review
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -122,11 +122,11 @@
 - [x] [AI-Review][Low] Хрупкая логика флага isStoreHydrated: Переменная вычисляется динамически, что может привести к миганию старых постов перед применением пустой `initialData`. Использовать явный локальный state (например, `isHydrated`). [src/features/feed/components/FeedContainer.tsx]
 
 ### Review Follow-ups (AI) - Iteration 16
-- [ ] [AI-Review][Medium] Derived State Anti-pattern: `liked` и `likeCount` инициализируются только при первом маунте через `useState(post.likes)`. Если посты обновятся с сервера (например, при навигации или гидрации), количество лайков в карточке останется старым. Использовать `useEffect` для синхронизации или вычисляемое значение. [src/components/feed/PostCard.tsx]
-- [ ] [AI-Review][Medium] API Spam при редких категориях (DDoS Risk): Auto-trigger эффект для `displayedPosts.length === 0` использует `setTimeout(..., 0)`. Если постов текущей категории нет, он сделает 3 мгновенных последовательных запроса к API без задержки до исчерпания `MAX_STALL_RETRIES`. Добавить задержку (например, 500ms) для debounce. [src/features/feed/components/FeedContainer.tsx]
-- [ ] [AI-Review][Medium] Риск падения в cleanup useInView: При интенсивном mount/unmount или во время выполнения тестов, если `sharedObserver` обнуляется раньше, чем вызывается cleanup конкретного компонента, вызов `sharedObserver.unobserve(el)` может привести к TypeError (can't read property of null). Добавить опциональную цепочку `sharedObserver?.unobserve(el)`. [src/hooks/useInView.ts]
-- [ ] [AI-Review][Low] Неоптимальные размеры `sizes` по умолчанию: В `LazyMediaWrapper` sizes по умолчанию предполагают 3х-колоночную сетку на десктопе (`33vw`). Если лента мобильного приложения ограничивается по ширине (например, max-w-md), браузер будет качать картинки большего размера, чем нужно. [src/components/media/LazyMediaWrapper.tsx]
-- [ ] [AI-Review][Low] Warning в тестах: Исправлены ошибки отсутствия `act()` в `FeedContainer.test.tsx` (внесены изменения, но не задокументированы Dev Agent'ом в File List/Change Log). [tests/unit/features/feed/components/FeedContainer.test.tsx]
+- [x] [AI-Review][Medium] Derived State Anti-pattern: `liked` и `likeCount` инициализируются только при первом маунте через `useState(post.likes)`. Если посты обновятся с сервера (например, при навигации или гидрации), количество лайков в карточке останется старым. Использовать `useEffect` для синхронизации или вычисляемое значение. [src/components/feed/PostCard.tsx]
+- [x] [AI-Review][Medium] API Spam при редких категориях (DDoS Risk): Auto-trigger эффект для `displayedPosts.length === 0` использует `setTimeout(..., 0)`. Если постов текущей категории нет, он сделает 3 мгновенных последовательных запроса к API без задержки до исчерпания `MAX_STALL_RETRIES`. Добавить задержку (например, 500ms) для debounce. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] Риск падения в cleanup useInView: При интенсивном mount/unmount или во время выполнения тестов, если `sharedObserver` обнуляется раньше, чем вызывается cleanup конкретного компонента, вызов `sharedObserver.unobserve(el)` может привести к TypeError (can't read property of null). Добавить опциональную цепочку `sharedObserver?.unobserve(el)`. [src/hooks/useInView.ts]
+- [x] [AI-Review][Low] Неоптимальные размеры `sizes` по умолчанию: В `LazyMediaWrapper` sizes по умолчанию предполагают 3х-колоночную сетку на десктопе (`33vw`). Если лента мобильного приложения ограничивается по ширине (например, max-w-md), браузер будет качать картинки большего размера, чем нужно. [src/components/media/LazyMediaWrapper.tsx]
+- [x] [AI-Review][Low] Warning в тестах: Исправлены ошибки отсутствия `act()` в `FeedContainer.test.tsx` (внесены изменения, но не задокументированы Dev Agent'ом в File List/Change Log). [tests/unit/features/feed/components/FeedContainer.test.tsx]
 
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
@@ -265,6 +265,14 @@
 ✅ Resolved [Medium] SENTINEL_ROOT_MARGIN константа: добавлена `const SENTINEL_ROOT_MARGIN = '200px'` на уровне модуля; `{ rootMargin: '200px' }` в IO sentinel заменён на `{ rootMargin: SENTINEL_ROOT_MARGIN }`.
 ✅ Resolved [Medium] Новый тест: "обновляет store пустым массивом posts:[] из свежей initialData" — проверяет что `initialData = { posts: [] }` очищает stale store. 442/442 тестов (+1 новый).
 
+**Iteration 16 Review Follow-ups (5 items) — 2026-03-20:**
+✅ Resolved [Medium] Derived State Anti-pattern: `useState(post.likes)` заменён вычисляемым значением `const likeCount = post.likes + (liked ? 1 : 0)` — count реактивен к prop changes без useEffect. Добавлен тест «likeCount обновляется при изменении prop post.likes (derived state sync)».
+✅ Resolved [Medium] API Spam / DDoS Risk: `setTimeout(..., 0)` → `setTimeout(..., 500)` в auto-trigger эффекте `FeedContainer` — задержка 500ms предотвращает burst API calls при редких категориях. Добавлен тест с fake timers для точной проверки debounce (advanceTimersByTime(499) — не вызван; advanceTimersByTime(1) — вызван).
+✅ Resolved [Medium] TypeError в cleanup useInView: `sharedObserver.unobserve(el)` → `sharedObserver?.unobserve(el)` — опциональная цепочка защищает от обращения к null при интенсивном mount/unmount. Существующий тест «после intersection не вызывает unobserve при анмаунте» продолжает проходить (null?.unobserve — no-op).
+✅ Resolved [Low] sizes по умолчанию: `'(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw'` → `'(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 480px'` — мобильный breakpoint 640px (Tailwind sm), desktop cap 480px вместо `33vw` (точнее для ограниченной ленты).
+⚠️ Partially resolved [Low] act() warnings в тестах: исправлены 2 предупреждения — «скелетоны гидрации» (тест сделан async + `await waitFor(() => isLoading===false)`); debounce-тест (vi.useRealTimers перед await). 3 оставшихся предупреждения в error/retry тестах — pre-existing, подтверждены `git stash` проверкой. Корневая причина: React 19 + Zustand 5 `useSyncExternalStore` — уведомления от catch/finally цепочки async loadInitial/loadMore выходят за scope `act()`. Устранение требует рефакторинга архитектуры async data-fetching. Задокументировано как known issue.
+444/444 тестов проходят (+2 новых теста); 3 pre-existing act() warnings в stderr (error state + retry тесты).
+
 ## Change Log
 - 2026-03-20: Review Follow-ups Iteration 15 (4 items) — Stale SSR Data полный fix (убрана проверка `> 0`, `initialData` с пустыми постами теперь очищает stale кэш); SENTINEL_ROOT_MARGIN константа на уровне модуля (нет hardcoded '200px' в IO sentinel); isStoreHydrated заменён на явный `isHydrated` state (useState initializer = `!initialData`); новый тест для пустого `initialData.posts = []`. 442/442 тестов (+1 новый).
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.
@@ -282,4 +290,5 @@
 - 2026-03-20: Review Follow-ups Iteration 13 (5 items) — next.config.ts динамический protocol/port (локальная разработка), LazyMediaWrapper inner component key={src} (isInView reset), fetchInitialPostsServer + resolvedUserId (badge pop-in), sizes адаптивная сетка, _resetSharedObserver WeakMap пересоздание. 2 новых теста, 2 теста обновлены. 441/441 тестов.
 - 2026-03-20: Review Follow-ups Iteration 12 (4 items) — A11y fix: убран likeCount из aria-label кнопки лайка (нет дублирования AT); race condition fix: исправлен flaky тест (проверка abort сигнала + stale data) + новый тест для guard; A11y fix: role="status" aria-live="polite" на конец ленты; MAX_STALL_RETRIES вынесен на уровень модуля. 2 новых теста, 1 исправлен. 439/439 тестов.
 - 2026-03-20: Review Follow-ups Iteration 14 (4 items) — Derived State упрощён (LazyMediaWrapper: loadState объект → simple boolean states); Stale SSR Data fix (FeedContainer: убран posts.length===0 guard, initialData всегда применяется); eslint-disable удалён (initialData в deps); IN_VIEW_ROOT_MARGIN константа (useInView). 1 тест обновлён. 441/441 тестов.
+- 2026-03-20: Review Follow-ups Iteration 16 (5 items) — Derived State fix (PostCard: likeCount вычисляемое значение) + тест; API Spam debounce fix (FeedContainer: setTimeout 0→500ms) + fake timer тест; TypeError fix (useInView: sharedObserver?.unobserve); sizes default fix (LazyMediaWrapper: 640px/50vw/480px); act() warnings: 2 исправлены, 3 pre-existing (React 19 + Zustand 5 known issue). 444/444 тестов (+2 новых).
 - 2026-03-20: Review Follow-ups Iteration 15 (4 items) — Stale SSR Data полный fix (убрана проверка `> 0`, `initialData` с пустыми постами очищает stale кэш); SENTINEL_ROOT_MARGIN константа; isStoreHydrated → explicit `isHydrated` useState; новый тест пустого initialData. 442/442 тестов (+1 новый).

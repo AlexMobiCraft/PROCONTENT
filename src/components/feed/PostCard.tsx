@@ -29,17 +29,12 @@ interface PostCardProps {
 
 export function PostCard({ post, priority = false, onCommentClick }: PostCardProps) {
   const [liked, setLiked] = useState(false)
-  const [likeCount, setLikeCount] = useState(post.likes)
+  // Вычисляемое значение реактивно реагирует на обновление prop post.likes
+  // (например, при навигации или гидрации с сервера).
+  const likeCount = post.likes + (liked ? 1 : 0)
 
   function handleLike() {
-    // Optimistic UI update
-    if (liked) {
-      setLiked(false)
-      setLikeCount((c) => c - 1)
-    } else {
-      setLiked(true)
-      setLikeCount((c) => c + 1)
-    }
+    setLiked((prev) => !prev)
   }
 
   return (

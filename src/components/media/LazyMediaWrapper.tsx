@@ -35,7 +35,7 @@ function LazyMediaWrapperContent({
   className,
   priority = false,
   type = 'photo',
-  sizes = '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw',
+  sizes = '(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 480px',
 }: LazyMediaWrapperProps) {
   // key={props.src} на обёртке гарантирует remount при смене src —
   // оба состояния сбрасываются автоматически без дополнительной логики.

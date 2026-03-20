@@ -27,6 +27,16 @@ function makeCardData(overrides?: Partial<PostCardData>): PostCardData {
 }
 
 describe('PostCard', () => {
+  it('likeCount обновляется при изменении prop post.likes (derived state sync)', () => {
+    const { rerender } = render(<PostCard post={makeCardData({ likes: 5 })} />)
+    expect(screen.getByText('5')).toBeInTheDocument()
+
+    rerender(<PostCard post={makeCardData({ likes: 10 })} />)
+
+    expect(screen.getByText('10')).toBeInTheDocument()
+    expect(screen.queryByText('5')).not.toBeInTheDocument()
+  })
+
   it('передаёт priority=true в LazyMediaWrapper если задан (LCP)', () => {
     render(<PostCard post={makeCardData()} priority />)
     expect(screen.getByTestId('lazy-media')).toHaveAttribute('data-priority', 'true')
