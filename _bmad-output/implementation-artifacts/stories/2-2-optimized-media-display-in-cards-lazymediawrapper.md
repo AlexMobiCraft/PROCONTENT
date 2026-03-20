@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: Medium
-- [x] Статус: review
+- [x] Статус: in-progress
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -86,10 +86,15 @@
 - [x] [AI-Review][Medium] Сломанный Infinite Scroll для редких категорий: Если при смене категории нет постов, выводится empty state с ручной кнопкой, и `observerRef` (sentinel) не рендерится. Автоматический поиск постов останавливается. Нужно адаптировать логику показа sentinel, чтобы лента могла продолжать поиск. [src/features/feed/components/FeedContainer.tsx]
 
 ### Review Follow-ups (AI) - Iteration 10
-- [ ] [AI-Review][High] SSR state leak: `FeedStoreInitializer` мутирует глобальный Zustand store во время серверного рендера, из-за чего посты одного пользователя попадают в HTML/rehydration других сессий. Нужно исключить мутацию стора на сервере и пробрасывать `initialData` в клиентский слой безопасным способом. [src/features/feed/components/FeedPageClient.tsx]
-- [ ] [AI-Review][High] Автопоиск обрывается при empty state: условие `hasMore && !error && !isScrollStalled` удаляет sentinel сразу после первой пустой страницы, поэтому Infinite Scroll не делает новых попыток без ручного клика. Требуется сохранять sentinel активным и перезапускать observer до исчерпания `MAX_STALL_RETRIES`. [src/features/feed/components/FeedContainer.tsx]
-- [ ] [AI-Review][Medium] Антипаттерн гидрации: `FeedStoreInitializer` вызывает `setPosts` синхронно в рендере, что нарушает правила React и блокирует честный LCP. Нужно переносить инициализацию в эффект или в отдельный провайдер, либо передавать данные напрямую в `FeedContainer` без сторонних сайд-эффектов. [src/features/feed/components/FeedPageClient.tsx]
-- [ ] [AI-Review][Medium] Нулевой рост sentinel не триггерит observer при фильтрах: когда посты категории отсутствуют, высота ленты не меняется и `IntersectionObserver` больше не срабатывает, даже если sentinel в DOM. Требуется программно инициировать повторную проверку (например, `requestIdleCallback` + ручной `loadMore`) или временно увеличивать область наблюдения. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][High] SSR state leak: `FeedStoreInitializer` мутирует глобальный Zustand store во время серверного рендера, из-за чего посты одного пользователя попадают в HTML/rehydration других сессий. Нужно исключить мутацию стора на сервере и пробрасывать `initialData` в клиентский слой безопасным способом. [src/features/feed/components/FeedPageClient.tsx]
+- [x] [AI-Review][High] Автопоиск обрывается при empty state: условие `hasMore && !error && !isScrollStalled` удаляет sentinel сразу после первой пустой страницы, поэтому Infinite Scroll не делает новых попыток без ручного клика. Требуется сохранять sentinel активным и перезапускать observer до исчерпания `MAX_STALL_RETRIES`. [src/features/feed/components/FeedContainer.tsx]
+- [x] [AI-Review][Medium] Антипаттерн гидрации: `FeedStoreInitializer` вызывает `setPosts` синхронно в рендере, что нарушает правила React и блокирует честный LCP. Нужно переносить инициализацию в эффект или в отдельный провайдер, либо передавать данные напрямую в `FeedContainer` без сторонних сайд-эффектов. [src/features/feed/components/FeedPageClient.tsx]
+- [x] [AI-Review][Medium] Нулевой рост sentinel не триггерит observer при фильтрах: когда посты категории отсутствуют, высота ленты не меняется и `IntersectionObserver` больше не срабатывает, даже если sentinel в DOM. Требуется программно инициировать повторную проверку (например, `requestIdleCallback` + ручной `loadMore`) или временно увеличивать область наблюдения. [src/features/feed/components/FeedContainer.tsx]
+
+### Review Follow-ups (AI) - Iteration 11
+- [ ] [AI-Review][High] UX Dead End (Блокировка ленты): После достижения `MAX_STALL_RETRIES` лента скрывает sentinel и останавливает поиск постов для редкой категории. Так как в предыдущей итерации был удален ручной CTA (кнопка "Загрузить ещё"), пользователь навсегда застревает на экране "Скоро здесь появится контент" без возможности продолжить поиск. Нужно вернуть кнопку "Искать дальше" при достижении лимита стагнации. [src/features/feed/components/FeedContainer.tsx]
+- [ ] [AI-Review][Medium] Zustand Anti-pattern (Лишние ререндеры): В `FeedPageClient.tsx` используется `const { activeCategory, changeCategory } = useFeedStore()`. Это подписывает компонент на **весь** стор. Каждая подгрузка новой страницы вызывает перерисовку всей страницы. Нужно использовать точечные селекторы. [src/features/feed/components/FeedPageClient.tsx]
+- [ ] [AI-Review][Low] A11y (Доступность): Экран ошибки начальной загрузки (`posts.length === 0`) не имеет `role="alert"`. [src/features/feed/components/FeedContainer.tsx]
 
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
@@ -180,6 +185,13 @@
 ✅ Resolved [Low] CLS empty state: добавлен `min-h-[60vh]` на error (posts.length===0) и empty-state контейнеры — фиксированное пространство предотвращает CLS при появлении/исчезновении.
 424/424 тестов проходят (+3 новых).
 
+**Iteration 10 Review Follow-ups (4 items) — 2026-03-20:**
+✅ Resolved [High] SSR state leak: убран `FeedStoreInitializer` из `FeedPageClient`; `initialData` передаётся напрямую в `FeedContainer` как проп; гидрация store перенесена в `useEffect` (SSR-safe — не мутирует Zustand singleton на сервере). 3 новых теста в FeedPageClient.test.tsx.
+✅ Resolved [High] Автопоиск обрывается при empty state: удалён `isScrollStalled` state; используется только `stallCount`; sentinel остаётся активным пока `stallCount < MAX_STALL_RETRIES`; CTA "Загрузить ещё" убран — автопрокрутка без ручного клика. IO useEffect обновлён.
+✅ Resolved [Medium] Антипаттерн гидрации: `FeedStoreInitializer` удалён; `initialData` передаётся в `FeedContainer` через props; гидрация store в `useEffect` (только клиент, не в render). Derived vars `isStoreHydrated/posts/hasMore/isLoading/error` обеспечивают корректный первый render без flash скелетонов.
+✅ Resolved [Medium] Нулевой рост sentinel не триггерит observer: добавлен `useEffect` с `setTimeout(0)` который вызывает `loadMoreWithStallDetection` когда `displayedPosts.length === 0 && hasMore && !isLoadingMore && stallCount < MAX_STALL_RETRIES`. 4 новых теста в FeedContainer.test.tsx (3 для SSR гидрации + 1 для auto-trigger).
+433/433 тестов проходят (+8 новых).
+
 **Iteration 9 Review Follow-ups (3 items) — 2026-03-20:**
 ✅ Resolved [High] Ложное исправление LCP (Архитектура): создан `src/features/feed/api/serverPosts.ts` (серверная загрузка через Supabase server client); `src/app/(app)/feed/page.tsx` конвертирован в async Server Component (без 'use client'); создан `src/features/feed/components/FeedPageClient.tsx` с `FeedStoreInitializer` — синхронно гидратирует Zustand store серверными данными до первого рендера FeedContainer; priority-изображения попадают в первый render → браузер preload-ит их немедленно → LCP не ломается. 3 новых теста в FeedPageClient.test.tsx.
 ✅ Resolved [High] Регрессия CLS при гидрации: hydration-скелетоны (`!isAuthReady && posts.length===0`) теперь передают `showMedia="alternate"` — 3 с медиа + 2 без = соответствует реальным карточкам → CLS при гидрации устранён. 1 новый тест.
@@ -197,3 +209,4 @@
 - 2026-03-19: Review Follow-ups Iteration 7 (4 items) — isLoadingMore в deps IO observer (fix лента зависает на высоких экранах) + 1 тест, сброс isLoaded/isError при смене src + 2 теста, удалён 'auto' из типа aspectRatio (схлопывание высоты), гард sharedObserver===observer в cleanup (double-access fix) + 1 тест. 421/421 тестов.
 - 2026-03-19: Review Follow-ups Iteration 8 (5 items) — LCP fix (посты из кэша при !isAuthReady) + 1 тест, a11y aria-label лайка с likeCount + 1 тест, Map→WeakMap в useInView (GC утечка), stall limit MAX_STALL_RETRIES=3 (UX стагнации) + 1 тест, min-h-[60vh] на empty/error state (CLS). 424/424 тестов.
 - 2026-03-20: Review Follow-ups Iteration 9 (3 items) — архитектурный LCP fix: FeedPage→Server Component + serverPosts.ts + FeedPageClient + FeedStoreInitializer (серверная загрузка начальных постов), showMedia="alternate" для hydration-скелетонов (CLS fix), sentinel в empty state при hasMore=true (fix бесконечного scroll). 5 новых тестов. 429/429 тестов.
+- 2026-03-20: Review Follow-ups Iteration 10 (4 items) — SSR state leak fix: FeedStoreInitializer удалён, initialData передаётся в FeedContainer через props, гидрация store в useEffect; автопоиск fix: isScrollStalled удалён, sentinel активен до MAX_STALL_RETRIES без ручного CTA; антипаттерн гидрации fix: useEffect вместо render side-effect, derived vars для no-flash первого render; auto-trigger fix: setTimeout(0) при displayedPosts.length===0 для нулевого роста sentinel. 8 новых тестов. 433/433 тестов.
