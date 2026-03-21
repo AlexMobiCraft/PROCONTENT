@@ -17,21 +17,8 @@ export function HeroSection() {
       </div>
 
       {/* Content */}
-      <div className="relative flex min-h-[100svh] flex-col justify-between px-5 pb-10 pt-14">
-        {/* Header with Logo and Login */}
-        <div className="mx-auto flex w-full max-w-xl items-center justify-between">
-          <span className="font-sans text-sm font-semibold tracking-[0.2em] uppercase text-primary-foreground/80">
-            PROCONTENT
-          </span>
-          <Link
-            href="/login"
-            className="font-sans text-[10px] font-medium tracking-[0.2em] uppercase text-primary-foreground/60 transition-colors hover:text-primary-foreground"
-          >
-            Prijava
-          </Link>
-        </div>
-
-        {/* Main text */}
+      <div className="relative flex min-h-[100svh] items-center justify-center px-5 py-14">
+        {/* Main text — центрирован по вертикали и горизонтали */}
         <div className="mx-auto flex w-full max-w-xl flex-col gap-8">
           <div className="flex flex-col gap-3">
             <p
@@ -63,6 +50,12 @@ export function HeroSection() {
               className="inline-flex min-h-[44px] w-full items-center justify-center border border-primary-foreground/30 px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-primary-foreground/60 transition-colors hover:border-primary-foreground/60 hover:text-primary-foreground sm:w-auto"
             >
               Oglej si predogled
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex min-h-[44px] w-full items-center justify-center border border-primary-foreground/20 px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-primary-foreground/50 transition-colors hover:border-primary-foreground/40 hover:text-primary-foreground/80 sm:w-auto"
+            >
+              Prijava
             </Link>
           </div>
         </div>
