@@ -25,8 +25,10 @@ export default async function AppLayout({
 
   return (
     <AuthProvider user={user} session={session}>
-      <DesktopSidebar />
-      <div className="md:pl-[245px]">{children}</div>
+      <div className="md:mx-auto md:flex md:max-w-[1200px]">
+        <DesktopSidebar />
+        <div className="min-w-0 flex-1">{children}</div>
+      </div>
       <div className="md:hidden">
         <MobileNav />
       </div>

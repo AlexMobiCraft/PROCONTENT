@@ -110,7 +110,7 @@ export function DesktopSidebar() {
   return (
     <aside
       aria-label="Stranska navigacija"
-      className="hidden md:flex fixed left-0 top-0 z-20 h-screen w-[245px] flex-col border-r border-border bg-background/95 backdrop-blur-sm"
+      className="hidden md:flex sticky top-0 z-20 h-screen w-[245px] shrink-0 flex-col border-r border-border bg-background/95 backdrop-blur-sm"
     >
       {/* Brand */}
       <div className="flex h-[var(--header-height)] shrink-0 items-center border-b border-border px-6">
