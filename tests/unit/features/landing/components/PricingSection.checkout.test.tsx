@@ -8,14 +8,14 @@ describe('PricingSection — checkout behaviour', () => {
   it('кнопка переходит в disabled при isLoading=true', () => {
     render(<PricingSection onCheckout={vi.fn()} isLoading={true} />)
 
-    const button = screen.getByRole('button', { name: /Загрузка/i })
+    const button = screen.getByRole('button', { name: /Nalaganje.../i })
     expect(button).toBeDisabled()
   })
 
   it('кнопка активна при isLoading=false', () => {
     render(<PricingSection onCheckout={vi.fn()} isLoading={false} />)
 
-    const button = screen.getByRole('button', { name: /Вступить сейчас/i })
+    const button = screen.getByRole('button', { name: /Pridruži se zdaj/i })
     expect(button).not.toBeDisabled()
   })
 
@@ -25,7 +25,7 @@ describe('PricingSection — checkout behaviour', () => {
 
     render(<PricingSection onCheckout={mockCheckout} isLoading={false} />)
 
-    const button = screen.getByRole('button', { name: /Вступить сейчас/i })
+    const button = screen.getByRole('button', { name: /Pridruži se zdaj/i })
     await user.click(button)
 
     expect(mockCheckout).toHaveBeenCalledOnce()
@@ -35,14 +35,14 @@ describe('PricingSection — checkout behaviour', () => {
   it('кнопка имеет атрибут disabled во время загрузки', () => {
     render(<PricingSection onCheckout={vi.fn()} isLoading={true} />)
 
-    const button = screen.getByRole('button', { name: /Загрузка/i })
+    const button = screen.getByRole('button', { name: /Nalaganje.../i })
     expect(button).toHaveAttribute('disabled')
   })
 
   it('кнопка сохраняет min-h-[48px] в disabled-состоянии', () => {
     render(<PricingSection onCheckout={vi.fn()} isLoading={true} />)
 
-    const button = screen.getByRole('button', { name: /Загрузка/i })
+    const button = screen.getByRole('button', { name: /Nalaganje.../i })
     expect(button.className).toContain('min-h-[48px]')
   })
 })

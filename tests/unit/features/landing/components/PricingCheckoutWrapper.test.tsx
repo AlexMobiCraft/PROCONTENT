@@ -39,10 +39,10 @@ describe('PricingCheckoutWrapper', () => {
 
     render(<PricingCheckoutWrapper />)
 
-    const button = screen.getByRole('button', { name: /Вступить сейчас/i })
+    const button = screen.getByRole('button', { name: /Pridruži se zdaj/i })
     await user.click(button)
 
-    expect(screen.getByRole('button', { name: /Загрузка/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Nalaganje.../i })).toBeDisabled()
 
     resolveCheckout('https://checkout.stripe.com/test')
   })
@@ -53,7 +53,7 @@ describe('PricingCheckoutWrapper', () => {
 
     render(<PricingCheckoutWrapper />)
 
-    await user.click(screen.getByRole('button', { name: /Вступить сейчас/i }))
+    await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
 
     await waitFor(() => {
       expect(window.location.href).toBe('https://checkout.stripe.com/test-session')
@@ -63,16 +63,16 @@ describe('PricingCheckoutWrapper', () => {
   it('ошибка — вызывает toast.error с сообщением', async () => {
     const user = userEvent.setup()
     mockStartCheckout.mockRejectedValueOnce(
-      new Error('Не удалось начать оформление. Попробуйте снова.')
+      new Error('Naročnine ni bilo mogoče začeti. Poskusite znova.')
     )
 
     render(<PricingCheckoutWrapper />)
 
-    await user.click(screen.getByRole('button', { name: /Вступить сейчас/i }))
+    await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
-        'Не удалось начать оформление. Попробуйте снова.'
+        'Naročnine ni bilo mogoče začeti. Poskusite znova.'
       )
     })
   })
@@ -83,10 +83,10 @@ describe('PricingCheckoutWrapper', () => {
 
     render(<PricingCheckoutWrapper />)
 
-    await user.click(screen.getByRole('button', { name: /Вступить сейчас/i }))
+    await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Вступить сейчас/i })).not.toBeDisabled()
+      expect(screen.getByRole('button', { name: /Pridruži se zdaj/i })).not.toBeDisabled()
     })
   })
 
@@ -96,11 +96,11 @@ describe('PricingCheckoutWrapper', () => {
 
     render(<PricingCheckoutWrapper />)
 
-    await user.click(screen.getByRole('button', { name: /Вступить сейчас/i }))
+    await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
-        'Не удалось начать оформление. Попробуйте снова.'
+        'Naročnine ni bilo mogoče začeti. Poskusite znova.'
       )
     })
   })

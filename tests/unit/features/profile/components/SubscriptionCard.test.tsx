@@ -168,7 +168,7 @@ describe('SubscriptionCard', () => {
       vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: false,
         status: 429,
-        json: async () => ({ error: 'Слишком много запросов. Попробуйте позже.' }),
+        json: async () => ({ error: 'Preveč zahtev. Poskusite pozneje.' }),
       } as Response)
 
       render(<SubscriptionCard {...defaultProps} />)
@@ -176,7 +176,7 @@ describe('SubscriptionCard', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('alert')).toHaveTextContent(
-          'Слишком много запросов. Попробуйте позже.'
+          'Preveč zahtev. Poskusite pozneje.'
         )
       })
     })

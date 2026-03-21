@@ -18,7 +18,7 @@ export function PricingCheckoutWrapper() {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Не удалось начать оформление. Попробуйте снова.'
+          : 'Naročnine ni bilo mogoče začeti. Poskusite znova.'
       )
       setIsCheckoutLoading(false)
     }

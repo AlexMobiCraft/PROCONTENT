@@ -18,20 +18,20 @@ describe('OnboardingScreen', () => {
   it('рендерит приветственный заголовок', () => {
     render(<OnboardingScreen {...defaultProps} />)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Привет, ты теперь часть PROCONTENT!'
+      'Pozdravljena, zdaj si del PROCONTENT!'
     )
   })
 
   it('рендерит подзаголовок', () => {
     render(<OnboardingScreen {...defaultProps} />)
     expect(
-      screen.getByText('Мы рады, что ты здесь. Вот с чего начать:')
+      screen.getByText('Veseli nas, da si tu. Tukaj je, od kje začeti:')
     ).toBeInTheDocument()
   })
 
   it('рендерит ссылку WhatsApp с корректным href и атрибутами безопасности', () => {
     render(<OnboardingScreen {...defaultProps} />)
-    const link = screen.getByRole('link', { name: /Вступить в WhatsApp-группу/i })
+    const link = screen.getByRole('link', { name: /Pridruži se WhatsApp skupini/i })
     expect(link).toHaveAttribute('href', 'https://chat.whatsapp.com/test')
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
@@ -39,24 +39,24 @@ describe('OnboardingScreen', () => {
 
   it('рендерит список из 5 карточек постов', () => {
     render(<OnboardingScreen {...defaultProps} />)
-    const postLinks = screen.getAllByRole('link', { name: /Перейти к посту:/i })
+    const postLinks = screen.getAllByRole('link', { name: /Pojdi na objavo:/i })
     expect(postLinks).toHaveLength(5)
   })
 
   it('рендерит заголовок секции "Начни здесь"', () => {
     render(<OnboardingScreen {...defaultProps} />)
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Начни здесь')
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Začni tukaj')
   })
 
   it('рендерит кнопку перехода в ленту', () => {
     render(<OnboardingScreen {...defaultProps} />)
-    const feedLink = screen.getByRole('link', { name: /Перейти к ленте/i })
+    const feedLink = screen.getByRole('link', { name: /Pojdi na feed/i })
     expect(feedLink).toHaveAttribute('href', '/feed')
   })
 
   it('использует переданный whatsappUrl', () => {
     render(<OnboardingScreen {...defaultProps} whatsappUrl="https://chat.whatsapp.com/custom" />)
-    expect(screen.getByRole('link', { name: /Вступить в WhatsApp-группу/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Pridruži se WhatsApp skupini/i })).toHaveAttribute(
       'href',
       'https://chat.whatsapp.com/custom'
     )

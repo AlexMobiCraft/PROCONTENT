@@ -144,7 +144,7 @@ export function FeedContainer({
     } catch (err) {
       if (isAbortError(err)) return
       console.error('Ошибка загрузки ленты:', err)
-      useFeedStore.getState().setError('Nalaganje feedа ni uspelo. Poskusite znova.')
+      useFeedStore.getState().setError('Nalaganje vsebine ni uspelo. Poskusite znova.')
     } finally {
       if (initialLoadAbortRef.current === controller) {
         initialLoadAbortRef.current = null
@@ -393,7 +393,7 @@ export function FeedContainer({
   // Состояние начальной загрузки — скелетоны (AC #3)
   if (isLoading) {
     return (
-      <div role="status" aria-label="Nalaganje feedа">
+      <div role="status" aria-label="Nalaganje vsebine">
         <Skeletons count={5} context="initial" showMedia="alternate" />
       </div>
     )
@@ -403,7 +403,7 @@ export function FeedContainer({
     return (
       <div role="alert" className="flex flex-col items-center justify-center min-h-[60vh] py-20 px-4 text-center">
         <p className="font-heading text-xl font-semibold text-foreground">
-          Nalaganje feedа ni uspelo
+          Nalaganje vsebine ni uspelo
         </p>
         <p className="mt-2 text-sm text-muted-foreground">Preverite povezavo in poskusite znova</p>
         <button
@@ -422,7 +422,7 @@ export function FeedContainer({
     // Ещё подгружаем страницы в поисках постов данной категории — скелетоны вместо пустого экрана
     if (isLoadingMore) {
       return (
-        <div role="status" aria-label="Nalaganje feedа">
+        <div role="status" aria-label="Nalaganje vsebine">
           <Skeletons count={5} context="initial" showMedia="alternate" />
         </div>
       )

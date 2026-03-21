@@ -7,7 +7,7 @@ describe('TestimonialsSection', () => {
   it('рендерится без ошибок', () => {
     render(<TestimonialsSection />)
 
-    expect(screen.getByText('Что говорят')).toBeInTheDocument()
+    expect(screen.getByText('Kaj pravijo')).toBeInTheDocument()
   })
 
   it('отображает 3 карточки отзывов как blockquote', () => {
@@ -20,44 +20,44 @@ describe('TestimonialsSection', () => {
   it('отображает имена авторов', () => {
     render(<TestimonialsSection />)
 
-    expect(screen.getByText('Маша К.')).toBeInTheDocument()
-    expect(screen.getByText('Аня Р.')).toBeInTheDocument()
-    expect(screen.getByText('Лена В.')).toBeInTheDocument()
+    expect(screen.getByText('Maša K.')).toBeInTheDocument()
+    expect(screen.getByText('Anja R.')).toBeInTheDocument()
+    expect(screen.getByText('Lena V.')).toBeInTheDocument()
   })
 
   it('отображает бейджи статуса участниц', () => {
     render(<TestimonialsSection />)
 
-    expect(screen.getByText('Опытная')).toBeInTheDocument()
-    const participantBadges = screen.getAllByText('Участница')
+    expect(screen.getByText('Izkušena')).toBeInTheDocument()
+    const participantBadges = screen.getAllByText('Članica')
     expect(participantBadges).toHaveLength(2)
   })
 
   it('отображает роли авторов', () => {
     render(<TestimonialsSection />)
 
-    expect(screen.getByText('UGC-криэйтор')).toBeInTheDocument()
-    expect(screen.getByText('Начинающий контент-мейкер')).toBeInTheDocument()
-    expect(screen.getByText('Владелица малого бизнеса')).toBeInTheDocument()
+    expect(screen.getByText('UGC-ustvarjalka')).toBeInTheDocument()
+    expect(screen.getByText('Začetnica ustvarjanja vsebin')).toBeInTheDocument()
+    expect(screen.getByText('Lastnica majhnega podjetja')).toBeInTheDocument()
   })
 
   it('содержит текст цитат', () => {
     render(<TestimonialsSection />)
 
     expect(
-      screen.getByText(/подписала контракты с 4 брендами/i)
+      screen.getByText(/podpisala pogodbe s 4 blagovnimi znamkami/i)
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/задать вопрос без страха/i)
+      screen.getByText(/zastavim vprašanje brez strahu/i)
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/снимать контент для своего кафе/i)
+      screen.getByText(/snemati vsebino za svojo kavarno/i)
     ).toBeInTheDocument()
   })
 
   it('отображает заголовок секции "Отзывы"', () => {
     render(<TestimonialsSection />)
 
-    expect(screen.getByText('Отзывы')).toBeInTheDocument()
+    expect(screen.getByText('Mnenja')).toBeInTheDocument()
   })
 })

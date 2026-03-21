@@ -6,9 +6,9 @@ function makePost(overrides: Partial<Post> = {}): Post {
   return {
     id: 'post-1',
     author_id: 'user-1',
-    title: 'Тестовый пост',
-    excerpt: 'Описание поста',
-    content: 'Полный текст',
+    title: 'Testna objava',
+    excerpt: 'Opis objave',
+    content: 'Celotno besedilo',
     category: 'insight',
     type: 'text',
     image_url: null,
@@ -20,7 +20,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
     created_at: '2026-03-15T10:00:00Z',
     updated_at: '2026-03-15T10:00:00Z',
     profiles: {
-      display_name: 'Анна Иванова',
+      display_name: 'Ana Ivanova',
       avatar_url: null,
     },
     ...overrides,
@@ -34,25 +34,25 @@ describe('dbPostToCardData', () => {
 
     expect(card.id).toBe('post-1')
     expect(card.category).toBe('insight')
-    expect(card.title).toBe('Тестовый пост')
-    expect(card.excerpt).toBe('Описание поста')
+    expect(card.title).toBe('Testna objava')
+    expect(card.excerpt).toBe('Opis objave')
     expect(card.likes).toBe(5)
     expect(card.comments).toBe(3)
     expect(card.type).toBe('text')
   })
 
-  it('форматирует дату на русском', () => {
+  it('форматирует дату на словенском', () => {
     const card = dbPostToCardData(makePost())
-    // toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+    // toLocaleDateString('sl-SI', { day: 'numeric', month: 'long' })
     expect(card.date).toMatch(/15/)
-    expect(card.date).toMatch(/март/i)
+    expect(card.date).toMatch(/marec/i)
   })
 
   it('извлекает имя автора из profiles join и ставит isAuthor=true для владельца', () => {
     const card = dbPostToCardData(makePost(), 'user-1')
 
-    expect(card.author.name).toBe('Анна Иванова')
-    expect(card.author.initials).toBe('АИ')
+    expect(card.author.name).toBe('Ana Ivanova')
+    expect(card.author.initials).toBe('AI')
     expect(card.author.isAuthor).toBe(true)
   })
 
@@ -61,28 +61,28 @@ describe('dbPostToCardData', () => {
     expect(dbPostToCardData(makePost()).author.isAuthor).toBe(false)
   })
 
-  it('использует fallback "Автор" при null profiles', () => {
+  it('использует fallback "Avtor" при null profiles', () => {
     const card = dbPostToCardData(makePost({ profiles: null }))
 
-    expect(card.author.name).toBe('Автор')
-    expect(card.author.initials).toBe('А')
+    expect(card.author.name).toBe('Avtor')
+    expect(card.author.initials).toBe('A')
   })
 
-  it('использует fallback "Автор" при null display_name', () => {
+  it('использует fallback "Avtor" при null display_name', () => {
     const card = dbPostToCardData(
       makePost({ profiles: { display_name: null, avatar_url: null } })
     )
 
-    expect(card.author.name).toBe('Автор')
+    expect(card.author.name).toBe('Avtor')
   })
 
-  it('использует fallback "Автор" при пустом display_name', () => {
+  it('использует fallback "Avtor" при пустом display_name', () => {
     const card = dbPostToCardData(
       makePost({ profiles: { display_name: '', avatar_url: null } })
     )
 
-    expect(card.author.name).toBe('Автор')
-    expect(card.author.initials).toBe('А')
+    expect(card.author.name).toBe('Avtor')
+    expect(card.author.initials).toBe('A')
   })
 
   it('маппит null excerpt в пустую строку', () => {
@@ -102,8 +102,8 @@ describe('dbPostToCardData', () => {
 
   it('генерирует инициалы из одного слова', () => {
     const card = dbPostToCardData(
-      makePost({ profiles: { display_name: 'Максим', avatar_url: null } })
+      makePost({ profiles: { display_name: 'Maksim', avatar_url: null } })
     )
-    expect(card.author.initials).toBe('М')
+    expect(card.author.initials).toBe('M')
   })
 })

@@ -35,30 +35,30 @@ describe('PreviewPostCard', () => {
   it('кнопки лайков и комментариев имеют корректные aria-label', () => {
     render(<PreviewPostCard {...baseProps} />)
 
-    expect(screen.getByRole('button', { name: '42 лайков' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '7 комментариев' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '42 všečkov' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '7 komentarjev' })).toBeInTheDocument()
   })
 
   it('кнопки имеют touch target min-h-[44px]', () => {
     render(<PreviewPostCard {...baseProps} />)
 
-    const likesBtn = screen.getByRole('button', { name: '42 лайков' })
-    const commentsBtn = screen.getByRole('button', { name: '7 комментариев' })
+    const likesBtn = screen.getByRole('button', { name: '42 všečkov' })
+    const commentsBtn = screen.getByRole('button', { name: '7 komentarjev' })
 
     expect(likesBtn.className).toContain('min-h-[44px]')
     expect(commentsBtn.className).toContain('min-h-[44px]')
   })
 
-  it('НЕ показывает замок и бейдж "Для участниц" когда isLocked=false', () => {
+  it('НЕ показывает замок и бейдж "Za članice" когда isLocked=false', () => {
     render(<PreviewPostCard {...baseProps} isLocked={false} />)
 
-    expect(screen.queryByText('Для участниц')).not.toBeInTheDocument()
+    expect(screen.queryByText('Za članice')).not.toBeInTheDocument()
   })
 
-  it('показывает бейдж "Для участниц" когда isLocked=true', () => {
+  it('показывает бейдж "Za članice" когда isLocked=true', () => {
     render(<PreviewPostCard {...baseProps} isLocked={true} />)
 
-    expect(screen.getByText('Для участниц')).toBeInTheDocument()
+    expect(screen.getByText('Za članice')).toBeInTheDocument()
   })
 
   it('рендерится как article элемент', () => {

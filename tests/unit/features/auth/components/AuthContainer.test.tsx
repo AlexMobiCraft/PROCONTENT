@@ -51,11 +51,11 @@ describe('AuthContainer', () => {
   it('рендерит заголовок и форму логина', () => {
     render(<AuthContainer />)
 
-    expect(screen.getByText('Вход')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Prijava' })).toBeInTheDocument()
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
-    expect(screen.getByLabelText('Пароль')).toBeInTheDocument()
+    expect(screen.getByLabelText('Geslo')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Войти' })
+      screen.getByRole('button', { name: 'Prijava' })
     ).toBeInTheDocument()
   })
 
@@ -67,12 +67,12 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.type(screen.getByLabelText('Пароль'), 'password123')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    await user.type(screen.getByLabelText('Geslo'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Prijava' }))
 
     await waitFor(() => {
       expect(
-        screen.getByText('Что-то пошло не так. Попробуйте ещё раз.')
+        screen.getByText('Nekaj je šlo narobe. Poskusite znova.')
       ).toBeInTheDocument()
     })
   })
@@ -83,8 +83,8 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.type(screen.getByLabelText('Пароль'), 'password123')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    await user.type(screen.getByLabelText('Geslo'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Prijava' }))
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/feed')
@@ -99,12 +99,12 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.type(screen.getByLabelText('Пароль'), 'wrongpassword')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    await user.type(screen.getByLabelText('Geslo'), 'wrongpassword')
+    await user.click(screen.getByRole('button', { name: 'Prijava' }))
 
     await waitFor(() => {
       expect(
-        screen.getByText('Неверный email или пароль')
+        screen.getByText('Napačna e-pošta ali geslo')
       ).toBeInTheDocument()
     })
     expect(mockPush).not.toHaveBeenCalled()
@@ -117,8 +117,8 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.type(screen.getByLabelText('Пароль'), 'password123')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    await user.type(screen.getByLabelText('Geslo'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Prijava' }))
 
     await waitFor(() => {
       expect(mockSetUser).toHaveBeenCalledWith(mockSession.user)
@@ -133,7 +133,7 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     expect(
-      screen.getByText('Ссылка недействительна. Запросите новую или войдите по паролю.')
+      screen.getByText('Povezava je neveljavna. Zahtevajte novo ali se prijavite z geslom.')
     ).toBeInTheDocument()
   })
 
@@ -141,7 +141,7 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     expect(
-      screen.queryByText('Ссылка недействительна. Запросите новую или войдите по паролю.')
+      screen.queryByText('Povezava je neveljavna. Zahtevajte novo ali se prijavite z geslom.')
     ).not.toBeInTheDocument()
   })
 
@@ -152,7 +152,7 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     expect(
-      screen.getByText('Срок действия ссылки истёк. Запросите новую ссылку.')
+      screen.getByText('Veljavnost povezave je potekla. Zahtevajte novo povezavo.')
     ).toBeInTheDocument()
   })
 
@@ -164,12 +164,12 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     // URL-ошибка видна изначально
-    expect(screen.getByText('Срок действия ссылки истёк. Запросите новую ссылку.')).toBeInTheDocument()
+    expect(screen.getByText('Veljavnost povezave je potekla. Zahtevajte novo povezavo.')).toBeInTheDocument()
 
     // При вводе в поле email ошибка из URL должна сразу исчезнуть
     await user.type(screen.getByLabelText('Email'), 'a')
     expect(
-      screen.queryByText('Срок действия ссылки истёк. Запросите новую ссылку.')
+      screen.queryByText('Veljavnost povezave je potekla. Zahtevajte novo povezavo.')
     ).not.toBeInTheDocument()
   })
 
@@ -182,16 +182,16 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     // URL-ошибка видна изначально
-    expect(screen.getByText('Срок действия ссылки истёк. Запросите новую ссылку.')).toBeInTheDocument()
+    expect(screen.getByText('Veljavnost povezave je potekla. Zahtevajte novo povezavo.')).toBeInTheDocument()
 
     // После первого взаимодействия (submit) ошибка из URL исчезает
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.type(screen.getByLabelText('Пароль'), 'password123')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    await user.type(screen.getByLabelText('Geslo'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Prijava' }))
 
     await waitFor(() => {
       expect(
-        screen.queryByText('Срок действия ссылки истёк. Запросите новую ссылку.')
+        screen.queryByText('Veljavnost povezave je potekla. Zahtevajte novo povezavo.')
       ).not.toBeInTheDocument()
     })
   })
@@ -202,13 +202,13 @@ describe('AuthContainer', () => {
     render(<AuthContainer />)
 
     await user.type(screen.getByLabelText('Email'), 'test@example.com')
-    await user.type(screen.getByLabelText('Пароль'), 'password123')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
+    await user.type(screen.getByLabelText('Geslo'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Prijava' }))
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/feed')
     })
 
-    expect(screen.getByRole('button', { name: 'Секунду...' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Trenutek...' })).toBeDisabled()
   })
 })

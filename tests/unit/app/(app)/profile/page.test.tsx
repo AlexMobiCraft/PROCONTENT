@@ -127,9 +127,9 @@ describe('ProfilePage', () => {
 
     expect(screen.queryByTestId('profile-screen')).not.toBeInTheDocument()
     // Заголовок остаётся, интерфейс не выглядит "сломанным"
-    expect(screen.getByRole('heading', { name: 'Профиль' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Profil' })).toBeInTheDocument()
     expect(
-      screen.getByText(/Не удалось загрузить данные профиля/)
+      screen.getByText(/Podatkov profila ni bilo mogoče naložiti/)
     ).toBeInTheDocument()
   })
 })

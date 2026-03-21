@@ -41,18 +41,18 @@ describe('UpdatePasswordForm', () => {
 
   it('рендерит форму установки пароля с двумя полями', () => {
     render(<UpdatePasswordForm />)
-    expect(screen.getByLabelText('Новый пароль')).toBeInTheDocument()
-    expect(screen.getByLabelText('Подтвердите пароль')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Сохранить и войти' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Novo geslo')).toBeInTheDocument()
+    expect(screen.getByLabelText('Potrdite geslo')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Shrani in prijavi se' })).toBeInTheDocument()
   })
 
   it('показывает ошибку при пустом пароле', async () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Введите новый пароль')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
+    expect(screen.getByRole('alert')).toHaveTextContent('Vnesite novo geslo')
     expect(mockUpdatePassword).not.toHaveBeenCalled()
   })
 
@@ -60,10 +60,10 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), '12345')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Пароль должен быть не короче 6 символов')
+    await user.type(screen.getByLabelText('Novo geslo'), '12345')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
+    expect(screen.getByRole('alert')).toHaveTextContent('Geslo mora biti vsaj 6 znakov dolgo')
     expect(mockUpdatePassword).not.toHaveBeenCalled()
   })
 
@@ -71,11 +71,11 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'differentpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Пароли не совпадают')
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'differentpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
+    expect(screen.getByRole('alert')).toHaveTextContent('Gesli se ne ujemata')
     expect(mockUpdatePassword).not.toHaveBeenCalled()
   })
 
@@ -84,10 +84,10 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Server error')
     })
@@ -99,14 +99,14 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
-      expect(screen.getByText('Пароль обновлён')).toBeInTheDocument()
+      expect(screen.getByText('Geslo posodobljeno')).toBeInTheDocument()
     })
-    expect(screen.getByText(/успешно изменён/)).toBeInTheDocument()
+    expect(screen.getByText(/uspešno spremenjeno/)).toBeInTheDocument()
   })
 
   it('редиректит на /feed после задержки и вызывает router.refresh() внутри таймера', async () => {
@@ -114,15 +114,15 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     // Сначала появляется сообщение об успехе — redirect и refresh ещё не вызваны
-    await waitFor(() => expect(screen.getByText('Пароль обновлён')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Geslo posodobljeno')).toBeInTheDocument())
     expect(mockPush).not.toHaveBeenCalledWith('/feed')
     expect(mockRefresh).not.toHaveBeenCalled()
-
+ 
     // Через 2 секунды router.push и router.refresh срабатывают вместе (внутри setTimeout)
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/feed'), { timeout: 3000 })
     expect(mockRefresh).toHaveBeenCalledTimes(1)
@@ -134,10 +134,10 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
       expect(mockSetSession).toHaveBeenCalledWith(null)
     })
@@ -151,10 +151,10 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
       expect(mockSetSession).toHaveBeenCalledWith(mockSessionObj)
     })
@@ -165,10 +165,10 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
       expect(mockSetUser).toHaveBeenCalledWith(mockSession.user)
     })
@@ -179,10 +179,10 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/login?error=link-expired')
     })
@@ -194,10 +194,10 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/login?error=link-expired')
     })
@@ -208,10 +208,10 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Database error')
     })
@@ -225,13 +225,13 @@ describe('UpdatePasswordForm', () => {
     const user = userEvent.setup()
     render(<UpdatePasswordForm />)
 
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'Пароль слишком слабый. Придумайте более надёжный пароль.'
+        'Geslo je prešibko. Izberite bolj varno geslo.'
       )
     })
   })
@@ -242,16 +242,16 @@ describe('UpdatePasswordForm', () => {
     render(<UpdatePasswordForm />)
 
     // Вызываем ошибку сервера
-    await user.type(screen.getByLabelText('Новый пароль'), 'validpassword')
-    await user.type(screen.getByLabelText('Подтвердите пароль'), 'validpassword')
-    await user.click(screen.getByRole('button', { name: 'Сохранить и войти' }))
-
+    await user.type(screen.getByLabelText('Novo geslo'), 'validpassword')
+    await user.type(screen.getByLabelText('Potrdite geslo'), 'validpassword')
+    await user.click(screen.getByRole('button', { name: 'Shrani in prijavi se' }))
+ 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
     })
-
+ 
     // Вводим символ в поле пароля — системная ошибка должна исчезнуть
-    await user.type(screen.getByLabelText('Новый пароль'), 'x')
+    await user.type(screen.getByLabelText('Novo geslo'), 'x')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

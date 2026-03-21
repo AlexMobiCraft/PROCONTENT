@@ -48,14 +48,14 @@ describe('HeroSection', () => {
   it('отображает фоновое изображение с корректным alt-текстом', () => {
     render(<HeroSection />)
 
-    const img = screen.getByAltText('Создательница контента за работой')
+    const img = screen.getByAltText('Ustvarjalka vsebine pri delu')
     expect(img).toBeInTheDocument()
   })
 
   it('ссылка "Вступить в клуб" ведёт на #pricing', () => {
     render(<HeroSection />)
 
-    const link = screen.getByRole('link', { name: 'Вступить в клуб' })
+    const link = screen.getByRole('link', { name: 'Pridruži se klubu' })
     expect(link).toBeInTheDocument()
     expect(link).toHaveAttribute('href', '#pricing')
   })
@@ -63,7 +63,7 @@ describe('HeroSection', () => {
   it('ссылка "Посмотреть превью" ведёт на #preview', () => {
     render(<HeroSection />)
 
-    const link = screen.getByRole('link', { name: 'Посмотреть превью' })
+    const link = screen.getByRole('link', { name: 'Oglej si predogled' })
     expect(link).toBeInTheDocument()
     expect(link).toHaveAttribute('href', '#preview')
   })
@@ -71,8 +71,8 @@ describe('HeroSection', () => {
   it('ссылки имеют touch target min-h-[44px]', () => {
     render(<HeroSection />)
 
-    const joinLink = screen.getByRole('link', { name: 'Вступить в клуб' })
-    const previewLink = screen.getByRole('link', { name: 'Посмотреть превью' })
+    const joinLink = screen.getByRole('link', { name: 'Pridruži se klubu' })
+    const previewLink = screen.getByRole('link', { name: 'Oglej si predogled' })
 
     expect(joinLink.className).toContain('min-h-[44px]')
     expect(previewLink.className).toContain('min-h-[44px]')
@@ -90,7 +90,7 @@ describe('HeroSection', () => {
     render(<HeroSection />)
 
     expect(
-      screen.getByText(/создательниц\s*контента в Словении/i)
+      screen.getByText(/ustvarjalke\s*vsebin v Sloveniji/i)
     ).toBeInTheDocument()
   })
 })

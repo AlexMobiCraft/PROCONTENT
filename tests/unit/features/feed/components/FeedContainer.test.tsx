@@ -60,8 +60,8 @@ function makePost(id: string, category = 'insight'): Post {
   return {
     id,
     author_id: 'user-1',
-    title: `Пост ${id}`,
-    excerpt: 'Описание',
+    title: `Objava ${id}`,
+    excerpt: 'Opis',
     content: null,
     category,
     type: 'text',
@@ -74,7 +74,7 @@ function makePost(id: string, category = 'insight'): Post {
     is_liked: false,
     created_at: '2026-03-15T10:00:00Z',
     updated_at: '2026-03-15T10:00:00Z',
-    profiles: { display_name: 'Автор', avatar_url: null },
+    profiles: { display_name: 'Avtorica', avatar_url: null },
   }
 }
 
@@ -120,7 +120,7 @@ describe('FeedContainer', () => {
     expect(skeletons).toHaveLength(5)
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Загрузка ленты'
+      'Nalaganje vsebine'
     )
 
     // Дожидаемся завершения загрузки чтобы не было act warning
@@ -156,7 +156,7 @@ describe('FeedContainer', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Скоро здесь появится контент')
+        screen.getByText('Kmalu bo tu vsebina')
       ).toBeInTheDocument()
     })
   })
@@ -215,7 +215,7 @@ describe('FeedContainer', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Вы просмотрели все публикации')
+        screen.getByText('Pregledali ste vse objave')
       ).toBeInTheDocument()
     })
   })
@@ -261,7 +261,7 @@ describe('FeedContainer', () => {
 
     // Должен показать empty state, observer не вызван
     expect(
-      screen.getByText('Скоро здесь появится контент')
+      screen.getByText('Kmalu bo tu vsebina')
     ).toBeInTheDocument()
     expect(mockObserve).not.toHaveBeenCalled()
   })
@@ -284,7 +284,7 @@ describe('FeedContainer', () => {
 
     // Sentinel активен — автопрокрутка без ручного CTA
     expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Загрузить ещё' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ponovi' })).not.toBeInTheDocument()
 
     // Дожидаемся завершения auto-trigger чтобы избежать act warning
     await waitFor(() => {
@@ -313,10 +313,10 @@ describe('FeedContainer', () => {
     render(<FeedContainer />)
 
     await waitFor(() => {
-      expect(screen.getByText('Не удалось загрузить ленту')).toBeInTheDocument()
+      expect(screen.getByText('Nalaganje vsebine ni uspelo')).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+    await user.click(screen.getByRole('button', { name: 'Ponovi' }))
 
     await waitFor(() => {
       expect(screen.getByTestId('post-1')).toBeInTheDocument()
@@ -355,7 +355,7 @@ describe('FeedContainer', () => {
 
     expect(queryByTestId('feed-sentinel')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+    await user.click(screen.getByRole('button', { name: 'Ponovi' }))
 
     await waitFor(() => {
       expect(screen.getByTestId('post-2')).toBeInTheDocument()
@@ -481,7 +481,7 @@ describe('FeedContainer', () => {
       expect(useFeedStore.getState().isLoadingMore).toBe(false)
     })
     expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Загрузить ещё' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ponovi' })).not.toBeInTheDocument()
 
     // Razobory пост остаётся видимым
     expect(screen.getByTestId('post-1')).toBeInTheDocument()
@@ -596,7 +596,7 @@ describe('FeedContainer', () => {
     render(<FeedContainer />)
 
     // Гидрационные скелетоны (aria-label "Загрузка приложения")
-    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Загрузка приложения')
+    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Nalaganje aplikacije')
     const skeletons = screen.getAllByTestId('skeleton')
     expect(skeletons).toHaveLength(5)
 
@@ -624,7 +624,7 @@ describe('FeedContainer', () => {
     render(<FeedContainer />)
 
     // Empty state виден
-    expect(screen.getByText('Скоро здесь появится контент')).toBeInTheDocument()
+    expect(screen.getByText('Kmalu bo tu vsebina')).toBeInTheDocument()
     // Sentinel присутствует — auto-scroll может продолжать поиск постов
     expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
     expect(mockObserve).toHaveBeenCalled()
@@ -647,7 +647,7 @@ describe('FeedContainer', () => {
 
     expect(screen.getByTestId('post-1')).toBeInTheDocument()
     expect(screen.getByTestId('post-2')).toBeInTheDocument()
-    expect(screen.queryByRole('status', { name: 'Загрузка приложения' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Nalaganje aplikacije' })).not.toBeInTheDocument()
   })
 
   it('после MAX_STALL_RETRIES=3 последовательных stall-ов убирает sentinel и показывает конечное сообщение', async () => {
@@ -697,7 +697,7 @@ describe('FeedContainer', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
       expect(
-        screen.getByText('Больше публикаций в этой категории не найдено')
+        screen.getByText('V tej kategoriji ni več objav')
       ).toBeInTheDocument()
     })
   })
@@ -853,7 +853,7 @@ describe('FeedContainer', () => {
     // Посты видны сразу при первом render — нет flash скелетонов
     expect(screen.getByTestId('post-1')).toBeInTheDocument()
     expect(screen.getByTestId('post-2')).toBeInTheDocument()
-    expect(screen.queryByRole('status', { name: 'Загрузка ленты' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Nalaganje feedа' })).not.toBeInTheDocument()
   })
 
   // --- Iteration 10: Item 4 (auto-trigger loadMore при нулевом росте sentinel) ---
@@ -867,7 +867,7 @@ describe('FeedContainer', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
-      expect(screen.getByText('Не удалось загрузить ленту')).toBeInTheDocument()
+      expect(screen.getByText('Nalaganje vsebine ni uspelo')).toBeInTheDocument()
     })
     // Macrotask-checkpoint: дренирует microtask queue (Zustand→React subscription chain)
     await act(async () => { await new Promise<void>(r => setTimeout(r, 0)) })
@@ -907,15 +907,15 @@ describe('FeedContainer', () => {
     // После 3 stall: кнопка "Искать дальше" появилась, sentinel скрыт
     await waitFor(() => {
       expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Искать дальше' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Išči naprej' })).toBeInTheDocument()
     })
 
     // Клик "Искать дальше" → сбрасывает stallCount → sentinel снова видим
-    await user.click(screen.getByRole('button', { name: 'Искать дальше' }))
+    await user.click(screen.getByRole('button', { name: 'Išči naprej' }))
 
     await waitFor(() => {
       expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Искать дальше' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Išči naprej' })).not.toBeInTheDocument()
     })
   })
 
@@ -941,7 +941,7 @@ describe('FeedContainer', () => {
     render(<FeedContainer />)
 
     // Empty state виден, sentinel активен (stallCount=0 < 3)
-    expect(screen.getByText('Скоро здесь появится контент')).toBeInTheDocument()
+    expect(screen.getByText('Kmalu bo tu vsebina')).toBeInTheDocument()
     expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
 
     // Симулируем 3 stall (через auto-trigger + observer)
@@ -959,15 +959,15 @@ describe('FeedContainer', () => {
     // Кнопка "Искать дальше" появилась в empty state, sentinel скрыт
     await waitFor(() => {
       expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Искать дальше' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Išči naprej' })).toBeInTheDocument()
     })
 
     // Клик → stallCount сбрасывается → sentinel снова активен
-    await user.click(screen.getByRole('button', { name: 'Искать дальше' }))
+    await user.click(screen.getByRole('button', { name: 'Išči naprej' }))
 
     await waitFor(() => {
       expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Искать дальше' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Išči naprej' })).not.toBeInTheDocument()
     })
   })
 
@@ -1029,7 +1029,7 @@ describe('FeedContainer', () => {
     render(<FeedContainer />)
 
     await waitFor(() => {
-      const el = screen.getByText('Вы просмотрели все публикации')
+      const el = screen.getByText('Pregledali ste vse objave')
       expect(el).toHaveAttribute('role', 'status')
       expect(el).toHaveAttribute('aria-live', 'polite')
     })

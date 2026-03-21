@@ -20,7 +20,7 @@ function makeCardData(overrides?: Partial<PostCardData>): PostCardData {
     date: '01.01.2026',
     likes: 0,
     comments: 0,
-    author: { name: 'Автор', initials: 'А' },
+    author: { name: 'Avtorica', initials: 'A' },
     imageUrl: 'https://example.com/img.jpg',
     type: 'photo',
     ...overrides,
@@ -56,7 +56,7 @@ describe('PostCard', () => {
   it('кнопка лайка имеет aria-label без дублирования счётчика (a11y)', () => {
     render(<PostCard post={makeCardData({ likes: 7 })} />)
     // aria-label содержит только действие — счётчик рендерится в <span> и не дублируется AT
-    expect(screen.getByRole('button', { name: 'Поставить лайк' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Všečkaj' })).toBeInTheDocument()
   })
 
   it('вызывает onLikeToggle с postId при клике (нет локального state)', async () => {
@@ -64,7 +64,7 @@ describe('PostCard', () => {
     const user = userEvent.setup()
     render(<PostCard post={makeCardData({ id: 'p1', likes: 3 })} onLikeToggle={onLikeToggle} />)
 
-    await user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     expect(onLikeToggle).toHaveBeenCalledOnce()
     expect(onLikeToggle).toHaveBeenCalledWith('p1')
@@ -76,7 +76,7 @@ describe('PostCard', () => {
     // isLiked=true — FeedContainer передаёт актуальное состояние через props
     render(<PostCard post={makeCardData({ id: 'p1', isLiked: true })} onLikeToggle={onLikeToggle} />)
 
-    await user.click(screen.getByRole('button', { name: 'Убрать лайк' }))
+    await user.click(screen.getByRole('button', { name: 'Odstrani všeček' }))
 
     expect(onLikeToggle).toHaveBeenCalledOnce()
     expect(onLikeToggle).toHaveBeenCalledWith('p1')
@@ -88,19 +88,19 @@ describe('PostCard', () => {
 
     // Клик без onLikeToggle — не должно быть ошибок
     await expect(
-      user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
+      user.click(screen.getByRole('button', { name: 'Všečkaj' }))
     ).resolves.not.toThrow()
   })
 
   it('liked инициализируется из post.isLiked=true (начальное состояние от сервера)', () => {
     render(<PostCard post={makeCardData({ isLiked: true, likes: 5 })} />)
     // При isLiked=true кнопка должна быть в состоянии "лайкнуто"
-    expect(screen.getByRole('button', { name: 'Убрать лайк' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Odstrani všeček' })).toBeInTheDocument()
   })
 
   it('liked инициализируется как false если post.isLiked не передан', () => {
     render(<PostCard post={makeCardData({ likes: 3 })} />)
-    expect(screen.getByRole('button', { name: 'Поставить лайк' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Všečkaj' })).toBeInTheDocument()
   })
 
   it('likeCount = post.likes напрямую: нет двойного подсчёта при обновлении сервера', () => {
@@ -117,8 +117,8 @@ describe('PostCard', () => {
 
   it('кнопка комментариев имеет aria-label без счётчика (a11y, нет дублирования)', () => {
     render(<PostCard post={makeCardData({ comments: 12 })} />)
-    // aria-label только "Комментарии" — счётчик рендерится в <span>, AT не читает дважды
-    expect(screen.getByRole('button', { name: 'Комментарии' })).toBeInTheDocument()
+    // aria-label только "Komentarji" — счётчик рендерится в <span>, AT не читает дважды
+    expect(screen.getByRole('button', { name: 'Komentarji' })).toBeInTheDocument()
   })
 
   it('вызывает onOptionsClick с postId при клике на кнопку опций', async () => {
@@ -126,7 +126,7 @@ describe('PostCard', () => {
     const user = userEvent.setup()
     render(<PostCard post={makeCardData({ id: 'post-42' })} onOptionsClick={onOptionsClick} />)
 
-    await user.click(screen.getByRole('button', { name: 'Опции поста' }))
+    await user.click(screen.getByRole('button', { name: 'Možnosti objave' }))
 
     expect(onOptionsClick).toHaveBeenCalledOnce()
     expect(onOptionsClick).toHaveBeenCalledWith('post-42')

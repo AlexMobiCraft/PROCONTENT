@@ -19,9 +19,9 @@ const defaultProps = {
 }
 
 describe('ProfileScreen', () => {
-  it('отображает заголовок "Профиль"', () => {
+  it('отображает заголовок "Profil"', () => {
     render(<ProfileScreen {...defaultProps} />)
-    expect(screen.getByRole('heading', { name: 'Профиль' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Profil' })).toBeInTheDocument()
   })
 
   it('отображает email пользователя', () => {

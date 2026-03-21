@@ -13,14 +13,14 @@ describe('OnboardingPage (Server Component)', () => {
     const jsx = await OnboardingPage({ searchParams: Promise.resolve({}) })
     render(jsx)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Привет, ты теперь часть PROCONTENT!'
+      'Pozdravljena, zdaj si del PROCONTENT!'
     )
   })
 
   it('рендерит все 5 постов из ONBOARDING_CONFIG', async () => {
     const jsx = await OnboardingPage({ searchParams: Promise.resolve({}) })
     render(jsx)
-    const postLinks = screen.getAllByRole('link', { name: /Перейти к посту:/i })
+    const postLinks = screen.getAllByRole('link', { name: /Pojdi na objavo:/i })
     expect(postLinks).toHaveLength(5)
   })
 
@@ -46,7 +46,7 @@ describe('OnboardingPage (Server Component)', () => {
     const jsx = await OnboardingPage({ searchParams: Promise.resolve({}) })
     render(jsx)
     expect(
-      screen.getByRole('link', { name: /Вступить в WhatsApp-группу/i })
+      screen.getByRole('link', { name: /Pridruži se WhatsApp skupini/i })
     ).toBeInTheDocument()
   })
 })
