@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: Medium
-- [x] Статус: review
+- [x] Статус: done
 
 
 ## Контекст
@@ -139,6 +139,12 @@
 - [x] [AI-Review][High] Двойной подсчет лайков при обновлении данных с сервера: В `PostCard.tsx` количество лайков вычисляется как `const likeCount = post.likes + (liked ? 1 : 0)`. Если компонент-контейнер обработает `onLikeToggle`, отправит запрос на сервер и обновит список постов (`post.likes` увеличится), локальный state `liked` останется `true`. Это приведет к тому, что лайк пользователя прибавится к уже обновленному значению с сервера, и лайк будет посчитан дважды. [src/components/feed/PostCard.tsx]
 - [x] [AI-Review][Medium] A11y дублирование счетчика комментариев: Кнопка комментариев в `PostCard.tsx` имеет `aria-label={`Комментарии: ${post.comments}`}`, но внутри нее также рендерится видимый `<span>{post.comments}</span>`. Скринридеры будут читать количество комментариев дважды (аналогичная проблема была исправлена для лайков в итерации 12, но упущена для комментариев). [src/components/feed/PostCard.tsx]
 - [x] [AI-Review][Low] Мертвая кнопка опций: Кнопка "Опции поста" (троеточие) в `PostCard.tsx` не имеет обработчика `onClick` и не предоставляет никакого функционала. [src/components/feed/PostCard.tsx]
+
+### Review Follow-ups (AI) - Iteration 19
+- [x] [AI-Review][High] Незакоммиченные изменения и смена языка: В файле `supabase/seed_posts.sql` тестовые данные (mock data) были переведены на словенский язык. Это нарушает глобальное правило о русском языке в приложении. Необходимо откатить эти изменения. [supabase/seed_posts.sql]
+- [x] [AI-Review][High] Хрупкий Derived State Anti-pattern: В `PostCard.tsx` всё ещё используется `const [liked, setLiked] = useState(post.isLiked ?? false)`, что конфликтует с глобальным стейтом `FeedContainer`, где уже реализовано оптимистичное обновление. Удалить локальный `useState` и использовать `post.isLiked` напрямую. [src/components/feed/PostCard.tsx]
+- [x] [AI-Review][Medium] Лишние параметры в интерфейсах: Сигнатура `onLikeToggle?: (postId: string, liked: boolean) => void` в `PostCardProps` содержит неиспользуемый аргумент `liked`. Оставить только `postId`. [src/components/feed/PostCard.tsx]
+- [x] [AI-Review][Low] Рассинхрон комментария и кода: В `LazyMediaWrapper.tsx` JSDoc комментарий к `sizes` описывает сложную сетку, но дефолтное значение захардкожено как `(max-width: 768px) 100vw, 640px`. Привести в соответствие. [src/components/media/LazyMediaWrapper.tsx]
 
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
@@ -307,7 +313,16 @@
 ✅ Обновлён posts.test.ts: ожидаемая строка select актуализирована (добавлен `is_liked:posts_is_liked`).
 457/457 тестов проходят.
 
+**Iteration 19 Review Follow-ups (4 items) — 2026-03-21:**
+✅ Resolved [High] seed_posts.sql язык: все тексты переведены обратно с словенского на русский — заголовки, excerpts, комментарии, RAISE NOTICE. Структура SQL (UUID, category-коды, URL picsum.photos) сохранена.
+✅ Resolved [High] Derived State Anti-pattern PostCard: удалён `useState` для `liked` и `setLiked`; `const liked = post.isLiked ?? false` — чтение напрямую из props; `likeCount = post.likes` (FeedContainer управляет оптимистичным обновлением post.likes/post.isLiked). Removed `import { useState }`.
+✅ Resolved [Medium] onLikeToggle сигнатура: `(postId: string, liked: boolean) => void` → `(postId: string) => void`; `handleLike` больше не вычисляет `newLiked` и не вызывает `setLiked`. FeedContainer уже использовал `(postId: string)` — без изменений.
+✅ Resolved [Low] JSDoc sizes LazyMediaWrapper: комментарий синхронизирован с дефолтным значением `'(max-width: 768px) 100vw, 640px'` — описывает одноколоночную ленту, а не трёхколоночную сетку.
+Тесты обновлены: 2 теста onLikeToggle переработаны под новую сигнатуру; тест "нет двойного подсчёта" упрощён (нет промежуточной проверки после клика — PostCard не управляет optimistic state).
+457/457 тестов проходят (0 новых — изменены 3 существующих теста).
+
 ## Change Log
+- 2026-03-21: Review Follow-ups Iteration 19 (4 items) — seed_posts.sql откат с словенского на русский; PostCard: удалён useState для liked (Derived State Anti-pattern), likeCount=post.likes, onLikeToggle сигнатура (postId) без liked; LazyMediaWrapper: JSDoc sizes синхронизирован с дефолтом. 3 теста обновлены. 457/457 тестов.
 - 2026-03-21: Task 5 (Seed) — picsum.photos в next.config.ts remotePatterns; 10 фото + 2 видео мок-поста в seed_posts.sql; регрессия PostCard исправлена (useState для liked, onLikeToggle сигнатура (postId, liked), формула likeCount без двойного подсчёта); posts.test.ts актуализирован (is_liked join). 457/457 тестов.
 - 2026-03-20: Review Follow-ups Iteration 15 (4 items) — Stale SSR Data полный fix (убрана проверка `> 0`, `initialData` с пустыми постами теперь очищает stale кэш); SENTINEL_ROOT_MARGIN константа на уровне модуля (нет hardcoded '200px' в IO sentinel); isStoreHydrated заменён на явный `isHydrated` state (useState initializer = `!initialData`); новый тест для пустого `initialData.posts = []`. 442/442 тестов (+1 новый).
 - 2026-03-19: Task 4 — написаны unit-тесты LazyMediaWrapper (10 тестов, все прошли); story переведена в статус review.

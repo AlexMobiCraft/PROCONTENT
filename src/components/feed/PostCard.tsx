@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 
@@ -29,22 +28,20 @@ interface PostCardProps {
   /** Кнопка лайка заблокирована — запрос toggle_like в процессе */
   isPending?: boolean
   onCommentClick?: (postId: string) => void
-  /** Вызывается при изменении состояния лайка — позволяет вызывающему коду сохранить изменение. */
-  onLikeToggle?: (postId: string, liked: boolean) => void
+  /** Вызывается при нажатии кнопки лайка — вызывающий код определяет направление toggle. */
+  onLikeToggle?: (postId: string) => void
   /** Вызывается при нажатии кнопки опций (троеточие). */
   onOptionsClick?: (postId: string) => void
 }
 
 export function PostCard({ post, priority = false, isPending = false, onCommentClick, onLikeToggle, onOptionsClick }: PostCardProps) {
-  const [liked, setLiked] = useState(post.isLiked ?? false)
-  // Формула без двойного подсчёта: вычитаем серверный вклад, добавляем оптимистичный локальный
-  const likeCount = post.likes - (post.isLiked ? 1 : 0) + (liked ? 1 : 0)
+  // Локальный state не нужен: FeedContainer управляет оптимистичным обновлением post.isLiked/post.likes
+  const liked = post.isLiked ?? false
+  const likeCount = post.likes
 
   function handleLike() {
     if (isPending) return
-    const newLiked = !liked
-    setLiked(newLiked)
-    onLikeToggle?.(post.id, newLiked)
+    onLikeToggle?.(post.id)
   }
 
   return (

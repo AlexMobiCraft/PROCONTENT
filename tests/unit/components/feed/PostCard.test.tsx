@@ -59,7 +59,7 @@ describe('PostCard', () => {
     expect(screen.getByRole('button', { name: 'Поставить лайк' })).toBeInTheDocument()
   })
 
-  it('вызывает onLikeToggle с postId и liked=true при первом клике', async () => {
+  it('вызывает onLikeToggle с postId при клике (нет локального state)', async () => {
     const onLikeToggle = vi.fn()
     const user = userEvent.setup()
     render(<PostCard post={makeCardData({ id: 'p1', likes: 3 })} onLikeToggle={onLikeToggle} />)
@@ -67,20 +67,19 @@ describe('PostCard', () => {
     await user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
 
     expect(onLikeToggle).toHaveBeenCalledOnce()
-    expect(onLikeToggle).toHaveBeenCalledWith('p1', true)
+    expect(onLikeToggle).toHaveBeenCalledWith('p1')
   })
 
-  it('вызывает onLikeToggle с liked=false при повторном клике (unlike)', async () => {
+  it('вызывает onLikeToggle с postId при клике на уже лайкнутый пост (unlike)', async () => {
     const onLikeToggle = vi.fn()
     const user = userEvent.setup()
-    render(<PostCard post={makeCardData({ id: 'p1' })} onLikeToggle={onLikeToggle} />)
+    // isLiked=true — FeedContainer передаёт актуальное состояние через props
+    render(<PostCard post={makeCardData({ id: 'p1', isLiked: true })} onLikeToggle={onLikeToggle} />)
 
-    await user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
     await user.click(screen.getByRole('button', { name: 'Убрать лайк' }))
 
-    expect(onLikeToggle).toHaveBeenCalledTimes(2)
-    expect(onLikeToggle).toHaveBeenNthCalledWith(1, 'p1', true)
-    expect(onLikeToggle).toHaveBeenNthCalledWith(2, 'p1', false)
+    expect(onLikeToggle).toHaveBeenCalledOnce()
+    expect(onLikeToggle).toHaveBeenCalledWith('p1')
   })
 
   it('не падает если onLikeToggle не передан (опциональный проп)', async () => {
@@ -104,15 +103,13 @@ describe('PostCard', () => {
     expect(screen.getByRole('button', { name: 'Поставить лайк' })).toBeInTheDocument()
   })
 
-  it('нет двойного подсчёта: когда сервер подтверждает лайк (post.likes и post.isLiked обновляются)', async () => {
-    const user = userEvent.setup()
+  it('likeCount = post.likes напрямую: нет двойного подсчёта при обновлении сервера', () => {
+    // PostCard не управляет оптимистичным состоянием — FeedContainer делает это через props.
     // Начало: 5 лайков, пользователь не лайкал
     const { rerender } = render(<PostCard post={makeCardData({ likes: 5, isLiked: false })} />)
-    // Пользователь кликает лайк → оптимистично +1 = 6
-    await user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
-    expect(screen.getByText('6')).toBeInTheDocument()
+    expect(screen.getByText('5')).toBeInTheDocument()
 
-    // Сервер подтверждает: likes=6, isLiked=true — не должно стать 7
+    // Сервер подтверждает: likes=6, isLiked=true — показывается 6, не 7
     rerender(<PostCard post={makeCardData({ likes: 6, isLiked: true })} />)
     expect(screen.getByText('6')).toBeInTheDocument()
     expect(screen.queryByText('7')).not.toBeInTheDocument()
