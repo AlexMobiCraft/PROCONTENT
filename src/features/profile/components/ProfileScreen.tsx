@@ -1,6 +1,7 @@
 'use client'
 
 import { SubscriptionCard } from './SubscriptionCard'
+import { PasswordResetCard } from './PasswordResetCard'
 import { ProfileRightPanel } from './ProfileRightPanel'
 
 interface ProfileScreenProps {
@@ -26,6 +27,15 @@ export function ProfileScreen({
           <h1 className="font-heading text-lg font-semibold text-foreground">Profil</h1>
         </div>
 
+        {/* Kartica člana — только mobile, до основного контента */}
+        <div className="md:hidden">
+          <ProfileRightPanel
+            email={email}
+            displayName={displayName}
+            subscriptionStatus={subscriptionStatus}
+          />
+        </div>
+
         <div className="space-y-4 p-6">
           <div className="space-y-2 border border-border p-6">
             <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Račun</p>
@@ -38,6 +48,8 @@ export function ProfileScreen({
             currentPeriodEnd={currentPeriodEnd}
             hasStripeCustomer={hasStripeCustomer}
           />
+
+          <PasswordResetCard email={email} />
         </div>
       </div>
 
