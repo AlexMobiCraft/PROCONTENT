@@ -49,6 +49,7 @@
 }
 
 :root {
+  --header-height: 64px; /* высота шапки колонки на странице /feed */
   /* Warm Minimalism — light theme */
   --background: oklch(0.993 0.006 90); /* #FDFBF7 — теплый кремовый */
   --foreground: oklch(0.22 0.01 60); /* #2C2924 — dark charcoal warm */

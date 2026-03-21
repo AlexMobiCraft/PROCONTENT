@@ -42,7 +42,7 @@ export function PostCommentsPanel({ selectedPostId, onClose }: PostCommentsPanel
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div className="flex h-[var(--header-height)] shrink-0 items-center justify-between border-b border-border px-4">
         <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.2em] text-foreground">
           Komentarji
         </h2>

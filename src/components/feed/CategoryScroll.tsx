@@ -22,10 +22,10 @@ export function CategoryScroll({
   onCategoryChange,
 }: CategoryScrollProps) {
   return (
-    <nav aria-label="Filter po rubrikah">
+    <nav aria-label="Filter po rubrikah" className="w-full">
       {/* Hide scrollbar but keep scroll functionality */}
       <div
-        className="flex gap-2 overflow-x-auto py-2"
+        className="flex gap-2 overflow-x-auto items-center h-full"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {categories.map((cat) => {

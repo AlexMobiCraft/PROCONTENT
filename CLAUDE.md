@@ -46,6 +46,8 @@ src/
   components/
     ui/
       button.tsx    # Базовый Button поверх @base-ui/react
+    navigation/     # Навигационные компоненты
+      DesktopSidebar.tsx  # Фиксированный sidebar (md+), содержит nav-items
   lib/
     utils.ts        # cn() helper
 ```

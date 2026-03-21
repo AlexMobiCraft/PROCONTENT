@@ -36,7 +36,7 @@ export function FeedPageClient({
     <main className="flex min-h-screen flex-col pb-[60px] md:flex-row md:pb-0">
       {/* Центральная колонка: фильтры + лента */}
       <div className="flex min-w-0 flex-1 flex-col md:border-r md:border-border">
-        <div className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 backdrop-blur-sm">
+        <div className="sticky top-0 z-10 flex h-[var(--header-height)] shrink-0 items-center border-b border-border bg-background/95 px-4 backdrop-blur-sm">
           <CategoryScroll activeCategory={activeCategory} onCategoryChange={changeCategory} />
         </div>
 

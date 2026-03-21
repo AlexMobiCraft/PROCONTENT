@@ -222,8 +222,8 @@ procontent/
 │   │   ├── (public)/           # Публичная зона (Лендинг, SSR/SSG в v1.1)
 │   │   │   └── page.tsx        
 │   │   ├── (app)/              # Приватная SPA-зона (Лента, Поиск, Профиль)
-│   │   │   ├── layout.tsx      # Содержит MobileNav и UI State Provider
-│   │   │   └── feed/page.tsx   
+│   │   │   ├── layout.tsx      # Содержит MobileNav (mobile) + DesktopSidebar (desktop)
+│   │   │   └── feed/page.tsx   # Трёхколоночный layout: DesktopSidebar | лента | PostCommentsPanel
 │   │   ├── (admin)/            # Защищенная зона автора
 │   │   │   ├── layout.tsx      # Проверка роли 'admin'
 │   │   │   └── dashboard/page.tsx
@@ -233,7 +233,8 @@ procontent/
 │   │   └── globals.css
 │   ├── components/
 │   │   ├── ui/                 # Изолированные "глупые" компоненты (Button, Input, Skeleton, Toast)
-│   │   └── layout/             # Глобальные слои (MobileNav, ErrorBoundary, BottomSheetWrapper)
+│   │   ├── navigation/         # Навигационные компоненты (DesktopSidebar, MobileNav)
+│   │   └── layout/             # Глобальные слои (ErrorBoundary, BottomSheetWrapper)
 │   ├── features/               # Бизнес-логика (Feature-based)
 │   │   ├── auth/               # Авторизация и доступ (Stripe)
 │   │   │   ├── components/     # Формы логина, пейволы
