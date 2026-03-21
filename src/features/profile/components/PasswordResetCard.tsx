@@ -19,7 +19,7 @@ export function PasswordResetCard({ email }: PasswordResetCardProps) {
     try {
       const supabase = createClient()
       const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
+        redirectTo: `${window.location.origin}/auth/confirm`,
       })
       if (supabaseError) {
         setError('Napaka pri pošiljanju e-pošte')
