@@ -32,7 +32,7 @@ export function dbPostToCardData(
   post: Post,
   currentUserId?: string | null
 ): PostCardData {
-  const authorName = post.profiles?.display_name || 'Автор'
+  const authorName = post.profiles?.display_name || 'Avtor'
   const initials = authorName
     .split(' ')
     .map((w) => w[0])
@@ -42,7 +42,7 @@ export function dbPostToCardData(
 
   // Используем браузерный часовой пояс — дата отображается в локальном времени пользователя.
   // FeedContainer — 'use client', рендер только на клиенте, гидратация не затронута.
-  const date = new Date(post.created_at).toLocaleDateString('ru-RU', {
+  const date = new Date(post.created_at).toLocaleDateString('sl-SI', {
     day: 'numeric',
     month: 'long',
   })

@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils'
 const navItems = [
   {
     href: '/feed',
-    label: 'Feed',
-    ariaLabel: 'Feed objav',
+    label: 'Objave',
+    ariaLabel: 'Objave',
     icon: (
       <svg
         className="size-6"
