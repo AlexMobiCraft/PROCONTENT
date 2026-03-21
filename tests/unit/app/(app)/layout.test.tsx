@@ -42,6 +42,10 @@ vi.mock('@/components/navigation/MobileNav', () => ({
   MobileNav: () => <div data-testid="mobile-nav" />,
 }))
 
+vi.mock('@/components/navigation/DesktopSidebar', () => ({
+  DesktopSidebar: () => <div data-testid="desktop-sidebar" />,
+}))
+
 import AppLayout from '@/app/(app)/layout'
 
 describe('AppLayout', () => {

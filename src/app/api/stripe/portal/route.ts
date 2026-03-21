@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   }
 
   if (!profile?.stripe_customer_id) {
-    return NextResponse.json({ error: 'Аккаунт Stripe не найден' }, { status: 400 })
+    return NextResponse.json({ error: 'Stripe račun ni najden' }, { status: 400 })
   }
 
   // Клиент передаёт свой origin для надёжной работы за reverse proxy

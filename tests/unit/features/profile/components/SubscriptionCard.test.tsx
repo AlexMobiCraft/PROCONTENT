@@ -17,54 +17,54 @@ describe('SubscriptionCard', () => {
   })
 
   describe('отображение статуса', () => {
-    it('показывает "Активна до [дата]" для active статуса с датой', () => {
+    it('показывает "Aktivna do [дата]" для active статуса с датой', () => {
       render(<SubscriptionCard {...defaultProps} />)
-      expect(screen.getByText(/Активна до/)).toBeInTheDocument()
+      expect(screen.getByText(/Aktivna do/)).toBeInTheDocument()
     })
 
-    it('показывает "Активна" для active статуса без даты', () => {
+    it('показывает "Aktivna" для active статуса без даты', () => {
       render(<SubscriptionCard {...defaultProps} currentPeriodEnd={null} />)
-      expect(screen.getByText('Активна')).toBeInTheDocument()
+      expect(screen.getByText('Aktivna')).toBeInTheDocument()
     })
 
-    it('показывает "Активна" для trialing статуса', () => {
+    it('показывает "Aktivna" для trialing статуса', () => {
       render(<SubscriptionCard {...defaultProps} subscriptionStatus="trialing" currentPeriodEnd={null} />)
-      expect(screen.getByText('Активна')).toBeInTheDocument()
+      expect(screen.getByText('Aktivna')).toBeInTheDocument()
     })
 
-    it('показывает "Отменена" для canceled статуса', () => {
+    it('показывает "Preklicana" для canceled статуса', () => {
       render(<SubscriptionCard {...defaultProps} subscriptionStatus="canceled" />)
-      expect(screen.getByText('Отменена')).toBeInTheDocument()
+      expect(screen.getByText('Preklicana')).toBeInTheDocument()
     })
 
-    it('показывает "Требует оплаты" для past_due статуса', () => {
+    it('показывает "Zahteva plačilo" для past_due статуса', () => {
       render(<SubscriptionCard {...defaultProps} subscriptionStatus="past_due" />)
-      expect(screen.getByText('Требует оплаты')).toBeInTheDocument()
+      expect(screen.getByText('Zahteva plačilo')).toBeInTheDocument()
     })
 
-    it('показывает "Не оплачена" для unpaid статуса', () => {
+    it('показывает "Neplačana" для unpaid статуса', () => {
       render(<SubscriptionCard {...defaultProps} subscriptionStatus="unpaid" />)
-      expect(screen.getByText('Не оплачена')).toBeInTheDocument()
+      expect(screen.getByText('Neplačana')).toBeInTheDocument()
     })
 
-    it('показывает "Нет активной подписки" для null статуса', () => {
+    it('показывает "Ni aktivne naročnine" для null статуса', () => {
       render(<SubscriptionCard {...defaultProps} subscriptionStatus={null} />)
-      expect(screen.getByText('Нет активной подписки')).toBeInTheDocument()
+      expect(screen.getByText('Ni aktivne naročnine')).toBeInTheDocument()
     })
 
-    it('показывает "Приостановлена" для paused статуса', () => {
+    it('показывает "Začasno prekinjena" для paused статуса', () => {
       render(<SubscriptionCard {...defaultProps} subscriptionStatus="paused" />)
-      expect(screen.getByText('Приостановлена')).toBeInTheDocument()
+      expect(screen.getByText('Začasno prekinjena')).toBeInTheDocument()
     })
 
-    it('показывает "Не завершена" для incomplete статуса', () => {
+    it('показывает "Ni dokončana" для incomplete статуса', () => {
       render(<SubscriptionCard {...defaultProps} subscriptionStatus="incomplete" />)
-      expect(screen.getByText('Не завершена')).toBeInTheDocument()
+      expect(screen.getByText('Ni dokončana')).toBeInTheDocument()
     })
 
-    it('показывает "Не завершена" для incomplete_expired статуса', () => {
+    it('показывает "Ni dokončana" для incomplete_expired статуса', () => {
       render(<SubscriptionCard {...defaultProps} subscriptionStatus="incomplete_expired" />)
-      expect(screen.getByText('Не завершена')).toBeInTheDocument()
+      expect(screen.getByText('Ni dokončana')).toBeInTheDocument()
     })
 
     it('не падает при невалидной дате, возвращает исходную строку', () => {
@@ -73,15 +73,15 @@ describe('SubscriptionCard', () => {
     })
   })
 
-  describe('кнопка управления подпиской', () => {
+  describe('кнопка Upravljanje naročnine', () => {
     it('отображает кнопку если есть stripe customer', () => {
       render(<SubscriptionCard {...defaultProps} />)
-      expect(screen.getByRole('button', { name: /Управление подпиской/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Upravljanje naročnine/ })).toBeInTheDocument()
     })
 
     it('скрывает кнопку если нет stripe customer', () => {
       render(<SubscriptionCard {...defaultProps} hasStripeCustomer={false} />)
-      expect(screen.queryByRole('button', { name: /Управление подпиской/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Upravljanje naročnine/ })).not.toBeInTheDocument()
     })
   })
 
@@ -99,7 +99,7 @@ describe('SubscriptionCard', () => {
       } as Response)
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
         expect(window.location.href).toBe('https://billing.stripe.com/portal/test')
@@ -115,13 +115,13 @@ describe('SubscriptionCard', () => {
       } as Response)
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
         expect(window.location.href).toBe('https://billing.stripe.com/portal/test')
       })
       // isLoading НЕ сбрасывается после редиректа — кнопка остаётся заблокированной до навигации
-      expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
+      expect(screen.getByRole('button', { name: /Nalaganje/ })).toBeDisabled()
     })
 
     it('отправляет POST на /api/stripe/portal с returnUrl клиента', async () => {
@@ -133,7 +133,7 @@ describe('SubscriptionCard', () => {
       } as Response)
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith('/api/stripe/portal', {
@@ -152,11 +152,11 @@ describe('SubscriptionCard', () => {
       } as Response)
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
         expect(screen.getByRole('alert')).toHaveTextContent(
-          'Не удалось открыть портал управления подпиской'
+          'Portala za upravljanje naročnine ni bilo mogoče odpreti'
         )
         // убеждаемся что raw API error не выведен напрямую
         expect(screen.getByRole('alert')).not.toHaveTextContent('Аккаунт Stripe не найден')
@@ -172,7 +172,7 @@ describe('SubscriptionCard', () => {
       } as Response)
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
         expect(screen.getByRole('alert')).toHaveTextContent(
@@ -189,11 +189,11 @@ describe('SubscriptionCard', () => {
       } as Response)
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
         expect(screen.getByRole('alert')).toHaveTextContent(
-          'Не удалось открыть портал управления подпиской'
+          'Portala za upravljanje naročnine ni bilo mogoče odpreti'
         )
       })
     })
@@ -203,10 +203,10 @@ describe('SubscriptionCard', () => {
       vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Network error'))
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent('Ошибка соединения')
+        expect(screen.getByRole('alert')).toHaveTextContent('Napaka povezave')
       })
     })
 
@@ -217,7 +217,7 @@ describe('SubscriptionCard', () => {
       vi.mocked(global.fetch).mockRejectedValueOnce(networkError)
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
         expect(consoleSpy).toHaveBeenCalledWith(
@@ -237,11 +237,11 @@ describe('SubscriptionCard', () => {
       } as Response)
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       // После успешного редиректа isLoading остаётся true — кнопка заблокирована
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
+        expect(screen.getByRole('button', { name: /Nalaganje/ })).toBeDisabled()
       })
 
       // Симулируем восстановление страницы из BFCache (event.persisted = true)
@@ -252,7 +252,7 @@ describe('SubscriptionCard', () => {
 
       // isLoading должен сброситься — кнопка снова активна
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Управление подпиской/ })).not.toBeDisabled()
+        expect(screen.getByRole('button', { name: /Upravljanje naročnine/ })).not.toBeDisabled()
       })
     })
 
@@ -265,10 +265,10 @@ describe('SubscriptionCard', () => {
       } as Response)
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
+        expect(screen.getByRole('button', { name: /Nalaganje/ })).toBeDisabled()
       })
 
       // Обычный pageshow (не BFCache) — не сбрасываем isLoading
@@ -277,7 +277,7 @@ describe('SubscriptionCard', () => {
         window.dispatchEvent(pageshowEvent)
       })
 
-      expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
+      expect(screen.getByRole('button', { name: /Nalaganje/ })).toBeDisabled()
     })
 
     it('блокирует кнопку во время загрузки', async () => {
@@ -285,10 +285,10 @@ describe('SubscriptionCard', () => {
       vi.mocked(global.fetch).mockImplementation(() => new Promise(() => {}))
 
       render(<SubscriptionCard {...defaultProps} />)
-      await user.click(screen.getByRole('button', { name: /Управление подпиской/ }))
+      await user.click(screen.getByRole('button', { name: /Upravljanje naročnine/ }))
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Загрузка/ })).toBeDisabled()
+        expect(screen.getByRole('button', { name: /Nalaganje/ })).toBeDisabled()
       })
     })
   })

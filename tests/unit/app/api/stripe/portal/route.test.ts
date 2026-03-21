@@ -271,6 +271,6 @@ describe('POST /api/stripe/portal', () => {
 
     expect(response.status).toBe(500)
     expect(data).toHaveProperty('error')
-    expect(data.error).toContain('Не удалось открыть портал')
+    expect(data.error).toContain('Portala za upravljanje naročnine ni bilo mogoče odpreti')
   })
 })

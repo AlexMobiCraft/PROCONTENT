@@ -48,7 +48,12 @@ const SENTINEL_ROOT_MARGIN = '200px'
 export function FeedContainer({
   initialData,
   initialUserId,
-}: { initialData?: FeedPage; initialUserId?: string | null } = {}) {
+  onCommentClick,
+}: {
+  initialData?: FeedPage
+  initialUserId?: string | null
+  onCommentClick?: (postId: string) => void
+} = {}) {
   // Индивидуальные селекторы — компонент перерисовывается только при изменении
   // нужных полей, а не при любом изменении store
   const storePosts = useFeedStore((s) => s.posts)
@@ -113,7 +118,12 @@ export function FeedContainer({
   // До гидрации (useEffect ещё не выполнился): первый render использует initialData
   // напрямую — нет flash скелетонов и нет показа stale store.
   // После гидрации (isHydrated=true): store синхронизирован с initialData, используем store.
-  const posts = isHydrated ? storePosts : (initialData?.posts ?? [])
+  // useMemo стабилизирует ссылку на массив posts — без этого условный массив
+  // пересоздаётся каждый render и делает deps useMemo(displayedPosts) нестабильными.
+  const posts = useMemo(
+    () => (isHydrated ? storePosts : (initialData?.posts ?? [])),
+    [isHydrated, storePosts, initialData?.posts]
+  )
   const hasMore = isHydrated ? storeHasMore : (initialData?.hasMore ?? true)
   const isLoading = isHydrated ? storeIsLoading : false
   const error = isHydrated ? storeError : null
@@ -472,6 +482,7 @@ export function FeedContainer({
               priority={index < 2}
               isPending={pendingLikes.includes(cardData.id)}
               onLikeToggle={handleLikeToggle}
+              onCommentClick={onCommentClick}
             />
           </li>
         ))}

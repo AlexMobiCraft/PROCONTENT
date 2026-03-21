@@ -28,23 +28,23 @@ describe('OnboardingPostCard', () => {
 
   it('рендерит бейдж типа: Текст', () => {
     render(<OnboardingPostCard {...defaultProps} type="text" />)
-    expect(screen.getByText('Текст')).toBeInTheDocument()
+    expect(screen.getByText('Besedilo')).toBeInTheDocument()
   })
 
   it('рендерит бейдж типа: Видео', () => {
     render(<OnboardingPostCard {...defaultProps} type="video" />)
-    expect(screen.getByText('Видео')).toBeInTheDocument()
+    expect(screen.getByText('Video')).toBeInTheDocument()
   })
 
   it('рендерит бейдж типа: Фото', () => {
     render(<OnboardingPostCard {...defaultProps} type="photo" />)
-    expect(screen.getByText('Фото')).toBeInTheDocument()
+    expect(screen.getByText('Fotografija')).toBeInTheDocument()
   })
 
   it('ссылка содержит aria-label с заголовком поста', () => {
     render(<OnboardingPostCard {...defaultProps} />)
     expect(
-      screen.getByRole('link', { name: /Перейти к посту: Как начать создавать UGC-контент/ })
+      screen.getByRole('link', { name: /Pojdi na objavo: Как начать создавать UGC-контент/ })
     ).toBeInTheDocument()
   })
 
