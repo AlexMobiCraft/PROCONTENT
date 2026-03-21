@@ -6,6 +6,33 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   {
+    href: '/',
+    exact: true,
+    label: 'Domov',
+    ariaLabel: 'Domača stran',
+    icon: (
+      <svg
+        className="size-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        aria-hidden
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
+        />
+      </svg>
+    ),
+    iconActive: (
+      <svg className="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+        <path d="M11.47 3.841a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.061l-1.106-1.106A.75.75 0 0121 9.75V19.5a1.5 1.5 0 01-1.5 1.5h-4.5a1.5 1.5 0 01-1.5-1.5v-4.5a.75.75 0 00-.75-.75h-1.5a.75.75 0 00-.75.75V19.5a1.5 1.5 0 01-1.5 1.5H4.5A1.5 1.5 0 013 19.5V9.75a.75.75 0 00-.184-.494L1.72 8.15a.75.75 0 101.06 1.06l8.69-8.69z" />
+      </svg>
+    ),
+  },
+  {
     href: '/feed',
     label: 'Objave',
     ariaLabel: 'Objave',
@@ -122,7 +149,7 @@ export function DesktopSidebar() {
       {/* Nav */}
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
         {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href)
+          const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href)
           return (
             <Link
               key={item.href}
