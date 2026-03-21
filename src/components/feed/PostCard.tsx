@@ -12,6 +12,8 @@ export interface PostCardData {
   date: string
   likes: number
   comments: number
+  /** Начальное состояние лайка от сервера. undefined = не загружено (считается false). */
+  isLiked?: boolean
   author: {
     name: string
     initials: string
@@ -27,13 +29,17 @@ interface PostCardProps {
   onCommentClick?: (postId: string) => void
   /** Вызывается при изменении состояния лайка — позволяет вызывающему коду сохранить изменение. */
   onLikeToggle?: (postId: string, liked: boolean) => void
+  /** Вызывается при нажатии кнопки опций (троеточие). */
+  onOptionsClick?: (postId: string) => void
 }
 
-export function PostCard({ post, priority = false, onCommentClick, onLikeToggle }: PostCardProps) {
-  const [liked, setLiked] = useState(false)
-  // Вычисляемое значение реактивно реагирует на обновление prop post.likes
-  // (например, при навигации или гидрации с сервера).
-  const likeCount = post.likes + (liked ? 1 : 0)
+export function PostCard({ post, priority = false, onCommentClick, onLikeToggle, onOptionsClick }: PostCardProps) {
+  // Инициализируем из пропса — сервер передаёт начальное состояние лайка пользователя.
+  const [liked, setLiked] = useState(post.isLiked ?? false)
+  // Формула без двойного подсчёта: вычитаем серверный вклад пользователя,
+  // добавляем оптимистический локальный. Если post.likes уже включает лайк
+  // (post.isLiked=true), и пользователь тоже лайкнул (liked=true) — нет дублирования.
+  const likeCount = post.likes - (post.isLiked ? 1 : 0) + (liked ? 1 : 0)
 
   function handleLike() {
     const newLiked = !liked
@@ -70,6 +76,7 @@ export function PostCard({ post, priority = false, onCommentClick, onLikeToggle 
         {/* Options button */}
         <button
           type="button"
+          onClick={() => onOptionsClick?.(post.id)}
           className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"
           aria-label="Опции поста"
         >
@@ -159,7 +166,7 @@ export function PostCard({ post, priority = false, onCommentClick, onLikeToggle 
         <button
           type="button"
           onClick={() => onCommentClick?.(post.id)}
-          aria-label={`Комментарии: ${post.comments}`}
+          aria-label="Комментарии"
           className="flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <svg

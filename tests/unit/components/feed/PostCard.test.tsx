@@ -92,6 +92,48 @@ describe('PostCard', () => {
       user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
     ).resolves.not.toThrow()
   })
+
+  it('liked инициализируется из post.isLiked=true (начальное состояние от сервера)', () => {
+    render(<PostCard post={makeCardData({ isLiked: true, likes: 5 })} />)
+    // При isLiked=true кнопка должна быть в состоянии "лайкнуто"
+    expect(screen.getByRole('button', { name: 'Убрать лайк' })).toBeInTheDocument()
+  })
+
+  it('liked инициализируется как false если post.isLiked не передан', () => {
+    render(<PostCard post={makeCardData({ likes: 3 })} />)
+    expect(screen.getByRole('button', { name: 'Поставить лайк' })).toBeInTheDocument()
+  })
+
+  it('нет двойного подсчёта: когда сервер подтверждает лайк (post.likes и post.isLiked обновляются)', async () => {
+    const user = userEvent.setup()
+    // Начало: 5 лайков, пользователь не лайкал
+    const { rerender } = render(<PostCard post={makeCardData({ likes: 5, isLiked: false })} />)
+    // Пользователь кликает лайк → оптимистично +1 = 6
+    await user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
+    expect(screen.getByText('6')).toBeInTheDocument()
+
+    // Сервер подтверждает: likes=6, isLiked=true — не должно стать 7
+    rerender(<PostCard post={makeCardData({ likes: 6, isLiked: true })} />)
+    expect(screen.getByText('6')).toBeInTheDocument()
+    expect(screen.queryByText('7')).not.toBeInTheDocument()
+  })
+
+  it('кнопка комментариев имеет aria-label без счётчика (a11y, нет дублирования)', () => {
+    render(<PostCard post={makeCardData({ comments: 12 })} />)
+    // aria-label только "Комментарии" — счётчик рендерится в <span>, AT не читает дважды
+    expect(screen.getByRole('button', { name: 'Комментарии' })).toBeInTheDocument()
+  })
+
+  it('вызывает onOptionsClick с postId при клике на кнопку опций', async () => {
+    const onOptionsClick = vi.fn()
+    const user = userEvent.setup()
+    render(<PostCard post={makeCardData({ id: 'post-42' })} onOptionsClick={onOptionsClick} />)
+
+    await user.click(screen.getByRole('button', { name: 'Опции поста' }))
+
+    expect(onOptionsClick).toHaveBeenCalledOnce()
+    expect(onOptionsClick).toHaveBeenCalledWith('post-42')
+  })
 })
 
 describe('PostCardSkeleton', () => {
