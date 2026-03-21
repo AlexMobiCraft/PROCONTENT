@@ -10,7 +10,7 @@ function formatPeriodEnd(currentPeriodEnd: string | null): string | null {
   if (!currentPeriodEnd) return null
   const date = new Date(currentPeriodEnd)
   if (isNaN(date.getTime())) return currentPeriodEnd
-  return date.toLocaleDateString('ru-RU', {
+  return date.toLocaleDateString('sl-SI', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -25,17 +25,17 @@ function getStatusLabel(
 ): { label: string; active: boolean } {
   if (status === 'active' || status === 'trialing') {
     return {
-      label: periodEndDisplay ? `Активна до ${periodEndDisplay}` : 'Активна',
+      label: periodEndDisplay ? `Aktivna do ${periodEndDisplay}` : 'Aktivna',
       active: true,
     }
   }
-  if (status === 'canceled') return { label: 'Отменена', active: false }
-  if (status === 'past_due') return { label: 'Требует оплаты', active: false }
-  if (status === 'unpaid') return { label: 'Не оплачена', active: false }
-  if (status === 'paused') return { label: 'Приостановлена', active: false }
+  if (status === 'canceled') return { label: 'Preklicana', active: false }
+  if (status === 'past_due') return { label: 'Zahteva plačilo', active: false }
+  if (status === 'unpaid') return { label: 'Neplačana', active: false }
+  if (status === 'paused') return { label: 'Začasno prekinjena', active: false }
   if (status === 'incomplete' || status === 'incomplete_expired')
-    return { label: 'Не завершена', active: false }
-  return { label: 'Нет активной подписки', active: false }
+    return { label: 'Ni dokončana', active: false }
+  return { label: 'Ni aktivne naročnine', active: false }
 }
 
 interface SubscriptionCardProps {
@@ -84,7 +84,7 @@ export function SubscriptionCard({
         if (response.status === 429 && data.error) {
           setError(data.error)
         } else {
-          setError('Не удалось открыть портал управления подпиской')
+          setError('Portala za upravljanje naročnine ni bilo mogoče odpreti')
         }
         setIsLoading(false)
         return
@@ -94,7 +94,7 @@ export function SubscriptionCard({
       window.location.href = data.url
     } catch (err) {
       console.error('[SubscriptionCard] Ошибка запроса к /api/stripe/portal:', err)
-      setError('Ошибка соединения')
+      setError('Napaka povezave')
       setIsLoading(false)
     }
   }
@@ -105,7 +105,7 @@ export function SubscriptionCard({
     <div className="border-border space-y-4 border p-6">
       <div>
         <p className="text-muted-foreground mb-1 text-xs tracking-[0.15em] uppercase">
-          Подписка
+          Naročnina
         </p>
         <p
           className={cn(
@@ -127,7 +127,7 @@ export function SubscriptionCard({
             disabled={isLoading}
             aria-busy={isLoading}
           >
-            {isLoading ? 'Загрузка…' : 'Управление подпиской'}
+            {isLoading ? 'Nalaganje…' : 'Upravljanje naročnine'}
           </Button>
           {error && (
             <p className="text-destructive text-xs" role="alert">

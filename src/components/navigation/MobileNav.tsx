@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils'
 const navItems = [
   {
     href: '/feed',
-    label: 'Лента',
-    ariaLabel: 'Лента постов',
+    label: 'Feed',
+    ariaLabel: 'Feed objav',
     icon: (
       <svg
         className="size-6"
@@ -37,8 +37,8 @@ const navItems = [
   },
   {
     href: '/search',
-    label: 'Поиск',
-    ariaLabel: 'Поиск по архиву',
+    label: 'Iskanje',
+    ariaLabel: 'Iskanje po arhivu',
     icon: (
       <svg
         className="size-6"
@@ -63,8 +63,8 @@ const navItems = [
   },
   {
     href: '/profile',
-    label: 'Профиль',
-    ariaLabel: 'Мой профиль',
+    label: 'Profil',
+    ariaLabel: 'Moj profil',
     icon: (
       <svg
         className="size-6"
@@ -98,7 +98,7 @@ export function MobileNav() {
 
   return (
     <nav
-      aria-label="Основная навигация"
+      aria-label="Glavna navigacija"
       className="fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-background/95 pb-safe backdrop-blur-sm"
     >
       <div className="flex">

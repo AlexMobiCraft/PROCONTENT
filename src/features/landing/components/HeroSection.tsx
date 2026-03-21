@@ -8,7 +8,7 @@ export function HeroSection() {
       <div className="absolute inset-0">
         <Image
           src="/images/hero-bg.png"
-          alt="Создательница контента за работой"
+          alt="Ustvarjalka vsebine pri delu"
           fill
           className="w-full object-cover object-center opacity-60 mix-blend-luminosity"
           priority
@@ -27,7 +27,7 @@ export function HeroSection() {
             href="/login"
             className="font-sans text-[10px] font-medium tracking-[0.2em] uppercase text-primary-foreground/60 transition-colors hover:text-primary-foreground"
           >
-            Войти
+            Prijava
           </Link>
         </div>
 
@@ -38,7 +38,7 @@ export function HeroSection() {
               className="font-sans text-[10px] font-medium tracking-[0.3em] uppercase"
               style={{ color: 'oklch(0.75 0.1 35)' }}
             >
-              Закрытый клуб
+              Zaprti klub
             </p>
             <h1 className="font-serif text-balance text-[clamp(3rem,12vw,6rem)] font-light leading-none tracking-tight uppercase text-primary-foreground">
               PRO
@@ -46,8 +46,8 @@ export function HeroSection() {
               CONTENT
             </h1>
             <p className="max-w-xs font-sans text-xs tracking-[0.15em] uppercase leading-relaxed text-primary-foreground/70">
-              База знаний, живое комьюнити и оффлайн-встречи для создательниц
-              контента в Словении.
+              Baza znanja, živa skupnost in srečanja v živo za ustvarjalke
+              vsebin v Sloveniji.
             </p>
           </div>
 
@@ -56,13 +56,13 @@ export function HeroSection() {
               href="#pricing"
               className="inline-flex min-h-[44px] w-full items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-primary-foreground transition-colors hover:bg-primary/20 sm:w-auto"
             >
-              Вступить в клуб
+              Pridruži se klubu
             </Link>
             <Link
               href="#preview"
               className="inline-flex min-h-[44px] w-full items-center justify-center border border-primary-foreground/30 px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-primary-foreground/60 transition-colors hover:border-primary-foreground/60 hover:text-primary-foreground sm:w-auto"
             >
-              Посмотреть превью
+              Oglej si predogled
             </Link>
           </div>
         </div>

@@ -19,11 +19,11 @@ export function RegisterForm({ email, onSubmit, isLoading, error }: RegisterForm
     const passwordInput = form.elements.namedItem('password') as HTMLInputElement
 
     if (passwordInput.validity.valueMissing) {
-      setValidationError('Придумайте пароль')
+      setValidationError('Izmislite si geslo')
       return
     }
     if (passwordInput.value.length < 6) {
-      setValidationError('Пароль должен быть не менее 6 символов')
+      setValidationError('Geslo mora imeti vsaj 6 znakov')
       return
     }
 
@@ -48,13 +48,13 @@ export function RegisterForm({ email, onSubmit, isLoading, error }: RegisterForm
           className="border-border bg-muted text-muted-foreground min-h-[44px] rounded-lg border px-3 py-2 text-sm focus:outline-none"
         />
         <p className="text-[10px] text-muted-foreground mt-1 px-1">
-          Email из вашего заказа в Stripe
+          E-pošta iz vaše naročila v Stripe
         </p>
       </div>
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="password" className="text-foreground text-sm font-medium">
-          Придумайте пароль
+          Ustvarite geslo
         </label>
         <input
           id="password"
@@ -62,7 +62,7 @@ export function RegisterForm({ email, onSubmit, isLoading, error }: RegisterForm
           type="password"
           required
           autoFocus
-          placeholder="Минимум 6 символов"
+          placeholder="Najmanj 6 znakov"
           disabled={isLoading}
           onChange={() => setValidationError(null)}
           className={cn(
@@ -84,7 +84,7 @@ export function RegisterForm({ email, onSubmit, isLoading, error }: RegisterForm
           disabled={isLoading}
           className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none w-full"
         >
-          {isLoading ? 'Секунду...' : 'Завершить регистрацию'}
+          {isLoading ? 'Trenutek...' : 'Dokončaj registracijo'}
         </button>
       </div>
     </form>

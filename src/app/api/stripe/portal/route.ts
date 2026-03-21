@@ -14,13 +14,13 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
+    return NextResponse.json({ error: 'Ni pooblaščen' }, { status: 401 })
   }
 
   const { allowed } = consumePortalRateLimit(user.id)
   if (!allowed) {
     return NextResponse.json(
-      { error: 'Слишком много запросов. Попробуйте позже.' },
+      { error: 'Preveč zahtev. Poskusite pozneje.' },
       { status: 429, headers: { 'Retry-After': '60' } }
     )
   }
@@ -34,11 +34,11 @@ export async function POST(request: Request) {
   if (profileError) {
     // PGRST116: no rows found — профиль не найден, это ожидаемый кейс (не фатальная ошибка БД)
     if ((profileError as { code?: string }).code === 'PGRST116') {
-      return NextResponse.json({ error: 'Аккаунт Stripe не найден' }, { status: 400 })
+      return NextResponse.json({ error: 'Stripe račun ni najden' }, { status: 400 })
     }
     console.error('[stripe/portal] Ошибка загрузки профиля:', profileError)
     return NextResponse.json(
-      { error: 'Ошибка загрузки профиля. Попробуйте позже.' },
+      { error: 'Napaka pri nalaganju profila. Poskusite pozneje.' },
       { status: 500 }
     )
   }
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[stripe/portal] Ошибка при создании сессии портала:', message)
     return NextResponse.json(
-      { error: 'Не удалось открыть портал управления подпиской. Попробуйте позже.' },
+      { error: 'Portala za upravljanje naročnine ni bilo mogoče odpreti. Poskusite pozneje.' },
       { status: 500 }
     )
   }

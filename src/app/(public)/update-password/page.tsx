@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { UpdatePasswordForm } from '@/features/auth/components/UpdatePasswordForm'
 
 export const metadata: Metadata = {
-  title: 'Установка пароля | PROCONTENT',
-  description: 'Придумайте надежный пароль для доступа в клуб',
+  title: 'Nastavitev gesla | PROCONTENT',
+  description: 'Ustvarite varno geslo za dostop do kluba',
 }
 
 export default async function UpdatePasswordPage() {

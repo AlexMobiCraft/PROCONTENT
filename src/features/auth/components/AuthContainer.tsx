@@ -20,9 +20,9 @@ export function AuthContainer() {
   const rawError = searchParams.get('error')
   const computedUrlError =
     rawError === 'auth_callback_error' || rawError === 'auth_callback_error_v2'
-      ? 'Ссылка недействительна. Запросите новую или войдите по паролю.'
+      ? 'Povezava je neveljavna. Zahtevajte novo ali se prijavite z geslom.'
       : rawError === 'link-expired'
-      ? 'Срок действия ссылки истёк. Запросите новую ссылку.'
+      ? 'Veljavnost povezave je potekla. Zahtevajte novo povezavo.'
       : null
   const [urlErrorDismissed, setUrlErrorDismissed] = useState(false)
   const urlError = urlErrorDismissed ? null : computedUrlError
@@ -31,7 +31,7 @@ export function AuthContainer() {
     setUrlErrorDismissed(true)
 
     if (!password) {
-      setError('Введите пароль')
+      setError('Vnesite geslo')
       return
     }
 
@@ -44,9 +44,9 @@ export function AuthContainer() {
     if (apiError) {
       setIsLoading(false)
       if (apiError.status === 400 && apiError.message.includes('Invalid login credentials')) {
-        setError('Неверный email или пароль')
+        setError('Napačna e-pošta ali geslo')
       } else {
-        setNetworkError('Что-то пошло не так. Попробуйте ещё раз.')
+        setNetworkError('Nekaj je šlo narobe. Poskusite znova.')
       }
       return
     }
@@ -63,10 +63,10 @@ export function AuthContainer() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="font-heading text-foreground text-2xl font-semibold">
-          Вход
+          Prijava
         </h1>
         <p className="text-muted-foreground text-sm">
-          Используйте email и пароль
+          Uporabite e-pošto in geslo
         </p>
       </div>
 
@@ -91,7 +91,7 @@ export function AuthContainer() {
           href="/forgot-password"
           className="text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
         >
-          Забыли пароль?
+          Pozabljeno geslo?
         </Link>
       </div>
     </div>

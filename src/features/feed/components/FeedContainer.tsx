@@ -134,7 +134,7 @@ export function FeedContainer({
     } catch (err) {
       if (isAbortError(err)) return
       console.error('Ошибка загрузки ленты:', err)
-      useFeedStore.getState().setError('Не удалось загрузить ленту. Попробуйте снова.')
+      useFeedStore.getState().setError('Nalaganje feedа ni uspelo. Poskusite znova.')
     } finally {
       if (initialLoadAbortRef.current === controller) {
         initialLoadAbortRef.current = null
@@ -200,7 +200,7 @@ export function FeedContainer({
     } catch (err) {
       if (isAbortError(err)) return
       console.error('Ошибка подгрузки постов:', err)
-      setError('Не удалось загрузить ещё публикации. Попробуйте снова.')
+      setError('Nalaganje nadaljnjih objav ni uspelo. Poskusite znova.')
     } finally {
       if (loadMoreAbortRef.current === controller) {
         loadMoreAbortRef.current = null
@@ -374,7 +374,7 @@ export function FeedContainer({
   // прелоадятся браузером, не ломается LCP NFR1).
   if (!isAuthReady && posts.length === 0) {
     return (
-      <div role="status" aria-label="Загрузка приложения">
+      <div role="status" aria-label="Nalaganje aplikacije">
         <Skeletons count={5} context="hydration" showMedia="alternate" />
       </div>
     )
@@ -383,7 +383,7 @@ export function FeedContainer({
   // Состояние начальной загрузки — скелетоны (AC #3)
   if (isLoading) {
     return (
-      <div role="status" aria-label="Загрузка ленты">
+      <div role="status" aria-label="Nalaganje feedа">
         <Skeletons count={5} context="initial" showMedia="alternate" />
       </div>
     )
@@ -393,15 +393,15 @@ export function FeedContainer({
     return (
       <div role="alert" className="flex flex-col items-center justify-center min-h-[60vh] py-20 px-4 text-center">
         <p className="font-heading text-xl font-semibold text-foreground">
-          Не удалось загрузить ленту
+          Nalaganje feedа ni uspelo
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">Проверьте соединение и попробуйте снова</p>
+        <p className="mt-2 text-sm text-muted-foreground">Preverite povezavo in poskusite znova</p>
         <button
           type="button"
           onClick={handleRetry}
           className="mt-4 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
         >
-          Повторить
+          Ponovi
         </button>
       </div>
     )
@@ -412,7 +412,7 @@ export function FeedContainer({
     // Ещё подгружаем страницы в поисках постов данной категории — скелетоны вместо пустого экрана
     if (isLoadingMore) {
       return (
-        <div role="status" aria-label="Загрузка ленты">
+        <div role="status" aria-label="Nalaganje feedа">
           <Skeletons count={5} context="initial" showMedia="alternate" />
         </div>
       )
@@ -421,12 +421,12 @@ export function FeedContainer({
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] py-20 px-4 text-center">
         <p className="font-heading text-xl font-semibold text-foreground">
-          {error ? 'Не удалось загрузить публикации' : 'Скоро здесь появится контент'}
+          {error ? 'Nalaganje objav ni uspelo' : 'Kmalu bo tu vsebina'}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
           {error
-            ? 'Попробуйте ещё раз, чтобы продолжить загрузку'
-            : 'Следите за обновлениями клуба'}
+            ? 'Poskusite znova za nadaljevanje nalaganja'
+            : 'Sledite posodobitvam kluba'}
         </p>
         {error && (
           <button
@@ -434,7 +434,7 @@ export function FeedContainer({
             onClick={handleRetry}
             className="mt-4 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
           >
-            Повторить
+            Ponovi
           </button>
         )}
         {/* Sentinel остаётся активным пока есть страницы и не исчерпаны попытки —
@@ -454,7 +454,7 @@ export function FeedContainer({
             onClick={handleSearchMore}
             className="mt-4 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
           >
-            Искать дальше
+            Išči naprej
           </button>
         )}
       </div>
@@ -464,7 +464,7 @@ export function FeedContainer({
   return (
     <div>
       {/* Список постов (AC #1) */}
-      <ul aria-label="Лента публикаций">
+      <ul aria-label="Feed objav">
         {cardDataList.map((cardData, index) => (
           <li key={cardData.id}>
             <PostCard
@@ -479,7 +479,7 @@ export function FeedContainer({
 
       {/* Скелетоны при подгрузке следующей страницы (AC #3) */}
       {isLoadingMore && (
-        <div role="status" aria-label="Загрузка новых постов">
+        <div role="status" aria-label="Nalaganje novih objav">
           <Skeletons count={3} context="more" showMedia="alternate" />
         </div>
       )}
@@ -492,7 +492,7 @@ export function FeedContainer({
             onClick={handleRetry}
             className="mt-3 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
           >
-            Повторить
+            Ponovi
           </button>
         </div>
       )}
@@ -512,14 +512,14 @@ export function FeedContainer({
       {hasMore && !error && stallCount >= MAX_STALL_RETRIES && (
         <div className="py-8 text-center">
           <p className="text-sm text-muted-foreground">
-            Больше публикаций в этой категории не найдено
+            V tej kategoriji ni več objav
           </p>
           <button
             type="button"
             onClick={handleSearchMore}
             className="mt-3 min-h-[44px] rounded-md border border-border px-4 py-2 text-sm font-medium"
           >
-            Искать дальше
+            Išči naprej
           </button>
         </div>
       )}
@@ -527,7 +527,7 @@ export function FeedContainer({
       {/* End of feed message (AC #4) */}
       {!hasMore && (
         <p role="status" aria-live="polite" className="py-8 text-center text-sm text-muted-foreground">
-          Вы просмотрели все публикации
+          Pregledali ste vse objave
         </p>
       )}
     </div>

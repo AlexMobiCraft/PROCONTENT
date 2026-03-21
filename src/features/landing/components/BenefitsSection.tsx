@@ -3,27 +3,27 @@ import { BookOpen, Users, Zap, Archive } from 'lucide-react'
 const benefits = [
   {
     icon: BookOpen,
-    title: '2 года базы знаний',
+    title: '2 leti baze znanja',
     description:
-      'Сотни постов по съёмке, алгоритмам и работе с брендами — фильтруй по теме в один тап.',
+      'Stotine objav o snemanju, algoritmih in delu z blagovnimi znamkami — filtriraj po temi z enim dotikom.',
   },
   {
     icon: Users,
-    title: 'Своё комьюнити',
+    title: 'Svoja skupnost',
     description:
-      'WhatsApp-чат, где можно задать «глупый» вопрос и получить честный ответ без осуждения.',
+      'WhatsApp pogovor, kjer lahko zastaviš "neumno" vprašanje in dobiš iskren odgovor brez obsojanja.',
   },
   {
     icon: Zap,
-    title: 'Живые разборы',
+    title: 'Žive analize',
     description:
-      'Разбор профилей, трендов и кейсов каждую неделю — чтобы применять знания сразу.',
+      'Analiza profilov, trendov in primerov vsak teden — da znanje takoj uporabiš.',
   },
   {
     icon: Archive,
-    title: 'Оффлайн-встречи',
+    title: 'Srečanja v živo',
     description:
-      'Нетворкинг и коллаборации с другими создательницами контента в Словении.',
+      'Mreženje in sodelovanje z drugimi ustvarjalkami vsebin v Sloveniji.',
   },
 ]
 
@@ -33,10 +33,10 @@ export function BenefitsSection() {
       <div className="mx-auto max-w-xl">
         <div className="mb-10 flex flex-col gap-2">
           <p className="text-xs font-medium tracking-[0.3em] uppercase text-primary">
-            Что внутри
+            Kaj je znotraj
           </p>
           <h2 className="font-serif text-foreground text-balance text-[clamp(2rem,8vw,3.5rem)] font-light leading-none uppercase">
-            Всё для роста
+            Vse za rast
           </h2>
         </div>
 

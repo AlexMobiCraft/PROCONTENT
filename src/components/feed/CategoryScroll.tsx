@@ -3,13 +3,13 @@
 import { cn } from '@/lib/utils'
 
 const categories = [
-  { id: 'all', label: 'Все' },
+  { id: 'all', label: 'Vse' },
   { id: 'insight', label: '#insight' },
-  { id: 'razobory', label: '#разборы' },
-  { id: 'syomka', label: '#съёмка' },
+  { id: 'razobory', label: '#analize' },
+  { id: 'syomka', label: '#snemanje' },
   { id: 'reels', label: '#reels' },
-  { id: 'brendy', label: '#бренды' },
-  { id: 'tema', label: 'Тема месяца' },
+  { id: 'brendy', label: '#blagovne-znamke' },
+  { id: 'tema', label: 'Tema meseca' },
 ]
 
 interface CategoryScrollProps {
@@ -22,7 +22,7 @@ export function CategoryScroll({
   onCategoryChange,
 }: CategoryScrollProps) {
   return (
-    <nav aria-label="Фильтр по рубрикам">
+    <nav aria-label="Filter po rubrikah">
       {/* Hide scrollbar but keep scroll functionality */}
       <div
         className="flex gap-2 overflow-x-auto py-2"

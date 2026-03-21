@@ -4,28 +4,28 @@ import { useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 
 const features = [
-  'Полный доступ к базе знаний (2+ года контента)',
-  'Еженедельные разборы и лайв-сессии',
-  'Чат комьюнити в WhatsApp',
-  'Оффлайн-встречи в Словении',
-  'Шаблоны, чек-листы и скрипты',
-  'Ответы автора в комментариях',
+  'Popoln dostop do baze znanja (2+ leti vsebine)',
+  'Tedenske analize in žive seje',
+  'WhatsApp skupnostni klepet',
+  'Srečanja v živo v Sloveniji',
+  'Predloge, kontrolni seznami in skripte',
+  'Odgovori avtorice v komentarjih',
 ]
 
 type Plan = 'monthly' | 'quarterly'
 
 const plans: Record<Plan, { label: string; price: string; per: string; sub?: string; badge?: string }> = {
   monthly: {
-    label: 'Ежемесячно',
+    label: 'Mesečno',
     price: '€12,99',
-    per: '/ месяц',
+    per: '/ mesec',
   },
   quarterly: {
-    label: '3 месяца',
+    label: '3 mesece',
     price: '€34,00',
-    per: '/ 3 месяца',
-    sub: '≈ €11,33 / мес.',
-    badge: 'Экономия €4,97',
+    per: '/ 3 mesece',
+    sub: '≈ €11,33 / mes.',
+    badge: 'Prihranek €4,97',
   },
 }
 
@@ -66,13 +66,13 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
         {/* Section header */}
         <div className="mb-6 flex flex-col gap-1.5">
           <p className="text-xs font-medium tracking-[0.3em] uppercase text-primary">
-            Вступление
+            Včlanitev
           </p>
           <h2 className="font-serif text-foreground text-balance text-5xl sm:text-6xl font-light leading-none uppercase">
-            Всё включено
+            Vse vključeno
           </h2>
           <p className="mt-1 text-[11px] tracking-[0.15em] uppercase text-muted-foreground">
-            Никаких скрытых платежей. Отменить можно в любой момент.
+            Brez skritih plačil. Odpoved kadar koli.
           </p>
         </div>
 
@@ -90,7 +90,7 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
           </div>
 
           {/* Plan toggle */}
-          <div role="radiogroup" aria-label="Выберите тариф" className="grid grid-cols-2 gap-3">
+          <div role="radiogroup" aria-label="Izberite paket" className="grid grid-cols-2 gap-3">
             {(Object.entries(plans) as [Plan, typeof plans[Plan]][]).map(([key, plan]) => {
               const isActive = selected === key
               return (
@@ -134,7 +134,7 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
           </div>
 
           {/* Features */}
-          <ul className="flex flex-col gap-3" aria-label="Что входит в подписку">
+          <ul className="flex flex-col gap-3" aria-label="Kaj je vključeno v naročnino">
             {features.map((feature) => (
               <li key={feature} className="flex items-start gap-2.5">
                 <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
@@ -152,13 +152,13 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
               className="inline-flex min-h-[48px] w-full items-center justify-center border border-primary bg-transparent px-8 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading ? (
-                <span className="animate-pulse">Загрузка...</span>
+                <span className="animate-pulse">Nalaganje...</span>
               ) : (
-                'Вступить сейчас'
+                'Pridruži se zdaj'
               )}
             </button>
             <p className="text-[11px] text-muted-foreground text-center">
-              Безопасная оплата через Stripe · Отмена в 1 клик.
+              Varno plačilo prek Stripe · Odpoved z 1 klikom.
             </p>
           </div>
 

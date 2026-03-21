@@ -9,9 +9,9 @@ import { CtaSection } from '@/features/landing/components/CtaSection'
 import { createClient } from '@/lib/supabase/server'
 
 export const metadata: Metadata = {
-  title: 'PROCONTENT — Закрытое сообщество для создательниц контента',
+  title: 'PROCONTENT — Zaprta skupnost za ustvarjalke vsebin',
   description:
-    'Закрытый клуб для профессиональных создательниц контента в Словении. База знаний, живое комьюнити и оффлайн-встречи.',
+    'Zaprti klub za profesionalne ustvarjalke vsebin v Sloveniji. Baza znanja, živa skupnost in srečanja v živo.',
 }
 
 export default async function LandingPage() {

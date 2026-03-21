@@ -13,9 +13,9 @@ interface OnboardingPostCardProps {
 }
 
 const typeConfig: Record<ContentType, { icon: typeof Video; label: string }> = {
-  video: { icon: Video, label: 'Видео' },
-  photo: { icon: Camera, label: 'Фото' },
-  text: { icon: FileText, label: 'Текст' },
+  video: { icon: Video, label: 'Video' },
+  photo: { icon: Camera, label: 'Fotografija' },
+  text: { icon: FileText, label: 'Besedilo' },
 }
 
 export function OnboardingPostCard({ title, category, type }: OnboardingPostCardProps) {
@@ -24,7 +24,7 @@ export function OnboardingPostCard({ title, category, type }: OnboardingPostCard
   return (
     <Link
       href="/feed"
-      aria-label={`Перейти к посту: ${title}`}
+      aria-label={`Pojdi na objavo: ${title}`}
       className="flex min-h-[44px] items-center gap-3 border-b border-border py-4 transition-colors first:border-t hover:bg-muted/30"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">

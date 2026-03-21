@@ -19,11 +19,11 @@ export function ForgotPasswordForm() {
     setNetworkError(null)
 
     if (emailInput.validity.valueMissing) {
-      setValidationError('Введите email')
+      setValidationError('Vnesite e-pošto')
       return
     }
     if (emailInput.validity.typeMismatch) {
-      setValidationError('Введите корректный email')
+      setValidationError('Vnesite veljavno e-pošto')
       return
     }
 
@@ -35,7 +35,7 @@ export function ForgotPasswordForm() {
 
     if (error) {
       setIsLoading(false)
-      setNetworkError('Не удалось отправить письмо. Попробуйте позже.')
+      setNetworkError('Pošiljanje ni uspelo. Poskusite pozneje.')
       return
     }
 
@@ -50,10 +50,10 @@ export function ForgotPasswordForm() {
       <div role="status" className="flex flex-col gap-6">
         <div className="flex flex-col gap-1">
           <h1 className="font-heading text-foreground text-2xl font-semibold">
-            Письмо отправлено
+            Sporočilo poslano
           </h1>
           <p className="text-muted-foreground text-sm">
-            Если email зарегистрирован, вы получите письмо со ссылкой для сброса пароля.
+            Če je e-pošta registrirana, boste prejeli sporočilo s povezavo za ponastavitev gesla.
           </p>
         </div>
         <button
@@ -61,13 +61,13 @@ export function ForgotPasswordForm() {
           onClick={() => setSubmitted(false)}
           className="text-foreground/70 hover:text-foreground text-center text-sm underline underline-offset-4 transition-colors"
         >
-          Ввести другой email
+          Vnesi drugo e-pošto
         </button>
         <Link
           href="/login"
           className="text-center text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
         >
-          Вернуться ко входу
+          Nazaj na prijavo
         </Link>
       </div>
     )
@@ -77,10 +77,10 @@ export function ForgotPasswordForm() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="font-heading text-foreground text-2xl font-semibold">
-          Сброс пароля
+          Ponastavitev gesla
         </h1>
         <p className="text-muted-foreground text-sm">
-          Введите email — мы отправим ссылку для восстановления доступа
+          Vnesite e-pošto — poslali vam bomo povezavo za obnovitev dostopa
         </p>
       </div>
 
@@ -130,7 +130,7 @@ export function ForgotPasswordForm() {
             disabled={isLoading}
             className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none w-full max-w-[240px]"
           >
-            {isLoading ? 'Отправляем...' : 'Отправить ссылку'}
+            {isLoading ? 'Pošiljamo...' : 'Pošlji povezavo'}
           </button>
         </div>
       </form>
@@ -139,7 +139,7 @@ export function ForgotPasswordForm() {
         href="/login"
         className="text-center text-foreground/70 hover:text-foreground text-sm underline underline-offset-4 transition-colors"
       >
-        Вернуться ко входу
+        Nazaj na prijavo
       </Link>
     </div>
   )

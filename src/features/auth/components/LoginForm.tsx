@@ -20,18 +20,18 @@ export function LoginForm({ onSubmit, isLoading, error, onFieldChange }: LoginFo
     const passwordInput = form.elements.namedItem('password') as HTMLInputElement | null
 
     if (emailInput.validity.valueMissing) {
-      setValidationError('Введите email')
+      setValidationError('Vnesite e-pošto')
       return
     }
     if (emailInput.validity.typeMismatch) {
-      setValidationError('Введите корректный email')
+      setValidationError('Vnesite veljavno e-pošto')
       return
     }
-    
+
     // We make password required for login, assuming LoginForm handles both steps or just login.
     // In our new requirements LoginForm is just email + password.
     if (passwordInput && passwordInput.validity.valueMissing) {
-      setValidationError('Введите пароль')
+      setValidationError('Vnesite geslo')
       return
     }
 
@@ -73,14 +73,14 @@ export function LoginForm({ onSubmit, isLoading, error, onFieldChange }: LoginFo
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="password" className="text-foreground text-sm font-medium">
-          Пароль
+          Geslo
         </label>
         <input
           id="password"
           name="password"
           type="password"
           required
-          placeholder="Ваш пароль"
+          placeholder="Vaše geslo"
           disabled={isLoading}
           onChange={() => {
             setValidationError(null)
@@ -105,7 +105,7 @@ export function LoginForm({ onSubmit, isLoading, error, onFieldChange }: LoginFo
           disabled={isLoading}
           className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none w-[240px]"
         >
-          {isLoading ? 'Секунду...' : 'Войти'}
+          {isLoading ? 'Trenutek...' : 'Prijava'}
         </button>
       </div>
 

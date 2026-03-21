@@ -3,8 +3,8 @@ import type { Metadata } from 'next'
 import { ForgotPasswordForm } from '@/features/auth/components/ForgotPasswordForm'
 
 export const metadata: Metadata = {
-  title: 'Сброс пароля | PROCONTENT',
-  description: 'Введите email — мы отправим ссылку для восстановления доступа к вашему аккаунту.',
+  title: 'Ponastavitev gesla | PROCONTENT',
+  description: 'Vnesite e-pošto — poslali vam bomo povezavo za obnovitev dostopa do vašega računa.',
 }
 
 export default function ForgotPasswordPage() {

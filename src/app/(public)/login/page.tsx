@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { AuthContainer } from '@/features/auth/components/AuthContainer'
 
 export const metadata: Metadata = {
-  title: 'Войти | PROCONTENT',
+  title: 'Prijava | PROCONTENT',
 }
 
 export default async function LoginPage() {

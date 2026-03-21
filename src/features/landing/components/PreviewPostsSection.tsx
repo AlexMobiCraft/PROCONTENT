@@ -4,32 +4,32 @@ const previewPosts = [
   {
     id: '1',
     category: '#insight',
-    title: 'Почему алгоритм Reels продвигает одних и игнорирует других',
+    title: 'Zakaj algoritem Reelsa promovira ene in ignorira druge',
     excerpt:
-      'Разобрали механику ранжирования коротких видео: что реально влияет на охваты, а что — миф.',
-    date: '12 фев',
+      'Razkrili smo mehaniko razvrščanja kratkih videoposnetkov: kaj resnično vpliva na doseg in kaj je mit.',
+    date: '12. feb',
     likes: 47,
     comments: 12,
     isLocked: false,
   },
   {
     id: '2',
-    category: '#разборы',
-    title: 'UGC-портфолио: как собрать первые 5 кейсов без бюджета',
+    category: '#analize',
+    title: 'UGC portfelj: kako zbrati prvih 5 primerov brez proračuna',
     excerpt:
-      'Пошаговый гайд: от выбора ниши до питча бренду. Включает шаблон письма.',
-    date: '8 фев',
+      'Vodnik po korakih: od izbire niše do predstavitve blagovni znamki. Vključuje predlogo pisma.',
+    date: '8. feb',
     likes: 83,
     comments: 24,
     isLocked: true,
   },
   {
     id: '3',
-    category: '#съёмка',
-    title: 'Свет в помещении: 3 расстановки для контента с телефона',
+    category: '#snemanje',
+    title: 'Osvetlitev v prostoru: 3 postavitve za vsebino s telefonom',
     excerpt:
-      'Кольцевой свет — не единственный вариант. Показываем, как работать с естественным светом.',
-    date: '1 фев',
+      'Obročna luč ni edina možnost. Pokažemo, kako delati z naravno svetlobo.',
+    date: '1. feb',
     likes: 61,
     comments: 18,
     isLocked: true,
@@ -42,13 +42,13 @@ export function PreviewPostsSection() {
       <div className="mx-auto max-w-xl">
         <div className="mb-8 flex flex-col gap-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-primary">
-            Превью контента
+            Predogled vsebine
           </p>
           <h2 className="font-serif text-foreground text-balance text-[clamp(2rem,8vw,3.5rem)] font-light leading-none uppercase">
-            Загляни внутрь
+            Poglej noter
           </h2>
           <p className="text-xs tracking-[0.1em] uppercase leading-relaxed text-muted-foreground">
-            {'Каждую неделю \u2014 новые разборы, инсайты и практические гайды.'}
+            {'Vsak teden \u2014 nove analize, vpogledi in praktični vodniki.'}
           </p>
         </div>
 

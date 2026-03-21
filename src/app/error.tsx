@@ -17,10 +17,10 @@ export default function Error({
   return (
     <div className="bg-background flex h-screen flex-col items-center justify-center px-4 text-center">
       <h2 className="text-foreground text-2xl font-bold">
-        Что-то пошло не так!
+        Nekaj je šlo narobe!
       </h2>
       <p className="text-muted-foreground mt-2">
-        Мы уже знаем об ошибке и работаем над ней.
+        O napaki vemo in jo odpravljamo.
       </p>
       <button
         className="bg-primary text-primary-foreground group-hover:bg-primary/80 mt-6 inline-flex h-11 items-center justify-center rounded-lg px-8 text-sm font-medium transition-colors"
@@ -29,7 +29,7 @@ export default function Error({
           () => reset()
         }
       >
-        Попробовать снова
+        Poskusi znova
       </button>
     </div>
   )

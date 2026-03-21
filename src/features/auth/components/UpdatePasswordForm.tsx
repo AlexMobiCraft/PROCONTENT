@@ -9,10 +9,10 @@ import { getAuthSuccessRedirectPath } from '@/lib/app-routes'
 import { cn } from '@/lib/utils'
 
 function mapPasswordError(message: string | undefined): string {
-  if (!message) return 'Не удалось обновить пароль. Попробуйте позже.'
+  if (!message) return 'Gesla ni bilo mogoče posodobiti. Poskusite pozneje.'
   const lower = message.toLowerCase()
   if (lower.includes('password should be at least') || lower.includes('weak password')) {
-    return 'Пароль слишком слабый. Придумайте более надёжный пароль.'
+    return 'Geslo je prešibko. Izberite bolj varno geslo.'
   }
   return message
 }
@@ -39,17 +39,17 @@ export function UpdatePasswordForm() {
     const confirmInput = form.elements.namedItem('confirm') as HTMLInputElement
 
     if (passwordInput.validity.valueMissing) {
-      setValidationError('Введите новый пароль')
+      setValidationError('Vnesite novo geslo')
       return
     }
 
     if (passwordInput.value.length < 6) {
-      setValidationError('Пароль должен быть не короче 6 символов')
+      setValidationError('Geslo mora biti vsaj 6 znakov dolgo')
       return
     }
 
     if (confirmInput.value !== passwordInput.value) {
-      setValidationError('Пароли не совпадают')
+      setValidationError('Gesli se ne ujemata')
       return
     }
 
@@ -93,10 +93,10 @@ export function UpdatePasswordForm() {
       <div role="status" className="flex flex-col gap-6">
         <div className="flex flex-col gap-1">
           <h1 className="font-heading text-foreground text-2xl font-semibold">
-            Пароль обновлён
+            Geslo posodobljeno
           </h1>
           <p className="text-muted-foreground text-sm">
-            Ваш пароль успешно изменён. Перенаправляем в ленту...
+            Vaše geslo je bilo uspešno spremenjeno. Preusmerjamo v feed...
           </p>
         </div>
       </div>
@@ -107,17 +107,17 @@ export function UpdatePasswordForm() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="font-heading text-foreground text-2xl font-semibold">
-          Восстановление пароля
+          Obnovitev gesla
         </h1>
         <p className="text-muted-foreground text-sm">
-          Придумайте надежный пароль
+          Ustvarite varno geslo
         </p>
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="password" className="text-foreground text-sm font-medium">
-            Новый пароль
+            Novo geslo
           </label>
           <input
             id="password"
@@ -125,7 +125,7 @@ export function UpdatePasswordForm() {
             type="password"
             required
             autoComplete="new-password"
-            placeholder="Не менее 6 символов"
+            placeholder="Vsaj 6 znakov"
             disabled={isLoading}
             onChange={() => {
               setValidationError(null)
@@ -146,7 +146,7 @@ export function UpdatePasswordForm() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="confirm" className="text-foreground text-sm font-medium">
-            Подтвердите пароль
+            Potrdite geslo
           </label>
           <input
             id="confirm"
@@ -154,7 +154,7 @@ export function UpdatePasswordForm() {
             type="password"
             required
             autoComplete="new-password"
-            placeholder="Повторите пароль"
+            placeholder="Ponovite geslo"
             disabled={isLoading}
             onChange={() => {
               setValidationError(null)
@@ -174,7 +174,7 @@ export function UpdatePasswordForm() {
             disabled={isLoading}
             className="inline-flex items-center justify-center border border-primary px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 disabled:pointer-events-none w-full max-w-[240px]"
           >
-            {isLoading ? 'Сохраняем...' : 'Сохранить и войти'}
+            {isLoading ? 'Shranjujemo...' : 'Shrani in prijavi se'}
           </button>
         </div>
       </form>

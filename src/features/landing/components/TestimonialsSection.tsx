@@ -1,24 +1,24 @@
 const testimonials = [
   {
     id: '1',
-    name: 'Маша К.',
-    role: 'UGC-криэйтор',
-    text: 'За 3 месяца в клубе подписала контракты с 4 брендами. База знаний — это моя тайная суперсила.',
-    badge: 'Опытная',
+    name: 'Maša K.',
+    role: 'UGC-ustvarjalka',
+    text: 'V 3 mesecih v klubu sem podpisala pogodbe s 4 blagovnimi znamkami. Baza znanja je moja skrivna supermoč.',
+    badge: 'Izkušena',
   },
   {
     id: '2',
-    name: 'Аня Р.',
-    role: 'Начинающий контент-мейкер',
-    text: 'Наконец-то нашла место, где можно задать вопрос без страха быть осуждённой. Комьюнити — огонь!',
-    badge: 'Участница',
+    name: 'Anja R.',
+    role: 'Začetnica ustvarjanja vsebin',
+    text: 'Končno sem našla kraj, kjer lahko zastavim vprašanje brez strahu pred obsojanjem. Skupnost je super!',
+    badge: 'Članica',
   },
   {
     id: '3',
-    name: 'Лена В.',
-    role: 'Владелица малого бизнеса',
-    text: 'Научилась снимать контент для своего кафе сама. Теперь не трачу деньги на SMM-агентство.',
-    badge: 'Участница',
+    name: 'Lena V.',
+    role: 'Lastnica majhnega podjetja',
+    text: 'Naučila sem se sama snemati vsebino za svojo kavarno. Zdaj ne trošim denarja za SMM agencijo.',
+    badge: 'Članica',
   },
 ]
 
@@ -28,10 +28,10 @@ export function TestimonialsSection() {
       <div className="mx-auto max-w-xl">
         <div className="mb-8 flex flex-col gap-2">
           <p className="text-xs font-medium tracking-[0.3em] uppercase text-primary">
-            Отзывы
+            Mnenja
           </p>
           <h2 className="font-serif text-foreground text-balance text-[clamp(2rem,8vw,3.5rem)] font-light leading-none uppercase">
-            Что говорят
+            Kaj pravijo
           </h2>
         </div>
 

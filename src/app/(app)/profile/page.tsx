@@ -37,9 +37,9 @@ export default async function ProfilePage() {
     console.error('[profile/page] Ошибка загрузки профиля:', profileError)
     return (
       <main className="mx-auto max-w-lg space-y-8 px-4 py-12">
-        <h1 className="font-heading text-2xl font-semibold text-foreground">Профиль</h1>
+        <h1 className="font-heading text-2xl font-semibold text-foreground">Profil</h1>
         <p className="text-sm text-destructive">
-          Не удалось загрузить данные профиля. Попробуйте обновить страницу.
+          Podatkov profila ni bilo mogoče naložiti. Poskusite osvežiti stran.
         </p>
       </main>
     )

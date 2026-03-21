@@ -21,11 +21,11 @@ const barlow = Barlow_Condensed({
 
 export const metadata: Metadata = {
   title: {
-    default: 'PROCONTENT — Клуб создателей контента',
+    default: 'PROCONTENT — Klub ustvarjalcev vsebin',
     template: '%s | PROCONTENT',
   },
   description:
-    'Закрытый клуб для профессиональных создателей контента. Образовательные материалы, инсайты и сообщество.',
+    'Zaprti klub za profesionalne ustvarjalce vsebin. Izobraževalni materiali, vpogledi in skupnost.',
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
   ),
@@ -37,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ru" className={`${cormorant.variable} ${barlow.variable}`}>
+    <html lang="sl" className={`${cormorant.variable} ${barlow.variable}`}>
       <body className="antialiased">
         {children}
         <Toaster richColors position="top-center" />

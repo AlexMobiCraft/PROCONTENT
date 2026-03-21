@@ -54,7 +54,7 @@ export function PreviewPostCard({
           <button
             type="button"
             className="flex min-h-[44px] min-w-[44px] items-center gap-1.5 text-muted-foreground"
-            aria-label={`${likes} лайков`}
+            aria-label={`${likes} všečkov`}
           >
             <Heart className="size-4" aria-hidden />
             <span className="text-xs">{likes}</span>
@@ -62,7 +62,7 @@ export function PreviewPostCard({
           <button
             type="button"
             className="flex min-h-[44px] min-w-[44px] items-center gap-1.5 text-muted-foreground"
-            aria-label={`${comments} комментариев`}
+            aria-label={`${comments} komentarjev`}
           >
             <MessageCircle className="size-4" aria-hidden />
             <span className="text-xs">{comments}</span>
@@ -71,7 +71,7 @@ export function PreviewPostCard({
             <div className="ml-auto flex items-center gap-1 text-primary">
               <Lock className="size-3.5" aria-hidden />
               <span className="text-xs font-medium tracking-[0.1em] uppercase">
-                Для участниц
+                Za članice
               </span>
             </div>
           )}
