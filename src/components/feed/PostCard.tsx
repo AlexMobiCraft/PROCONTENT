@@ -25,16 +25,20 @@ interface PostCardProps {
   post: PostCardData
   priority?: boolean
   onCommentClick?: (postId: string) => void
+  /** Вызывается при изменении состояния лайка — позволяет вызывающему коду сохранить изменение. */
+  onLikeToggle?: (postId: string, liked: boolean) => void
 }
 
-export function PostCard({ post, priority = false, onCommentClick }: PostCardProps) {
+export function PostCard({ post, priority = false, onCommentClick, onLikeToggle }: PostCardProps) {
   const [liked, setLiked] = useState(false)
   // Вычисляемое значение реактивно реагирует на обновление prop post.likes
   // (например, при навигации или гидрации с сервера).
   const likeCount = post.likes + (liked ? 1 : 0)
 
   function handleLike() {
-    setLiked((prev) => !prev)
+    const newLiked = !liked
+    setLiked(newLiked)
+    onLikeToggle?.(post.id, newLiked)
   }
 
   return (

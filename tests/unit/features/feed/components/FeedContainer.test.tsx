@@ -1097,6 +1097,38 @@ describe('FeedContainer', () => {
     expect(useFeedStore.getState().hasMore).toBe(false)
   })
 
+  // --- Iteration 17: Item 2 (Flash при SPA-навигации: isHydrated sync с initialData) ---
+
+  it('не показывает stale посты при смене initialData при SPA-навигации (flash fix)', async () => {
+    // Первый рендер с initialData1 — post 'x'
+    const { rerender } = render(
+      <FeedContainer initialData={{ posts: [makePost('x')], nextCursor: null, hasMore: false }} />
+    )
+
+    // Ждём первой гидрации — isHydrated=true, store содержит post 'x'
+    await waitFor(() => {
+      expect(screen.getByTestId('post-x')).toBeInTheDocument()
+    })
+
+    // Имитируем stale cache в store (например, посты предыдущего сеанса)
+    act(() => {
+      useFeedStore.getState().setPosts([makePost('stale-1'), makePost('stale-2')], null, false)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    // SPA-навигация: сервер прислал новую initialData2 — post 'y'
+    rerender(
+      <FeedContainer initialData={{ posts: [makePost('y')], nextCursor: null, hasMore: false }} />
+    )
+
+    // Должен показать новые данные initialData2, а не stale store
+    await waitFor(() => {
+      expect(screen.getByTestId('post-y')).toBeInTheDocument()
+      expect(screen.queryByTestId('post-stale-1')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('post-stale-2')).not.toBeInTheDocument()
+    })
+  })
+
   it('initialUserId используется для isAuthor до инициализации auth store (предотвращение badge pop-in)', () => {
     // Auth store не готов (isAuthReady=false) — имитация SSR-to-CSR перехода до гидрации
     act(() => {

@@ -78,6 +78,19 @@ export function FeedContainer({
   // Если initialData отсутствует — сразу true, используем store.
   const [isHydrated, setIsHydrated] = useState(() => !initialData)
 
+  // Fix: flash при SPA-навигации.
+  // При смене initialData (клиентская навигация) isHydrated может остаться true
+  // от предыдущей страницы, из-за чего компонент рендерит stale storePosts
+  // до выполнения hydration useEffect. Синхронный сброс в render (до paint)
+  // гарантирует, что при смене props мы переходим на initialData напрямую.
+  const prevInitialDataRef = useRef(initialData)
+  if (prevInitialDataRef.current !== initialData) {
+    prevInitialDataRef.current = initialData
+    if (isHydrated) {
+      setIsHydrated(false)
+    }
+  }
+
   // SSR-safe гидрация store из серверных данных.
   // useEffect выполняется только на клиенте — не мутирует глобальный Zustand
   // singleton во время серверного рендера (fix: SSR state leak между запросами).

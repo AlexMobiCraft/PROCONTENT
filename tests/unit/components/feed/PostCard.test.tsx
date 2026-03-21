@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/components/media/LazyMediaWrapper', () => ({
@@ -56,6 +57,40 @@ describe('PostCard', () => {
     render(<PostCard post={makeCardData({ likes: 7 })} />)
     // aria-label содержит только действие — счётчик рендерится в <span> и не дублируется AT
     expect(screen.getByRole('button', { name: 'Поставить лайк' })).toBeInTheDocument()
+  })
+
+  it('вызывает onLikeToggle с postId и liked=true при первом клике', async () => {
+    const onLikeToggle = vi.fn()
+    const user = userEvent.setup()
+    render(<PostCard post={makeCardData({ id: 'p1', likes: 3 })} onLikeToggle={onLikeToggle} />)
+
+    await user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
+
+    expect(onLikeToggle).toHaveBeenCalledOnce()
+    expect(onLikeToggle).toHaveBeenCalledWith('p1', true)
+  })
+
+  it('вызывает onLikeToggle с liked=false при повторном клике (unlike)', async () => {
+    const onLikeToggle = vi.fn()
+    const user = userEvent.setup()
+    render(<PostCard post={makeCardData({ id: 'p1' })} onLikeToggle={onLikeToggle} />)
+
+    await user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
+    await user.click(screen.getByRole('button', { name: 'Убрать лайк' }))
+
+    expect(onLikeToggle).toHaveBeenCalledTimes(2)
+    expect(onLikeToggle).toHaveBeenNthCalledWith(1, 'p1', true)
+    expect(onLikeToggle).toHaveBeenNthCalledWith(2, 'p1', false)
+  })
+
+  it('не падает если onLikeToggle не передан (опциональный проп)', async () => {
+    const user = userEvent.setup()
+    render(<PostCard post={makeCardData()} />)
+
+    // Клик без onLikeToggle — не должно быть ошибок
+    await expect(
+      user.click(screen.getByRole('button', { name: 'Поставить лайк' }))
+    ).resolves.not.toThrow()
   })
 })
 
