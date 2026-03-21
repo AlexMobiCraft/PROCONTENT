@@ -3,13 +3,9 @@
 import { cn } from '@/lib/utils'
 
 const categories = [
-  { id: 'all', label: 'Vse' },
-  { id: 'insight', label: '#insight' },
-  { id: 'razobory', label: '#analize' },
-  { id: 'syomka', label: '#snemanje' },
-  { id: 'reels', label: '#reels' },
-  { id: 'brendy', label: '#blagovne-znamke' },
+  { id: 'all', label: 'VSE' },
   { id: 'tema', label: 'Tema meseca' },
+  { id: 'zacetek', label: 'Začetek' },
 ]
 
 interface CategoryScrollProps {

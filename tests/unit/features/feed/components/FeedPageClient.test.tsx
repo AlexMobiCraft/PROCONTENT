@@ -27,7 +27,7 @@ function makePost(id: string): Post {
     title: `Post ${id}`,
     excerpt: 'excerpt',
     content: null,
-    category: 'insight',
+    category: 'stories',
     type: 'text',
     image_url: null,
     likes_count: 0,

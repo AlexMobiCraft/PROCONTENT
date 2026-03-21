@@ -12,8 +12,8 @@ vi.mock('@/components/feed/CategoryScroll', () => ({
     onCategoryChange: (id: string) => void
   }) => (
     <div data-testid="category-scroll" data-active={activeCategory}>
-      <button onClick={() => onCategoryChange('reels')}>Reels</button>
-      <button onClick={() => onCategoryChange('all')}>Все</button>
+      <button onClick={() => onCategoryChange('objavljanje')}>Objavljanje in reels</button>
+      <button onClick={() => onCategoryChange('all')}>VSE</button>
     </div>
   ),
 }))
@@ -42,13 +42,13 @@ describe('FeedPage (FeedPageClient)', () => {
   })
 
   it('передаёт activeCategory из store в CategoryScroll', () => {
-    useFeedStore.getState().setActiveCategory('reels')
+    useFeedStore.getState().setActiveCategory('objavljanje')
 
     render(<FeedPageClient initialData={emptyInitialData} />)
 
     expect(screen.getByTestId('category-scroll')).toHaveAttribute(
       'data-active',
-      'reels'
+      'objavljanje'
     )
   })
 
@@ -56,9 +56,9 @@ describe('FeedPage (FeedPageClient)', () => {
     const user = userEvent.setup()
     render(<FeedPageClient initialData={emptyInitialData} />)
 
-    await user.click(screen.getByText('Reels'))
+    await user.click(screen.getByText('Objavljanje in reels'))
 
-    expect(useFeedStore.getState().activeCategory).toBe('reels')
+    expect(useFeedStore.getState().activeCategory).toBe('objavljanje')
   })
 
   it('changeCategory НЕ сбрасывает посты — клиентская фильтрация из кэша', async () => {
@@ -72,7 +72,7 @@ describe('FeedPage (FeedPageClient)', () => {
           title: 'Test',
           excerpt: null,
           content: null,
-          category: 'insight',
+          category: 'stories',
           type: 'text',
           image_url: null,
           likes_count: 0,
@@ -90,10 +90,10 @@ describe('FeedPage (FeedPageClient)', () => {
     )
 
     render(<FeedPageClient initialData={emptyInitialData} />)
-    await user.click(screen.getByText('Reels'))
+    await user.click(screen.getByText('Objavljanje in reels'))
 
     // changeCategory только меняет активную категорию, не сбрасывает кэш постов
-    expect(useFeedStore.getState().activeCategory).toBe('reels')
+    expect(useFeedStore.getState().activeCategory).toBe('objavljanje')
     expect(useFeedStore.getState().posts).toHaveLength(1)
   })
 })

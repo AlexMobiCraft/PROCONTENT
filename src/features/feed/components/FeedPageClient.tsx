@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
 import { CategoryScroll } from '@/components/feed/CategoryScroll'
 import { FeedContainer } from '@/features/feed/components/FeedContainer'
-import { PostCommentsPanel } from '@/features/feed/components/PostCommentsPanel'
+import { TopicsPanel } from '@/features/feed/components/TopicsPanel'
 import { useFeedStore } from '@/features/feed/store'
 import type { FeedPage } from '../types'
 
@@ -24,14 +23,6 @@ export function FeedPageClient({
   const activeCategory = useFeedStore((s) => s.activeCategory)
   const changeCategory = useFeedStore((s) => s.changeCategory)
 
-  // Состояние выбранного поста для правой панели комментариев (desktop only).
-  // Клик на тот же пост — закрывает панель (toggle).
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null)
-
-  const handleCommentClick = useCallback((postId: string) => {
-    setSelectedPostId((prev) => (prev === postId ? null : postId))
-  }, [])
-
   return (
     <main className="flex min-h-screen flex-col pb-[60px] md:flex-row md:pb-0">
       {/* Центральная колонка: фильтры + лента */}
@@ -43,19 +34,15 @@ export function FeedPageClient({
         <FeedContainer
           initialData={initialData}
           initialUserId={initialUserId}
-          onCommentClick={handleCommentClick}
         />
       </div>
 
-      {/* Правая панель комментариев (только desktop) */}
+      {/* Правая панель тем (только desktop) */}
       <aside
-        aria-label="Komentarji objave"
-        className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-[350px] md:shrink-0 md:flex-col md:overflow-y-auto"
+        aria-label="Teme"
+        className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-[350px] md:shrink-0 md:flex-col md:overflow-y-auto md:border-l md:border-border"
       >
-        <PostCommentsPanel
-          selectedPostId={selectedPostId}
-          onClose={() => setSelectedPostId(null)}
-        />
+        <TopicsPanel />
       </aside>
     </main>
   )
