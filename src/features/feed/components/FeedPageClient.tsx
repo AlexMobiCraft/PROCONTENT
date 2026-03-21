@@ -50,7 +50,7 @@ export function FeedPageClient({
       {/* Правая панель комментариев (только desktop) */}
       <aside
         aria-label="Komentarji objave"
-        className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-[350px] md:flex-col md:overflow-y-auto"
+        className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-[350px] md:shrink-0 md:flex-col md:overflow-y-auto"
       >
         <PostCommentsPanel
           selectedPostId={selectedPostId}
