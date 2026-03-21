@@ -35,7 +35,14 @@ if (supabaseUrl) {
 
 const nextConfig: NextConfig = {
   images: {
-    remotePatterns: supabaseRemotePattern ? [supabaseRemotePattern] : [],
+    remotePatterns: [
+      ...(supabaseRemotePattern ? [supabaseRemotePattern] : []),
+      {
+        protocol: 'https',
+        hostname: 'picsum.photos',
+        pathname: '/**',
+      },
+    ],
   },
 }
 

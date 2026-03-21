@@ -30,4 +30,21 @@ BEGIN
   (v_author_id, 'Reels за 30 минут: моя быстрая установка', 'Как снимать видео без лишних затрат времени, сохраняя качество.', 'reels', 'video', 47, 9, now() - interval '11 days'),
   (v_author_id, 'Как выбираю бренды для долгосрочного партнёрства', 'Критерии, которые помогают мне не ошибиться с выбором рекламодателя.', 'brendy', 'text', 38, 4, now() - interval '12 days'),
   (v_author_id, 'Творческий кризис: нормально и как с этим жить', 'Честный разговор о периодах, когда совсем не хочется снимать или писать.', 'tema', 'text', 91, 25, now() - interval '13 days');
+
+  -- Story 2.2: медиа-посты для визуального тестирования LazyMediaWrapper (AC 5)
+  -- Изображения: picsum.photos (детерминированные seeds, portrait 4/5 и landscape 16/9)
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, image_url, likes_count, comments_count, created_at) VALUES
+  (v_author_id, 'Утренняя рутина: как начинается мой рабочий день', 'Показываю, как я настраиваюсь на съёмку и планирую контент с утра.', 'syomka', 'photo', 'https://picsum.photos/seed/morning1/600/750', 34, 7, now() - interval '14 days'),
+  (v_author_id, 'За кадром: моя студийная установка 2024', 'Весь свет, фоны и оборудование, которые использую для контент-съёмки.', 'syomka', 'photo', 'https://picsum.photos/seed/studio2/600/750', 56, 13, now() - interval '15 days'),
+  (v_author_id, 'Флэтлей для продуктовых брендов: мой процесс', 'Как я выстраиваю композицию, выбираю реквизит и добиваюсь чистоты кадра.', 'brendy', 'photo', 'https://picsum.photos/seed/flatlay3/800/600', 48, 9, now() - interval '16 days'),
+  (v_author_id, 'Портретная съёмка без ретуши: мой взгляд', 'Почему я отказалась от тяжёлого постпродакшена и что это дало.', 'syomka', 'photo', 'https://picsum.photos/seed/portrait4/600/750', 72, 16, now() - interval '17 days'),
+  (v_author_id, 'Осенняя лента: как я создаю единый стиль', 'Цветокоррекция, выбор локаций и реквизит для тёплой осенней эстетики.', 'syomka', 'photo', 'https://picsum.photos/seed/autumn5/600/750', 63, 11, now() - interval '18 days'),
+  (v_author_id, 'Рабочее место контент-мейкера: минимализм и функциональность', 'Что стоит на моём столе и почему я избавилась от лишнего.', 'insight', 'photo', 'https://picsum.photos/seed/workspace6/800/600', 41, 8, now() - interval '19 days'),
+  (v_author_id, 'Природный свет: когда и как его использовать', 'Разбираю три типа освещения для лайфстайл-фото и видео.', 'syomka', 'photo', 'https://picsum.photos/seed/light7/600/750', 29, 5, now() - interval '20 days'),
+  (v_author_id, 'Мудборд для нового сезона контента', 'Как я собираю вдохновение и переношу его в конкретные идеи для съёмок.', 'insight', 'photo', 'https://picsum.photos/seed/moodboard8/800/600', 85, 19, now() - interval '21 days'),
+  (v_author_id, 'Детали решают всё: макро-съёмка в контенте', 'Покупки, флэтлеи, фудфото — как крупный план меняет восприятие поста.', 'syomka', 'photo', 'https://picsum.photos/seed/macro9/600/750', 37, 6, now() - interval '22 days'),
+  (v_author_id, 'Коллаборация с другим контент-мейкером: фотосессия', 'Как мы организовали совместную съёмку и поделили контент.', 'brendy', 'photo', 'https://picsum.photos/seed/collab10/600/750', 54, 12, now() - interval '23 days'),
+  -- Видео-посты (poster image используется как превью, type = video)
+  (v_author_id, 'Reels за один дубль: мой метод быстрой съёмки', 'Снимаю вертикальное видео без стрессов — покажу весь процесс от идеи до монтажа.', 'reels', 'video', 'https://picsum.photos/seed/reel1/800/450', 97, 28, now() - interval '24 days'),
+  (v_author_id, 'Влог: день съёмки для бренда одежды', 'Показываю полный рабочий день — от брифа до финального экспорта.', 'brendy', 'video', 'https://picsum.photos/seed/vlog2/800/450', 118, 34, now() - interval '25 days');
 END $$;

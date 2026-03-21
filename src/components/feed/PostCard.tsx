@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 
@@ -29,18 +30,21 @@ interface PostCardProps {
   isPending?: boolean
   onCommentClick?: (postId: string) => void
   /** Вызывается при изменении состояния лайка — позволяет вызывающему коду сохранить изменение. */
-  onLikeToggle?: (postId: string) => void
+  onLikeToggle?: (postId: string, liked: boolean) => void
   /** Вызывается при нажатии кнопки опций (троеточие). */
   onOptionsClick?: (postId: string) => void
 }
 
 export function PostCard({ post, priority = false, isPending = false, onCommentClick, onLikeToggle, onOptionsClick }: PostCardProps) {
-  const liked = post.isLiked ?? false
-  const likeCount = post.likes
+  const [liked, setLiked] = useState(post.isLiked ?? false)
+  // Формула без двойного подсчёта: вычитаем серверный вклад, добавляем оптимистичный локальный
+  const likeCount = post.likes - (post.isLiked ? 1 : 0) + (liked ? 1 : 0)
 
   function handleLike() {
     if (isPending) return
-    onLikeToggle?.(post.id)
+    const newLiked = !liked
+    setLiked(newLiked)
+    onLikeToggle?.(post.id, newLiked)
   }
 
   return (
