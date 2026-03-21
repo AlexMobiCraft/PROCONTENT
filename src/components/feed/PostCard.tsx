@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 
@@ -26,25 +25,22 @@ export interface PostCardData {
 interface PostCardProps {
   post: PostCardData
   priority?: boolean
+  /** Кнопка лайка заблокирована — запрос toggle_like в процессе */
+  isPending?: boolean
   onCommentClick?: (postId: string) => void
   /** Вызывается при изменении состояния лайка — позволяет вызывающему коду сохранить изменение. */
-  onLikeToggle?: (postId: string, liked: boolean) => void
+  onLikeToggle?: (postId: string) => void
   /** Вызывается при нажатии кнопки опций (троеточие). */
   onOptionsClick?: (postId: string) => void
 }
 
-export function PostCard({ post, priority = false, onCommentClick, onLikeToggle, onOptionsClick }: PostCardProps) {
-  // Инициализируем из пропса — сервер передаёт начальное состояние лайка пользователя.
-  const [liked, setLiked] = useState(post.isLiked ?? false)
-  // Формула без двойного подсчёта: вычитаем серверный вклад пользователя,
-  // добавляем оптимистический локальный. Если post.likes уже включает лайк
-  // (post.isLiked=true), и пользователь тоже лайкнул (liked=true) — нет дублирования.
-  const likeCount = post.likes - (post.isLiked ? 1 : 0) + (liked ? 1 : 0)
+export function PostCard({ post, priority = false, isPending = false, onCommentClick, onLikeToggle, onOptionsClick }: PostCardProps) {
+  const liked = post.isLiked ?? false
+  const likeCount = post.likes
 
   function handleLike() {
-    const newLiked = !liked
-    setLiked(newLiked)
-    onLikeToggle?.(post.id, newLiked)
+    if (isPending) return
+    onLikeToggle?.(post.id)
   }
 
   return (
@@ -142,7 +138,8 @@ export function PostCard({ post, priority = false, onCommentClick, onLikeToggle,
             'flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-lg px-2 text-sm transition-colors',
             liked
               ? 'text-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+            isPending && 'pointer-events-none opacity-50'
           )}
         >
           <svg

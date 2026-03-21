@@ -11,6 +11,8 @@ interface FeedState {
   isLoadingMore: boolean
   error: string | null
   activeCategory: string
+  /** ID постов, по которым выполняется запрос toggle_like (блокировка спама) */
+  pendingLikes: string[]
   setPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   appendPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   setActiveCategory: (category: string) => void
@@ -19,6 +21,10 @@ interface FeedState {
   setError: (error: string | null) => void
   reset: () => void
   changeCategory: (category: string) => void
+  /** Точечное обновление полей конкретного поста по ID */
+  updatePost: (postId: string, updates: Partial<Post>) => void
+  addPendingLike: (postId: string) => void
+  removePendingLike: (postId: string) => void
 }
 
 const initialState = {
@@ -29,6 +35,7 @@ const initialState = {
   isLoadingMore: false,
   error: null as string | null,
   activeCategory: 'all',
+  pendingLikes: [] as string[],
 }
 
 export const useFeedStore = create<FeedState>((set) => ({
@@ -63,4 +70,25 @@ export const useFeedStore = create<FeedState>((set) => ({
   // Данные ленты НЕ сбрасываются — клиентская фильтрация работает на кэшированных постах.
   // Это предотвращает разрушительную перезагрузку при переключении между категориями.
   changeCategory: (category) => set({ activeCategory: category }),
+
+  // Обновление конкретного поста (для оптимистичных апдейтов и sync с RPC)
+  updatePost: (postId, updates) =>
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p.id === postId ? { ...p, ...updates } : p
+      ),
+    })),
+
+  addPendingLike: (postId) =>
+    set((state) => ({
+      pendingLikes: state.pendingLikes.includes(postId)
+        ? state.pendingLikes
+        : [...state.pendingLikes, postId],
+    })),
+
+  removePendingLike: (postId) =>
+    set((state) => ({
+      pendingLikes: state.pendingLikes.filter((id) => id !== postId),
+    })),
 }))
+

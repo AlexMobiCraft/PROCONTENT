@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -76,6 +76,39 @@ export type Database = {
           }
         ]
       }
+      post_likes: {
+        Row: {
+          post_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          post_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          post_id?: string
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'post_likes_post_id_fkey'
+            columns: ['post_id']
+            isOneToOne: false
+            referencedRelation: 'posts'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'post_likes_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          }
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -125,6 +158,12 @@ export type Database = {
           p_email: string
         }
         Returns: string | null
+      }
+      toggle_like: {
+        Args: {
+          p_post_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {

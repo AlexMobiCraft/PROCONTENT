@@ -6,25 +6,47 @@ import { useFeedStore } from '@/features/feed/store'
 import type { Post } from '@/features/feed/types'
 
 const mockFetchPosts = vi.fn()
+const mockRpc = vi.fn()
+const mockRouterPush = vi.fn()
 
 vi.mock('@/features/feed/api/posts', () => ({
   fetchPosts: (...args: unknown[]) => mockFetchPosts(...args),
+}))
+
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    rpc: (...args: unknown[]) => mockRpc(...args),
+  }),
+}))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockRouterPush,
+  }),
 }))
 
 vi.mock('@/components/feed/PostCard', () => ({
   PostCard: ({
     post,
     priority,
+    isPending,
+    onLikeToggle,
   }: {
-    post: { id: string; title: string; author?: { isAuthor?: boolean } }
+    post: { id: string; title: string; likes: number; isLiked?: boolean; author?: { isAuthor?: boolean } }
     priority?: boolean
+    isPending?: boolean
+    onLikeToggle?: (postId: string) => void
   }) => (
     <div
       data-testid={`post-${post.id}`}
       data-is-author={String(post.author?.isAuthor ?? false)}
       data-priority={String(priority ?? false)}
+      data-is-pending={String(isPending ?? false)}
+      data-likes={post.likes}
+      data-is-liked={String(post.isLiked ?? false)}
     >
       {post.title}
+      <button data-testid={`like-btn-${post.id}`} onClick={() => onLikeToggle?.(post.id)}>Like</button>
     </div>
   ),
   PostCardSkeleton: ({ showMedia }: { showMedia?: boolean }) => (
@@ -49,6 +71,7 @@ function makePost(id: string, category = 'insight'): Post {
     is_published: true,
     is_landing_preview: false,
     is_onboarding: false,
+    is_liked: false,
     created_at: '2026-03-15T10:00:00Z',
     updated_at: '2026-03-15T10:00:00Z',
     profiles: { display_name: 'Автор', avatar_url: null },
@@ -84,6 +107,7 @@ describe('FeedContainer', () => {
     useAuthStore.getState().clearAuth()
     useAuthStore.getState().setReady(true) // Hydration завершена в тестах
     latestObserverCallback = null
+    mockRouterPush.mockReset()
   })
 
   it('показывает скелетоны при isLoading (AC #3)', async () => {
@@ -1147,5 +1171,134 @@ describe('FeedContainer', () => {
 
     // isAuthor=true, несмотря на isAuthReady=false — badge не мигает при гидрации
     expect(screen.getByTestId('post-1')).toHaveAttribute('data-is-author', 'true')
+  })
+
+  // --- Post Likes Feature: Оптимистичные лайки, RPC sync, rollback, spam block, auth guard ---
+
+  it('успешный лайк: оптимистичное обновление и синхронизация с JSON ответом RPC (AC #1)', async () => {
+    const user = userEvent.setup()
+    const post = { ...makePost('1'), likes_count: 5, is_liked: false }
+    act(() => {
+      useAuthStore.getState().setUser({ id: 'user-1' } as never)
+      useFeedStore.getState().setPosts([post], null, false)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    // RPC висит — deferred для проверки оптимистичного стейта
+    let resolveRpc!: (v: { data: unknown; error: null }) => void
+    mockRpc.mockImplementation(() => new Promise((r) => { resolveRpc = r }))
+
+    render(<FeedContainer />)
+
+    // Клик по кнопке лайка
+    await user.click(screen.getByTestId('like-btn-1'))
+
+    // Оптимистично (RPC ещё pending): likes_count=6, is_liked=true, postId в pendingLikes
+    expect(useFeedStore.getState().posts[0].likes_count).toBe(6)
+    expect(useFeedStore.getState().posts[0].is_liked).toBe(true)
+    expect(useFeedStore.getState().pendingLikes).toContain('1')
+
+    // Резолвим RPC: сервер говорит likes_count=7 (другой клиент тоже лайкнул)
+    await act(async () => {
+      resolveRpc({ data: { is_liked: true, likes_count: 7 }, error: null })
+    })
+
+    // После RPC: синхронизируется с ответом сервера (likes_count=7, не 6!)
+    await waitFor(() => {
+      expect(useFeedStore.getState().posts[0].likes_count).toBe(7)
+      expect(useFeedStore.getState().posts[0].is_liked).toBe(true)
+      expect(useFeedStore.getState().pendingLikes).not.toContain('1')
+    })
+  })
+
+  it('точечный откат при ошибке сети (RPC error) не повреждает данные других постов (AC #2)', async () => {
+    const user = userEvent.setup()
+    const post1 = { ...makePost('1'), likes_count: 5, is_liked: false }
+    const post2 = { ...makePost('2'), likes_count: 10, is_liked: true }
+    act(() => {
+      useAuthStore.getState().setUser({ id: 'user-1' } as never)
+      useFeedStore.getState().setPosts([post1, post2], null, false)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    // RPC упадёт с ошибкой
+    mockRpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Network error' },
+    })
+
+    render(<FeedContainer />)
+
+    await user.click(screen.getByTestId('like-btn-1'))
+
+    // После rollback: пост 1 вернулся к старому состоянию, пост 2 не тронут
+    await waitFor(() => {
+      expect(useFeedStore.getState().pendingLikes).not.toContain('1')
+    })
+    const posts = useFeedStore.getState().posts
+    expect(posts[0].likes_count).toBe(5)
+    expect(posts[0].is_liked).toBe(false)
+    // Пост 2 не повреждён:
+    expect(posts[1].likes_count).toBe(10)
+    expect(posts[1].is_liked).toBe(true)
+  })
+
+  it('блокирует повторные клики через pendingLikes — серверу летит строго 1 запрос (AC #3)', async () => {
+    const user = userEvent.setup()
+    const post = { ...makePost('1'), likes_count: 5, is_liked: false }
+    act(() => {
+      useAuthStore.getState().setUser({ id: 'user-1' } as never)
+      useFeedStore.getState().setPosts([post], null, false)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    // RPC висит (pending promise), чтобы pendingLikes не очистился
+    let resolveRpc!: (v: { data: unknown; error: null }) => void
+    mockRpc.mockImplementation(() => new Promise((r) => { resolveRpc = r }))
+
+    render(<FeedContainer />)
+
+    // 5 быстрых кликов
+    const likeBtn = screen.getByTestId('like-btn-1')
+    await user.click(likeBtn)
+    await user.click(likeBtn)
+    await user.click(likeBtn)
+    await user.click(likeBtn)
+    await user.click(likeBtn)
+
+    // RPC вызван строго 1 раз, остальные клики заблокированы pendingLikes
+    expect(mockRpc).toHaveBeenCalledTimes(1)
+    expect(mockRpc).toHaveBeenCalledWith('toggle_like', { p_post_id: '1' })
+
+    // Завершаем RPC для cleanup
+    await act(async () => {
+      resolveRpc({ data: { is_liked: true, likes_count: 6 }, error: null })
+    })
+
+    await waitFor(() => {
+      expect(useFeedStore.getState().pendingLikes).not.toContain('1')
+    })
+  })
+
+  it('неавторизованный юзер перенаправляется на /login вместо отправки RPC (AC #5)', async () => {
+    const user = userEvent.setup()
+    const post = makePost('1')
+    act(() => {
+      // Гость: user = null
+      useFeedStore.getState().setPosts([post], null, false)
+      useFeedStore.getState().setLoading(false)
+    })
+
+    render(<FeedContainer />)
+
+    await user.click(screen.getByTestId('like-btn-1'))
+
+    // RPC не вызван
+    expect(mockRpc).not.toHaveBeenCalled()
+    // Перенаправление на /login
+    expect(mockRouterPush).toHaveBeenCalledWith('/login')
+    // Стейт не изменился
+    expect(useFeedStore.getState().posts[0].likes_count).toBe(0)
+    expect(useFeedStore.getState().posts[0].is_liked).toBe(false)
   })
 })

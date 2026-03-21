@@ -15,7 +15,7 @@ export async function fetchInitialPostsServer(): Promise<{
     const [postsResult, userResult] = await Promise.all([
       supabase
         .from('posts')
-        .select('*, profiles!author_id(display_name, avatar_url)')
+        .select('*, profiles!author_id(display_name, avatar_url), is_liked:posts_is_liked')
         .eq('is_published', true)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -26,7 +26,7 @@ export async function fetchInitialPostsServer(): Promise<{
     if (postsResult.error) throw postsResult.error
 
     const hasMore = postsResult.data.length > PAGE_SIZE
-    const posts = (hasMore ? postsResult.data.slice(0, PAGE_SIZE) : postsResult.data) as Post[]
+    const posts = (hasMore ? postsResult.data.slice(0, PAGE_SIZE) : postsResult.data) as unknown as Post[]
     const lastPost = posts[posts.length - 1]
     const nextCursor = lastPost ? `${lastPost.created_at}|${lastPost.id}` : null
     const currentUserId = userResult.data?.user?.id ?? null

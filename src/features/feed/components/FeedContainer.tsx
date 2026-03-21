@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/features/auth/store'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
+import { createClient } from '@/lib/supabase/client'
 import { fetchPosts } from '../api/posts'
 import { useFeedStore } from '../store'
-import { dbPostToCardData, type FeedPage } from '../types'
+import { dbPostToCardData, type FeedPage, type ToggleLikeResponse } from '../types'
 
 function Skeletons({
   count,
@@ -55,13 +57,12 @@ export function FeedContainer({
   const isLoadingMore = useFeedStore((s) => s.isLoadingMore)
   const storeError = useFeedStore((s) => s.error)
   const activeCategory = useFeedStore((s) => s.activeCategory)
-  const isAuthReady = useAuthStore((state) => state.isReady)
-  const currentUserId = useAuthStore((state) => state.user?.id ?? null)
+  const currentUser = useAuthStore((state) => state.user)
+  const currentUserId = currentUser?.id ?? null
+  const pendingLikes = useFeedStore((s) => s.pendingLikes)
+  const router = useRouter()
 
-  // Стабильный userId: используем initialUserId (с сервера) до инициализации auth store.
-  // После isAuthReady=true переключаемся на живое значение из auth store.
-  // Это предотвращает badge pop-in: SSR-рендер → гидрация → auth ready —
-  // все три фазы получают одинаковый userId без микро-сдвига UI.
+  const isAuthReady = useAuthStore((state) => state.isReady)
   const resolvedUserId = isAuthReady ? currentUserId : (initialUserId ?? null)
 
   const observerRef = useRef<HTMLDivElement>(null)
@@ -295,6 +296,63 @@ export function FeedContainer({
     [displayedPosts, resolvedUserId]
   )
 
+  // --- handleLikeToggle: оптимистичное обновление + RPC sync ---
+  const handleLikeToggle = useCallback(
+    async (postId: string) => {
+      // 1) Проверка авторизации — гость → перенаправить на /login
+      if (!currentUser) {
+        router.push('/login')
+        return
+      }
+
+      // 2) Блокировка спама: если уже pending — выходим
+      const store = useFeedStore.getState()
+      if (store.pendingLikes.includes(postId)) return
+
+      // 3) Сохраняем старое состояние для rollback
+      const post = store.posts.find((p) => p.id === postId)
+      if (!post) return
+      const prevIsLiked = post.is_liked ?? false
+      const prevLikesCount = post.likes_count
+
+      // 4) Оптимистичное обновление + добавляем в pending
+      const newIsLiked = !prevIsLiked
+      store.addPendingLike(postId)
+      store.updatePost(postId, {
+        is_liked: newIsLiked,
+        likes_count: prevLikesCount + (newIsLiked ? 1 : -1),
+      })
+
+      try {
+        // 5) Вызов RPC
+        const supabase = createClient()
+        const { data, error } = await supabase.rpc('toggle_like', {
+          p_post_id: postId,
+        })
+
+        if (error) throw error
+
+        // 6) Синхронизация с ответом сервера (Source of Truth)
+        const result = data as unknown as ToggleLikeResponse
+        useFeedStore.getState().updatePost(postId, {
+          is_liked: result.is_liked,
+          likes_count: result.likes_count,
+        })
+      } catch (err) {
+        console.error('Ошибка toggle_like:', err)
+        // 7) Rollback к сохранённым значениям
+        useFeedStore.getState().updatePost(postId, {
+          is_liked: prevIsLiked,
+          likes_count: prevLikesCount,
+        })
+      } finally {
+        // 8) Убираем из pending
+        useFeedStore.getState().removePendingLike(postId)
+      }
+    },
+    [currentUser, router]
+  )
+
   // Auto-trigger loadMore когда displayedPosts.length === 0 и sentinel в DOM,
   // но IO не срабатывает повторно (sentinel не уходил из viewport между пересозданиями).
   // Fix: "нулевой рост sentinel не триггерит observer при фильтрах".
@@ -409,7 +467,12 @@ export function FeedContainer({
       <ul aria-label="Лента публикаций">
         {cardDataList.map((cardData, index) => (
           <li key={cardData.id}>
-            <PostCard post={cardData} priority={index < 2} />
+            <PostCard
+              post={cardData}
+              priority={index < 2}
+              isPending={pendingLikes.includes(cardData.id)}
+              onLikeToggle={handleLikeToggle}
+            />
           </li>
         ))}
       </ul>

@@ -1,12 +1,14 @@
 import type { Tables } from '@/types/supabase'
 import type { PostCardData } from '@/components/feed/PostCard'
 
-// Тип строки из БД с join профиля автора
+// Тип строки из БД с join профиля автора + computed column is_liked
 export type PostRow = Tables<'posts'> & {
   profiles: {
     display_name: string | null
     avatar_url: string | null
   } | null
+  /** Computed column posts_is_liked — null для анонимных пользователей */
+  is_liked?: boolean | null
 }
 
 // Клиентский тип поста (алиас для использования в store и компонентах)
@@ -17,6 +19,12 @@ export interface FeedPage {
   posts: Post[]
   nextCursor: string | null
   hasMore: boolean
+}
+
+// Ответ RPC toggle_like
+export interface ToggleLikeResponse {
+  is_liked: boolean
+  likes_count: number
 }
 
 // Mapper: строка БД → данные для PostCard
@@ -54,5 +62,6 @@ export function dbPostToCardData(
     },
     imageUrl: post.image_url ?? undefined,
     type: post.type,
+    isLiked: post.is_liked ?? false,
   }
 }
