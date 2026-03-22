@@ -62,12 +62,6 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       .slice(0, 2)
       .toUpperCase()
 
-    const date = new Date(post.created_at).toLocaleDateString('sl-SI', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    })
-
     return {
       id: post.id,
       title: post.title,
@@ -79,7 +73,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       likes: post.likes_count,
       comments: post.comments_count,
       isLiked: post.is_liked ?? false,
-      date,
+      created_at: post.created_at,
       author: {
         name: authorName,
         initials,

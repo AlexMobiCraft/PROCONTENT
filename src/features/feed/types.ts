@@ -39,7 +39,7 @@ export interface PostDetail {
   likes: number
   comments: number
   isLiked: boolean
-  date: string
+  created_at: string
   author: {
     name: string
     initials: string

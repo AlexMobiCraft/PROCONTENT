@@ -1,23 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 import { createClient } from '@/lib/supabase/client'
+import { useFeedStore } from '@/features/feed/store'
 import { cn } from '@/lib/utils'
 import type { PostDetail as PostDetailData, ToggleLikeResponse } from '@/features/feed/types'
 
 interface PostDetailProps {
   post: PostDetailData
+  currentUserId?: string | null
 }
 
-export function PostDetail({ post }: PostDetailProps) {
+export function PostDetail({ post, currentUserId }: PostDetailProps) {
+  const router = useRouter()
+  const updatePost = useFeedStore((s) => s.updatePost)
   const [liked, setLiked] = useState(post.isLiked)
   const [likesCount, setLikesCount] = useState(post.likes)
   const [isPending, setIsPending] = useState(false)
 
+  // Форматируем дату на клиенте — избегаем timezone mismatch с сервером
+  const date = new Date(post.created_at).toLocaleDateString('sl-SI', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
   async function handleLike() {
-    if (isPending) return
+    if (isPending || !currentUserId) return
     const prevLiked = liked
     const prevCount = likesCount
     setLiked(!prevLiked)
@@ -30,6 +41,8 @@ export function PostDetail({ post }: PostDetailProps) {
       const result = data as unknown as ToggleLikeResponse
       setLiked(result.is_liked)
       setLikesCount(result.likes_count)
+      // Синхронизируем Zustand store — при возврате в ленту данные актуальны
+      updatePost(post.id, { likes_count: result.likes_count, is_liked: result.is_liked })
     } catch {
       setLiked(prevLiked)
       setLikesCount(prevCount)
@@ -40,9 +53,10 @@ export function PostDetail({ post }: PostDetailProps) {
 
   return (
     <article className="mx-auto max-w-2xl px-4 py-6">
-      {/* Back button */}
-      <Link
-        href="/feed"
+      {/* Back button — router.back() сохраняет позицию скролла (AC 3) */}
+      <button
+        type="button"
+        onClick={() => router.back()}
         className="mb-6 flex min-h-[44px] w-fit items-center gap-1.5 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
         aria-label="Nazaj na objave"
       >
@@ -57,7 +71,7 @@ export function PostDetail({ post }: PostDetailProps) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
         </svg>
         Nazaj
-      </Link>
+      </button>
 
       {/* Author header */}
       <header className="mb-6 flex items-center gap-3">
@@ -70,7 +84,7 @@ export function PostDetail({ post }: PostDetailProps) {
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {post.category}
             </span>
-            <span className="text-xs text-muted-foreground">{post.date}</span>
+            <span className="text-xs text-muted-foreground">{date}</span>
           </div>
         </div>
       </header>

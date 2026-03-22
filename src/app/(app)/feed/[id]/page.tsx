@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { fetchPostById } from '@/features/feed/api/serverPosts'
+import { createClient } from '@/lib/supabase/server'
 import { PostDetail } from '@/components/feed/PostDetail'
 
 interface PostPageProps {
@@ -28,11 +29,15 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 
 export default async function PostPage({ params }: PostPageProps) {
   const { id } = await params
-  const post = await fetchPostById(id)
+  const supabase = await createClient()
+  const [post, { data: { user } }] = await Promise.all([
+    fetchPostById(id),
+    supabase.auth.getUser(),
+  ])
 
   if (!post) {
     notFound()
   }
 
-  return <PostDetail post={post} />
+  return <PostDetail post={post} currentUserId={user?.id ?? null} />
 }

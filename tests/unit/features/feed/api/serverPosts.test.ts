@@ -86,6 +86,7 @@ describe('fetchPostById', () => {
       likes: 5,
       comments: 3,
       isLiked: false,
+      created_at: '2026-03-15T10:00:00Z',
     })
   })
 
@@ -107,15 +108,13 @@ describe('fetchPostById', () => {
     expect(result?.isLiked).toBe(false)
   })
 
-  it('форматирует дату на словенском (sl-SI)', async () => {
+  it('возвращает сырой created_at (форматирование на клиенте)', async () => {
     setupChain()
     mockSingle.mockResolvedValue({ data: makeDbPost(), error: null })
 
     const result = await fetchPostById('post-abc')
 
-    expect(result?.date).toMatch(/15/)
-    expect(result?.date).toMatch(/2026/)
-    expect(result?.date).toMatch(/marec/i)
+    expect(result?.created_at).toBe('2026-03-15T10:00:00Z')
   })
 
   it('маппит имя автора и инициалы из profiles', async () => {

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@/components/media/LazyMediaWrapper', () => ({
   LazyMediaWrapper: ({
@@ -27,6 +27,19 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({ rpc: mockRpc }),
 }))
 
+const mockBack = vi.hoisted(() => vi.fn())
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ back: mockBack }),
+}))
+
+const mockUpdatePost = vi.hoisted(() => vi.fn())
+
+vi.mock('@/features/feed/store', () => ({
+  useFeedStore: (selector: (state: { updatePost: typeof mockUpdatePost }) => unknown) =>
+    selector({ updatePost: mockUpdatePost }),
+}))
+
 import { PostDetail } from '@/components/feed/PostDetail'
 import type { PostDetail as PostDetailData } from '@/features/feed/types'
 
@@ -42,7 +55,7 @@ function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
     likes: 5,
     comments: 3,
     isLiked: false,
-    date: '15. marca 2026',
+    created_at: '2026-03-15T12:00:00Z',
     author: { name: 'Ana Ivanova', initials: 'AI' },
     ...overrides,
   }
@@ -51,6 +64,10 @@ function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
 describe('PostDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   // --- Базовый рендер ---
@@ -65,8 +82,9 @@ describe('PostDetail', () => {
     expect(screen.getByText('Ana Ivanova')).toBeInTheDocument()
   })
 
-  it('рендерит дату', () => {
-    render(<PostDetail post={makePost()} />)
+  it('рендерит дату из created_at (клиент-сайд форматирование)', () => {
+    vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('15. marca 2026')
+    render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
     expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
   })
 
@@ -75,10 +93,18 @@ describe('PostDetail', () => {
     expect(screen.getByText('UGC')).toBeInTheDocument()
   })
 
-  it('back-ссылка ведёт на /feed', () => {
+  // --- Кнопка "Назад" ---
+
+  it('кнопка "Назад" вызывает router.back() (AC 3 — сохранение скролла)', async () => {
+    const user = userEvent.setup()
     render(<PostDetail post={makePost()} />)
-    const backLink = screen.getByRole('link', { name: /nazaj/i })
-    expect(backLink).toHaveAttribute('href', '/feed')
+    await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
+    expect(mockBack).toHaveBeenCalledTimes(1)
+  })
+
+  it('кнопка "Назад" не является ссылкой (не сбрасывает скролл)', () => {
+    render(<PostDetail post={makePost()} />)
+    expect(screen.queryByRole('link', { name: /nazaj/i })).not.toBeInTheDocument()
   })
 
   // --- Рендер по типу контента ---
@@ -139,11 +165,29 @@ describe('PostDetail', () => {
     expect(screen.getByText('7')).toBeInTheDocument()
   })
 
+  // --- Auth check ---
+
+  it('аноним (currentUserId=null): клик лайка не вызывает RPC', async () => {
+    const user = userEvent.setup()
+    render(<PostDetail post={makePost({ isLiked: false })} currentUserId={null} />)
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+    expect(mockRpc).not.toHaveBeenCalled()
+  })
+
+  it('аноним (currentUserId=null): счётчик не меняется при клике', async () => {
+    const user = userEvent.setup()
+    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId={null} />)
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+    expect(screen.getByText('5')).toBeInTheDocument()
+  })
+
+  // --- Оптимистичные обновления (auth required) ---
+
   it('оптимистичное обновление: счётчик увеличивается при клике', async () => {
     mockRpc.mockResolvedValue({ data: { is_liked: true, likes_count: 6 }, error: null })
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} />)
+    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     expect(screen.getByText('6')).toBeInTheDocument()
@@ -153,7 +197,7 @@ describe('PostDetail', () => {
     mockRpc.mockResolvedValue({ data: { is_liked: false, likes_count: 4 }, error: null })
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ likes: 5, isLiked: true })} />)
+    render(<PostDetail post={makePost({ likes: 5, isLiked: true })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Odstrani všeček' }))
 
     expect(screen.getByText('4')).toBeInTheDocument()
@@ -163,7 +207,7 @@ describe('PostDetail', () => {
     mockRpc.mockResolvedValue({ data: { is_liked: true, likes_count: 6 }, error: null })
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ id: 'post-xyz', likes: 5 })} />)
+    render(<PostDetail post={makePost({ id: 'post-xyz', likes: 5 })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     expect(mockRpc).toHaveBeenCalledWith('toggle_like', { p_post_id: 'post-xyz' })
@@ -173,23 +217,46 @@ describe('PostDetail', () => {
     mockRpc.mockRejectedValue(new Error('RPC failed'))
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} />)
+    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument())
-    // Кнопка возвращается в исходное состояние после rollback
     expect(screen.getByRole('button', { name: 'Všečkaj' })).toBeInTheDocument()
   })
 
   it('синхронизирует состояние с ответом сервера (source of truth)', async () => {
-    // Сервер вернул 8 лайков — отображаем сервер, не оптимистик
     mockRpc.mockResolvedValue({ data: { is_liked: true, likes_count: 8 }, error: null })
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} />)
+    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     await waitFor(() => expect(screen.getByText('8')).toBeInTheDocument())
+  })
+
+  // --- Store sync ---
+
+  it('после успешного лайка обновляет Zustand store', async () => {
+    mockRpc.mockResolvedValue({ data: { is_liked: true, likes_count: 6 }, error: null })
+    const user = userEvent.setup()
+
+    render(<PostDetail post={makePost({ id: 'post-1', likes: 5 })} currentUserId="user-1" />)
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+
+    await waitFor(() =>
+      expect(mockUpdatePost).toHaveBeenCalledWith('post-1', { likes_count: 6, is_liked: true })
+    )
+  })
+
+  it('rollback при ошибке: store НЕ обновляется', async () => {
+    mockRpc.mockRejectedValue(new Error('RPC failed'))
+    const user = userEvent.setup()
+
+    render(<PostDetail post={makePost({ id: 'post-1', likes: 5 })} currentUserId="user-1" />)
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+
+    await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument())
+    expect(mockUpdatePost).not.toHaveBeenCalled()
   })
 
   // --- Счётчик комментариев ---

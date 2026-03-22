@@ -1,6 +1,6 @@
 # Story 2.3: Детальный просмотр мультиформатного поста
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -50,10 +50,10 @@ so that изучить материал полностью.
 - [x] [AI-Review][MEDIUM] Poor UX in Feed Navigation: Image and excerpt in `PostCard` are not clickable. [src/components/feed/PostCard.tsx:102]
 - [x] [AI-Review][MEDIUM] Code Duplication in `PostDetail.tsx` for photo/video types. [src/components/feed/PostDetail.tsx:79-103]
 - [x] [AI-Review][MEDIUM] Missing dynamic SEO metadata (generateMetadata) in `page.tsx`. [src/app/(app)/feed/[id]/page.tsx:9]
-- [ ] [AI-Review][CRITICAL] Like state in PostDetail.tsx is isolated from FeedContainer store; navigating back shows stale data. [src/components/feed/PostDetail.tsx:19]
-- [ ] [AI-Review][HIGH] Back button uses Link to /feed instead of router.back(), violating AC 3 regarding scroll position preservation. [src/components/feed/PostDetail.tsx:44]
-- [ ] [AI-Review][MEDIUM] Missing authentication check for Like action in PostDetail; causes visual rollback for anonymous users. [src/components/feed/PostDetail.tsx:28]
-- [ ] [AI-Review][MEDIUM] Potential hydration/timezone mismatch in server-side localized dates. [src/features/feed/api/serverPosts.ts:65]
+- [x] [AI-Review][CRITICAL] Like state in PostDetail.tsx is isolated from FeedContainer store; navigating back shows stale data. [src/components/feed/PostDetail.tsx:19]
+- [x] [AI-Review][HIGH] Back button uses Link to /feed instead of router.back(), violating AC 3 regarding scroll position preservation. [src/components/feed/PostDetail.tsx:44]
+- [x] [AI-Review][MEDIUM] Missing authentication check for Like action in PostDetail; causes visual rollback for anonymous users. [src/components/feed/PostDetail.tsx:28]
+- [x] [AI-Review][MEDIUM] Potential hydration/timezone mismatch in server-side localized dates. [src/features/feed/api/serverPosts.ts:65]
 
 
 ## Dev Notes
@@ -105,15 +105,19 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: `PostDetail.tsx` — дублирующие блоки photo/video объединены в один `{post.type !== 'text' && ...}`.
 - ✅ Resolved review finding [MEDIUM]: `page.tsx` — добавлен `generateMetadata` с `title`, `description`, `openGraph` (включая `images` для photo/video постов).
 - ✅ Resolved review finding [CRITICAL]: Vitest уже настроен в проекте (CLAUDE.md устарел). Созданы тесты: `tests/unit/features/feed/api/serverPosts.test.ts` (13 тестов — select query, is_liked mapping, fallback Avtor, null/error handling, cache) и `tests/unit/components/feed/PostDetail.test.tsx` (20 тестов — render by type, like optimistic update, rollback, RPC call). Все 33 новых теста ✅. React `cache()` замокан в serverPosts.test.ts чтобы избежать кэширования между тестами.
+- ✅ Resolved review finding [CRITICAL]: `PostDetail.tsx` — `useFeedStore.updatePost` вызывается после успешного `toggle_like` RPC. При возврате в ленту Zustand store содержит актуальные `likes_count` и `is_liked`. Тест: "после успешного лайка обновляет Zustand store".
+- ✅ Resolved review finding [HIGH]: Back button изменён с `<Link href="/feed">` на `<button onClick={() => router.back()}>`. Используется `useRouter` из `next/navigation`. AC 3 — скролл-позиция сохраняется. Тест: "кнопка Назад вызывает router.back()".
+- ✅ Resolved review finding [MEDIUM]: Добавлен проп `currentUserId?: string | null` в PostDetailProps. `page.tsx` получает пользователя через `supabase.auth.getUser()` параллельно с `fetchPostById` и передаёт `currentUserId`. В `handleLike`: `if (isPending || !currentUserId) return` — блокирует анонимный клик без визуального rollback. 2 новых теста.
+- ✅ Resolved review finding [MEDIUM]: Дата форматируется на клиенте в `PostDetail.tsx` из `post.created_at` (ISO строка). `fetchPostById` больше не форматирует дату на сервере. `PostDetail.date: string` заменён на `PostDetail.created_at: string` в types.ts. Исключает timezone mismatch между сервером и браузером.
 
 ### File List
 
-- `src/app/(app)/feed/[id]/page.tsx` (modify — добавлен `generateMetadata`)
+- `src/app/(app)/feed/[id]/page.tsx` (modify — добавлен `generateMetadata`, `currentUserId` из `supabase.auth.getUser()`)
 - `src/app/(app)/feed/[id]/loading.tsx` (new)
 - `src/app/(app)/feed/[id]/not-found.tsx` (new)
-- `src/features/feed/types.ts` (modify — добавлен тип `PostDetail`, поле `isLiked: boolean`)
-- `src/features/feed/api/serverPosts.ts` (modify — `fetchPostById` обёрнута в `cache`, добавлен `is_liked:posts_is_liked` в select, возвращает `isLiked`)
-- `src/components/feed/PostDetail.tsx` (modify — интерактивная кнопка лайка, устранено дублирование photo/video блоков)
+- `src/features/feed/types.ts` (modify — добавлен тип `PostDetail`, поле `isLiked: boolean`; `date` → `created_at: string`)
+- `src/features/feed/api/serverPosts.ts` (modify — `fetchPostById` обёрнута в `cache`, добавлен `is_liked:posts_is_liked` в select, возвращает `isLiked`; убрано серверное форматирование даты, возвращает сырой `created_at`)
+- `src/components/feed/PostDetail.tsx` (modify — интерактивная кнопка лайка, устранено дублирование photo/video блоков; `useRouter.back()`, `useFeedStore.updatePost`, `currentUserId` prop, клиент-сайд форматирование даты)
 - `src/components/feed/PostCard.tsx` (modify — image и excerpt кликабельны через Link)
-- `tests/unit/features/feed/api/serverPosts.test.ts` (new — 13 тестов fetchPostById)
-- `tests/unit/components/feed/PostDetail.test.tsx` (new — 20 тестов PostDetail)
+- `tests/unit/features/feed/api/serverPosts.test.ts` (modify — 13→13 тестов, обновлён тест даты: `date` → `created_at`)
+- `tests/unit/components/feed/PostDetail.test.tsx` (modify — 20→25 тестов, добавлены: router.back, auth check, store sync; обновлены: makePost, back button, like tests)
