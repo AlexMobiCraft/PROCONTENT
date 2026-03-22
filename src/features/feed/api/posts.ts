@@ -57,6 +57,7 @@ export async function fetchPosts(
   const { data, error } = await query
 
   if (error) throw error
+  if (!data) return { posts: [], nextCursor: null, hasMore: false }
 
   const hasMore = data.length > PAGE_SIZE
   const posts = (hasMore ? data.slice(0, PAGE_SIZE) : data) as unknown as Post[]

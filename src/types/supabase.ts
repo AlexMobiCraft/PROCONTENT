@@ -31,6 +31,7 @@ export type Database = {
           is_onboarding: boolean
           created_at: string
           updated_at: string
+          posts_is_liked: boolean
         }
         Insert: {
           id?: string
@@ -202,6 +203,12 @@ export type Database = {
           p_post_id: string
         }
         Returns: Json
+      }
+      posts_is_liked: {
+        Args: {
+          post_row: Database["public"]["Tables"]["posts"]["Row"]
+        }
+        Returns: boolean
       }
     }
     Enums: {
