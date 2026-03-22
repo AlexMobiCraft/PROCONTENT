@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 
@@ -83,9 +84,9 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
         </button>
       </header>
 
-      {/* Media Content */}
+      {/* Media Content — кликабельна, tabIndex=-1 чтобы не дублировать tab-stop с заголовком */}
       {post.imageUrl && (
-        <div className="mb-4">
+        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true">
           <LazyMediaWrapper
             src={post.imageUrl}
             alt={post.title}
@@ -93,17 +94,19 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
             type={post.type === 'video' ? 'video' : 'photo'}
             priority={priority}
           />
-        </div>
+        </Link>
       )}
 
-      {/* Content */}
+      {/* Content — заголовок + excerpt в одном Link для правильного UX */}
       <div className="flex flex-col gap-2">
-        <h2 className="font-heading text-base font-semibold leading-snug text-foreground text-balance">
-          {post.title}
-        </h2>
-        <p className="text-sm leading-relaxed text-muted-foreground line-clamp-3">
-          {post.excerpt}
-        </p>
+        <Link href={`/feed/${post.id}`} className="group flex flex-col gap-2">
+          <h2 className="font-heading text-base font-semibold leading-snug text-foreground text-balance group-hover:text-primary transition-colors">
+            {post.title}
+          </h2>
+          <p className="text-sm leading-relaxed text-muted-foreground line-clamp-3">
+            {post.excerpt}
+          </p>
+        </Link>
       </div>
 
       {/* Type badge for video/photo */}

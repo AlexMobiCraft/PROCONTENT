@@ -27,6 +27,25 @@ export interface ToggleLikeResponse {
   likes_count: number
 }
 
+// Тип для детальной страницы поста
+export interface PostDetail {
+  id: string
+  title: string
+  content: string | null
+  excerpt: string
+  category: string
+  type: 'text' | 'photo' | 'video'
+  imageUrl: string | null
+  likes: number
+  comments: number
+  isLiked: boolean
+  date: string
+  author: {
+    name: string
+    initials: string
+  }
+}
+
 // Mapper: строка БД → данные для PostCard
 export function dbPostToCardData(
   post: Post,

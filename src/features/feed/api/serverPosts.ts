@@ -1,5 +1,6 @@
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import type { FeedPage, Post } from '../types'
+import type { FeedPage, Post, PostDetail } from '../types'
 
 const PAGE_SIZE = 10
 
@@ -37,3 +38,54 @@ export async function fetchInitialPostsServer(): Promise<{
     return { feedPage: { posts: [], nextCursor: null, hasMore: true }, currentUserId: null }
   }
 }
+
+export const fetchPostById = cache(async (id: string): Promise<PostDetail | null> => {
+  try {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*, profiles!author_id(display_name, avatar_url), is_liked:posts_is_liked')
+      .eq('id', id)
+      .eq('is_published', true)
+      .single()
+
+    if (error || !data) return null
+
+    const post = data as unknown as Post
+
+    const authorName = post.profiles?.display_name || 'Avtor'
+    const initials = authorName
+      .split(' ')
+      .map((w: string) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase()
+
+    const date = new Date(post.created_at).toLocaleDateString('sl-SI', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+
+    return {
+      id: post.id,
+      title: post.title,
+      content: post.content ?? null,
+      excerpt: post.excerpt ?? '',
+      category: post.category,
+      type: post.type,
+      imageUrl: post.image_url ?? null,
+      likes: post.likes_count,
+      comments: post.comments_count,
+      isLiked: post.is_liked ?? false,
+      date,
+      author: {
+        name: authorName,
+        initials,
+      },
+    }
+  } catch {
+    return null
+  }
+})
