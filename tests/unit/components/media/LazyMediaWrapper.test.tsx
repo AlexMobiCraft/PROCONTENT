@@ -511,4 +511,22 @@ describe('LazyMediaWrapper', () => {
       expect(img.className).not.toContain('opacity-0')
     })
   })
+
+  describe('пустой src — защита от краша Next/Image', () => {
+    it('показывает fallback немедленно при src="" без ожидания intersection', () => {
+      const { getByTestId, container } = render(
+        <LazyMediaWrapper src="" alt="Empty" />
+      )
+
+      // Скелетон не пульсирует (isError=true с самого начала)
+      const wrapper = getByTestId('media-error-fallback').parentElement!
+      expect(wrapper.className).not.toContain('animate-pulse')
+
+      // <img> HTML-элемент (next/image) не рендерится
+      expect(container.querySelector('img')).toBeNull()
+
+      // Fallback присутствует
+      expect(getByTestId('media-error-fallback')).toBeTruthy()
+    })
+  })
 })

@@ -42,6 +42,8 @@ export interface PostDetail {
   category: string
   type: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
   imageUrl: string | null
+  /** Нормализованный медиафайл обложки из post_media (AC 6) */
+  mediaItem?: PostMedia | null
   likes: number
   comments: number
   isLiked: boolean

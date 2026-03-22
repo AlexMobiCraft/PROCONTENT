@@ -39,6 +39,7 @@ function makeDbPost(overrides: Record<string, unknown> = {}) {
     created_at: '2026-03-15T10:00:00Z',
     updated_at: '2026-03-15T10:00:00Z',
     profiles: { display_name: 'Ana Ivanova', avatar_url: null },
+    post_media: [],
     ...overrides,
   }
 }
@@ -63,7 +64,7 @@ describe('fetchPostById', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('posts')
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, profiles!author_id(display_name, avatar_url), is_liked:posts_is_liked'
+      '*, profiles!author_id(display_name, avatar_url), post_media(*), is_liked:posts_is_liked'
     )
     expect(mockEq).toHaveBeenCalledWith('id', 'post-abc')
     expect(mockEq).toHaveBeenCalledWith('is_published', true)
@@ -195,5 +196,78 @@ describe('fetchPostById', () => {
     const result = await fetchPostById('post-abc')
 
     expect(result).toBeNull()
+  })
+
+  it('возвращает mediaItem=null при пустом post_media', async () => {
+    setupChain()
+    mockSingle.mockResolvedValue({ data: makeDbPost({ post_media: [] }), error: null })
+
+    const result = await fetchPostById('post-abc')
+
+    expect(result?.mediaItem).toBeNull()
+  })
+
+  it('возвращает coverItem из post_media (is_cover=true)', async () => {
+    setupChain()
+    const coverMedia = {
+      id: 'media-1',
+      post_id: 'post-abc',
+      url: 'https://example.com/cover.jpg',
+      media_type: 'image',
+      thumbnail_url: null,
+      order_index: 1,
+      is_cover: true,
+      created_at: '2026-03-15T10:00:00Z',
+    }
+    const otherMedia = {
+      id: 'media-2',
+      post_id: 'post-abc',
+      url: 'https://example.com/other.jpg',
+      media_type: 'image',
+      thumbnail_url: null,
+      order_index: 0,
+      is_cover: false,
+      created_at: '2026-03-15T10:00:00Z',
+    }
+    mockSingle.mockResolvedValue({
+      data: makeDbPost({ post_media: [otherMedia, coverMedia] }),
+      error: null,
+    })
+
+    const result = await fetchPostById('post-abc')
+
+    expect(result?.mediaItem?.url).toBe('https://example.com/cover.jpg')
+  })
+
+  it('fallback: первый по order_index при отсутствии is_cover', async () => {
+    setupChain()
+    const media1 = {
+      id: 'media-1',
+      post_id: 'post-abc',
+      url: 'https://example.com/first.jpg',
+      media_type: 'image',
+      thumbnail_url: null,
+      order_index: 0,
+      is_cover: false,
+      created_at: '2026-03-15T10:00:00Z',
+    }
+    const media2 = {
+      id: 'media-2',
+      post_id: 'post-abc',
+      url: 'https://example.com/second.jpg',
+      media_type: 'image',
+      thumbnail_url: null,
+      order_index: 1,
+      is_cover: false,
+      created_at: '2026-03-15T10:00:00Z',
+    }
+    mockSingle.mockResolvedValue({
+      data: makeDbPost({ post_media: [media2, media1] }),
+      error: null,
+    })
+
+    const result = await fetchPostById('post-abc')
+
+    expect(result?.mediaItem?.url).toBe('https://example.com/first.jpg')
   })
 })

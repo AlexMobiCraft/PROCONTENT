@@ -95,10 +95,11 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
       </h1>
 
       {/* Media: photo или video (gallery/multi-video рендерятся отдельными компонентами в Story 2-4/2-5) */}
-      {(post.type === 'photo' || post.type === 'video') && post.imageUrl && (
+      {(post.type === 'photo' || post.type === 'video') && (post.mediaItem || post.imageUrl) && (
         <div className="mb-6">
           <LazyMediaWrapper
-            src={post.imageUrl}
+            mediaItem={post.mediaItem ?? undefined}
+            src={!post.mediaItem ? (post.imageUrl ?? undefined) : undefined}
             alt={post.title}
             aspectRatio={post.type === 'video' ? '16/9' : '4/5'}
             type={post.type}

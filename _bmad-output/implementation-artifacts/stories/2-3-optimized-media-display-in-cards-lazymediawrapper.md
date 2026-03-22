@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: High
-- [ ] Статус: review
+- [x] Статус: review
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -156,14 +156,22 @@
 - [x] [AI-Review][Medium] Лишние параметры в интерфейсах: Сигнатура `onLikeToggle?: (postId: string, liked: boolean) => void` в `PostCardProps` содержит неиспользуемый аргумент `liked`. Оставить только `postId`. [src/components/feed/PostCard.tsx]
 - [x] [AI-Review][Low] Рассинхрон комментария и кода: В `LazyMediaWrapper.tsx` JSDoc комментарий к `sizes` описывает сложную сетку, но дефолтное значение захардкожено как `(max-width: 768px) 100vw, 640px`. Привести в соответствие. [src/components/media/LazyMediaWrapper.tsx]
 
+### Review Follow-ups (AI) - Iteration 20
+- [x] [AI-Review][High] Отсутствие `post_media` в SSR: Функции `fetchInitialPostsServer` и `fetchPostById` в `src/features/feed/api/serverPosts.ts` не запрашивают `post_media(*)`. Серверный рендер (первый экран) будет возвращать посты без медиафайлов, что ломает LCP и AC 6 для начальной загрузки. [src/features/feed/api/serverPosts.ts]
+- [x] [AI-Review][High] Ошибка компиляции TypeScript: В файле `src/features/feed/api/posts.ts` на 62 строке возникает ошибка `TS2352` из-за строгой типизации computed-колонки `is_liked:posts_is_liked`. Это сломает билд приложения. [src/features/feed/api/posts.ts]
+- [x] [AI-Review][Medium] Неполный маппинг в PostDetail: Функция `fetchPostById` (для детальной страницы) всё ещё мапит `imageUrl: post.image_url ?? null` и не возвращает нормализованные данные `mediaItem` из `post_media`, что приведет к отсутствию медиа на странице поста. [src/features/feed/api/serverPosts.ts]
+- [x] [AI-Review][Low] Потенциальный краш Next/Image: Если `resolveMediaSrc` вернет пустую строку `""` (когда нет ни `mediaItem`, ни `src`), компонент `<Image>` попытается загрузить пустой URL, что приведет к ошибке. [src/components/media/LazyMediaWrapper.tsx]
+
 ## File List
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
 - `src/components/feed/PostCard.tsx` (modify)
+- `src/components/feed/PostDetail.tsx` (modify)
 - `src/features/feed/types.ts` (modify)
 - `src/features/feed/components/FeedContainer.tsx` (modify)
 - `src/features/feed/components/FeedPageClient.tsx` (new)
 - `src/features/feed/api/serverPosts.ts` (new)
+- `src/features/feed/api/posts.ts` (modify)
 - `src/app/(app)/feed/page.tsx` (modify)
 - `next.config.ts` (modify)
 - `supabase/seed_posts.sql` (modify)
@@ -173,6 +181,7 @@
 - `tests/unit/features/feed/components/FeedPageClient.test.tsx` (new)
 - `tests/unit/app/feed/page.test.tsx` (modify)
 - `tests/unit/features/feed/api/posts.test.ts` (modify)
+- `tests/unit/features/feed/api/serverPosts.test.ts` (modify)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modify)
 
 ## Dev Notes
@@ -332,6 +341,13 @@
 Тесты обновлены: 2 теста onLikeToggle переработаны под новую сигнатуру; тест "нет двойного подсчёта" упрощён (нет промежуточной проверки после клика — PostCard не управляет optimistic state).
 457/457 тестов проходят (0 новых — изменены 3 существующих теста).
 
+**Iteration 20 Review Follow-ups (4 items) — 2026-03-22:**
+✅ Resolved [High] post_media в SSR: `fetchInitialPostsServer` и `fetchPostById` в `serverPosts.ts` — добавлен `post_media(*)` в select. SSR теперь возвращает посты с медиафайлами (AC 6 для первого экрана).
+✅ Resolved [High] TS2352: `posts.ts:62` — `as Post[]` → `as unknown as Post[]` (double assertion). TypeScript компилируется без ошибок.
+✅ Resolved [Medium] маппинг mediaItem в PostDetail: `fetchPostById` вычисляет `coverItem` из `post.post_media` (сортировка по `order_index`, предпочтение `is_cover`); `PostDetail` тип расширен `mediaItem?: PostMedia | null`; `PostDetail.tsx` передаёт `mediaItem` в `LazyMediaWrapper` (prefer) с fallback на `imageUrl`.
+✅ Resolved [Low] защита от пустого src: `LazyMediaWrapper` инициализирует `isError = useState(src === '')` — при пустом src немедленно показывает fallback без попытки рендера `<Image>`.
+Новые тесты: `serverPosts.test.ts` — обновлён select assertion + 3 теста mediaItem (null, is_cover, fallback по order_index); `LazyMediaWrapper.test.tsx` — 1 тест пустого src. 520/520 тестов.
+
 **Task 6 (Course Correction) — 2026-03-22:**
 ✅ Task 6.1-6.3 LazyMediaWrapper: добавлен интерфейс `MediaItem` (url, media_type, thumbnail_url); новый prop `mediaItem?: MediaItem` — когда передан, src и type выводятся из него автоматически. Для видео используется `thumbnail_url ?? url` как постер (AC 7). `resolveMediaSrc()` выносит логику для outer wrapper key. `aspectRatio='none'` добавлен в тип — не применяет aspect-class, GalleryGrid может использовать без форсирования пропорций (AC 8). key wrapper использует effectiveSrc для корректного remount при смене медиафайла.
 ✅ Task 6.4 PostCard: добавлен `mediaItem?: MediaItem` в `PostCardData` (import MediaItem из LazyMediaWrapper). Условие рендера `(post.mediaItem || post.imageUrl)` — предпочитает mediaItem. `dbPostToCardData` в types.ts возвращает `mediaItem: coverItem` (полный объект post_media).
@@ -339,6 +355,7 @@
 9 новых тестов: 6 в LazyMediaWrapper.test.tsx (mediaItem image/video/fallback/play-icon/aspectRatio-none/key-reset), 3 в PostCard.test.tsx (mediaItem renders/url passed/no media). 516/516 тестов.
 
 ## Change Log
+- 2026-03-22: Iteration 20 Review Follow-ups (4 items) — `posts.ts`: `as Post[]` → `as unknown as Post[]` (TS2352 fix); `serverPosts.ts`: добавлен `post_media(*)` в оба запроса (`fetchInitialPostsServer` + `fetchPostById`), `PostDetail` получает `mediaItem: coverItem`; `types.ts`: `PostDetail` расширен полем `mediaItem?: PostMedia | null`; `PostDetail.tsx`: использует `mediaItem` (preferred) с fallback на `imageUrl`; `LazyMediaWrapper.tsx`: `useState(src === '')` защита от краша при пустом src. 3 новых теста + 1 обновлён (select assertion). 520/520 тестов.
 - 2026-03-22: Task 6 (Course Correction) — LazyMediaWrapper: новый prop mediaItem (AC 6), thumbnail_url как постер видео (AC 7), aspectRatio='none' для гибких сеток (AC 8); PostCard: mediaItem в PostCardData + render предпочитает mediaItem; types.ts: dbPostToCardData возвращает mediaItem=coverItem; seed_posts.sql: перевод на русский + post_media вместо image_url (AC 9). 9 новых тестов. 516/516 тестов.
 - 2026-03-21: Review Follow-ups Iteration 19 (4 items) — seed_posts.sql откат с словенского на русский; PostCard: удалён useState для liked (Derived State Anti-pattern), likeCount=post.likes, onLikeToggle сигнатура (postId) без liked; LazyMediaWrapper: JSDoc sizes синхронизирован с дефолтом. 3 теста обновлены. 457/457 тестов.
 - 2026-03-21: Task 5 (Seed) — picsum.photos в next.config.ts remotePatterns; 10 фото + 2 видео мок-поста в seed_posts.sql; регрессия PostCard исправлена (useState для liked, onLikeToggle сигнатура (postId, liked), формула likeCount без двойного подсчёта); posts.test.ts актуализирован (is_liked join). 457/457 тестов.

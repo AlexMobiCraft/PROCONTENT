@@ -81,8 +81,9 @@ function LazyMediaWrapperContent({
     : typeProp
   // key по effectiveSrc гарантирует remount при смене медиафайла —
   // оба состояния сбрасываются автоматически без дополнительной логики.
+  // Если src пустой — немедленно показываем fallback (AC: защита от краша Next/Image).
   const [isLoaded, setIsLoaded] = useState(false)
-  const [isError, setIsError] = useState(false)
+  const [isError, setIsError] = useState(src === '')
   // enabled=false когда priority=true: хук не подписывает элемент на observer.
   // ref присваивается только при !priority, чтобы не создавать ложный DOM-attachment.
   const { ref, isInView } = useInView(!priority)

@@ -16,7 +16,7 @@ export async function fetchInitialPostsServer(): Promise<{
     const [postsResult, userResult] = await Promise.all([
       supabase
         .from('posts')
-        .select('*, profiles!author_id(display_name, avatar_url), is_liked:posts_is_liked')
+        .select('*, profiles!author_id(display_name, avatar_url), post_media(*), is_liked:posts_is_liked')
         .eq('is_published', true)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -45,7 +45,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
 
     const { data, error } = await supabase
       .from('posts')
-      .select('*, profiles!author_id(display_name, avatar_url), is_liked:posts_is_liked')
+      .select('*, profiles!author_id(display_name, avatar_url), post_media(*), is_liked:posts_is_liked')
       .eq('id', id)
       .eq('is_published', true)
       .single()
@@ -62,6 +62,12 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       .slice(0, 2)
       .toUpperCase()
 
+    // Вычисляем coverItem как в dbPostToCardData (AC 6)
+    const sortedMedia = post.post_media
+      ? [...post.post_media].sort((a, b) => a.order_index - b.order_index)
+      : undefined
+    const coverItem = sortedMedia?.find((m) => m.is_cover) ?? sortedMedia?.[0] ?? null
+
     return {
       id: post.id,
       title: post.title,
@@ -70,6 +76,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       category: post.category,
       type: post.type,
       imageUrl: post.image_url ?? null,
+      mediaItem: coverItem,
       likes: post.likes_count,
       comments: post.comments_count,
       isLiked: post.is_liked ?? false,
