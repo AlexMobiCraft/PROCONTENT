@@ -100,6 +100,40 @@ describe('dbPostToCardData', () => {
     expect(card.imageUrl).toBe('https://example.com/img.jpg')
   })
 
+  it('использует media[0].url когда image_url = null', () => {
+    const card = dbPostToCardData(
+      makePost({
+        image_url: null,
+        media: [
+          { id: 'm1', post_id: 'post-1', media_type: 'image', url: 'https://cdn.example.com/media.jpg', thumbnail_url: null, order_index: 0, is_cover: true },
+        ],
+      })
+    )
+    expect(card.imageUrl).toBe('https://cdn.example.com/media.jpg')
+  })
+
+  it('image_url имеет приоритет над media[0].url', () => {
+    const card = dbPostToCardData(
+      makePost({
+        image_url: 'https://example.com/legacy.jpg',
+        media: [
+          { id: 'm1', post_id: 'post-1', media_type: 'image', url: 'https://cdn.example.com/media.jpg', thumbnail_url: null, order_index: 0, is_cover: true },
+        ],
+      })
+    )
+    expect(card.imageUrl).toBe('https://example.com/legacy.jpg')
+  })
+
+  it('возвращает undefined когда нет ни image_url ни media', () => {
+    const card = dbPostToCardData(makePost({ image_url: null, media: [] }))
+    expect(card.imageUrl).toBeUndefined()
+  })
+
+  it('возвращает undefined когда image_url = null и media = undefined', () => {
+    const card = dbPostToCardData(makePost({ image_url: null, media: undefined }))
+    expect(card.imageUrl).toBeUndefined()
+  })
+
   it('генерирует инициалы из одного слова', () => {
     const card = dbPostToCardData(
       makePost({ profiles: { display_name: 'Maksim', avatar_url: null } })

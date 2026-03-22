@@ -62,7 +62,8 @@ CREATE POLICY "post_media_admin_all"
   );
 
 -- ── 1.6 Триггер: максимум 10 медиафайлов на пост ─────────────────────────────
--- PostgreSQL не поддерживает subquery в CHECK-ограничениях → триггер BEFORE INSERT
+-- PostgreSQL не поддерживает subquery в CHECK-ограничениях → триггер BEFORE INSERT OR UPDATE OF post_id
+-- UPDATE OF post_id закрывает обход через смену поста без удаления строки
 CREATE OR REPLACE FUNCTION public.check_post_media_limit()
   RETURNS TRIGGER
   LANGUAGE plpgsql
@@ -79,7 +80,7 @@ $$;
 DROP TRIGGER IF EXISTS enforce_post_media_limit ON public.post_media;
 
 CREATE TRIGGER enforce_post_media_limit
-  BEFORE INSERT ON public.post_media
+  BEFORE INSERT OR UPDATE OF post_id ON public.post_media
   FOR EACH ROW EXECUTE FUNCTION public.check_post_media_limit();
 
 -- ── 1.7 Миграция данных: image_url → post_media ──────────────────────────────
@@ -88,7 +89,7 @@ CREATE TRIGGER enforce_post_media_limit
 INSERT INTO public.post_media (post_id, media_type, url, order_index, is_cover)
 SELECT
   id        AS post_id,
-  'image'   AS media_type,
+  CASE WHEN type = 'video' THEN 'video' ELSE 'image' END AS media_type,
   image_url AS url,
   0         AS order_index,
   true      AS is_cover

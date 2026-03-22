@@ -276,8 +276,13 @@ npx tsc --noEmit
 
 - [x] [AI-Review][MEDIUM] Генерация `order_index`: Ограничение `UNIQUE(post_id, order_index)` с `DEFAULT 0`. Будущие реализации (batch inserts) ОБЯЗАНЫ явно передавать инкрементный `order_index`. [supabase/migrations/016_create_post_media.sql]
 - [x] [AI-Review][LOW] Race condition в триггере: Триггер `check_post_media_limit()` `BEFORE INSERT` использует `SELECT COUNT(*)`. Риск race condition при конкурентной вставке. [supabase/migrations/016_create_post_media.sql]
-- [x] [AI-Review][MEDIUM] Падающие тесты в проекте: После выполнения истории `npx vitest run` показывает 6 упавших тестов (например, `tests/unit/app/(app)/profile/loading.test.tsx:25` и `tests/unit/features/profile/components/ProfileScreen.test.test.tsx:41`). Принципы Dev-агента требуют 100% прохождения тестов. [tests/unit/]
+- [x] [AI-Review][MEDIUM] Падающие тесты в проекте: После выполнения истории `npx vitest run` показывает 6 упавших тестов (например, `tests/unit/app/(app)/profile/loading.test.tsx:25` и `tests/unit/features/profile/components/ProfileScreen.test.tsx:41`). Принципы Dev-агента требуют 100% прохождения тестов. [tests/unit/]
 - [x] [AI-Review][LOW] Неучтенные файлы в коммите: Файл `_bmad-output/implementation-artifacts/stories/2-5-global-video-playback-controller.md` был изменен в том же коммите, но не отражен в File List истории. [git commit 5ca40468]
+- [x] [AI-Review][HIGH] Сломана совместимость для существующих видео: В миграции `016_create_post_media.sql` при переносе данных жестко захардкожен `'image' AS media_type`. Все старые посты с типом `video` ошибочно смигрируют в `post_media` как картинки! Исправлено через `CASE WHEN type = 'video' THEN 'video' ELSE 'image' END`. [supabase/migrations/016_create_post_media.sql:88-97]
+- [x] [AI-Review][HIGH] Новые медиа не отображаются в UI: Маппер `dbPostToCardData` в `src/features/feed/types.ts` продолжает использовать только deprecated `image_url` и игнорирует добавленный join `media: PostMedia[]`. Новые посты с файлами только в `post_media` будут рендериться без картинок. Исправлено через обновление `dbPostToCardData`. [src/features/feed/types.ts:88]
+- [x] [AI-Review][MEDIUM] Обход ограничения на 10 файлов: Триггер `enforce_post_media_limit` повешен только на `BEFORE INSERT`. Ограничение можно обойти через `UPDATE post_media SET post_id = ...`. Триггер должен быть `BEFORE INSERT OR UPDATE OF post_id`. [supabase/migrations/016_create_post_media.sql:81-83]
+- [x] [AI-Review][MEDIUM] Отсутствие тестов: Нет unit-тестов, проверяющих новую логику извлечения URL из `post.media[0].url`, если `post.image_url` пуст. Добавлены тесты в `tests/unit/features/feed/`.
+- [x] [AI-Review][LOW] Обработка новых типов в UI: Типы `gallery` и `multi-video` добавлены, но в `PostCard.tsx` рендер бейджика жестко проверяет только `post.type === 'video'`, для галерей будет выводить "Fotografija". Исправлено через обновление `PostCard.tsx`. [src/components/feed/PostCard.tsx:115]
 
 ### Dev Agent Record
 
@@ -305,20 +310,30 @@ Coverage:
 - **Task 4:** `src/types/supabase.ts` обновлён вручную (supabase gen types требует Docker/local): добавлена таблица `post_media` (Row/Insert/Update/Relationships), обновлён `posts.type` → включает `gallery` и `multi-video`. `src/features/feed/types.ts`: добавлен `PostMedia = Tables<'post_media'>`, поле `media?: PostMedia[]` в `PostRow`. Смежные файлы: `PostCardData.type` и `PostDetail.type` расширены, `PostDetail.tsx` сужает рендер LazyMediaWrapper до `photo | video` (gallery/multi-video — Story 2-4/2-5).
 - **Task 5:** `SELECT COUNT(*) FROM post_media WHERE is_cover = true` = 24 = `SELECT COUNT(*) FROM posts WHERE image_url IS NOT NULL` = 24. Миграция данных точная.
 - typecheck: ✅ 0 ошибок. Тесты feed+components: 134/134 ✅.
-- **Review Follow-ups (2026-03-22):**
+- **Review Follow-ups (2026-03-22 — первый раунд):**
   - ✅ Resolved [MEDIUM] Падающие тесты: добавлены моки `TopicsPanel` в `feed/page.test.tsx`, `ProfileRightPanel` в `ProfileScreen.test.tsx`; обновлена assertion `loading.test.tsx` (5 bordered sections вместо 2). 495/495 тестов проходят.
   - ✅ Resolved [MEDIUM] `order_index`: документировано — будущие batch inserts ОБЯЗАНЫ передавать явный инкрементный `order_index` (UNIQUE constraint). Текущий миграционный код корректен.
   - ✅ Resolved [LOW] Race condition в триггере: задокументировано как known limitation. Риск минимален — используется admin-only INSERT (один пользователь). Исправление через advisory locks или serializable transactions — отдельная задача при появлении конкурентных admin-вставок.
   - ✅ Resolved [LOW] Неучтённые файлы: добавлены в File List.
 
+- **Review Follow-ups (2026-03-22 — второй раунд, реальная реализация):**
+  - ✅ [HIGH] Сломана совместимость видео: `016_create_post_media.sql:91` исправлена на `CASE WHEN type = 'video' THEN 'video' ELSE 'image' END`, новая миграция `017_fix_post_media_review_followups.sql` обновляет все существующие видео-посты.
+  - ✅ [HIGH] Новые медиа не отображаются в UI: `src/features/feed/types.ts:88` обновлена на `post.image_url ?? post.media?.[0]?.url ?? undefined`. dbPostToCardData теперь читает из media[0] если image_url пуст.
+  - ✅ [MEDIUM] Обход ограничения на 10 файлов: Триггер в `017_fix_post_media_review_followups.sql` теперь `BEFORE INSERT OR UPDATE OF post_id` — обновление post_id триггируется проверкой.
+  - ✅ [MEDIUM] Отсутствие тестов: Добавлены 4 unit-теста в `tests/unit/features/feed/types.test.ts`: fallback на media[0], приоритет image_url, undefined cases. 499/499 тестов проходят.
+  - ✅ [LOW] Обработка новых типов в UI: `src/components/feed/PostCard.tsx:115` обновлена для `gallery` ("Galerija") и `multi-video` ("Video galerija") с соответствующими иконками.
+  - ✅ DB: Миграция `017_fix_post_media_review_followups.sql` успешно применена в БД (2026-03-22 13:29).
+
 ### File List
 
-- `supabase/migrations/016_create_post_media.sql` (new — таблица post_media, RLS, триггер, миграция данных, расширение posts.type)
+- `supabase/migrations/016_create_post_media.sql` (modify — исправлен CASE WHEN для media_type, триггер BEFORE INSERT → BEFORE INSERT OR UPDATE OF post_id)
+- `supabase/migrations/017_fix_post_media_review_followups.sql` (new — триггер BEFORE INSERT OR UPDATE, UPDATE для видео-постов)
 - `src/types/supabase.ts` (modify — добавлена таблица post_media, posts.type расширен)
-- `src/features/feed/types.ts` (modify — добавлен PostMedia alias, media?: PostMedia[] в PostRow)
-- `src/components/feed/PostCard.tsx` (modify — PostCardData.type расширен до gallery|multi-video)
+- `src/features/feed/types.ts` (modify — добавлен PostMedia alias, imageUrl fallback на media[0].url)
+- `src/components/feed/PostCard.tsx` (modify — badge для gallery/multi-video типов)
 - `src/components/feed/PostDetail.tsx` (modify — сужен рендер LazyMediaWrapper до photo|video)
 - `_bmad-output/implementation-artifacts/stories/2-5-global-video-playback-controller.md` (modify — обновлён в том же коммите, добавлен в File List)
 - `tests/unit/app/feed/page.test.tsx` (modify — добавлен мок TopicsPanel, устранён duplicate element error)
 - `tests/unit/app/(app)/profile/loading.test.tsx` (modify — обновлена assertion с 2 до 5 bordered sections)
 - `tests/unit/features/profile/components/ProfileScreen.test.tsx` (modify — добавлен мок ProfileRightPanel, устранён duplicate element error)
+- `tests/unit/features/feed/types.test.ts` (modify — добавлены 4 теста для media[0].url fallback)

@@ -85,7 +85,7 @@ export function dbPostToCardData(
       initials,
       isAuthor: currentUserId === post.author_id,
     },
-    imageUrl: post.image_url ?? undefined,
+    imageUrl: post.image_url ?? post.media?.[0]?.url ?? undefined,
     type: post.type,
     isLiked: post.is_liked ?? false,
   }
