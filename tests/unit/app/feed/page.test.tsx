@@ -22,6 +22,10 @@ vi.mock('@/features/feed/components/FeedContainer', () => ({
   FeedContainer: () => <div data-testid="feed-container" />,
 }))
 
+vi.mock('@/features/feed/components/TopicsPanel', () => ({
+  TopicsPanel: () => <div data-testid="topics-panel" />,
+}))
+
 // Тестируем FeedPageClient — клиентский wrapper с логикой категорий.
 // FeedPage теперь Server Component (async), все интерактивные тесты — здесь.
 import { FeedPageClient } from '@/features/feed/components/FeedPageClient'

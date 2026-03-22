@@ -272,11 +272,28 @@ npx tsc --noEmit
 - Naming conventions (snake_case): [Source: _bmad-output/planning-artifacts/architecture.md#Naming & Data Format Patterns]
 - NFR5 (≤500ms): [Source: _bmad-output/planning-artifacts/epics.md#NonFunctional Requirements]
 
-## Dev Agent Record
+### Review Follow-ups (AI)
+
+- [x] [AI-Review][MEDIUM] Генерация `order_index`: Ограничение `UNIQUE(post_id, order_index)` с `DEFAULT 0`. Будущие реализации (batch inserts) ОБЯЗАНЫ явно передавать инкрементный `order_index`. [supabase/migrations/016_create_post_media.sql]
+- [x] [AI-Review][LOW] Race condition в триггере: Триггер `check_post_media_limit()` `BEFORE INSERT` использует `SELECT COUNT(*)`. Риск race condition при конкурентной вставке. [supabase/migrations/016_create_post_media.sql]
+- [x] [AI-Review][MEDIUM] Падающие тесты в проекте: После выполнения истории `npx vitest run` показывает 6 упавших тестов (например, `tests/unit/app/(app)/profile/loading.test.tsx:25` и `tests/unit/features/profile/components/ProfileScreen.test.test.tsx:41`). Принципы Dev-агента требуют 100% прохождения тестов. [tests/unit/]
+- [x] [AI-Review][LOW] Неучтенные файлы в коммите: Файл `_bmad-output/implementation-artifacts/stories/2-5-global-video-playback-controller.md` был изменен в том же коммите, но не отражен в File List истории. [git commit 5ca40468]
+
+### Dev Agent Record
 
 ### Agent Model Used
 
 gemini-2.5-pro (SM Bob — create-story workflow)
+
+### Code Review Notes
+
+Status: Approved ✅
+
+Coverage:
+- AC1-AC6, AC8: `supabase/migrations/016_create_post_media.sql` (Таблица, Индексы, RLS, Триггер, Миграция данных).
+- AC7: Переиспользование `public.is_active_subscriber()` в политиках RLS.
+- AC9: `src/types/supabase.ts` обновлен.
+- AC10: `src/features/feed/types.ts` `PostRow` и `PostMedia` обновлены. `src/components/feed/PostCard.tsx` расширена поддержка типов.
 
 ### Debug Log References
 
@@ -288,6 +305,11 @@ gemini-2.5-pro (SM Bob — create-story workflow)
 - **Task 4:** `src/types/supabase.ts` обновлён вручную (supabase gen types требует Docker/local): добавлена таблица `post_media` (Row/Insert/Update/Relationships), обновлён `posts.type` → включает `gallery` и `multi-video`. `src/features/feed/types.ts`: добавлен `PostMedia = Tables<'post_media'>`, поле `media?: PostMedia[]` в `PostRow`. Смежные файлы: `PostCardData.type` и `PostDetail.type` расширены, `PostDetail.tsx` сужает рендер LazyMediaWrapper до `photo | video` (gallery/multi-video — Story 2-4/2-5).
 - **Task 5:** `SELECT COUNT(*) FROM post_media WHERE is_cover = true` = 24 = `SELECT COUNT(*) FROM posts WHERE image_url IS NOT NULL` = 24. Миграция данных точная.
 - typecheck: ✅ 0 ошибок. Тесты feed+components: 134/134 ✅.
+- **Review Follow-ups (2026-03-22):**
+  - ✅ Resolved [MEDIUM] Падающие тесты: добавлены моки `TopicsPanel` в `feed/page.test.tsx`, `ProfileRightPanel` в `ProfileScreen.test.tsx`; обновлена assertion `loading.test.tsx` (5 bordered sections вместо 2). 495/495 тестов проходят.
+  - ✅ Resolved [MEDIUM] `order_index`: документировано — будущие batch inserts ОБЯЗАНЫ передавать явный инкрементный `order_index` (UNIQUE constraint). Текущий миграционный код корректен.
+  - ✅ Resolved [LOW] Race condition в триггере: задокументировано как known limitation. Риск минимален — используется admin-only INSERT (один пользователь). Исправление через advisory locks или serializable transactions — отдельная задача при появлении конкурентных admin-вставок.
+  - ✅ Resolved [LOW] Неучтённые файлы: добавлены в File List.
 
 ### File List
 
@@ -296,3 +318,7 @@ gemini-2.5-pro (SM Bob — create-story workflow)
 - `src/features/feed/types.ts` (modify — добавлен PostMedia alias, media?: PostMedia[] в PostRow)
 - `src/components/feed/PostCard.tsx` (modify — PostCardData.type расширен до gallery|multi-video)
 - `src/components/feed/PostDetail.tsx` (modify — сужен рендер LazyMediaWrapper до photo|video)
+- `_bmad-output/implementation-artifacts/stories/2-5-global-video-playback-controller.md` (modify — обновлён в том же коммите, добавлен в File List)
+- `tests/unit/app/feed/page.test.tsx` (modify — добавлен мок TopicsPanel, устранён duplicate element error)
+- `tests/unit/app/(app)/profile/loading.test.tsx` (modify — обновлена assertion с 2 до 5 bordered sections)
+- `tests/unit/features/profile/components/ProfileScreen.test.tsx` (modify — добавлен мок ProfileRightPanel, устранён duplicate element error)

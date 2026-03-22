@@ -8,6 +8,11 @@ vi.mock('@/features/profile/components/SubscriptionCard', () => ({
   ),
 }))
 
+// ProfileRightPanel рендерится дважды (mobile + desktop) — мокаем для изоляции основной колонки
+vi.mock('@/features/profile/components/ProfileRightPanel', () => ({
+  ProfileRightPanel: () => <div data-testid="profile-right-panel" />,
+}))
+
 import { ProfileScreen } from '@/features/profile/components/ProfileScreen'
 
 const defaultProps = {

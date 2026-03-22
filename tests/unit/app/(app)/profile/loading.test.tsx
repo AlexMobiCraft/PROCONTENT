@@ -19,9 +19,9 @@ describe('ProfileLoading', () => {
     expect(pulseElements.length).toBeGreaterThan(0)
   })
 
-  it('содержит блок аккаунта и блок подписки (2 bordered section)', () => {
+  it('содержит 5 bordered section (2 основных блока + 3 achievement-карточки)', () => {
     const { container } = render(<ProfileLoading />)
     const borderedSections = container.querySelectorAll('.border.border-border')
-    expect(borderedSections.length).toBe(2)
+    expect(borderedSections.length).toBe(5)
   })
 })
