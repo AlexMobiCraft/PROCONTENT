@@ -1,6 +1,6 @@
 # Story 2.6: Детальный просмотр мультиформатного поста
 
-Status: review
+Status: todo
 
 ## Story
 

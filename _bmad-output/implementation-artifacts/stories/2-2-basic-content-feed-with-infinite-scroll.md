@@ -1,6 +1,6 @@
 # Story 2.2: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
 
-Status: review
+Status: done
 
 ## Story
 
