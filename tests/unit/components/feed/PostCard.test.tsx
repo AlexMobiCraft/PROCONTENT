@@ -3,8 +3,18 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/components/media/LazyMediaWrapper', () => ({
-  LazyMediaWrapper: ({ priority }: { priority?: boolean }) => (
-    <div data-testid="lazy-media" data-priority={String(priority ?? false)} />
+  LazyMediaWrapper: ({
+    priority,
+    mediaItem,
+  }: {
+    priority?: boolean
+    mediaItem?: { url: string }
+  }) => (
+    <div
+      data-testid="lazy-media"
+      data-priority={String(priority ?? false)}
+      data-media-url={mediaItem?.url ?? ''}
+    />
   ),
 }))
 
@@ -130,6 +140,36 @@ describe('PostCard', () => {
 
     expect(onOptionsClick).toHaveBeenCalledOnce()
     expect(onOptionsClick).toHaveBeenCalledWith('post-42')
+  })
+
+  describe('mediaItem prop (Task 6.4 AC 6)', () => {
+    const makeMediaItem = () => ({
+      id: 'media-1',
+      post_id: 'post-1',
+      media_type: 'image' as const,
+      url: 'https://example.com/photo.jpg',
+      thumbnail_url: null,
+      order_index: 0,
+      is_cover: true,
+    })
+
+    it('рендерит LazyMediaWrapper когда передан mediaItem (без imageUrl)', () => {
+      render(<PostCard post={makeCardData({ imageUrl: undefined, mediaItem: makeMediaItem() })} />)
+      expect(screen.getByTestId('lazy-media')).toBeInTheDocument()
+    })
+
+    it('передаёт mediaItem.url в LazyMediaWrapper', () => {
+      render(<PostCard post={makeCardData({ mediaItem: makeMediaItem() })} />)
+      expect(screen.getByTestId('lazy-media')).toHaveAttribute(
+        'data-media-url',
+        'https://example.com/photo.jpg'
+      )
+    })
+
+    it('не рендерит LazyMediaWrapper если нет ни imageUrl ни mediaItem', () => {
+      render(<PostCard post={makeCardData({ imageUrl: undefined, mediaItem: undefined })} />)
+      expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
+    })
   })
 })
 

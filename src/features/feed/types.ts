@@ -106,6 +106,8 @@ export function dbPostToCardData(
       isAuthor: currentUserId === post.author_id,
     },
     imageUrl,
+    // AC 6: передаём полный объект post_media для LazyMediaWrapper
+    mediaItem: coverItem,
     type: derivePostType(sortedMedia),
     isLiked: post.is_liked ?? false,
   }

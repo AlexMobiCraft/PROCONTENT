@@ -6,17 +6,19 @@ import { _resetSharedObserver } from '@/hooks/useInView'
 vi.mock('next/image', () => ({
   default: ({
     alt,
+    src,
     className,
     onLoad,
     onError,
   }: {
     alt?: string
+    src?: string
     className?: string
     onLoad?: () => void
     onError?: () => void
   }) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img alt={alt ?? ''} className={className} onLoad={onLoad} onError={onError} />
+    <img alt={alt ?? ''} src={src} className={className} onLoad={onLoad} onError={onError} />
   ),
 }))
 
@@ -360,6 +362,97 @@ describe('LazyMediaWrapper', () => {
 
       expect(unobserveMock).not.toHaveBeenCalled()
       expect(disconnectMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('mediaItem prop (AC 6, 7, 8)', () => {
+    const makeMediaItem = (overrides?: Partial<{
+      media_type: 'image' | 'video'
+      url: string
+      thumbnail_url: string | null
+    }>) => ({
+      id: 'media-1',
+      post_id: 'post-1',
+      media_type: 'image' as const,
+      url: 'https://example.com/photo.jpg',
+      thumbnail_url: null,
+      order_index: 0,
+      is_cover: true,
+      ...overrides,
+    })
+
+    it('отображает изображение по mediaItem.url при media_type="image" (AC 6)', () => {
+      const { getByRole } = render(
+        <LazyMediaWrapper mediaItem={makeMediaItem()} alt="Фото" priority />
+      )
+      const img = getByRole('img', { name: 'Фото' })
+      expect(img).toHaveAttribute('src', 'https://example.com/photo.jpg')
+    })
+
+    it('использует thumbnail_url как постер для видео (AC 7)', () => {
+      const { getByRole } = render(
+        <LazyMediaWrapper
+          mediaItem={makeMediaItem({
+            media_type: 'video',
+            url: 'https://example.com/video.mp4',
+            thumbnail_url: 'https://example.com/thumb.jpg',
+          })}
+          alt="Видео"
+          priority
+        />
+      )
+      const img = getByRole('img', { name: 'Видео' })
+      expect(img).toHaveAttribute('src', 'https://example.com/thumb.jpg')
+    })
+
+    it('использует url как фоллбек постера видео при thumbnail_url=null (AC 7)', () => {
+      const { getByRole } = render(
+        <LazyMediaWrapper
+          mediaItem={makeMediaItem({
+            media_type: 'video',
+            url: 'https://example.com/video.mp4',
+            thumbnail_url: null,
+          })}
+          alt="Видео"
+          priority
+        />
+      )
+      const img = getByRole('img', { name: 'Видео' })
+      expect(img).toHaveAttribute('src', 'https://example.com/video.mp4')
+    })
+
+    it('показывает play-иконку для видео mediaItem после загрузки (AC 7)', () => {
+      const { container, getByRole } = render(
+        <LazyMediaWrapper
+          mediaItem={makeMediaItem({ media_type: 'video', thumbnail_url: 'https://example.com/t.jpg' })}
+          alt="Видео"
+          priority
+        />
+      )
+      fireEvent.load(getByRole('img', { name: 'Видео' }))
+      const playIcon = container.querySelector('svg path[d="M8 5v14l11-7z"]')
+      expect(playIcon).not.toBeNull()
+    })
+
+    it('не применяет aspect-ratio класс при aspectRatio="none" (гибкая сетка AC 8)', () => {
+      const { container } = render(
+        <LazyMediaWrapper src="https://example.com/img.jpg" alt="Test" aspectRatio="none" />
+      )
+      const wrapper = container.firstChild as HTMLElement
+      expect(wrapper.className).not.toMatch(/\baspect-/)
+    })
+
+    it('mediaItem сбрасывает состояние при смене url (key по effectiveSrc)', () => {
+      const item1 = makeMediaItem({ url: 'https://example.com/photo1.jpg' })
+      const item2 = makeMediaItem({ url: 'https://example.com/photo2.jpg' })
+      const { container, rerender } = render(
+        <LazyMediaWrapper mediaItem={item1} alt="Test" priority />
+      )
+      fireEvent.load(container.querySelector('img')!)
+      expect((container.firstChild as HTMLElement).className).not.toContain('animate-pulse')
+
+      rerender(<LazyMediaWrapper mediaItem={item2} alt="Test" priority />)
+      expect((container.firstChild as HTMLElement).className).toContain('animate-pulse')
     })
   })
 

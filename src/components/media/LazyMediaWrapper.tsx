@@ -5,10 +5,28 @@ import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { useInView } from '@/hooks/useInView'
 
+/** Минимальный интерфейс медиафайла — совместим с таблицей post_media из БД */
+export interface MediaItem {
+  url: string
+  media_type: 'image' | 'video'
+  thumbnail_url?: string | null
+}
+
 interface LazyMediaWrapperProps {
-  src: string
+  /** URL медиафайла. Не обязателен если передан mediaItem. */
+  src?: string
   alt: string
-  aspectRatio?: '16/9' | '4/5' | '1/1'
+  /**
+   * Объект post_media из БД (AC 6).
+   * Если передан — src и type выводятся из него.
+   * Для видео используется thumbnail_url как постер (AC 7).
+   */
+  mediaItem?: MediaItem
+  /**
+   * Пропорции контейнера. 'none' — не форсировать (AC 8, для GalleryGrid и гибких сеток).
+   * По умолчанию — '16/9'.
+   */
+  aspectRatio?: '16/9' | '4/5' | '1/1' | 'none'
   className?: string
   priority?: boolean
   type?: 'photo' | 'video'
@@ -19,25 +37,49 @@ interface LazyMediaWrapperProps {
 }
 
 /**
- * key={props.src} форсирует remount LazyMediaWrapperContent при смене src,
- * сбрасывая все hooks-состояния включая isInView и isLoaded/isError.
- * Это устраняет необходимость в "derived state from props" — достаточно
- * простых boolean состояний без привязки к значению src.
+ * Вычисляет отображаемый src из mediaItem или src prop.
+ * Для видео используется thumbnail_url как постер (AC 7).
+ */
+function resolveMediaSrc(props: LazyMediaWrapperProps): string {
+  if (props.mediaItem) {
+    return props.mediaItem.media_type === 'video'
+      ? (props.mediaItem.thumbnail_url ?? props.mediaItem.url)
+      : props.mediaItem.url
+  }
+  return props.src ?? ''
+}
+
+/**
+ * key основан на effectiveSrc — гарантирует remount LazyMediaWrapperContent
+ * при смене медиафайла (сброс isInView, isLoaded, isError).
  */
 export function LazyMediaWrapper(props: LazyMediaWrapperProps) {
-  return <LazyMediaWrapperContent key={props.src} {...props} />
+  const effectiveSrc = resolveMediaSrc(props)
+  return <LazyMediaWrapperContent key={effectiveSrc} {...props} />
 }
 
 function LazyMediaWrapperContent({
-  src,
+  src: srcProp,
   alt,
+  mediaItem,
   aspectRatio = '16/9',
   className,
   priority = false,
-  type = 'photo',
+  type: typeProp = 'photo',
   sizes = '(max-width: 768px) 100vw, 640px',
 }: LazyMediaWrapperProps) {
-  // key={props.src} на обёртке гарантирует remount при смене src —
+  // Если передан mediaItem — выводим src и type из него (AC 6, 7)
+  const src = mediaItem
+    ? mediaItem.media_type === 'video'
+      ? (mediaItem.thumbnail_url ?? mediaItem.url)
+      : mediaItem.url
+    : (srcProp ?? '')
+  const type = mediaItem
+    ? mediaItem.media_type === 'video'
+      ? 'video'
+      : 'photo'
+    : typeProp
+  // key по effectiveSrc гарантирует remount при смене медиафайла —
   // оба состояния сбрасываются автоматически без дополнительной логики.
   const [isLoaded, setIsLoaded] = useState(false)
   const [isError, setIsError] = useState(false)
@@ -46,11 +88,13 @@ function LazyMediaWrapperContent({
   const { ref, isInView } = useInView(!priority)
   const showImage = priority || isInView
 
-  const ratioClass = {
-    '16/9': 'aspect-video',
-    '4/5': 'aspect-[4/5]',
-    '1/1': 'aspect-square',
-  }[aspectRatio]
+  // 'none' или undefined — не применяем aspect класс (AC 8: гибкая сетка)
+  const ratioClass =
+    aspectRatio && aspectRatio !== 'none'
+      ? ({ '16/9': 'aspect-video', '4/5': 'aspect-[4/5]', '1/1': 'aspect-square' } as const)[
+          aspectRatio
+        ]
+      : undefined
 
   return (
     <div

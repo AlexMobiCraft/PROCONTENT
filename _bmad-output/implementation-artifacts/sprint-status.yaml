@@ -69,7 +69,7 @@ development_status:
 
   # Ранее были 2-1, 2-2 → переименованы в 2-2, 2-3 (файлы переименованы)
   2-2-basic-content-feed-with-infinite-scroll: done
-  2-3-optimized-media-display-in-cards-lazymediawrapper: todo
+  2-3-optimized-media-display-in-cards-lazymediawrapper: review
 
   # Story-файл создан 2026-03-22 SM Bob
   2-4-gallery-grid-adaptive-layout-component: ready-for-dev

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
+import { LazyMediaWrapper, type MediaItem } from '../media/LazyMediaWrapper'
 
 export interface PostCardData {
   id: string
@@ -19,7 +19,13 @@ export interface PostCardData {
     initials: string
     isAuthor?: boolean
   }
+  /** Устаревший URL медиафайла. Предпочтительно использовать mediaItem (AC 6). */
   imageUrl?: string
+  /**
+   * Объект post_media из БД (AC 6).
+   * Если передан — используется вместо imageUrl для LazyMediaWrapper.
+   */
+  mediaItem?: MediaItem
   type: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
 }
 
@@ -85,13 +91,14 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
       </header>
 
       {/* Media Content — кликабельна, tabIndex=-1 чтобы не дублировать tab-stop с заголовком */}
-      {post.imageUrl && (
+      {(post.mediaItem || post.imageUrl) && (
         <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true">
           <LazyMediaWrapper
-            src={post.imageUrl}
+            {...(post.mediaItem
+              ? { mediaItem: post.mediaItem }
+              : { src: post.imageUrl!, type: post.type === 'video' ? 'video' : 'photo' })}
             alt={post.title}
             aspectRatio={post.type === 'video' ? '16/9' : '4/5'}
-            type={post.type === 'video' ? 'video' : 'photo'}
             priority={priority}
           />
         </Link>

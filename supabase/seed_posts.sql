@@ -1,50 +1,124 @@
--- Seed: testne objave za razvoj
--- Story: 2.1 Osnovni vir vsebine z neskončnim pomikanjem
--- Opomba: zaženi samo v dev/staging okolju
--- Zahteva: obstoječi uporabnik v auth.users — zamenjaj UUID z realnim
+-- Seed: тестовые посты для разработки
+-- Story: 2.3 Оптимизированное отображение медиа в карточках (LazyMediaWrapper)
+-- Примечание: запускать только в dev/staging окружении
+-- Требование: существующий пользователь в auth.users
 
--- Uporablja se blok DO za dinamično pridobivanje id prvega uporabnika
 DO $$
 DECLARE
   v_author_id UUID;
+  v_post_id UUID;
 BEGIN
-  -- Vzemimo prvega uporabnika iz auth.users
+  -- Берём первого пользователя из auth.users
   SELECT id INTO v_author_id FROM auth.users LIMIT 1;
 
   IF v_author_id IS NULL THEN
-    RAISE NOTICE 'V auth.users ni uporabnikov — seed preskočen';
+    RAISE NOTICE 'В auth.users нет пользователей — seed пропущен';
     RETURN;
   END IF;
 
+  -- Текстовые посты (без медиа)
   INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at) VALUES
-  (v_author_id, 'Kako sem zgradila strategijo vsebine za leto vnaprej', 'Razčlenjujem svoj proces načrtovanja: od analize občinstva do konkretnih rubrik in formatov.', 'insight', 'text', 24, 5, now() - interval '1 day'),
-  (v_author_id, 'Analiza: zakaj Reels ne delujejo več kot včasih', 'Algoritem se je spremenil. To sem opazila na svojem profilu in tako sem prilagodila pristop.', 'razobory', 'text', 41, 12, now() - interval '2 days'),
-  (v_author_id, 'Snemanje brez studia: moja domača nastavitev za lifestyle fotografije', 'Prikazujem opremo, ki jo uporabljam doma, in kako doseči čisto svetlobo.', 'syomka', 'photo', 67, 8, now() - interval '3 days'),
-  (v_author_id, 'Zakaj sem nehala slediti trendom v Reels', 'Tri meseci eksperimentov z vertikalnim videom — kaj deluje in kaj ne.', 'reels', 'video', 33, 6, now() - interval '4 days'),
-  (v_author_id, 'Sodelovanje z blagovnimi znamkami: kako ne izgubiti sebe', 'Moj kontrolni seznam za ocenjevanje partnerskih ponudb in pogajanja o pogojih.', 'brendy', 'text', 19, 3, now() - interval '5 days'),
-  (v_author_id, 'Tema meseca: izgorelost ustvarjalca vsebine', 'Kaj mi je pomagalo vrniti se na delo po dveh mesecih molka.', 'tema', 'text', 88, 21, now() - interval '6 days'),
-  (v_author_id, 'Vpogled: občinstvo ne želi popolnosti', 'Zakaj moje "nepopolne" objave dosegajo večji doseg kot tiste skrbno urejene.', 'insight', 'text', 55, 14, now() - interval '7 days'),
-  (v_author_id, 'Analiza profila: kaj bi naredila drugače', 'Analiziram enega najboljših profilov v niši z vidika strategije in vsebine.', 'razobory', 'text', 29, 7, now() - interval '8 days'),
-  (v_author_id, 'Lightroom prednastavitve za toplo jesensko estetiko', 'Delim prednastavitve, ki jih uporabljam za enoten slog v viru.', 'syomka', 'photo', 74, 18, now() - interval '9 days'),
-  (v_author_id, 'Struktura mojega načrta vsebine za mesec', 'Predloga in proces načrtovanja: kako vzdržujem ravnovesje med osebnim in prodajnim.', 'insight', 'text', 62, 11, now() - interval '10 days'),
-  (v_author_id, 'Reels v 30 minutah: moja hitra nastavitev', 'Kako snemati videoposnetke brez odvečne porabe časa ob ohranjanju kakovosti.', 'reels', 'video', 47, 9, now() - interval '11 days'),
-  (v_author_id, 'Kako izbiram blagovne znamke za dolgoročno sodelovanje', 'Merila, ki mi pomagajo, da se ne zmotim pri izbiri oglaševalca.', 'brendy', 'text', 38, 4, now() - interval '12 days'),
-  (v_author_id, 'Ustvarjalna kriza: običajno in kako z njo živeti', 'Iskren pogovor o obdobjih, ko si sploh ne želiš snemati ali pisati.', 'tema', 'text', 91, 25, now() - interval '13 days');
+  (v_author_id, 'Как я выстроила контент-стратегию на год вперёд', 'Разбираю свой процесс планирования: от анализа аудитории до конкретных рубрик и форматов.', 'insight', 'text', 24, 5, now() - interval '1 day'),
+  (v_author_id, 'Анализ: почему Reels перестали работать как раньше', 'Алгоритм изменился. Я заметила это на своём профиле и вот как адаптировала подход.', 'razobory', 'text', 41, 12, now() - interval '2 days'),
+  (v_author_id, 'Съёмка без студии: моя домашняя установка для lifestyle-фото', 'Показываю оборудование, которое использую дома, и как добиться чистого света.', 'syomka', 'text', 67, 8, now() - interval '3 days'),
+  (v_author_id, 'Почему я перестала следить за трендами в Reels', 'Три месяца экспериментов с вертикальным видео — что работает, а что нет.', 'reels', 'text', 33, 6, now() - interval '4 days'),
+  (v_author_id, 'Коллаборации с брендами: как не потерять себя', 'Мой чек-лист для оценки партнёрских предложений и переговоров об условиях.', 'brendy', 'text', 19, 3, now() - interval '5 days'),
+  (v_author_id, 'Тема месяца: выгорание контент-мейкера', 'Что помогло мне вернуться к работе после двух месяцев молчания.', 'tema', 'text', 88, 21, now() - interval '6 days'),
+  (v_author_id, 'Инсайт: аудитории не нужна идеальность', 'Почему мои "несовершенные" посты собирают больший охват, чем тщательно отполированные.', 'insight', 'text', 55, 14, now() - interval '7 days'),
+  (v_author_id, 'Анализ профиля: что бы я сделала иначе', 'Разбираю один из лучших профилей в нише с точки зрения стратегии и контента.', 'razobory', 'text', 29, 7, now() - interval '8 days'),
+  (v_author_id, 'Lightroom-пресеты для тёплой осенней эстетики', 'Делюсь пресетами, которые использую для единого стиля в ленте.', 'syomka', 'text', 74, 18, now() - interval '9 days'),
+  (v_author_id, 'Структура моего контент-плана на месяц', 'Шаблон и процесс планирования: как поддерживаю баланс между личным и продающим.', 'insight', 'text', 62, 11, now() - interval '10 days'),
+  (v_author_id, 'Reels за 30 минут: моя быстрая установка', 'Как снимать видео без лишних трат времени, сохраняя качество.', 'reels', 'text', 47, 9, now() - interval '11 days'),
+  (v_author_id, 'Как выбираю бренды для долгосрочного сотрудничества', 'Критерии, которые помогают не ошибиться при выборе рекламодателя.', 'brendy', 'text', 38, 4, now() - interval '12 days'),
+  (v_author_id, 'Творческий кризис: норма и как с ним жить', 'Честный разговор о периодах, когда вообще не хочется снимать или писать.', 'tema', 'text', 91, 25, now() - interval '13 days');
 
-  -- Story 2.2: medijske objave za vizualno testiranje LazyMediaWrapper (AC 5)
-  -- Slike: picsum.photos (deterministična semena, portret 4/5 in pokrajina 16/9)
-  INSERT INTO public.posts (author_id, title, excerpt, category, type, image_url, likes_count, comments_count, created_at) VALUES
-  (v_author_id, 'Jutranja rutina: kako se začne moj delovni dan', 'Prikazujem, kako se pripravim na snemanje in načrtujem vsebino zjutraj.', 'syomka', 'photo', 'https://picsum.photos/seed/morning1/600/750', 34, 7, now() - interval '14 days'),
-  (v_author_id, 'V ozadju: moja studijska nastavitev 2024', 'Vsa luč, ozadja in oprema, ki jo uporabljam za snemanje vsebine.', 'syomka', 'photo', 'https://picsum.photos/seed/studio2/600/750', 56, 13, now() - interval '15 days'),
-  (v_author_id, 'Flatlay za produktne blagovne znamke: moj proces', 'Kako gradim kompozicijo, izbiram rekvizite in dosegam čistost posnetka.', 'brendy', 'photo', 'https://picsum.photos/seed/flatlay3/800/600', 48, 9, now() - interval '16 days'),
-  (v_author_id, 'Portretno fotografiranje brez retuširanja: moj pogled', 'Zakaj sem opustila težko postprodukcijo in kaj je to prineslo.', 'syomka', 'photo', 'https://picsum.photos/seed/portrait4/600/750', 72, 16, now() - interval '17 days'),
-  (v_author_id, 'Jesenski vir: kako ustvarjam enoten slog', 'Barvna korekcija, izbira lokacij in rekviziti za toplo jesensko estetiko.', 'syomka', 'photo', 'https://picsum.photos/seed/autumn5/600/750', 63, 11, now() - interval '18 days'),
-  (v_author_id, 'Delovno mesto ustvarjalca vsebine: minimalizem in funkcionalnost', 'Kaj je na moji mizi in zakaj sem se znebila odvečnega.', 'insight', 'photo', 'https://picsum.photos/seed/workspace6/800/600', 41, 8, now() - interval '19 days'),
-  (v_author_id, 'Naravna svetloba: kdaj in kako jo uporabiti', 'Razčlenjujem tri vrste osvetlitve za lifestyle fotografije in videe.', 'syomka', 'photo', 'https://picsum.photos/seed/light7/600/750', 29, 5, now() - interval '20 days'),
-  (v_author_id, 'Moodboard za novo sezono vsebine', 'Kako zbiram navdih in ga prenašam v konkretne ideje za snemanja.', 'insight', 'photo', 'https://picsum.photos/seed/moodboard8/800/600', 85, 19, now() - interval '21 days'),
-  (v_author_id, 'Podrobnosti odločajo o vsem: makro snemanje v vsebini', 'Nakupi, flatlayi, fotografije hrane — kako bližnji načrt spremeni dojemanje objave.', 'syomka', 'photo', 'https://picsum.photos/seed/macro9/600/750', 37, 6, now() - interval '22 days'),
-  (v_author_id, 'Sodelovanje z drugim ustvarjalcem vsebine: fotošuting', 'Kako sva organizirala skupno snemanje in si razdelila vsebino.', 'brendy', 'photo', 'https://picsum.photos/seed/collab10/600/750', 54, 12, now() - interval '23 days'),
-  -- Video objave (poster slika se uporablja kot predogled, type = video)
-  (v_author_id, 'Reels v enem poskusu: moja metoda hitrega snemanja', 'Snemam vertikalni video brez stresa — pokazala bom celoten proces od ideje do montaže.', 'reels', 'video', 'https://picsum.photos/seed/reel1/800/450', 97, 28, now() - interval '24 days'),
-  (v_author_id, 'Vlog: dan snemanja za blagovno znamko oblačil', 'Prikazujem celoten delovni dan — od navodil do končnega izvoza.', 'brendy', 'video', 'https://picsum.photos/seed/vlog2/800/450', 118, 34, now() - interval '25 days');
+  -- Story 2.3: медиапосты для визуального тестирования LazyMediaWrapper (AC 5, AC 9)
+  -- Используем post_media вместо устаревшего image_url в posts
+  -- Изображения: picsum.photos (детерминированные сиды, портрет 4/5 и пейзаж 16/9)
+
+  -- Фото-пост 1
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Утренняя рутина: как начинается мой рабочий день', 'Показываю, как готовлюсь к съёмке и планирую контент по утрам.', 'syomka', 'photo', 34, 7, now() - interval '14 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/morning1/600/750', NULL, 0, true);
+
+  -- Фото-пост 2
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'За кадром: моя студийная установка 2024', 'Весь свет, фоны и оборудование, которое я использую для съёмки контента.', 'syomka', 'photo', 56, 13, now() - interval '15 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/studio2/600/750', NULL, 0, true);
+
+  -- Фото-пост 3
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Флэтлей для продуктовых брендов: мой процесс', 'Как строю композицию, выбираю реквизит и добиваюсь чистоты кадра.', 'brendy', 'photo', 48, 9, now() - interval '16 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/flatlay3/800/600', NULL, 0, true);
+
+  -- Фото-пост 4
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Портретная съёмка без ретуши: мой взгляд', 'Почему я отказалась от тяжёлой постобработки и что это дало.', 'syomka', 'photo', 72, 16, now() - interval '17 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/portrait4/600/750', NULL, 0, true);
+
+  -- Фото-пост 5
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Осенняя лента: как создаю единый стиль', 'Цветокоррекция, выбор локаций и реквизита для тёплой осенней эстетики.', 'syomka', 'photo', 63, 11, now() - interval '18 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/autumn5/600/750', NULL, 0, true);
+
+  -- Фото-пост 6
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Рабочее место контент-мейкера: минимализм и функциональность', 'Что лежит на моём столе и почему я избавилась от лишнего.', 'insight', 'photo', 41, 8, now() - interval '19 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/workspace6/800/600', NULL, 0, true);
+
+  -- Фото-пост 7
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Естественный свет: когда и как использовать', 'Разбираю три вида освещения для lifestyle-фото и видео.', 'syomka', 'photo', 29, 5, now() - interval '20 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/light7/600/750', NULL, 0, true);
+
+  -- Фото-пост 8
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Мудборд для нового сезона контента', 'Как собираю вдохновение и переношу его в конкретные идеи для съёмок.', 'insight', 'photo', 85, 19, now() - interval '21 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/moodboard8/800/600', NULL, 0, true);
+
+  -- Фото-пост 9
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Детали решают всё: макросъёмка в контенте', 'Покупки, флэтлеи, фуд-фото — как крупный план меняет восприятие публикации.', 'syomka', 'photo', 37, 6, now() - interval '22 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/macro9/600/750', NULL, 0, true);
+
+  -- Фото-пост 10
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Коллаборация с другим контент-мейкером: фотосессия', 'Как организовали совместную съёмку и разделили контент.', 'brendy', 'photo', 54, 12, now() - interval '23 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'image', 'https://picsum.photos/seed/collab10/600/750', NULL, 0, true);
+
+  -- Видео-пост 1 (постер используется как превью через thumbnail_url, AC 7)
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Reels с первого дубля: мой метод быстрой съёмки', 'Снимаю вертикальное видео без стресса — покажу весь процесс от идеи до монтажа.', 'reels', 'video', 97, 28, now() - interval '24 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'video', 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', 'https://picsum.photos/seed/reel1/800/450', 0, true);
+
+  -- Видео-пост 2 (постер используется как превью через thumbnail_url, AC 7)
+  INSERT INTO public.posts (author_id, title, excerpt, category, type, likes_count, comments_count, created_at)
+  VALUES (v_author_id, 'Влог: день съёмки для бренда одежды', 'Показываю весь рабочий день — от брифа до финального экспорта.', 'brendy', 'video', 118, 34, now() - interval '25 days')
+  RETURNING id INTO v_post_id;
+  INSERT INTO public.post_media (post_id, media_type, url, thumbnail_url, order_index, is_cover)
+  VALUES (v_post_id, 'video', 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', 'https://picsum.photos/seed/vlog2/800/450', 0, true);
+
+  RAISE NOTICE 'Seed завершён: текстовые посты и 12 медиапостов добавлено (10 фото + 2 видео с post_media)';
 END $$;

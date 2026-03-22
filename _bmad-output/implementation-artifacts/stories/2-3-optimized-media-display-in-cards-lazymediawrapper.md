@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: High
-- [ ] Статус: todo
+- [ ] Статус: review
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -15,10 +15,10 @@
 - [x] **AC 3: Оптимизация Next.js.** Все изображения проходят через Image Optimization API (WebP/AVIF, resizing).
 - [x] **AC 4: Обработка видео.** Для видео-постов отображается превью-изображение, загружаемое лениво.
 - [x] **AC 5: Валидация отображения ленты (Seed Data).** Возможность визуально прокрутить ленту с подготовленными тестовыми медиа-данными (10 изображений и 2 видеокомпонента), добавленными через сценарий сидирования. Исходные медиафайлы/URLs предоставляет Пользователь.
-- [ ] **AC 6 (Course Correction): Нормализованные данные.** `LazyMediaWrapper` принимает объекты типа `post_media` (вместо старого `imageUrl` из `posts`), корректно обрабатывая `media_type`, `url` и `thumbnail_url`.
-- [ ] **AC 7 (Course Correction): Видео превью.** Для видео (при `media_type === 'video'`) `LazyMediaWrapper` использует `thumbnail_url` в качестве обложки до момента активации/воспроизведения.
-- [ ] **AC 8 (Course Correction): Гибкий Aspect Ratio.** `LazyMediaWrapper` не форсирует жесткие пропорции (`aspect-ratio`), если используется внутри `GalleryGrid` (или в других гибких сетках), делегируя управление размерами родительскому контейнеру.
-- [ ] **AC 9 (Course Correction): Обновление сидов.** Мок-данные в `supabase/seed_posts.sql` генерируют корректные связи `post_media` для тестирования компонента, старые колонки с медиа из таблицы `posts` не используются.
+- [x] **AC 6 (Course Correction): Нормализованные данные.** `LazyMediaWrapper` принимает объекты типа `post_media` (вместо старого `imageUrl` из `posts`), корректно обрабатывая `media_type`, `url` и `thumbnail_url`.
+- [x] **AC 7 (Course Correction): Видео превью.** Для видео (при `media_type === 'video'`) `LazyMediaWrapper` использует `thumbnail_url` в качестве обложки до момента активации/воспроизведения.
+- [x] **AC 8 (Course Correction): Гибкий Aspect Ratio.** `LazyMediaWrapper` не форсирует жесткие пропорции (`aspect-ratio`), если используется внутри `GalleryGrid` (или в других гибких сетках), делегируя управление размерами родительскому контейнеру.
+- [x] **AC 9 (Course Correction): Обновление сидов.** Мок-данные в `supabase/seed_posts.sql` генерируют корректные связи `post_media` для тестирования компонента, старые колонки с медиа из таблицы `posts` не используются.
 
 ## Tasks
 - [x] **Task 1: Исследование и настройка**
@@ -36,12 +36,12 @@
     - [x] Запросить/получить файлы или ссылки на 10 картинок и 2 видео от Пользователя.
     - [x] Добавить или обновить сценарий базы данных (например, `supabase/seed.sql`) для генерации соответствующих тестовых постов.
     - [x] Визуально протестировать ленту на готовой конфигурации (LCP, нативные эффекты lazy-loading) и отметить как пройденное.
-- [ ] **Task 6: Course Correction (Tech Debt Refactoring)**
-    - [ ] Обновить интерфейс пропсов `LazyMediaWrapper`, чтобы принимать данные формата `post_media`.
-    - [ ] Настроить рендер превью для видео на основе `thumbnail_url` вместо старой логики.
-    - [ ] Убрать или сделать опциональным жесткий `aspect-ratio` внутри `LazyMediaWrapper`, чтобы обеспечить совместимость с `GalleryGrid`.
-    - [ ] Адаптировать `PostCard` для передачи новых данных из структуры `posts` (с вложенным `post_media`) в `LazyMediaWrapper`.
-    - [ ] Обновить скрипт генерации сидов `supabase/seed_posts.sql` для создания связанных записей `post_media` вместо устаревших полей в `posts`.
+- [x] **Task 6: Course Correction (Tech Debt Refactoring)**
+    - [x] Обновить интерфейс пропсов `LazyMediaWrapper`, чтобы принимать данные формата `post_media`.
+    - [x] Настроить рендер превью для видео на основе `thumbnail_url` вместо старой логики.
+    - [x] Убрать или сделать опциональным жесткий `aspect-ratio` внутри `LazyMediaWrapper`, чтобы обеспечить совместимость с `GalleryGrid`.
+    - [x] Адаптировать `PostCard` для передачи новых данных из структуры `posts` (с вложенным `post_media`) в `LazyMediaWrapper`.
+    - [x] Обновить скрипт генерации сидов `supabase/seed_posts.sql` для создания связанных записей `post_media` вместо устаревших полей в `posts`.
 
 ### Review Follow-ups (AI)
 - [x] [AI-Review][High] Утечка производительности: Использовать один разделяемый IntersectionObserver для всех медиа (например, `react-intersection-observer` или кастомный хук) [src/components/media/LazyMediaWrapper.tsx]
@@ -160,6 +160,7 @@
 - `src/components/media/LazyMediaWrapper.tsx` (modify)
 - `src/hooks/useInView.ts` (new)
 - `src/components/feed/PostCard.tsx` (modify)
+- `src/features/feed/types.ts` (modify)
 - `src/features/feed/components/FeedContainer.tsx` (modify)
 - `src/features/feed/components/FeedPageClient.tsx` (new)
 - `src/features/feed/api/serverPosts.ts` (new)
@@ -331,7 +332,14 @@
 Тесты обновлены: 2 теста onLikeToggle переработаны под новую сигнатуру; тест "нет двойного подсчёта" упрощён (нет промежуточной проверки после клика — PostCard не управляет optimistic state).
 457/457 тестов проходят (0 новых — изменены 3 существующих теста).
 
+**Task 6 (Course Correction) — 2026-03-22:**
+✅ Task 6.1-6.3 LazyMediaWrapper: добавлен интерфейс `MediaItem` (url, media_type, thumbnail_url); новый prop `mediaItem?: MediaItem` — когда передан, src и type выводятся из него автоматически. Для видео используется `thumbnail_url ?? url` как постер (AC 7). `resolveMediaSrc()` выносит логику для outer wrapper key. `aspectRatio='none'` добавлен в тип — не применяет aspect-class, GalleryGrid может использовать без форсирования пропорций (AC 8). key wrapper использует effectiveSrc для корректного remount при смене медиафайла.
+✅ Task 6.4 PostCard: добавлен `mediaItem?: MediaItem` в `PostCardData` (import MediaItem из LazyMediaWrapper). Условие рендера `(post.mediaItem || post.imageUrl)` — предпочитает mediaItem. `dbPostToCardData` в types.ts возвращает `mediaItem: coverItem` (полный объект post_media).
+✅ Task 6.5 seed_posts.sql: полностью переписан — текстовые посты переведены на русский; 10 фото-постов и 2 видео-поста вставляются БЕЗ `image_url` в posts; после каждого INSERT RETURNING id → INSERT post_media с корректными `media_type`, `url`, `thumbnail_url`, `order_index=0`, `is_cover=true`. Видео-посты используют thumbnail_url из picsum.photos как постер.
+9 новых тестов: 6 в LazyMediaWrapper.test.tsx (mediaItem image/video/fallback/play-icon/aspectRatio-none/key-reset), 3 в PostCard.test.tsx (mediaItem renders/url passed/no media). 516/516 тестов.
+
 ## Change Log
+- 2026-03-22: Task 6 (Course Correction) — LazyMediaWrapper: новый prop mediaItem (AC 6), thumbnail_url как постер видео (AC 7), aspectRatio='none' для гибких сеток (AC 8); PostCard: mediaItem в PostCardData + render предпочитает mediaItem; types.ts: dbPostToCardData возвращает mediaItem=coverItem; seed_posts.sql: перевод на русский + post_media вместо image_url (AC 9). 9 новых тестов. 516/516 тестов.
 - 2026-03-21: Review Follow-ups Iteration 19 (4 items) — seed_posts.sql откат с словенского на русский; PostCard: удалён useState для liked (Derived State Anti-pattern), likeCount=post.likes, onLikeToggle сигнатура (postId) без liked; LazyMediaWrapper: JSDoc sizes синхронизирован с дефолтом. 3 теста обновлены. 457/457 тестов.
 - 2026-03-21: Task 5 (Seed) — picsum.photos в next.config.ts remotePatterns; 10 фото + 2 видео мок-поста в seed_posts.sql; регрессия PostCard исправлена (useState для liked, onLikeToggle сигнатура (postId, liked), формула likeCount без двойного подсчёта); posts.test.ts актуализирован (is_liked join). 457/457 тестов.
 - 2026-03-20: Review Follow-ups Iteration 15 (4 items) — Stale SSR Data полный fix (убрана проверка `> 0`, `initialData` с пустыми постами теперь очищает stale кэш); SENTINEL_ROOT_MARGIN константа на уровне модуля (нет hardcoded '200px' в IO sentinel); isStoreHydrated заменён на явный `isHydrated` state (useState initializer = `!initialData`); новый тест для пустого `initialData.posts = []`. 442/442 тестов (+1 новый).
