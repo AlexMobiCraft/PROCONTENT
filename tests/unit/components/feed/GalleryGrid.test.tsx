@@ -7,10 +7,22 @@ vi.mock('@/components/media/LazyMediaWrapper', () => ({
   LazyMediaWrapper: ({
     alt,
     mediaItem,
+    aspectRatio,
+    sizes,
   }: {
     alt: string
     mediaItem?: { url: string }
-  }) => <img src={mediaItem?.url ?? ''} alt={alt} data-testid="lazy-media" />,
+    aspectRatio?: string
+    sizes?: string
+  }) => (
+    <img
+      src={mediaItem?.url ?? ''}
+      alt={alt}
+      data-testid="lazy-media"
+      data-aspect-ratio={aspectRatio}
+      data-sizes={sizes}
+    />
+  ),
 }))
 
 function makeMedia(count: number): PostMedia[] {
@@ -257,6 +269,84 @@ describe('GalleryGrid — skeleton carousel', () => {
     const { container } = render(<GalleryGrid media={makeMedia(8)} isLoading={true} />)
     const carouselSkeleton = container.querySelector('[data-testid="gallery-skeleton-carousel"]')!
     expect(carouselSkeleton.children).toHaveLength(4)
+  })
+})
+
+describe('GalleryGrid — aspectRatio для col-span-2 элементов [HIGH fix]', () => {
+  it('3 элемента: первые 2 имеют aspectRatio 1/1, последний (col-span-2) — 16/9', () => {
+    render(<GalleryGrid media={makeMedia(3)} />)
+    const images = screen.getAllByTestId('lazy-media') as HTMLImageElement[]
+    expect(images[0]).toHaveAttribute('data-aspect-ratio', '1/1')
+    expect(images[1]).toHaveAttribute('data-aspect-ratio', '1/1')
+    expect(images[2]).toHaveAttribute('data-aspect-ratio', '16/9')
+  })
+
+  it('5 элементов: первые 4 имеют aspectRatio 1/1, последний (col-span-2) — 16/9', () => {
+    render(<GalleryGrid media={makeMedia(5)} />)
+    const images = screen.getAllByTestId('lazy-media') as HTMLImageElement[]
+    for (let i = 0; i < 4; i++) {
+      expect(images[i]).toHaveAttribute('data-aspect-ratio', '1/1')
+    }
+    expect(images[4]).toHaveAttribute('data-aspect-ratio', '16/9')
+  })
+
+  it('4 элемента (нет col-span-2): все имеют aspectRatio 1/1', () => {
+    render(<GalleryGrid media={makeMedia(4)} />)
+    const images = screen.getAllByTestId('lazy-media') as HTMLImageElement[]
+    for (const img of images) {
+      expect(img).toHaveAttribute('data-aspect-ratio', '1/1')
+    }
+  })
+})
+
+describe('GalleryGrid — sizes для col-span-2 элементов [MEDIUM fix]', () => {
+  it('3 элемента: последний (col-span-2) получает sizes для полной ширины', () => {
+    render(<GalleryGrid media={makeMedia(3)} />)
+    const images = screen.getAllByTestId('lazy-media') as HTMLImageElement[]
+    expect(images[2]).toHaveAttribute('data-sizes', '(max-width: 768px) 100vw, 640px')
+  })
+
+  it('3 элемента: первые 2 получают sizes для половины ширины', () => {
+    render(<GalleryGrid media={makeMedia(3)} />)
+    const images = screen.getAllByTestId('lazy-media') as HTMLImageElement[]
+    expect(images[0]).toHaveAttribute('data-sizes', '(max-width: 768px) 50vw, 320px')
+    expect(images[1]).toHaveAttribute('data-sizes', '(max-width: 768px) 50vw, 320px')
+  })
+
+  it('5 элементов: последний (col-span-2) получает sizes для полной ширины', () => {
+    render(<GalleryGrid media={makeMedia(5)} />)
+    const images = screen.getAllByTestId('lazy-media') as HTMLImageElement[]
+    expect(images[4]).toHaveAttribute('data-sizes', '(max-width: 768px) 100vw, 640px')
+  })
+})
+
+describe('GalleryGrid — Skeleton count=0 guard [LOW fix]', () => {
+  it('GalleryGrid с media=[] и isLoading=true рендерит скелетон для 4 элементов (fallback)', () => {
+    render(<GalleryGrid media={[]} isLoading={true} />)
+    expect(screen.getByTestId('gallery-grid-skeleton')).toBeInTheDocument()
+  })
+
+  it('GalleryGrid с media=[] и isLoading=false рендерит пустую галерею без краша', () => {
+    render(<GalleryGrid media={[]} isLoading={false} />)
+    expect(screen.getByTestId('gallery-grid')).toBeInTheDocument()
+    expect(screen.queryByTestId('lazy-media')).toBeNull()
+  })
+})
+
+describe('GalleryGrid — a11y в PostDetail: interactive=true (default) [MEDIUM fix]', () => {
+  it('без interactive prop (default=true): элементы рендерятся как кнопки — доступны с клавиатуры', () => {
+    render(<GalleryGrid media={makeMedia(4)} />)
+    const buttons = screen.getAllByRole('button')
+    expect(buttons).toHaveLength(4)
+  })
+
+  it('интерактивные кнопки фокусируемы (не скрыты от a11y)', () => {
+    render(<GalleryGrid media={makeMedia(3)} />)
+    const buttons = screen.getAllByRole('button')
+    for (const btn of buttons) {
+      expect(btn).not.toHaveAttribute('aria-hidden')
+      expect(btn).not.toHaveAttribute('tabindex', '-1')
+    }
   })
 })
 

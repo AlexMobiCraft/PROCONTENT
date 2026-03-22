@@ -39,7 +39,8 @@ export interface GalleryGridProps {
 }
 
 function GalleryGridSkeleton({ count }: { count: number }) {
-  const { layout, mainCount, carouselCount } = getGridLayout(count || 4)
+  if (count === 0) return null
+  const { layout, mainCount, carouselCount } = getGridLayout(count)
   const gridColsClass = layout === 'grid-3x3' ? 'grid-cols-3' : 'grid-cols-2'
 
   return (
@@ -51,7 +52,8 @@ function GalleryGridSkeleton({ count }: { count: number }) {
             <div
               key={i}
               className={cn(
-                'aspect-square animate-pulse rounded-sm bg-muted',
+                'animate-pulse rounded-sm bg-muted',
+                isLastOdd ? 'aspect-video' : 'aspect-square',
                 isLastOdd && 'col-span-2'
               )}
             />
@@ -92,15 +94,21 @@ export function GalleryGrid({
   const carouselItems = carouselCount > 0 ? sorted.slice(mainCount) : []
 
   const gridColsClass = layout === 'grid-3x3' ? 'grid-cols-3' : 'grid-cols-2'
+  const gridItemSizes =
+    layout === 'grid-3x3'
+      ? '(max-width: 768px) 33vw, 213px'
+      : '(max-width: 768px) 50vw, 320px'
 
   return (
     <div data-testid="gallery-grid">
       <div className={cn('grid gap-1', gridColsClass)} data-layout={layout}>
         {mainItems.map((item, i) => {
           const isLastOdd = (sorted.length === 3 || sorted.length === 5) && i === sorted.length - 1
-          const colSpanClass = isLastOdd ? ' col-span-2' : ''
           const ariaLabel =
             item.media_type === 'video' ? `${videoLabel} ${i + 1}` : `${mediaLabel} ${i + 1}`
+          // col-span-2 элементы занимают полную ширину → другой aspect и sizes
+          const itemAspectRatio = isLastOdd ? ('16/9' as const) : ('1/1' as const)
+          const itemSizes = isLastOdd ? '(max-width: 768px) 100vw, 640px' : gridItemSizes
           const itemClass = cn(
             'overflow-hidden rounded-sm',
             interactive &&
@@ -120,9 +128,9 @@ export function GalleryGrid({
                 <LazyMediaWrapper
                   mediaItem={item}
                   alt={ariaLabel}
-                  aspectRatio="1/1"
+                  aspectRatio={itemAspectRatio}
                   priority={priority && i < 2}
-                  sizes="(max-width: 768px) 50vw, 320px"
+                  sizes={itemSizes}
                 />
               </button>
             )
@@ -133,9 +141,9 @@ export function GalleryGrid({
               <LazyMediaWrapper
                 mediaItem={item}
                 alt={ariaLabel}
-                aspectRatio="1/1"
+                aspectRatio={itemAspectRatio}
                 priority={priority && i < 2}
-                sizes="(max-width: 768px) 50vw, 320px"
+                sizes={itemSizes}
               />
             </div>
           )
@@ -144,7 +152,7 @@ export function GalleryGrid({
 
       {carouselItems.length > 0 && (
         <div
-          className="mt-1 flex snap-x snap-mandatory gap-1 overflow-x-auto"
+          className="mt-1 flex snap-x snap-mandatory gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           data-testid="gallery-carousel"
         >
           {carouselItems.map((item, i) => {

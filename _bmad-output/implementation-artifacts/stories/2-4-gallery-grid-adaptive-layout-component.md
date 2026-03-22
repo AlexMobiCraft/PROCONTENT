@@ -94,6 +94,14 @@ so that удобно просматривать все фото и видео п
 - [x] [AI-Review][HIGH] **Сломанный Skeleton для карусели**: `GalleryGridSkeleton` генерирует элементы только на основе `mainCount` (максимум 4 элемента). Если передать `count > 4` (например, 7), скелетон для горизонтальной карусели просто не рендерится. При загрузке реальных данных произойдет Layout Shift (скачок верстки). [GalleryGrid.tsx:42]
 - [x] [AI-Review][MEDIUM] **Параноидальное дублирование логики сортировки**: Массив медиа файлов сортируется по `order_index` трижды на один цикл рендера — в маппере `dbPostToCardData`, в серверном `fetchPostById` и снова через `useMemo` внутри `GalleryGrid.tsx`. Защита компонента от неверных входных данных — это хорошо, но лучше решить это через систему типов (например, `SortedMedia`), чем тратить CPU на повторные операции. [GalleryGrid.tsx:65-68]
 - [x] [AI-Review][LOW] **Хардкод локализации**: В `GalleryGrid` захардкожены словенские строки (`Videoposnetek`, `Slika`). Это усложнит потенциальное внедрение i18n (Story 1.3), лучше принимать базовые лейблы через пропсы или использовать функции перевода.
+- [x] [AI-Review][HIGH] **Избыточный prefetch Next.js Link**: Добавить `prefetch={false}` к компонентам `<Link>` в `PostCard.tsx` для предотвращения избыточных фоновых сетевых запросов при скролле ленты. [src/components/feed/PostCard.tsx]
+- [x] [AI-Review][MEDIUM] **Видимый скроллбар в карусели**: Скрыть системный скроллбар в горизонтальной карусели в `GalleryGrid.tsx`. [src/components/feed/GalleryGrid.tsx:139]
+- [x] [AI-Review][MEDIUM] **Неточные атрибуты sizes для сетки 3x3**: Скорректировать `sizes` для изображений, для сетки 3x3 использовать `33vw` на мобильных устройствах. [src/components/feed/GalleryGrid.tsx:114]
+- [x] [AI-Review][LOW] **Типизация в PostDetail**: Избегать использования небезопасного двойного приведения типов `as unknown as ToggleLikeResponse` в обработчике лайков. [src/components/feed/PostDetail.tsx:32]
+- [x] [AI-Review][HIGH] **Сломанный макет для нечётного количества элементов (3 и 5)**: В `GalleryGrid.tsx` последний элемент при 3 или 5 медиа получает класс `col-span-2`, но ему всё равно передаётся `aspectRatio="1/1"` в `LazyMediaWrapper`. Поскольку его ширина становится в 2 раза больше, его высота тоже удваивается, превращая элемент в гигантский квадрат, ломающий красивую сетку. [src/components/feed/GalleryGrid.tsx:104-112]
+- [x] [AI-Review][MEDIUM] **Недоступность (a11y) элементов в PostDetail**: В `PostDetail.tsx` компонент `<GalleryGrid>` вызывался с `interactive={false}`. Убран `interactive={false}` — теперь используется дефолт `interactive=true`, элементы рендерятся как `<button>` и доступны с клавиатуры (Tab). [src/components/feed/PostDetail.tsx:105]
+- [x] [AI-Review][MEDIUM] **Некорректный атрибут `sizes` для растянутых элементов**: Для элементов, которые получают `col-span-2`, атрибут `sizes` остаётся рассчитанным на половину ширины экрана (`50vw, 320px`). Из-за этого браузер может загрузить изображение низкого разрешения, которое будет выглядеть размытым при растягивании на всю ширину. [src/components/feed/GalleryGrid.tsx:95-98]
+- [x] [AI-Review][LOW] **Потенциальный баг в Skeleton**: В `GalleryGridSkeleton` используется конструкция `getGridLayout(count || 4)`. Если компонент получит `count={0}`, он отрендерит скелетон для 4 элементов вместо того, чтобы не рендерить ничего. [src/components/feed/GalleryGrid.tsx:42]
 
 ## Dev Notes
 
@@ -410,3 +418,12 @@ _нет_
 - 2026-03-22: Реализована Story 2.4 — компонент `GalleryGrid` с адаптивной сеткой FR16.1. Интегрирован в `PostCard` и `PostDetail`. 24 новых теста, 544 всего.
 - 2026-03-22: Addressed code review findings — 5 items resolved (Date: 2026-03-22)
 - 2026-03-22: Addressed code review findings — 4 remaining items resolved (Date: 2026-03-22)
+- ✅ Resolved review finding [HIGH]: Добавлен `prefetch={false}` ко всем 3 `<Link>` в PostCard.tsx — предотвращает фоновые prefetch-запросы при скролле ленты.
+- ✅ Resolved review finding [MEDIUM]: Скроллбар карусели скрыт через `[scrollbar-width:none] [&::-webkit-scrollbar]:hidden` (Firefox + WebKit). [GalleryGrid.tsx]
+- ✅ Resolved review finding [MEDIUM]: `sizes` для grid-3x3 исправлен до `33vw` на мобильных. Добавлена переменная `gridItemSizes` зависящая от `layout`. [GalleryGrid.tsx]
+- ✅ Resolved review finding [LOW]: Удалён `as unknown as ToggleLikeResponse`. Добавлен type guard `isToggleLikeResponse()` — TypeScript корректно сужает тип, runtime-проверка структуры ответа. [PostDetail.tsx]
+- 2026-03-22: Addressed code review findings — 4 remaining items resolved (Date: 2026-03-22)
+- ✅ Resolved review finding [HIGH]: Исправлен сломанный макет для нечётных сеток (3 и 5 элементов) — `col-span-2` элементы теперь получают `aspectRatio="16/9"` вместо `"1/1"`. Скелетон также исправлен: `aspect-video` вместо `aspect-square`. [GalleryGrid.tsx]
+- ✅ Resolved review finding [MEDIUM]: Исправлен некорректный `sizes` для `col-span-2` элементов — теперь `(max-width: 768px) 100vw, 640px` вместо `50vw, 320px`. [GalleryGrid.tsx]
+- ✅ Resolved review finding [MEDIUM]: Убран `interactive={false}` в PostDetail — галерея рендерится с кнопками (дефолт `interactive=true`), доступными с клавиатуры (Tab). [PostDetail.tsx]
+- ✅ Resolved review finding [LOW]: Убран `|| 4` из `getGridLayout` внутри `GalleryGridSkeleton` + добавлен guard `if (count === 0) return null`. [GalleryGrid.tsx]

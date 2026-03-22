@@ -9,6 +9,10 @@ import { useFeedStore } from '@/features/feed/store'
 import { cn } from '@/lib/utils'
 import type { PostDetail as PostDetailData, ToggleLikeResponse } from '@/features/feed/types'
 
+function isToggleLikeResponse(v: unknown): v is ToggleLikeResponse {
+  return typeof v === 'object' && v !== null && 'is_liked' in v && 'likes_count' in v
+}
+
 interface PostDetailProps {
   post: PostDetailData
   currentUserId?: string | null
@@ -39,11 +43,11 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
       const supabase = createClient()
       const { data, error } = await supabase.rpc('toggle_like', { p_post_id: post.id })
       if (error) throw error
-      const result = data as unknown as ToggleLikeResponse
-      setLiked(result.is_liked)
-      setLikesCount(result.likes_count)
+      if (!isToggleLikeResponse(data)) throw new Error('Unexpected toggle_like response')
+      setLiked(data.is_liked)
+      setLikesCount(data.likes_count)
       // Синхронизируем Zustand store — при возврате в ленту данные актуальны
-      updatePost(post.id, { likes_count: result.likes_count, is_liked: result.is_liked })
+      updatePost(post.id, { likes_count: data.likes_count, is_liked: data.is_liked })
     } catch {
       setLiked(prevLiked)
       setLikesCount(prevCount)
@@ -98,7 +102,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
       {/* Gallery — 2+ медиафайлов (Story 2.4) */}
       {(post.media?.length ?? 0) >= 2 && (
         <div className="mb-6">
-          <GalleryGrid media={post.media!} priority={true} interactive={false} />
+          <GalleryGrid media={post.media!} priority={true} />
         </div>
       )}
 

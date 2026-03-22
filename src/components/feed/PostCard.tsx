@@ -96,11 +96,11 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
 
       {/* Media Content — кликабельна, tabIndex=-1 чтобы не дублировать tab-stop с заголовком */}
       {(post.media?.length ?? 0) >= 2 ? (
-        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true">
+        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true" prefetch={false}>
           <GalleryGrid media={post.media!} priority={priority} interactive={false} />
         </Link>
       ) : (post.mediaItem || post.imageUrl) ? (
-        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true">
+        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true" prefetch={false}>
           <LazyMediaWrapper
             {...(post.mediaItem
               ? { mediaItem: post.mediaItem }
@@ -114,7 +114,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
 
       {/* Content — заголовок + excerpt в одном Link для правильного UX */}
       <div className="flex flex-col gap-2">
-        <Link href={`/feed/${post.id}`} className="group flex flex-col gap-2">
+        <Link href={`/feed/${post.id}`} className="group flex flex-col gap-2" prefetch={false}>
           <h2 className="font-heading text-base font-semibold leading-snug text-foreground text-balance group-hover:text-primary transition-colors">
             {post.title}
           </h2>
