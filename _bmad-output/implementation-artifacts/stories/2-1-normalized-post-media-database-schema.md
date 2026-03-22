@@ -1,6 +1,6 @@
 # Story 2.1: Нормализованная модель данных для мультимедиа (Database Schema)
 
-Status: review
+Status: done
 
 ## Story
 
