@@ -59,7 +59,7 @@ export async function fetchPosts(
   if (error) throw error
 
   const hasMore = data.length > PAGE_SIZE
-  const posts = (hasMore ? data.slice(0, PAGE_SIZE) : data) as unknown as Post[]
+  const posts = (hasMore ? data.slice(0, PAGE_SIZE) : data) as Post[]
   const lastPost = posts[posts.length - 1]
   const nextCursor = lastPost ? `${lastPost.created_at}|${lastPost.id}` : null
 

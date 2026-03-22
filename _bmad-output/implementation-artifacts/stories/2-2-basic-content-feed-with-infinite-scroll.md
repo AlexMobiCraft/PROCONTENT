@@ -1,6 +1,6 @@
 # Story 2.2: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -13,8 +13,8 @@ so that быть в курсе новых материалов клуба без
 1. **Given** авторизованная участница на `/feed` **When** страница загружается **Then** отображаются первые 10 постов в обратном хронологическом порядке (новые сверху)
 2. **Given** загруженная лента **When** участница скроллит вниз и достигает конца списка **Then** автоматически подгружаются следующие 10 постов (infinite scroll)
 3. **Given** загрузка данных в процессе **When** участница ожидает **Then** отображаются `PostCardSkeleton` плейсхолдеры
-4. **Given** все посты загружены **When** участница доскролливает до конца **Then** подгрузка прекращается, отображается сообщение "Вы просмотрели все публикации"
-5. **Given** лента пуста (нет постов в БД) **When** страница загружается **Then** отображается empty state "Скоро здесь появится контент"
+4. **Given** все посты загружены **When** участница доскролливает до конца **Then** подгрузка прекращается, отображается сообщение "Pregledali ste vse objave"
+5. **Given** лента пуста (нет постов в БД) **When** страница загружается **Then** отображается empty state "Kmalu bo tu vsebina"
 6. **Given** загруженные посты **When** участница уходит со страницы и возвращается **Then** лента восстанавливается из кэша Zustand мгновенно
 7. **Given** таблица `posts` в БД **When** выполняется запрос **Then** данные защищены RLS-политиками (только авторизованные пользователи с активной подпиской читают посты)
 8. **Given** нормализованная БД **When** загружается лента **Then** запросы ленты включают JOIN с таблицей `post_media` для получения всех медиа каждого поста
@@ -60,11 +60,11 @@ so that быть в курсе новых материалов клуба без
 
 ### Epics Update Follow-ups (post_media integration)
 
-- [ ] **Task 8: Интеграция нормализованной таблицы `post_media`** (AC: #8)
-  - [ ] 8.1 Обновить `src/features/feed/api/posts.ts`: добавить `.select('..., post_media(*)')` с сортировкой по `order_index`
-  - [ ] 8.2 Обновить `src/features/feed/types.ts`: обновить тип `PostRow`, чтобы он включал `post_media` массив
-  - [ ] 8.3 Обновить маппер `dbPostToCardData`: определять тип поста и `imageUrl` на основе записей из `post_media` (вместо старых колонок `posts.image_url` и `posts.type`)
-  - [ ] 8.4 Обновить соответствующие тесты API и маппера
+- [x] **Task 8: Интеграция нормализованной таблицы `post_media`** (AC: #8)
+  - [x] 8.1 Обновить `src/features/feed/api/posts.ts`: добавить `.select('..., post_media(*)')` с сортировкой по `order_index`
+  - [x] 8.2 Обновить `src/features/feed/types.ts`: обновить тип `PostRow`, чтобы он включал `post_media` массив
+  - [x] 8.3 Обновить маппер `dbPostToCardData`: определять тип поста и `imageUrl` на основе записей из `post_media` (вместо старых колонок `posts.image_url` и `posts.type`)
+  - [x] 8.4 Обновить соответствующие тесты API и маппера
 
 ### Review Follow-ups (AI)
 
@@ -164,7 +164,7 @@ CREATE POLICY "Admin can manage all posts"
   WITH CHECK (author_id = auth.uid());
 ```
 
-**Важно:** Поля `likes_count` и `comments_count` — денормализованные счётчики. Будут обновляться через RPC или triggers в будущих stories. Сейчас они статичны.
+**Важно:** Поля `likes_count` и `comments_count` — денормализованные счётчики. Лайки реализованы в этой story через `post_likes` и RPC `toggle_like`. Комментарии будут обновляться в будущих stories (пока статичны).
 
 ### Cursor-based пагинация
 
@@ -436,7 +436,14 @@ claude-sonnet-4-6
 - `tests/unit/features/feed/components/FeedContainer.test.tsx` (изменён — добавлены 3 теста: stall detection, stall reset, isLoadingMore race)
 - `tests/unit/features/auth/components/AuthProvider.test.tsx` (изменён — добавлены 4 теста: onAuthStateChange subscription, unsubscribe, token refresh, sign-out)
 
+- **Task 8:** Интеграция `post_media`: `fetchPosts` теперь выбирает `post_media(*)` в select. Тип `PostRow.media` переименован в `post_media`. Маппер `dbPostToCardData` использует `derivePostType()` для вычисления `type` (text/photo/video/gallery/multi-video) и `imageUrl` из `post_media` (cover > first by order_index); legacy `image_url` больше не используется. 507/507 тестов проходят, typecheck OK, lint OK на изменённых файлах.
+
 ### File List
+
+- `src/features/feed/api/posts.ts` (изменён — добавлен `post_media(*)` в select)
+- `src/features/feed/types.ts` (изменён — `media` → `post_media` в PostRow, `derivePostType()`, маппер использует только post_media)
+- `tests/unit/features/feed/types.test.ts` (изменён — обновлены тесты imageUrl/type под post_media, добавлены 10 новых тестов)
+- `tests/unit/features/feed/api/posts.test.ts` (изменён — обновлена проверка select-строки с post_media)
 
 - `supabase/migrations/007_create_posts_table.sql` (новый)
 - `supabase/migrations/008_fix_posts_fk_and_rls.sql` (новый)
@@ -481,3 +488,4 @@ claude-sonnet-4-6
 - Addressed adversarial review #6 findings — 5 items resolved (1 Critical, 1 High, 2 Medium, 1 Low). Migration 012 added. 383 tests passing. Story status → review. (Date: 2026-03-19)
 - Addressed adversarial review #7 (final): 5 unchecked items resolved (1 Critical, 1 High, 2 Medium, 1 Medium UX). Session refresh fix, hydration guard with isReady flag, ES modules migration, act() wrapping in tests. All 383 tests passing. Lint/TypeScript OK. Story status → review. (Date: 2026-03-19)
 - Addressed adversarial review #8: 5 unchecked items resolved (1 Critical, 1 High, 2 Medium, 1 Low). IntersectionObserver stall fix with loadMoreWithStallDetection, onAuthStateChange subscription, local timezone dates, migration 013 CHECK constraints, setLoadingMore race fix. 390 tests passing. Lint OK on story files. Story status → review. (Date: 2026-03-19)
+- Task 8 (post_media integration): fetchPosts extended with post_media(*) select, PostRow.media renamed to post_media, derivePostType() helper added, mapper uses post_media exclusively for imageUrl/type derivation. 507 tests passing. Story status → review. (Date: 2026-03-22)
