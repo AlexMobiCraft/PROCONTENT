@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type { FeedPage, Post, PostDetail } from '../types'
+import { derivePostType, sortByOrderIndex } from '../types'
 
 const PAGE_SIZE = 10
 
@@ -63,9 +64,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       .toUpperCase()
 
     // Вычисляем coverItem как в dbPostToCardData (AC 6)
-    const sortedMedia = post.post_media
-      ? [...post.post_media].sort((a, b) => a.order_index - b.order_index)
-      : undefined
+    const sortedMedia = post.post_media ? sortByOrderIndex(post.post_media) : undefined
     const coverItem = sortedMedia?.find((m) => m.is_cover) ?? sortedMedia?.[0] ?? null
 
     return {
@@ -74,9 +73,11 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       content: post.content ?? null,
       excerpt: post.excerpt ?? '',
       category: post.category,
-      type: post.type,
+      type: derivePostType(sortedMedia),
       imageUrl: post.image_url ?? null,
       mediaItem: coverItem,
+      // Story 2.4: передаём все медиафайлы для GalleryGrid
+      media: sortedMedia ?? [],
       likes: post.likes_count,
       comments: post.comments_count,
       isLiked: post.is_liked ?? false,

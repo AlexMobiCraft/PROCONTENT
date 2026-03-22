@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { dbPostToCardData } from '@/features/feed/types'
-import type { Post } from '@/features/feed/types'
+import { dbPostToCardData, sortByOrderIndex } from '@/features/feed/types'
+import type { Post, PostMedia } from '@/features/feed/types'
 
 function makePost(overrides: Partial<Post> = {}): Post {
   return {
@@ -26,6 +26,28 @@ function makePost(overrides: Partial<Post> = {}): Post {
     ...overrides,
   }
 }
+
+describe('sortByOrderIndex', () => {
+  it('сортирует массив медиа по order_index', () => {
+    const media: PostMedia[] = [
+      { id: 'c', post_id: 'p', media_type: 'image', url: 'c', thumbnail_url: null, order_index: 2, is_cover: false },
+      { id: 'a', post_id: 'p', media_type: 'image', url: 'a', thumbnail_url: null, order_index: 0, is_cover: true },
+      { id: 'b', post_id: 'p', media_type: 'image', url: 'b', thumbnail_url: null, order_index: 1, is_cover: false },
+    ]
+    const sorted = sortByOrderIndex(media)
+    expect(sorted.map((m) => m.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('не мутирует исходный массив', () => {
+    const media: PostMedia[] = [
+      { id: 'b', post_id: 'p', media_type: 'image', url: 'b', thumbnail_url: null, order_index: 1, is_cover: false },
+      { id: 'a', post_id: 'p', media_type: 'image', url: 'a', thumbnail_url: null, order_index: 0, is_cover: true },
+    ]
+    const original = [...media]
+    sortByOrderIndex(media)
+    expect(media.map((m) => m.id)).toEqual(original.map((m) => m.id))
+  })
+})
 
 describe('dbPostToCardData', () => {
   it('маппит все поля поста в PostCardData', () => {

@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { LazyMediaWrapper, type MediaItem } from '../media/LazyMediaWrapper'
+import { GalleryGrid } from './GalleryGrid'
+import type { PostMedia } from '@/features/feed/types'
 
 export interface PostCardData {
   id: string
@@ -26,6 +28,8 @@ export interface PostCardData {
    * Если передан — используется вместо imageUrl для LazyMediaWrapper.
    */
   mediaItem?: MediaItem
+  /** Все медиафайлы поста — для GalleryGrid (Story 2.4). */
+  media?: PostMedia[]
   type: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
 }
 
@@ -91,7 +95,11 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
       </header>
 
       {/* Media Content — кликабельна, tabIndex=-1 чтобы не дублировать tab-stop с заголовком */}
-      {(post.mediaItem || post.imageUrl) && (
+      {(post.media?.length ?? 0) >= 2 ? (
+        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true">
+          <GalleryGrid media={post.media!} priority={priority} interactive={false} />
+        </Link>
+      ) : (post.mediaItem || post.imageUrl) ? (
         <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true">
           <LazyMediaWrapper
             {...(post.mediaItem
@@ -102,7 +110,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
             priority={priority}
           />
         </Link>
-      )}
+      ) : null}
 
       {/* Content — заголовок + excerpt в одном Link для правильного UX */}
       <div className="flex flex-col gap-2">

@@ -44,6 +44,8 @@ export interface PostDetail {
   imageUrl: string | null
   /** Нормализованный медиафайл обложки из post_media (AC 6) */
   mediaItem?: PostMedia | null
+  /** Все медиафайлы поста — для GalleryGrid (Story 2.4) */
+  media?: PostMedia[]
   likes: number
   comments: number
   isLiked: boolean
@@ -54,8 +56,13 @@ export interface PostDetail {
   }
 }
 
+/** Сортирует массив медиа по order_index. Единая утилита для mapper, serverPosts и GalleryGrid. */
+export function sortByOrderIndex(media: PostMedia[]): PostMedia[] {
+  return [...media].sort((a, b) => a.order_index - b.order_index)
+}
+
 // Определяет тип поста на основе нормализованных данных post_media
-function derivePostType(
+export function derivePostType(
   media: PostMedia[] | undefined | null
 ): PostCardData['type'] {
   if (!media || media.length === 0) return 'text'
@@ -85,10 +92,7 @@ export function dbPostToCardData(
     month: 'long',
   })
 
-  // Сортируем post_media по order_index для стабильного порядка
-  const sortedMedia = post.post_media
-    ? [...post.post_media].sort((a, b) => a.order_index - b.order_index)
-    : undefined
+  const sortedMedia = post.post_media ? sortByOrderIndex(post.post_media) : undefined
 
   // imageUrl: предпочитаем cover-медиа из post_media, затем первый элемент по order_index
   const coverItem = sortedMedia?.find((m) => m.is_cover) ?? sortedMedia?.[0]
@@ -110,6 +114,8 @@ export function dbPostToCardData(
     imageUrl,
     // AC 6: передаём полный объект post_media для LazyMediaWrapper
     mediaItem: coverItem,
+    // Story 2.4: передаём все медиафайлы для GalleryGrid
+    media: sortedMedia,
     type: derivePostType(sortedMedia),
     isLiked: post.is_liked ?? false,
   }

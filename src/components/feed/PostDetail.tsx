@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
+import { GalleryGrid } from './GalleryGrid'
 import { createClient } from '@/lib/supabase/client'
 import { useFeedStore } from '@/features/feed/store'
 import { cn } from '@/lib/utils'
@@ -94,8 +95,15 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         {post.title}
       </h1>
 
-      {/* Media: photo или video (gallery/multi-video рендерятся отдельными компонентами в Story 2-4/2-5) */}
-      {(post.type === 'photo' || post.type === 'video') && (post.mediaItem || post.imageUrl) && (
+      {/* Gallery — 2+ медиафайлов (Story 2.4) */}
+      {(post.media?.length ?? 0) >= 2 && (
+        <div className="mb-6">
+          <GalleryGrid media={post.media!} priority={true} interactive={false} />
+        </div>
+      )}
+
+      {/* Одиночное медиа: photo или video */}
+      {(post.media?.length ?? 0) < 2 && (post.type === 'photo' || post.type === 'video') && (post.mediaItem || post.imageUrl) && (
         <div className="mb-6">
           <LazyMediaWrapper
             mediaItem={post.mediaItem ?? undefined}
