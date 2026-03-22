@@ -22,7 +22,7 @@ export type Database = {
           excerpt: string | null
           content: string | null
           category: string
-          type: 'text' | 'photo' | 'video'
+          type: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
           image_url: string | null
           likes_count: number
           comments_count: number
@@ -39,7 +39,7 @@ export type Database = {
           excerpt?: string | null
           content?: string | null
           category?: string
-          type?: 'text' | 'photo' | 'video'
+          type?: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
           image_url?: string | null
           likes_count?: number
           comments_count?: number
@@ -56,7 +56,7 @@ export type Database = {
           excerpt?: string | null
           content?: string | null
           category?: string
-          type?: 'text' | 'photo' | 'video'
+          type?: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
           image_url?: string | null
           likes_count?: number
           comments_count?: number
@@ -72,6 +72,44 @@ export type Database = {
             columns: ['author_id']
             isOneToOne: false
             referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      post_media: {
+        Row: {
+          id: string
+          post_id: string
+          media_type: 'image' | 'video'
+          url: string
+          thumbnail_url: string | null
+          order_index: number
+          is_cover: boolean
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          media_type: 'image' | 'video'
+          url: string
+          thumbnail_url?: string | null
+          order_index?: number
+          is_cover?: boolean
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          media_type?: 'image' | 'video'
+          url?: string
+          thumbnail_url?: string | null
+          order_index?: number
+          is_cover?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'post_media_post_id_fkey'
+            columns: ['post_id']
+            isOneToOne: false
+            referencedRelation: 'posts'
             referencedColumns: ['id']
           }
         ]

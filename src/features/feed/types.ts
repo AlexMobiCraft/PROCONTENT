@@ -1,6 +1,10 @@
 import type { Tables } from '@/types/supabase'
 import type { PostCardData } from '@/components/feed/PostCard'
 
+// Тип медиафайла поста (соответствует таблице post_media в БД)
+// snake_case — прямые поля из Supabase, без маппинга в camelCase
+export type PostMedia = Tables<'post_media'>
+
 // Тип строки из БД с join профиля автора + computed column is_liked
 export type PostRow = Tables<'posts'> & {
   profiles: {
@@ -9,6 +13,8 @@ export type PostRow = Tables<'posts'> & {
   } | null
   /** Computed column posts_is_liked — null для анонимных пользователей */
   is_liked?: boolean | null
+  /** Join с post_media — опциональный (не всегда запрашивается) */
+  media?: PostMedia[]
 }
 
 // Клиентский тип поста (алиас для использования в store и компонентах)
@@ -34,7 +40,7 @@ export interface PostDetail {
   content: string | null
   excerpt: string
   category: string
-  type: 'text' | 'photo' | 'video'
+  type: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
   imageUrl: string | null
   likes: number
   comments: number

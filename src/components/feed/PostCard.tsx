@@ -20,7 +20,7 @@ export interface PostCardData {
     isAuthor?: boolean
   }
   imageUrl?: string
-  type: 'text' | 'photo' | 'video'
+  type: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
 }
 
 interface PostCardProps {

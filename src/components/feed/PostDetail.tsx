@@ -94,8 +94,8 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         {post.title}
       </h1>
 
-      {/* Media: photo or video */}
-      {post.type !== 'text' && post.imageUrl && (
+      {/* Media: photo или video (gallery/multi-video рендерятся отдельными компонентами в Story 2-4/2-5) */}
+      {(post.type === 'photo' || post.type === 'video') && post.imageUrl && (
         <div className="mb-6">
           <LazyMediaWrapper
             src={post.imageUrl}
