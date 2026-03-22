@@ -17,7 +17,7 @@ export async function fetchInitialPostsServer(): Promise<{
     const [postsResult, userResult] = await Promise.all([
       supabase
         .from('posts')
-        .select('*, profiles!author_id(display_name, avatar_url), post_media(*), is_liked:posts_is_liked')
+        .select('*, profiles!author_id(display_name, avatar_url), post_media(id, media_type, url, thumbnail_url, order_index, is_cover), is_liked:posts_is_liked')
         .eq('is_published', true)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -46,7 +46,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
 
     const { data, error } = await supabase
       .from('posts')
-      .select('*, profiles!author_id(display_name, avatar_url), post_media(*), is_liked:posts_is_liked')
+      .select('*, profiles!author_id(display_name, avatar_url), post_media(id, media_type, url, thumbnail_url, order_index, is_cover), is_liked:posts_is_liked')
       .eq('id', id)
       .eq('is_published', true)
       .single()
@@ -74,7 +74,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       excerpt: post.excerpt ?? '',
       category: post.category,
       type: derivePostType(sortedMedia),
-      imageUrl: post.image_url ?? null,
+      imageUrl: coverItem?.url ?? null,
       mediaItem: coverItem,
       // Story 2.4: передаём все медиафайлы для GalleryGrid
       media: sortedMedia ?? [],

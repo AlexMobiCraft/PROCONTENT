@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { LazyMediaWrapper, type MediaItem } from '../media/LazyMediaWrapper'
-import { GalleryGrid } from './GalleryGrid'
+import { GalleryGrid, GalleryGridSkeleton } from './GalleryGrid'
 import type { PostMedia } from '@/features/feed/types'
 
 export interface PostCardData {
@@ -210,9 +210,12 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
 export function PostCardSkeleton({
   showMedia = false,
   mediaType = 'photo',
+  galleryCount = 4,
 }: {
   showMedia?: boolean
-  mediaType?: 'photo' | 'video'
+  mediaType?: 'photo' | 'video' | 'gallery'
+  /** Количество ячеек в GalleryGridSkeleton (используется только при mediaType='gallery'). */
+  galleryCount?: number
 }) {
   const mediaAspectClass = mediaType === 'video' ? 'aspect-video' : 'aspect-[4/5]'
   return (
@@ -225,7 +228,14 @@ export function PostCardSkeleton({
         </div>
       </div>
 
-      {showMedia && <div className={`mb-4 ${mediaAspectClass} w-full rounded-lg bg-muted animate-pulse`} data-testid="post-card-skeleton-media" />}
+      {showMedia && mediaType === 'gallery' && (
+        <div className="mb-4" data-testid="post-card-skeleton-media">
+          <GalleryGridSkeleton count={galleryCount} />
+        </div>
+      )}
+      {showMedia && mediaType !== 'gallery' && (
+        <div className={`mb-4 ${mediaAspectClass} w-full rounded-lg bg-muted animate-pulse`} data-testid="post-card-skeleton-media" />
+      )}
 
       <div className="flex flex-col gap-2">
         <div className="h-4 w-3/4 rounded-full bg-muted animate-pulse" />

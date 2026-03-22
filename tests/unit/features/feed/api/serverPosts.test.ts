@@ -64,7 +64,7 @@ describe('fetchPostById', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('posts')
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, profiles!author_id(display_name, avatar_url), post_media(*), is_liked:posts_is_liked'
+      '*, profiles!author_id(display_name, avatar_url), post_media(id, media_type, url, thumbnail_url, order_index, is_cover), is_liked:posts_is_liked'
     )
     expect(mockEq).toHaveBeenCalledWith('id', 'post-abc')
     expect(mockEq).toHaveBeenCalledWith('is_published', true)
@@ -150,16 +150,42 @@ describe('fetchPostById', () => {
     expect(result?.author.name).toBe('Avtor')
   })
 
-  it('маппит image_url в imageUrl', async () => {
+  it('маппит URL обложки из post_media в imageUrl (не из устаревшего image_url)', async () => {
     setupChain()
     mockSingle.mockResolvedValue({
-      data: makeDbPost({ image_url: 'https://example.com/photo.jpg' }),
+      data: makeDbPost({
+        image_url: 'https://example.com/old-photo.jpg',
+        post_media: [
+          {
+            id: 'm1',
+            post_id: 'post-abc',
+            media_type: 'image',
+            url: 'https://example.com/media-cover.jpg',
+            thumbnail_url: null,
+            order_index: 0,
+            is_cover: true,
+          },
+        ],
+      }),
       error: null,
     })
 
     const result = await fetchPostById('post-abc')
 
-    expect(result?.imageUrl).toBe('https://example.com/photo.jpg')
+    // imageUrl берётся из coverItem.url (новая схема), а не из posts.image_url
+    expect(result?.imageUrl).toBe('https://example.com/media-cover.jpg')
+  })
+
+  it('imageUrl равен null когда post_media пуст', async () => {
+    setupChain()
+    mockSingle.mockResolvedValue({
+      data: makeDbPost({ image_url: 'https://example.com/photo.jpg', post_media: [] }),
+      error: null,
+    })
+
+    const result = await fetchPostById('post-abc')
+
+    expect(result?.imageUrl).toBeNull()
   })
 
   it('маппит null content → null', async () => {

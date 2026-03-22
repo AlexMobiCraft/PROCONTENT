@@ -1,6 +1,6 @@
 # Story 2.4: Компонент галереи с адаптивной сеткой (GalleryGrid)
 
-Status: review
+Status: done
 
 ## Story
 
@@ -102,6 +102,13 @@ so that удобно просматривать все фото и видео п
 - [x] [AI-Review][MEDIUM] **Недоступность (a11y) элементов в PostDetail**: В `PostDetail.tsx` компонент `<GalleryGrid>` вызывался с `interactive={false}`. Убран `interactive={false}` — теперь используется дефолт `interactive=true`, элементы рендерятся как `<button>` и доступны с клавиатуры (Tab). [src/components/feed/PostDetail.tsx:105]
 - [x] [AI-Review][MEDIUM] **Некорректный атрибут `sizes` для растянутых элементов**: Для элементов, которые получают `col-span-2`, атрибут `sizes` остаётся рассчитанным на половину ширины экрана (`50vw, 320px`). Из-за этого браузер может загрузить изображение низкого разрешения, которое будет выглядеть размытым при растягивании на всю ширину. [src/components/feed/GalleryGrid.tsx:95-98]
 - [x] [AI-Review][LOW] **Потенциальный баг в Skeleton**: В `GalleryGridSkeleton` используется конструкция `getGridLayout(count || 4)`. Если компонент получит `count={0}`, он отрендерит скелетон для 4 элементов вместо того, чтобы не рендерить ничего. [src/components/feed/GalleryGrid.tsx:42]
+
+## Review Follow-ups (AI) - Post-Review
+
+- [x] [AI-Review][HIGH] **Неконсистентная логика маппинга `imageUrl` в `serverPosts.ts`**: В `fetchPostById` используется старый маппинг `imageUrl: post.image_url ?? null`, в то время как в `dbPostToCardData` используется новый подход через `coverItem.url`. Это создает несогласованность между лентой и детальной страницей. [src/features/feed/api/serverPosts.ts:77]
+- [x] [AI-Review][MEDIUM] **Overfetching в запросах Supabase**: В `posts.ts` и `serverPosts.ts` используется `post_media(*)` вместо явного перечисления полей `post_media(id, media_type, url, thumbnail_url, order_index, is_cover)`, что увеличивает размер payload. [src/features/feed/api/posts.ts:27, src/features/feed/api/serverPosts.ts:20,49]
+- [x] [AI-Review][MEDIUM] **PostCardSkeleton не поддерживает галереи**: Компонент не обновлен для поддержки галерей, рендерит только одиночный блок-плейсхолдер вместо `GalleryGridSkeleton`. [src/components/feed/PostCard.tsx:228]
+- [x] [AI-Review][LOW] **Отсутствие hover-состояний**: Интерактивные элементы `GalleryGrid` не имеют стилей при наведении мыши (`hover:opacity-90`). [src/components/feed/GalleryGrid.tsx:112-117]
 
 ## Dev Notes
 
@@ -412,8 +419,16 @@ _нет_
 - `src/features/feed/types.ts` (добавлена утилита `sortByOrderIndex`)
 - `src/features/feed/api/serverPosts.ts` (использует `sortByOrderIndex` вместо inline сортировки)
 - `tests/unit/features/feed/types.test.ts` (добавлены тесты для `sortByOrderIndex`)
+- `src/features/feed/api/posts.ts` (обновлён: `post_media(*)` → явные поля)
+- `src/features/feed/api/serverPosts.ts` (обновлён: `post_media(*)` → явные поля во всех запросах; `imageUrl` из `coverItem?.url`)
+- `src/components/feed/GalleryGrid.tsx` (обновлён: `GalleryGridSkeleton` экспортирован; `hover:opacity-90` на интерактивных элементах)
+- `src/components/feed/PostCard.tsx` (обновлён: `PostCardSkeleton` поддерживает `mediaType='gallery'`)
+- `tests/unit/features/feed/api/posts.test.ts` (обновлён: ожидаемая строка select)
+- `tests/unit/features/feed/api/serverPosts.test.ts` (обновлён: ожидаемая строка select; тест imageUrl из coverItem)
 
 ## Change Log
+
+- 2026-03-22: Addressed post-review findings — 4 items resolved (Date: 2026-03-22)
 
 - 2026-03-22: Реализована Story 2.4 — компонент `GalleryGrid` с адаптивной сеткой FR16.1. Интегрирован в `PostCard` и `PostDetail`. 24 новых теста, 544 всего.
 - 2026-03-22: Addressed code review findings — 5 items resolved (Date: 2026-03-22)
@@ -427,3 +442,8 @@ _нет_
 - ✅ Resolved review finding [MEDIUM]: Исправлен некорректный `sizes` для `col-span-2` элементов — теперь `(max-width: 768px) 100vw, 640px` вместо `50vw, 320px`. [GalleryGrid.tsx]
 - ✅ Resolved review finding [MEDIUM]: Убран `interactive={false}` в PostDetail — галерея рендерится с кнопками (дефолт `interactive=true`), доступными с клавиатуры (Tab). [PostDetail.tsx]
 - ✅ Resolved review finding [LOW]: Убран `|| 4` из `getGridLayout` внутри `GalleryGridSkeleton` + добавлен guard `if (count === 0) return null`. [GalleryGrid.tsx]
+
+- ✅ Resolved review finding [HIGH]: `imageUrl` в `fetchPostById` теперь берётся из `coverItem?.url` (согласованно с `dbPostToCardData`), а не из устаревшего `posts.image_url`. Обновлены тесты. [serverPosts.ts:77]
+- ✅ Resolved review finding [MEDIUM]: Заменён `post_media(*)` на явные поля `post_media(id, media_type, url, thumbnail_url, order_index, is_cover)` в `posts.ts` и `serverPosts.ts` (все 3 запроса). Обновлены тесты. [posts.ts:27, serverPosts.ts:20,49]
+- ✅ Resolved review finding [MEDIUM]: `GalleryGridSkeleton` экспортирован из `GalleryGrid.tsx`. `PostCardSkeleton` получил `mediaType='gallery'` и `galleryCount` prop — при `showMedia + mediaType='gallery'` рендерит `GalleryGridSkeleton`. [PostCard.tsx, GalleryGrid.tsx]
+- ✅ Resolved review finding [LOW]: Добавлен `hover:opacity-90` к интерактивным элементам галереи (grid items и carousel items). [GalleryGrid.tsx]

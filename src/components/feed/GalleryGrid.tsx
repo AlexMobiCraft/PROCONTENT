@@ -38,7 +38,7 @@ export interface GalleryGridProps {
   videoLabel?: string
 }
 
-function GalleryGridSkeleton({ count }: { count: number }) {
+export function GalleryGridSkeleton({ count }: { count: number }) {
   if (count === 0) return null
   const { layout, mainCount, carouselCount } = getGridLayout(count)
   const gridColsClass = layout === 'grid-3x3' ? 'grid-cols-3' : 'grid-cols-2'
@@ -112,7 +112,7 @@ export function GalleryGrid({
           const itemClass = cn(
             'overflow-hidden rounded-sm',
             interactive &&
-              'min-h-[44px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+              'min-h-[44px] min-w-[44px] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
             isLastOdd && 'col-span-2'
           )
 
@@ -164,7 +164,7 @@ export function GalleryGrid({
             const itemClass = cn(
               'w-32 flex-none snap-start overflow-hidden rounded-sm',
               interactive &&
-                'min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
+                'min-h-[44px] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
             )
 
             if (interactive) {

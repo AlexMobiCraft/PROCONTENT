@@ -57,7 +57,7 @@ describe('fetchPosts', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('posts')
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, profiles!author_id(display_name, avatar_url), post_media(*), is_liked:posts_is_liked'
+      '*, profiles!author_id(display_name, avatar_url), post_media(id, media_type, url, thumbnail_url, order_index, is_cover), is_liked:posts_is_liked'
     )
     expect(mockEq).toHaveBeenCalledWith('is_published', true)
     expect(mockOrder).toHaveBeenCalledWith('created_at', { ascending: false })
