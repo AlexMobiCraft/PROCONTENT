@@ -12,7 +12,7 @@ export async function fetchInitialPostsServer(): Promise<{
     const supabase = await createClient()
 
     // Параллельная загрузка постов и текущего пользователя —
-    // currentUserId передаётся в FeedContainer для устранения badge pop-in при гидрации.
+    // currentUserId передаётся в FeedContainer для предотвращения badge pop-in при гидрации.
     const [postsResult, userResult] = await Promise.all([
       supabase
         .from('posts')

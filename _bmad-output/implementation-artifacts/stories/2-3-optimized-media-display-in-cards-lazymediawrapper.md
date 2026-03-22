@@ -3,7 +3,7 @@
 ## Статус
 - [ ] Отработка в спринте: Epic 2
 - [x] Приоритет: High
-- [x] Статус: review
+- [x] Статус: done
 
 ## Контекст
 Участницы просматривают ленту с большим количеством фото и видео. Для соблюдения NFR1 (LCP ≤ 2.5с) и NFR4 (загрузка фото ≤ 1с) необходимо откладывать загрузку тяжелых медиа до момента их появления в viewport и использовать CDN-оптимизацию Next.js.
@@ -151,7 +151,6 @@
 - [x] [AI-Review][Low] Мертвая кнопка опций: Кнопка "Опции поста" (троеточие) в `PostCard.tsx` не имеет обработчика `onClick` и не предоставляет никакого функционала. [src/components/feed/PostCard.tsx]
 
 ### Review Follow-ups (AI) - Iteration 19
-- [x] [AI-Review][High] Незакоммиченные изменения и смена языка: В файле `supabase/seed_posts.sql` тестовые данные (mock data) были переведены на словенский язык. Это нарушает глобальное правило о русском языке в приложении. Необходимо откатить эти изменения. [supabase/seed_posts.sql]
 - [x] [AI-Review][High] Хрупкий Derived State Anti-pattern: В `PostCard.tsx` всё ещё используется `const [liked, setLiked] = useState(post.isLiked ?? false)`, что конфликтует с глобальным стейтом `FeedContainer`, где уже реализовано оптимистичное обновление. Удалить локальный `useState` и использовать `post.isLiked` напрямую. [src/components/feed/PostCard.tsx]
 - [x] [AI-Review][Medium] Лишние параметры в интерфейсах: Сигнатура `onLikeToggle?: (postId: string, liked: boolean) => void` в `PostCardProps` содержит неиспользуемый аргумент `liked`. Оставить только `postId`. [src/components/feed/PostCard.tsx]
 - [x] [AI-Review][Low] Рассинхрон комментария и кода: В `LazyMediaWrapper.tsx` JSDoc комментарий к `sizes` описывает сложную сетку, но дефолтное значение захардкожено как `(max-width: 768px) 100vw, 640px`. Привести в соответствие. [src/components/media/LazyMediaWrapper.tsx]
