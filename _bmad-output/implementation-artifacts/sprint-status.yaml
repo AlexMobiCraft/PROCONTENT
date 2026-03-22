@@ -1,4 +1,4 @@
-# generated: 2026-03-18T12:00:00+01:00
+# generated: 2026-03-22T09:39:00+01:00
 # project: PROCONTENT
 # project_key: NOKEY
 # tracking_system: file-system
@@ -32,17 +32,25 @@
 # - Stories can be worked in parallel if team capacity allows
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+#
+# CHANGELOG:
+# ==========
+# 2026-03-22: Обновлено на основании обновлённых epics.md (мультимедиа-посты, нормализация БД).
+#   - Epic 2 переработан: добавлены новые стори (2.1, 2.4, 2.5), старые 2.3→2.6, 2.4→2.7, 2.5→2.8
+#   - Story 4.1 обновлена: мультимедиа загрузка (до 10 файлов, обложка, порядок)
+#   - Story 5.1 обновлена: группировка медиагрупп, Exponential Backoff, post_media
 
-generated: 2026-03-18T12:00:00+01:00
+generated: 2026-03-22T09:39:00+01:00
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
 story_location: c:/Users/1/DEV/PROCONTENT/_bmad-output/implementation-artifacts
 
 development_status:
+
+  # ─── EPIC 1: Growth & Conversion ───────────────────────────────────────────
   epic-1: done
   1-1-basic-landing-and-technical-foundation-infrastructure: done
-  1-2-registration-and-login-to-the-platform-supabase-auth-magic-link-otp: done
   1-2-registration-and-login-email-password-auth: done
   1-3-public-landing-landing-page-ui: done
   1-4-stripe-checkout-integration: done
@@ -52,14 +60,33 @@ development_status:
   1-8-password-reset-and-recovery: done
   epic-1-retrospective: optional
 
+  # ─── EPIC 2: Knowledge Discovery (Content Feed, Multimedia & Archive) ──────
+  # Переработан 2026-03-22: добавлены нормализованная БД (post_media), GalleryGrid, Video Controller
   epic-2: in-progress
-  "2-1-basic-content-feed-with-infinite-scroll": "done"
-  "2-2-optimized-media-display-in-cards-lazymediawrapper": "done"
-  2-3-detailed-view-of-multiformat-post: review
-  2-4-horizontal-category-filters-sticky-pill-filters: backlog
-  2-5-search-across-the-entire-knowledge-base: backlog
+
+  # Story-файл создан 2026-03-22 SM Bob
+  2-1-normalized-post-media-database-schema: ready-for-dev
+
+  # Ранее были 2-1, 2-2 → переименованы в 2-2, 2-3 (файлы переименованы)
+  2-2-basic-content-feed-with-infinite-scroll: done
+  2-3-optimized-media-display-in-cards-lazymediawrapper: done
+
+  # Story-файл создан 2026-03-22 SM Bob
+  2-4-gallery-grid-adaptive-layout-component: ready-for-dev
+
+  # Story-файл создан 2026-03-22 SM Bob
+  2-5-global-video-playback-controller: ready-for-dev
+
+  # Ранее 2-3 → переименована в 2-6 (файл переименован), статус сохранён
+  2-6-detailed-view-of-multiformat-post: review
+
+  # Ранее 2-4, 2-5 → переименованы в 2-7, 2-8 (статусы сохранены)
+  2-7-horizontal-category-filters-sticky-pill-filters: backlog
+  2-8-search-across-the-entire-knowledge-base: backlog
+
   epic-2-retrospective: optional
 
+  # ─── EPIC 3: Community Engagement ──────────────────────────────────────────
   epic-3: backlog
   3-1-viewing-discussions-under-a-post: backlog
   3-2-writing-a-comment-with-instant-response-optimistic-ui: backlog
@@ -68,13 +95,17 @@ development_status:
   3-5-managing-email-preferences: backlog
   epic-3-retrospective: optional
 
+  # ─── EPIC 4: Creator Operations (Admin Dashboard) ──────────────────────────
+  # Story 4-1 обновлена 2026-03-22: мультимедиа до 10 файлов, выбор обложки, drag-and-drop порядок
   epic-4: backlog
-  4-1-creating-and-editing-posts-with-media: backlog
+  4-1-creating-and-editing-multimedia-posts: backlog
   4-2-managing-categories-and-post-rubrics: backlog
   4-3-managing-content-for-onboarding-and-landing: backlog
   4-4-monitoring-members-and-manual-access-control: backlog
   epic-4-retrospective: optional
 
+  # ─── EPIC 5: Platform Initialization (Telegram Migration) ──────────────────
+  # Story 5-1 обновлена 2026-03-22: группировка медиагрупп, Exponential Backoff, post_media
   epic-5: backlog
   5-1-access-to-the-entire-content-archive-telegram-migration: backlog
   epic-5-retrospective: optional
