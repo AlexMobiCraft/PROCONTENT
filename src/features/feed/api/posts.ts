@@ -24,7 +24,7 @@ export async function fetchPosts(
 
   let query = supabase
     .from('posts')
-    .select('*, profiles!author_id(display_name, avatar_url), is_liked:posts_is_liked')
+    .select('*, profiles!author_id(display_name, avatar_url), post_media(*), is_liked:posts_is_liked')
     .eq('is_published', true)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false }) // Tiebreaker: стабильный порядок при одинаковых created_at

@@ -1,6 +1,6 @@
-# Story 2.1: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
+# Story 2.2: Базовая лента контента с бесконечным скроллом (Infinite Scroll)
 
-Status: done
+Status: in-progress
 
 ## Story
 
@@ -17,6 +17,7 @@ so that быть в курсе новых материалов клуба без
 5. **Given** лента пуста (нет постов в БД) **When** страница загружается **Then** отображается empty state "Скоро здесь появится контент"
 6. **Given** загруженные посты **When** участница уходит со страницы и возвращается **Then** лента восстанавливается из кэша Zustand мгновенно
 7. **Given** таблица `posts` в БД **When** выполняется запрос **Then** данные защищены RLS-политиками (только авторизованные пользователи с активной подпиской читают посты)
+8. **Given** нормализованная БД **When** загружается лента **Then** запросы ленты включают JOIN с таблицей `post_media` для получения всех медиа каждого поста
 
 ## Tasks / Subtasks
 
@@ -56,6 +57,14 @@ so that быть в курсе новых материалов клуба без
 - [x] **Task 7: Маппинг данных PostCard** (AC: #1)
   - [x] 7.1 Создать mapper `dbPostToCardData(post: Tables<'posts'>): PostCardData`
   - [x] 7.2 Маппить `author_id` → имя автора (join с `profiles` или хранить в `posts`)
+
+### Epics Update Follow-ups (post_media integration)
+
+- [ ] **Task 8: Интеграция нормализованной таблицы `post_media`** (AC: #8)
+  - [ ] 8.1 Обновить `src/features/feed/api/posts.ts`: добавить `.select('..., post_media(*)')` с сортировкой по `order_index`
+  - [ ] 8.2 Обновить `src/features/feed/types.ts`: обновить тип `PostRow`, чтобы он включал `post_media` массив
+  - [ ] 8.3 Обновить маппер `dbPostToCardData`: определять тип поста и `imageUrl` на основе записей из `post_media` (вместо старых колонок `posts.image_url` и `posts.type`)
+  - [ ] 8.4 Обновить соответствующие тесты API и маппера
 
 ### Review Follow-ups (AI)
 
@@ -111,6 +120,8 @@ so that быть в курсе новых материалов клуба без
 ## Dev Notes
 
 ### Схема БД — таблица `posts`
+
+**Внимание:** В связи с изменениями архитектуры (нормализация медиа), поля `type` и `image_url` в таблице `posts` считаются устаревшими (deprecated). Данные о медиа теперь хранятся в связанной таблице `post_media`. Маппинг данных на клиенте должен использовать `post_media` для определения формата поста (текст, одиночное медиа, галерея) и обложки.
 
 ```sql
 CREATE TABLE public.posts (
@@ -168,10 +179,11 @@ export async function fetchPosts(cursor?: string) {
 
   let query = supabase
     .from('posts')
-    .select('*, profiles!author_id(display_name, avatar_url)')
+    .select('*, profiles!author_id(display_name, avatar_url), post_media(*)')
     .eq('is_published', true)
     .order('created_at', { ascending: false })
     .limit(PAGE_SIZE + 1) // +1 для определения hasMore
+
 
   if (cursor) {
     query = query.lt('created_at', cursor)

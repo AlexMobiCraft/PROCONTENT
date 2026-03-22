@@ -95,16 +95,17 @@ describe('dbPostToCardData', () => {
     expect(card.imageUrl).toBeUndefined()
   })
 
-  it('маппит реальный image_url', () => {
-    const card = dbPostToCardData(makePost({ image_url: 'https://example.com/img.jpg' }))
-    expect(card.imageUrl).toBe('https://example.com/img.jpg')
+  it('маппит null image_url в undefined (legacy image_url больше не используется)', () => {
+    // image_url в таблице posts deprecated — источник теперь только post_media
+    const card = dbPostToCardData(makePost({ image_url: 'https://example.com/img.jpg', post_media: undefined }))
+    expect(card.imageUrl).toBeUndefined()
   })
 
-  it('использует media[0].url когда image_url = null', () => {
+  it('использует post_media[0].url когда image_url = null', () => {
     const card = dbPostToCardData(
       makePost({
         image_url: null,
-        media: [
+        post_media: [
           { id: 'm1', post_id: 'post-1', media_type: 'image', url: 'https://cdn.example.com/media.jpg', thumbnail_url: null, order_index: 0, is_cover: true },
         ],
       })
@@ -112,26 +113,112 @@ describe('dbPostToCardData', () => {
     expect(card.imageUrl).toBe('https://cdn.example.com/media.jpg')
   })
 
-  it('image_url имеет приоритет над media[0].url', () => {
+  it('post_media имеет приоритет над legacy image_url', () => {
     const card = dbPostToCardData(
       makePost({
         image_url: 'https://example.com/legacy.jpg',
-        media: [
-          { id: 'm1', post_id: 'post-1', media_type: 'image', url: 'https://cdn.example.com/media.jpg', thumbnail_url: null, order_index: 0, is_cover: true },
+        post_media: [
+          { id: 'm1', post_id: 'post-1', media_type: 'image', url: 'https://cdn.example.com/media.jpg', thumbnail_url: null, order_index: 0, is_cover: false },
         ],
       })
     )
-    expect(card.imageUrl).toBe('https://example.com/legacy.jpg')
+    expect(card.imageUrl).toBe('https://cdn.example.com/media.jpg')
   })
 
-  it('возвращает undefined когда нет ни image_url ни media', () => {
-    const card = dbPostToCardData(makePost({ image_url: null, media: [] }))
+  it('возвращает undefined когда нет ни image_url ни post_media', () => {
+    const card = dbPostToCardData(makePost({ image_url: null, post_media: [] }))
     expect(card.imageUrl).toBeUndefined()
   })
 
-  it('возвращает undefined когда image_url = null и media = undefined', () => {
-    const card = dbPostToCardData(makePost({ image_url: null, media: undefined }))
+  it('возвращает undefined когда image_url = null и post_media = undefined', () => {
+    const card = dbPostToCardData(makePost({ image_url: null, post_media: undefined }))
     expect(card.imageUrl).toBeUndefined()
+  })
+
+  it('выбирает cover-медиа из post_media как imageUrl', () => {
+    const card = dbPostToCardData(
+      makePost({
+        image_url: null,
+        post_media: [
+          { id: 'm1', post_id: 'post-1', media_type: 'image', url: 'https://cdn.example.com/first.jpg', thumbnail_url: null, order_index: 0, is_cover: false },
+          { id: 'm2', post_id: 'post-1', media_type: 'image', url: 'https://cdn.example.com/cover.jpg', thumbnail_url: null, order_index: 1, is_cover: true },
+        ],
+      })
+    )
+    expect(card.imageUrl).toBe('https://cdn.example.com/cover.jpg')
+  })
+
+  it('сортирует post_media по order_index и берёт первый при отсутствии cover', () => {
+    const card = dbPostToCardData(
+      makePost({
+        image_url: null,
+        post_media: [
+          { id: 'm2', post_id: 'post-1', media_type: 'image', url: 'https://cdn.example.com/second.jpg', thumbnail_url: null, order_index: 1, is_cover: false },
+          { id: 'm1', post_id: 'post-1', media_type: 'image', url: 'https://cdn.example.com/first.jpg', thumbnail_url: null, order_index: 0, is_cover: false },
+        ],
+      })
+    )
+    expect(card.imageUrl).toBe('https://cdn.example.com/first.jpg')
+  })
+
+  it('определяет type="photo" из post_media (одно изображение)', () => {
+    const card = dbPostToCardData(
+      makePost({
+        type: 'text',
+        post_media: [
+          { id: 'm1', post_id: 'post-1', media_type: 'image', url: 'u', thumbnail_url: null, order_index: 0, is_cover: true },
+        ],
+      })
+    )
+    expect(card.type).toBe('photo')
+  })
+
+  it('определяет type="video" из post_media (одно видео)', () => {
+    const card = dbPostToCardData(
+      makePost({
+        type: 'text',
+        post_media: [
+          { id: 'm1', post_id: 'post-1', media_type: 'video', url: 'u', thumbnail_url: null, order_index: 0, is_cover: true },
+        ],
+      })
+    )
+    expect(card.type).toBe('video')
+  })
+
+  it('определяет type="gallery" из post_media (несколько изображений)', () => {
+    const card = dbPostToCardData(
+      makePost({
+        type: 'text',
+        post_media: [
+          { id: 'm1', post_id: 'post-1', media_type: 'image', url: 'u1', thumbnail_url: null, order_index: 0, is_cover: false },
+          { id: 'm2', post_id: 'post-1', media_type: 'image', url: 'u2', thumbnail_url: null, order_index: 1, is_cover: false },
+        ],
+      })
+    )
+    expect(card.type).toBe('gallery')
+  })
+
+  it('определяет type="multi-video" из post_media (несколько видео)', () => {
+    const card = dbPostToCardData(
+      makePost({
+        type: 'text',
+        post_media: [
+          { id: 'm1', post_id: 'post-1', media_type: 'video', url: 'u1', thumbnail_url: null, order_index: 0, is_cover: false },
+          { id: 'm2', post_id: 'post-1', media_type: 'video', url: 'u2', thumbnail_url: null, order_index: 1, is_cover: false },
+        ],
+      })
+    )
+    expect(card.type).toBe('multi-video')
+  })
+
+  it('определяет type="text" когда post_media пуст', () => {
+    const card = dbPostToCardData(makePost({ type: 'photo', post_media: [] }))
+    expect(card.type).toBe('text')
+  })
+
+  it('определяет type="text" когда post_media = undefined', () => {
+    const card = dbPostToCardData(makePost({ type: 'video', post_media: undefined }))
+    expect(card.type).toBe('text')
   })
 
   it('генерирует инициалы из одного слова', () => {
