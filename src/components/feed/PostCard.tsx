@@ -107,12 +107,12 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
             <GalleryGrid media={post.media!} priority={priority} interactive={false} />
           </Link>
         )
-      ) : post.type === 'video' && post.mediaItem ? (
+      ) : post.type === 'video' && (post.mediaItem?.url || post.media?.[0]?.url) ? (
         <div className="mb-4">
           <VideoPlayerContainer
             videoId={post.id}
-            src={post.mediaItem.url}
-            poster={post.mediaItem.thumbnail_url ?? undefined}
+            src={(post.mediaItem?.url ?? post.media?.[0]?.url)!}
+            poster={post.mediaItem?.thumbnail_url ?? post.media?.[0]?.thumbnail_url ?? undefined}
             alt={post.title}
             aspectRatio="16/9"
             priority={priority}

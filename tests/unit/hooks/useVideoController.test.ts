@@ -97,4 +97,22 @@ describe('useVideoController', () => {
     // video-1 не должен сбрасывать state video-2 при своём unmount
     expect(useFeedStore.getState().activeVideoId).toBe('video-2')
   })
+
+  it('перехватывает DOMException при вызове pause() — не выбрасывает исключение', () => {
+    // video-1 активно, затем переключается на video-2 → pause() должен вызваться но не упасть
+    useFeedStore.setState({ activeVideoId: 'video-1' })
+    const { result } = renderHook(() => useVideoController('video-1'))
+
+    const throwingPause = vi.fn().mockImplementation(() => {
+      throw new DOMException('The play() request was interrupted', 'AbortError')
+    })
+    Object.defineProperty(result.current.videoRef, 'current', {
+      value: { pause: throwingPause, paused: false },
+      writable: true,
+    })
+
+    // Не должен выбросить исключение
+    expect(() => act(() => useFeedStore.setState({ activeVideoId: 'video-2' }))).not.toThrow()
+    expect(throwingPause).toHaveBeenCalledTimes(1)
+  })
 })

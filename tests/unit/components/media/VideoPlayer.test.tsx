@@ -179,4 +179,58 @@ describe('VideoPlayer', () => {
     unmount()
     expect(disconnectMock).toHaveBeenCalled()
   })
+
+  it('рендерит <track kind="captions"> с src для валидности HTML5 (AC a11y)', () => {
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    const track = container.querySelector('track')
+    expect(track).toBeInTheDocument()
+    expect(track).toHaveAttribute('kind', 'captions')
+    // data URI: удовлетворяет HTML5-спецификации (src обязателен), не вызывает реальных сетевых запросов
+    expect(track).toHaveAttribute('src', 'data:text/vtt,WEBVTT')
+  })
+
+  it('<video> имеет атрибут title для поддержки screen readers (A11y)', () => {
+    const { container } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" alt="Видео поста" />
+    )
+    expect(container.querySelector('video')).toHaveAttribute('title', 'Видео поста')
+  })
+
+  it('onError → рендерит состояние ошибки вместо плеера', async () => {
+    const { container, findByTestId } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" />
+    )
+    fireEvent.error(container.querySelector('video')!)
+    const errorEl = await findByTestId('video-player-error')
+    expect(errorEl).toBeInTheDocument()
+    expect(container.querySelector('video')).not.toBeInTheDocument()
+  })
+
+  it('состояние ошибки показывает текст "Ошибка загрузки видео"', async () => {
+    const { container, findByText } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" />
+    )
+    fireEvent.error(container.querySelector('video')!)
+    expect(await findByText('Ошибка загрузки видео')).toBeInTheDocument()
+  })
+
+  it('onError вызывает onPause для сброса activeVideoId в store', async () => {
+    const { container } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" onPause={mockHandlePause} />
+    )
+    fireEvent.error(container.querySelector('video')!)
+    expect(mockHandlePause).toHaveBeenCalledTimes(1)
+  })
+
+  it('IntersectionObserver отключается при переходе в состояние ошибки (Memory Leak fix)', async () => {
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    expect(observeMock).toHaveBeenCalled()
+    // До ошибки disconnect не вызывался
+    expect(disconnectMock).not.toHaveBeenCalled()
+    // Триггерим ошибку → hasError=true → useEffect cleanup → disconnect()
+    await act(async () => {
+      fireEvent.error(container.querySelector('video')!)
+    })
+    expect(disconnectMock).toHaveBeenCalled()
+  })
 })

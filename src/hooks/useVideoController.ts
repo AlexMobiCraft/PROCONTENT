@@ -12,14 +12,22 @@ interface UseVideoControllerReturn {
 
 export function useVideoController(videoId: string): UseVideoControllerReturn {
   const videoRef = useRef<HTMLVideoElement>(null)
-  // Точечный boolean-селектор: перерендер только когда статус активности ЭТОГО видео меняется
+  // Точечный boolean-селектор: перерендер только когда статус активности ЭТОГО видео меняется.
+  // SSR Hydration: activeVideoId инициализируется как null (одинаково на сервере и клиенте).
+  // Все потребители хука — 'use client', без localStorage/sessionStorage → hydration mismatch невозможен.
   const isActive = useFeedStore((s) => s.activeVideoId === videoId)
   const setActiveVideo = useFeedStore((s) => s.setActiveVideo)
 
   // Автопауза при смене активного видео (другое видео стало активным)
   useEffect(() => {
     if (!isActive && videoRef.current && !videoRef.current.paused) {
-      videoRef.current.pause()
+      try {
+        videoRef.current.pause()
+      } catch (err) {
+        // DOMException/AbortError: возникает если pause() вызван пока play() promise ещё pending
+        // (быстрое переключение между видео). Безопасно игнорировать. Неожиданные ошибки перебрасываем.
+        if (!(err instanceof DOMException)) throw err
+      }
     }
   }, [isActive])
 

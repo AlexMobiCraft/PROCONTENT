@@ -228,6 +228,51 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
   })
 })
 
+describe('PostCard — одиночное видео без mediaItem, только media[0] [AI-Review High Logic]', () => {
+  const makeVideoMedia = () => [
+    {
+      id: 'v1',
+      post_id: 'p1',
+      media_type: 'video' as const,
+      url: 'https://example.com/v.mp4',
+      thumbnail_url: 'https://example.com/thumb.jpg',
+      order_index: 0,
+      is_cover: true,
+    },
+  ]
+
+  it('рендерит VideoPlayer если type=video и есть только media[0] (без mediaItem)', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          type: 'video',
+          mediaItem: undefined,
+          imageUrl: undefined,
+          media: makeVideoMedia(),
+        })}
+      />
+    )
+    expect(screen.getByTestId('video-player')).toBeInTheDocument()
+  })
+
+  it('использует media[0].url как src когда mediaItem отсутствует', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          type: 'video',
+          mediaItem: undefined,
+          imageUrl: undefined,
+          media: makeVideoMedia(),
+        })}
+      />
+    )
+    expect(screen.getByTestId('video-player')).toHaveAttribute(
+      'data-src',
+      'https://example.com/v.mp4'
+    )
+  })
+})
+
 describe('PostCard — галерея с видео [AI-Review High]', () => {
   const makeGalleryWithVideo = () => [
     { id: 'm1', post_id: 'p1', media_type: 'image' as const, url: 'https://example.com/i.jpg', thumbnail_url: null, order_index: 0, is_cover: true },
