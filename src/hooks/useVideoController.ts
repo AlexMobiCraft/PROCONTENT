@@ -21,13 +21,7 @@ export function useVideoController(videoId: string): UseVideoControllerReturn {
   // Автопауза при смене активного видео (другое видео стало активным)
   useEffect(() => {
     if (!isActive && videoRef.current && !videoRef.current.paused) {
-      try {
-        videoRef.current.pause()
-      } catch (err) {
-        // DOMException/AbortError: возникает если pause() вызван пока play() promise ещё pending
-        // (быстрое переключение между видео). Безопасно игнорировать. Неожиданные ошибки перебрасываем.
-        if (!(err instanceof DOMException)) throw err
-      }
+      videoRef.current.pause()
     }
   }, [isActive])
 

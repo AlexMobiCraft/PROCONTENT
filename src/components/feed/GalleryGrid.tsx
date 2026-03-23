@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo } from 'react'
 import { LazyMediaWrapper } from '@/components/media/LazyMediaWrapper'
 import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
@@ -27,6 +28,7 @@ export interface GalleryGridProps {
   isLoading?: boolean
   onMediaClick?: (index: number) => void
   priority?: boolean
+  itemLinkHref?: string
   /**
    * Когда false — элементы рендерятся как <div> (не интерактивны).
    * Используется в PostCard, где вся галерея обёрнута в <Link aria-hidden>.
@@ -80,6 +82,7 @@ export function GalleryGrid({
   isLoading = false,
   onMediaClick,
   priority = false,
+  itemLinkHref,
   interactive = true,
   mediaLabel = 'Slika',
   videoLabel = 'Videoposnetek',
@@ -118,9 +121,11 @@ export function GalleryGrid({
           )
 
           // Видео рендерится с VideoPlayer (имеет собственные controls), не оборачивается в <button>
+          // Нет интерактивных стилей: VideoPlayer имеет нативные controls, hover/focus-ring избыточны
+          const videoItemClass = cn('overflow-hidden rounded-sm', isLastOdd && 'col-span-2')
           if (item.media_type === 'video') {
             return (
-              <div key={item.id} className={itemClass}>
+              <div key={item.id} className={videoItemClass}>
                 <VideoPlayerContainer
                   videoId={item.id}
                   src={item.url}
@@ -130,6 +135,26 @@ export function GalleryGrid({
                   priority={priority && i < 2}
                 />
               </div>
+            )
+          }
+
+          if (itemLinkHref) {
+            return (
+              <Link
+                key={item.id}
+                href={itemLinkHref}
+                className={itemClass}
+                aria-label={ariaLabel}
+                prefetch={false}
+              >
+                <LazyMediaWrapper
+                  mediaItem={item}
+                  alt={ariaLabel}
+                  aspectRatio={itemAspectRatio}
+                  priority={priority && i < 2}
+                  sizes={itemSizes}
+                />
+              </Link>
             )
           }
 
@@ -185,9 +210,10 @@ export function GalleryGrid({
             )
 
             // Видео в карусели рендерится с VideoPlayer (собственные controls)
+            // Нет интерактивных стилей: VideoPlayer имеет нативные controls, hover/focus-ring избыточны
             if (item.media_type === 'video') {
               return (
-                <div key={item.id} className={itemClass}>
+                <div key={item.id} className="w-32 flex-none snap-start overflow-hidden rounded-sm">
                   <VideoPlayerContainer
                     videoId={item.id}
                     src={item.url}
@@ -196,6 +222,26 @@ export function GalleryGrid({
                     aspectRatio="1/1"
                   />
                 </div>
+              )
+            }
+
+            if (itemLinkHref) {
+              return (
+                <Link
+                  key={item.id}
+                  href={itemLinkHref}
+                  className={itemClass}
+                  aria-label={ariaLabel}
+                  prefetch={false}
+                >
+                  <LazyMediaWrapper
+                    mediaItem={item}
+                    alt={ariaLabel}
+                    aspectRatio="1/1"
+                    priority={false}
+                    sizes="128px"
+                  />
+                </Link>
               )
             }
 

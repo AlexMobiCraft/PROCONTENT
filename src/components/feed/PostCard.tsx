@@ -100,14 +100,14 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
       {(post.media?.length ?? 0) >= 2 ? (
         post.media!.some((m) => m.media_type === 'video') ? (
           <div className="mb-4">
-            <GalleryGrid media={post.media!} priority={priority} interactive={false} />
+            <GalleryGrid media={post.media!} priority={priority} itemLinkHref={`/feed/${post.id}`} interactive={false} />
           </div>
         ) : (
           <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} prefetch={false}>
             <GalleryGrid media={post.media!} priority={priority} interactive={false} />
           </Link>
         )
-      ) : post.type === 'video' && (post.mediaItem?.url || post.media?.[0]?.url) ? (
+      ) : (post.type === 'video' || post.type === 'multi-video') && (post.mediaItem?.url || post.media?.[0]?.url) ? (
         <div className="mb-4">
           <VideoPlayerContainer
             videoId={post.id}
@@ -123,7 +123,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
           <LazyMediaWrapper
             {...(post.mediaItem
               ? { mediaItem: post.mediaItem }
-              : { src: post.imageUrl!, type: post.type === 'video' ? 'video' : 'photo' })}
+              : { src: post.imageUrl!, type: (post.type === 'video' || post.type === 'multi-video') ? 'video' : 'photo' })}
             alt={post.title}
             aspectRatio={post.type === 'video' ? '16/9' : '4/5'}
             priority={priority}
@@ -169,6 +169,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
         {/* Like button */}
         <button
           type="button"
+          disabled={isPending}
           onClick={handleLike}
           aria-label={liked ? 'Odstrani všeček' : 'Všečkaj'}
           aria-pressed={liked}

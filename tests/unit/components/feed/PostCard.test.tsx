@@ -86,6 +86,11 @@ describe('PostCard', () => {
     expect(onLikeToggle).toHaveBeenCalledWith('p1')
   })
 
+  it('кнопка лайка получает disabled=true при isPending для полноценной a11y-блокировки', () => {
+    render(<PostCard post={makeCardData()} isPending />)
+    expect(screen.getByRole('button', { name: 'Všečkaj' })).toBeDisabled()
+  })
+
   it('вызывает onLikeToggle с postId при клике на уже лайкнутый пост (unlike)', async () => {
     const onLikeToggle = vi.fn()
     const user = userEvent.setup()
@@ -273,6 +278,48 @@ describe('PostCard — одиночное видео без mediaItem, толь�
   })
 })
 
+describe('PostCard — type=multi-video с одним media[0] [AI-Review High Logic]', () => {
+  const makeSingleVideoMedia = () => [
+    {
+      id: 'v1',
+      post_id: 'p1',
+      media_type: 'video' as const,
+      url: 'https://example.com/v.mp4',
+      thumbnail_url: null,
+      order_index: 0,
+      is_cover: true,
+    },
+  ]
+
+  it('рендерит VideoPlayerContainer для type=multi-video с одним media элементом', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          type: 'multi-video',
+          mediaItem: undefined,
+          imageUrl: undefined,
+          media: makeSingleVideoMedia(),
+        })}
+      />
+    )
+    expect(screen.getByTestId('video-player')).toBeInTheDocument()
+  })
+
+  it('не рендерит LazyMediaWrapper для type=multi-video + media[0] с video url', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          type: 'multi-video',
+          mediaItem: undefined,
+          imageUrl: undefined,
+          media: makeSingleVideoMedia(),
+        })}
+      />
+    )
+    expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
+  })
+})
+
 describe('PostCard — галерея с видео [AI-Review High]', () => {
   const makeGalleryWithVideo = () => [
     { id: 'm1', post_id: 'p1', media_type: 'image' as const, url: 'https://example.com/i.jpg', thumbnail_url: null, order_index: 0, is_cover: true },
@@ -291,6 +338,28 @@ describe('PostCard — галерея с видео [AI-Review High]', () => {
     )
     const galleryGrid = container.querySelector('[data-testid="gallery-grid"]')
     expect(galleryGrid?.closest('a')).toBeNull()
+  })
+
+  it('в смешанной галерее изображения остаются кликабельными ссылками на пост', () => {
+    render(
+      <PostCard
+        post={makeCardData({ id: 'post-mixed-1', type: 'gallery', media: makeGalleryWithVideo() })}
+      />
+    )
+
+    const links = screen.getAllByRole('link')
+    expect(links.some((link) => link.getAttribute('href') === '/feed/post-mixed-1')).toBe(true)
+  })
+
+  it('в смешанной галерее видео не оборачивается в ссылку', () => {
+    const { container } = render(
+      <PostCard
+        post={makeCardData({ id: 'post-mixed-2', type: 'gallery', media: makeGalleryWithVideo() })}
+      />
+    )
+
+    const videoPlayer = container.querySelector('[data-testid="video-player"]')
+    expect(videoPlayer?.closest('a')).toBeNull()
   })
 
   it('галерея только из изображений обёрнута в <a>-ссылку (навигация сохраняется)', () => {

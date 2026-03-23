@@ -139,6 +139,31 @@ describe('VideoPlayer', () => {
     expect(skeleton.className).toContain('aspect-square')
   })
 
+  it('после перехода isLoading=true -> false подключает IntersectionObserver и автопауза начинает работать', () => {
+    const { rerender, container } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" isLoading />
+    )
+
+    expect(observeMock).not.toHaveBeenCalled()
+
+    rerender(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" isLoading={false} />)
+
+    const video = container.querySelector('video')!
+    const pauseSpy = vi.spyOn(video, 'pause').mockImplementation(() => {})
+    Object.defineProperty(video, 'paused', { value: false, writable: true, configurable: true })
+
+    expect(observeMock).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      capturedCallback!(
+        [{ isIntersecting: false, target: video } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    expect(pauseSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('автопауза при выходе из viewport (isIntersecting=false → pause)', () => {
     const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
     const video = container.querySelector('video')!
@@ -180,13 +205,27 @@ describe('VideoPlayer', () => {
     expect(disconnectMock).toHaveBeenCalled()
   })
 
-  it('рендерит <track kind="captions"> с src для валидности HTML5 (AC a11y)', () => {
+  it('не рендерит <track> элемент (субтитры вне scope MVP, правило линтера подавлено)', () => {
     const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    const track = container.querySelector('track')
-    expect(track).toBeInTheDocument()
-    expect(track).toHaveAttribute('kind', 'captions')
-    // data URI: удовлетворяет HTML5-спецификации (src обязателен), не вызывает реальных сетевых запросов
-    expect(track).toHaveAttribute('src', 'data:text/vtt,WEBVTT')
+    expect(container.querySelector('track')).not.toBeInTheDocument()
+  })
+
+  it('сбрасывает состояние ошибки при смене src (новое видео загружается)', async () => {
+    const { container, findByTestId, rerender, queryByTestId } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" />
+    )
+
+    // Вызываем ошибку загрузки
+    fireEvent.error(container.querySelector('video')!)
+    await findByTestId('video-player-error')
+
+    // Меняем src → hasError должен сброситься
+    rerender(<VideoPlayer videoId="v1" src="https://example.com/new-video.mp4" />)
+
+    // Состояние ошибки сброшено, рендерится плеер с новым src
+    expect(queryByTestId('video-player-error')).not.toBeInTheDocument()
+    expect(container.querySelector('video')).toBeInTheDocument()
+    expect(container.querySelector('video')).toHaveAttribute('src', 'https://example.com/new-video.mp4')
   })
 
   it('<video> имеет атрибут title для поддержки screen readers (A11y)', () => {

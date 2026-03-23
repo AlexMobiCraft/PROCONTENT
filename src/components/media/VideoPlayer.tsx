@@ -27,7 +27,7 @@ export interface VideoPlayerProps {
 }
 
 export function VideoPlayer({
-  videoId: _videoId,
+  videoId,
   src,
   poster,
   alt = 'Videoposnetek',
@@ -43,6 +43,12 @@ export function VideoPlayer({
   const videoRef = externalRef ?? internalRef
   // Состояние ошибки загрузки — presentation state, управляется внутри компонента (по аналогии с isLoading)
   const [hasError, setHasError] = useState(false)
+  // Сброс ошибки при смене src: derived state during render (React-рекомендованный паттерн вместо useEffect)
+  const [prevSrc, setPrevSrc] = useState(src)
+  if (prevSrc !== src) {
+    setPrevSrc(src)
+    setHasError(false)
+  }
 
   const ratioClass = {
     '16/9': 'aspect-video',
@@ -54,18 +60,12 @@ export function VideoPlayer({
   // hasError в deps: при переходе в состояние ошибки cleanup вызывает disconnect() — предотвращает Memory Leak
   useEffect(() => {
     const el = videoRef.current
-    if (!el || hasError) return
+    if (!el || hasError || isLoading) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting && !el.paused) {
-          try {
-            el.pause()
-          } catch (err) {
-            // DOMException/AbortError: возникает если pause() вызван пока play() promise ещё pending
-            // (например, при быстром скролле). Безопасно игнорировать. Неожиданные ошибки перебрасываем.
-            if (!(err instanceof DOMException)) throw err
-          }
+          el.pause()
         }
       },
       { threshold: 0.2 } // менее 20% видимости → пауза
@@ -73,7 +73,7 @@ export function VideoPlayer({
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [videoRef, hasError])
+  }, [videoRef, hasError, isLoading])
 
   if (isLoading) {
     return (
@@ -104,6 +104,7 @@ export function VideoPlayer({
     <div className={cn('relative overflow-hidden rounded-md bg-black', ratioClass, className)}>
       <video
         ref={videoRef}
+        data-video-id={videoId}
         src={src}
         poster={poster}
         title={alt}
@@ -119,10 +120,7 @@ export function VideoPlayer({
           onPause?.()
         }}
         className="absolute inset-0 h-full w-full object-cover"
-      >
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- заглушка субтитров; реальные треки добавляются при наличии файлов */}
-        <track kind="captions" src="data:text/vtt,WEBVTT" />
-      </video>
+      />
     </div>
   )
 }

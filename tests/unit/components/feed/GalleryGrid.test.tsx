@@ -408,6 +408,44 @@ describe('GalleryGrid — a11y в PostDetail: interactive=true (default) [MEDIUM
   })
 })
 
+describe('GalleryGrid — нет интерактивных стилей на wrapper вокруг видео [AI-Review Medium UX]', () => {
+  const makeVideoMedia = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      id: `v-${i}`,
+      post_id: 'p1',
+      media_type: 'video' as const,
+      url: `https://example.com/v-${i}.mp4`,
+      thumbnail_url: null,
+      order_index: i,
+      is_cover: i === 0,
+    }))
+
+  it('wrapper вокруг видео в основной сетке НЕ имеет hover:opacity-90 (interactive=true)', () => {
+    const { container } = render(<GalleryGrid media={makeVideoMedia(2)} interactive={true} />)
+    const videoPlayers = container.querySelectorAll('[data-testid="video-player"]')
+    for (const player of Array.from(videoPlayers)) {
+      expect(player.parentElement?.className).not.toContain('hover:opacity-90')
+    }
+  })
+
+  it('wrapper вокруг видео в основной сетке НЕ имеет focus-visible:ring-2 (interactive=true)', () => {
+    const { container } = render(<GalleryGrid media={makeVideoMedia(2)} interactive={true} />)
+    const videoPlayers = container.querySelectorAll('[data-testid="video-player"]')
+    for (const player of Array.from(videoPlayers)) {
+      expect(player.parentElement?.className).not.toContain('focus-visible:ring-2')
+    }
+  })
+
+  it('wrapper вокруг видео в карусели НЕ имеет hover:opacity-90 (interactive=true)', () => {
+    const { container } = render(<GalleryGrid media={makeVideoMedia(7)} interactive={true} />)
+    const carousel = container.querySelector('[data-testid="gallery-carousel"]')!
+    const videoPlayers = carousel.querySelectorAll('[data-testid="video-player"]')
+    for (const player of Array.from(videoPlayers)) {
+      expect(player.parentElement?.className).not.toContain('hover:opacity-90')
+    }
+  })
+})
+
 describe('GalleryGrid — aria-label для видео', () => {
   it('видео элемент получает aria-label "Videoposnetek N"', () => {
     const videoMedia = [
@@ -423,5 +461,37 @@ describe('GalleryGrid — aria-label для видео', () => {
     render(<GalleryGrid media={makeMedia(2)} />)
     expect(screen.getByLabelText('Slika 1')).toBeInTheDocument()
     expect(screen.getByLabelText('Slika 2')).toBeInTheDocument()
+  })
+})
+
+describe('GalleryGrid — itemLinkHref для смешанных галерей [AI-Review High UX]', () => {
+  it('оборачивает только изображения в Link, оставляя видео без ссылки', () => {
+    const media: PostMedia[] = [
+      {
+        id: 'img-1',
+        post_id: 'p1',
+        media_type: 'image',
+        url: 'https://example.com/img-1.jpg',
+        thumbnail_url: null,
+        order_index: 0,
+        is_cover: true,
+      },
+      {
+        id: 'vid-1',
+        post_id: 'p1',
+        media_type: 'video',
+        url: 'https://example.com/video-1.mp4',
+        thumbnail_url: null,
+        order_index: 1,
+        is_cover: false,
+      },
+    ]
+
+    const { container } = render(
+      <GalleryGrid media={media} interactive={false} itemLinkHref="/feed/post-1" />
+    )
+
+    expect(screen.getByRole('link', { name: 'Slika 1' })).toHaveAttribute('href', '/feed/post-1')
+    expect(container.querySelector('[data-testid="video-player"]')?.closest('a')).toBeNull()
   })
 })
