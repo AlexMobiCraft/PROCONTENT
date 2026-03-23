@@ -75,7 +75,7 @@ development_status:
   2-4-gallery-grid-adaptive-layout-component: done
 
   # Story-файл создан 2026-03-22 SM Bob
-  2-5-global-video-playback-controller: ready-for-dev
+  2-5-global-video-playback-controller: review
 
   # Ранее 2-3 → переименована в 2-6 (файл переименован), статус сохранён
   2-6-detailed-view-of-multiformat-post: review

@@ -3,6 +3,28 @@ import { describe, it, expect, vi } from 'vitest'
 import { GalleryGrid, getGridLayout } from '@/components/feed/GalleryGrid'
 import type { PostMedia } from '@/features/feed/types'
 
+vi.mock('@/components/media/VideoPlayer', () => ({
+  VideoPlayer: ({
+    alt,
+    src,
+    videoId,
+    aspectRatio,
+  }: {
+    alt?: string
+    src?: string
+    videoId?: string
+    aspectRatio?: string
+  }) => (
+    <video
+      src={src}
+      aria-label={alt}
+      data-testid="video-player"
+      data-video-id={videoId}
+      data-aspect-ratio={aspectRatio}
+    />
+  ),
+}))
+
 vi.mock('@/components/media/LazyMediaWrapper', () => ({
   LazyMediaWrapper: ({
     alt,

@@ -13,6 +13,9 @@ interface FeedState {
   activeCategory: string
   /** ID постов, по которым выполняется запрос toggle_like (блокировка спама) */
   pendingLikes: string[]
+  /** ID активного воспроизводимого видео. null = нет активного. NFR4.1 */
+  activeVideoId: string | null
+  setActiveVideo: (id: string | null) => void
   setPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   appendPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   setActiveCategory: (category: string) => void
@@ -36,6 +39,7 @@ const initialState = {
   error: null as string | null,
   activeCategory: 'all',
   pendingLikes: [] as string[],
+  activeVideoId: null as string | null,
 }
 
 export const useFeedStore = create<FeedState>((set) => ({
@@ -90,5 +94,7 @@ export const useFeedStore = create<FeedState>((set) => ({
     set((state) => ({
       pendingLikes: state.pendingLikes.filter((id) => id !== postId),
     })),
+
+  setActiveVideo: (id) => set({ activeVideoId: id }),
 }))
 

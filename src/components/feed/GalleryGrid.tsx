@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { LazyMediaWrapper } from '@/components/media/LazyMediaWrapper'
+import { VideoPlayer } from '@/components/media/VideoPlayer'
 import { cn } from '@/lib/utils'
 import type { PostMedia } from '@/features/feed/types'
 import { sortByOrderIndex } from '@/features/feed/types'
@@ -116,6 +117,21 @@ export function GalleryGrid({
             isLastOdd && 'col-span-2'
           )
 
+          // Видео рендерится с VideoPlayer (имеет собственные controls), не оборачивается в <button>
+          if (item.media_type === 'video') {
+            return (
+              <div key={item.id} className={itemClass}>
+                <VideoPlayer
+                  videoId={item.id}
+                  src={item.url}
+                  poster={item.thumbnail_url ?? undefined}
+                  alt={ariaLabel}
+                  aspectRatio={itemAspectRatio}
+                />
+              </div>
+            )
+          }
+
           if (interactive) {
             return (
               <button
@@ -166,6 +182,21 @@ export function GalleryGrid({
               interactive &&
                 'min-h-[44px] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
             )
+
+            // Видео в карусели рендерится с VideoPlayer (собственные controls)
+            if (item.media_type === 'video') {
+              return (
+                <div key={item.id} className={itemClass}>
+                  <VideoPlayer
+                    videoId={item.id}
+                    src={item.url}
+                    poster={item.thumbnail_url ?? undefined}
+                    alt={ariaLabel}
+                    aspectRatio="1/1"
+                  />
+                </div>
+              )
+            }
 
             if (interactive) {
               return (
