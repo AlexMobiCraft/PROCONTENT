@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { LazyMediaWrapper, type MediaItem } from '../media/LazyMediaWrapper'
-import { VideoPlayer } from '../media/VideoPlayer'
+import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { GalleryGrid, GalleryGridSkeleton } from './GalleryGrid'
 import type { PostMedia } from '@/features/feed/types'
 
@@ -103,13 +103,13 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
             <GalleryGrid media={post.media!} priority={priority} interactive={false} />
           </div>
         ) : (
-          <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true" prefetch={false}>
+          <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} prefetch={false}>
             <GalleryGrid media={post.media!} priority={priority} interactive={false} />
           </Link>
         )
       ) : post.type === 'video' && post.mediaItem ? (
         <div className="mb-4">
-          <VideoPlayer
+          <VideoPlayerContainer
             videoId={post.id}
             src={post.mediaItem.url}
             poster={post.mediaItem.thumbnail_url ?? undefined}
@@ -119,7 +119,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
           />
         </div>
       ) : (post.mediaItem || post.imageUrl) ? (
-        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true" prefetch={false}>
+        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} prefetch={false}>
           <LazyMediaWrapper
             {...(post.mediaItem
               ? { mediaItem: post.mediaItem }

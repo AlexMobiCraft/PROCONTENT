@@ -3,27 +3,9 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { useVideoController } from '@/hooks/useVideoController'
 import { useFeedStore } from '@/features/feed/store'
 
-// Мок IntersectionObserver (не реализован в jsdom)
-const observeMock = vi.fn()
-const disconnectMock = vi.fn()
-
-class MockIntersectionObserver {
-  constructor(public callback: IntersectionObserverCallback) {}
-  observe = observeMock
-  unobserve = vi.fn()
-  disconnect = disconnectMock
-}
-
 beforeEach(() => {
-  vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
   // Сброс store к исходному состоянию
   useFeedStore.setState({ activeVideoId: null })
-  observeMock.mockClear()
-  disconnectMock.mockClear()
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('useVideoController', () => {

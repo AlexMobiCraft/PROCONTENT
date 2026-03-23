@@ -23,30 +23,6 @@ export function useVideoController(videoId: string): UseVideoControllerReturn {
     }
   }, [isActive])
 
-  // Автопауза при выходе из viewport через IntersectionObserver
-  useEffect(() => {
-    const el = videoRef.current
-    if (!el) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting && !el.paused) {
-          try {
-            el.pause()
-            // setActiveVideo(null) вызывать не нужно: el.pause() триггерит нативный
-            // pause-ивент → onPause → handlePause → setActiveVideo(null) автоматически
-          } catch {
-            // DOMException может возникнуть при маунте до полной инициализации медиа
-          }
-        }
-      },
-      { threshold: 0.2 } // менее 20% видимости → пауза
-    )
-
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [videoId])
-
   // Cleanup при unmount: сброс activeVideoId если этот компонент был активным
   useEffect(() => {
     return () => {

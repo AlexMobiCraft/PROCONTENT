@@ -18,8 +18,8 @@ vi.mock('@/components/media/LazyMediaWrapper', () => ({
   ),
 }))
 
-vi.mock('@/components/media/VideoPlayer', () => ({
-  VideoPlayer: ({ videoId, src }: { videoId?: string; src?: string }) => (
+vi.mock('@/features/feed/components/VideoPlayerContainer', () => ({
+  VideoPlayerContainer: ({ videoId, src }: { videoId?: string; src?: string }) => (
     <div data-testid="video-player" data-video-id={videoId} data-src={src} />
   ),
 }))

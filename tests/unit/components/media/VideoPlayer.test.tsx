@@ -1,27 +1,41 @@
-import { render, fireEvent } from '@testing-library/react'
-import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { render, fireEvent, act } from '@testing-library/react'
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { VideoPlayer } from '@/components/media/VideoPlayer'
 
-// Мок useVideoController — изолируем компонент от хука
-const mockHandlePlay = vi.fn()
-const mockHandlePause = vi.fn()
-const mockVideoRef = { current: null as HTMLVideoElement | null }
-
-vi.mock('@/hooks/useVideoController', () => ({
-  useVideoController: vi.fn(() => ({
-    videoRef: mockVideoRef,
-    isActive: false,
-    handlePlay: mockHandlePlay,
-    handlePause: mockHandlePause,
-  })),
-}))
+// Мок IntersectionObserver (не реализован в jsdom)
+let capturedCallback: IntersectionObserverCallback | null = null
+const observeMock = vi.fn()
+const disconnectMock = vi.fn()
 
 beforeEach(() => {
-  mockHandlePlay.mockClear()
-  mockHandlePause.mockClear()
+  capturedCallback = null
+  observeMock.mockClear()
+  disconnectMock.mockClear()
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(cb: IntersectionObserverCallback) {
+        capturedCallback = cb
+      }
+      observe = observeMock
+      disconnect = disconnectMock
+    }
+  )
 })
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+const mockHandlePlay = vi.fn()
+const mockHandlePause = vi.fn()
+
 describe('VideoPlayer', () => {
+  beforeEach(() => {
+    mockHandlePlay.mockClear()
+    mockHandlePause.mockClear()
+  })
+
   it('рендерит <video> элемент', () => {
     const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
     expect(container.querySelector('video')).toBeInTheDocument()
@@ -61,14 +75,18 @@ describe('VideoPlayer', () => {
     expect(container.querySelector('video')).toHaveAttribute('controls')
   })
 
-  it('вызывает handlePlay при событии play', () => {
-    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+  it('вызывает onPlay при событии play', () => {
+    const { container } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" onPlay={mockHandlePlay} />
+    )
     fireEvent.play(container.querySelector('video')!)
     expect(mockHandlePlay).toHaveBeenCalledTimes(1)
   })
 
-  it('вызывает handlePause при событии pause', () => {
-    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+  it('вызывает onPause при событии pause', () => {
+    const { container } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" onPause={mockHandlePause} />
+    )
     fireEvent.pause(container.querySelector('video')!)
     expect(mockHandlePause).toHaveBeenCalledTimes(1)
   })
@@ -102,5 +120,63 @@ describe('VideoPlayer', () => {
   it('video имеет class object-cover для соответствия LazyMediaWrapper', () => {
     const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
     expect(container.querySelector('video')?.className).toContain('object-cover')
+  })
+
+  it('isLoading=true рендерит skeleton вместо видео', () => {
+    const { container, getByTestId } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" isLoading />
+    )
+    expect(getByTestId('video-player-skeleton')).toBeInTheDocument()
+    expect(container.querySelector('video')).not.toBeInTheDocument()
+  })
+
+  it('skeleton имеет animate-pulse класс и корректный aspect-ratio', () => {
+    const { getByTestId } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" isLoading aspectRatio="1/1" />
+    )
+    const skeleton = getByTestId('video-player-skeleton')
+    expect(skeleton.className).toContain('animate-pulse')
+    expect(skeleton.className).toContain('aspect-square')
+  })
+
+  it('автопауза при выходе из viewport (isIntersecting=false → pause)', () => {
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    const video = container.querySelector('video')!
+
+    const pauseSpy = vi.spyOn(video, 'pause').mockImplementation(() => {})
+    Object.defineProperty(video, 'paused', { value: false, writable: true, configurable: true })
+
+    act(() => {
+      capturedCallback!(
+        [{ isIntersecting: false, target: video } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    expect(pauseSpy).toHaveBeenCalled()
+  })
+
+  it('НЕ вызывает pause при выходе из viewport если видео уже на паузе', () => {
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    const video = container.querySelector('video')!
+
+    const pauseSpy = vi.spyOn(video, 'pause').mockImplementation(() => {})
+    // paused=true по умолчанию в jsdom
+
+    act(() => {
+      capturedCallback!(
+        [{ isIntersecting: false, target: video } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    })
+
+    expect(pauseSpy).not.toHaveBeenCalled()
+  })
+
+  it('IntersectionObserver подключается при монтировании и отключается при размонтировании', () => {
+    const { unmount } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    expect(observeMock).toHaveBeenCalled()
+    unmount()
+    expect(disconnectMock).toHaveBeenCalled()
   })
 })

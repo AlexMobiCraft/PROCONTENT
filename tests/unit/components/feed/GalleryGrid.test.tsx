@@ -3,8 +3,8 @@ import { describe, it, expect, vi } from 'vitest'
 import { GalleryGrid, getGridLayout } from '@/components/feed/GalleryGrid'
 import type { PostMedia } from '@/features/feed/types'
 
-vi.mock('@/components/media/VideoPlayer', () => ({
-  VideoPlayer: ({
+vi.mock('@/features/feed/components/VideoPlayerContainer', () => ({
+  VideoPlayerContainer: ({
     alt,
     src,
     videoId,

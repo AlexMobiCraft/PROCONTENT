@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { LazyMediaWrapper } from '@/components/media/LazyMediaWrapper'
-import { VideoPlayer } from '@/components/media/VideoPlayer'
+import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { cn } from '@/lib/utils'
 import type { PostMedia } from '@/features/feed/types'
 import { sortByOrderIndex } from '@/features/feed/types'
@@ -121,7 +121,7 @@ export function GalleryGrid({
           if (item.media_type === 'video') {
             return (
               <div key={item.id} className={itemClass}>
-                <VideoPlayer
+                <VideoPlayerContainer
                   videoId={item.id}
                   src={item.url}
                   poster={item.thumbnail_url ?? undefined}
@@ -188,7 +188,7 @@ export function GalleryGrid({
             if (item.media_type === 'video') {
               return (
                 <div key={item.id} className={itemClass}>
-                  <VideoPlayer
+                  <VideoPlayerContainer
                     videoId={item.id}
                     src={item.url}
                     poster={item.thumbnail_url ?? undefined}
