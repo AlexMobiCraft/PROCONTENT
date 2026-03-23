@@ -18,6 +18,12 @@ vi.mock('@/components/media/LazyMediaWrapper', () => ({
   ),
 }))
 
+vi.mock('@/components/media/VideoPlayer', () => ({
+  VideoPlayer: ({ videoId, src }: { videoId?: string; src?: string }) => (
+    <div data-testid="video-player" data-video-id={videoId} data-src={src} />
+  ),
+}))
+
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import type { PostCardData } from '@/components/feed/PostCard'
 
@@ -170,6 +176,86 @@ describe('PostCard', () => {
       render(<PostCard post={makeCardData({ imageUrl: undefined, mediaItem: undefined })} />)
       expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
     })
+  })
+})
+
+describe('PostCard — одиночное видео с mediaItem [AI-Review High]', () => {
+  const makeVideoMediaItem = () => ({
+    url: 'https://example.com/v.mp4',
+    media_type: 'video' as const,
+    thumbnail_url: 'https://example.com/thumb.jpg',
+  })
+
+  it('рендерит VideoPlayer вместо LazyMediaWrapper для type=video + mediaItem', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          type: 'video',
+          mediaItem: makeVideoMediaItem(),
+          imageUrl: undefined,
+        })}
+      />
+    )
+    expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
+    expect(screen.getByTestId('video-player')).toBeInTheDocument()
+  })
+
+  it('VideoPlayer не обёрнут в <a>-ссылку (невалидный HTML)', () => {
+    const { container } = render(
+      <PostCard
+        post={makeCardData({
+          type: 'video',
+          mediaItem: makeVideoMediaItem(),
+          imageUrl: undefined,
+        })}
+      />
+    )
+    const videoPlayer = container.querySelector('[data-testid="video-player"]')!
+    expect(videoPlayer.closest('a')).toBeNull()
+  })
+
+  it('передаёт post.id как videoId в VideoPlayer', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          id: 'post-vid-1',
+          type: 'video',
+          mediaItem: makeVideoMediaItem(),
+        })}
+      />
+    )
+    expect(screen.getByTestId('video-player')).toHaveAttribute('data-video-id', 'post-vid-1')
+  })
+})
+
+describe('PostCard — галерея с видео [AI-Review High]', () => {
+  const makeGalleryWithVideo = () => [
+    { id: 'm1', post_id: 'p1', media_type: 'image' as const, url: 'https://example.com/i.jpg', thumbnail_url: null, order_index: 0, is_cover: true },
+    { id: 'v1', post_id: 'p1', media_type: 'video' as const, url: 'https://example.com/v.mp4', thumbnail_url: null, order_index: 1, is_cover: false },
+  ]
+  const makeGalleryImagesOnly = () => [
+    { id: 'm1', post_id: 'p1', media_type: 'image' as const, url: 'https://example.com/i1.jpg', thumbnail_url: null, order_index: 0, is_cover: true },
+    { id: 'm2', post_id: 'p1', media_type: 'image' as const, url: 'https://example.com/i2.jpg', thumbnail_url: null, order_index: 1, is_cover: false },
+  ]
+
+  it('галерея с видео не обёрнута в <a>-ссылку', () => {
+    const { container } = render(
+      <PostCard
+        post={makeCardData({ type: 'gallery', media: makeGalleryWithVideo() })}
+      />
+    )
+    const galleryGrid = container.querySelector('[data-testid="gallery-grid"]')
+    expect(galleryGrid?.closest('a')).toBeNull()
+  })
+
+  it('галерея только из изображений обёрнута в <a>-ссылку (навигация сохраняется)', () => {
+    const { container } = render(
+      <PostCard
+        post={makeCardData({ type: 'gallery', media: makeGalleryImagesOnly() })}
+      />
+    )
+    const galleryGrid = container.querySelector('[data-testid="gallery-grid"]')
+    expect(galleryGrid?.closest('a')).not.toBeNull()
   })
 })
 

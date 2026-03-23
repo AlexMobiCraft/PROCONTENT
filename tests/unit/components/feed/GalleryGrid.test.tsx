@@ -9,11 +9,13 @@ vi.mock('@/components/media/VideoPlayer', () => ({
     src,
     videoId,
     aspectRatio,
+    priority,
   }: {
     alt?: string
     src?: string
     videoId?: string
     aspectRatio?: string
+    priority?: boolean
   }) => (
     <video
       src={src}
@@ -21,6 +23,7 @@ vi.mock('@/components/media/VideoPlayer', () => ({
       data-testid="video-player"
       data-video-id={videoId}
       data-aspect-ratio={aspectRatio}
+      data-priority={String(priority ?? false)}
     />
   ),
 }))
@@ -352,6 +355,39 @@ describe('GalleryGrid — Skeleton count=0 guard [LOW fix]', () => {
     render(<GalleryGrid media={[]} isLoading={false} />)
     expect(screen.getByTestId('gallery-grid')).toBeInTheDocument()
     expect(screen.queryByTestId('lazy-media')).toBeNull()
+  })
+})
+
+describe('GalleryGrid — priority проброс в VideoPlayer [MEDIUM fix]', () => {
+  const makeVideoMedia = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      id: `v-${i}`,
+      post_id: 'p1',
+      media_type: 'video' as const,
+      url: `https://example.com/v-${i}.mp4`,
+      thumbnail_url: null,
+      order_index: i,
+      is_cover: i === 0,
+    }))
+
+  it('первые 2 видео получают priority=true при priority=true', () => {
+    const { container } = render(<GalleryGrid media={makeVideoMedia(3)} priority={true} />)
+    const players = Array.from(
+      container.querySelectorAll('[data-testid="video-player"]')
+    ) as HTMLElement[]
+    expect(players[0]).toHaveAttribute('data-priority', 'true')
+    expect(players[1]).toHaveAttribute('data-priority', 'true')
+    expect(players[2]).toHaveAttribute('data-priority', 'false')
+  })
+
+  it('все видео получают priority=false при priority=false', () => {
+    const { container } = render(<GalleryGrid media={makeVideoMedia(2)} priority={false} />)
+    const players = Array.from(
+      container.querySelectorAll('[data-testid="video-player"]')
+    ) as HTMLElement[]
+    for (const player of players) {
+      expect(player).toHaveAttribute('data-priority', 'false')
+    }
   })
 })
 

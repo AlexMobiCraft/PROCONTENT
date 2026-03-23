@@ -12,16 +12,16 @@ interface UseVideoControllerReturn {
 
 export function useVideoController(videoId: string): UseVideoControllerReturn {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const activeVideoId = useFeedStore((s) => s.activeVideoId)
+  // Точечный boolean-селектор: перерендер только когда статус активности ЭТОГО видео меняется
+  const isActive = useFeedStore((s) => s.activeVideoId === videoId)
   const setActiveVideo = useFeedStore((s) => s.setActiveVideo)
-  const isActive = activeVideoId === videoId
 
   // Автопауза при смене активного видео (другое видео стало активным)
   useEffect(() => {
-    if (activeVideoId !== videoId && videoRef.current && !videoRef.current.paused) {
+    if (!isActive && videoRef.current && !videoRef.current.paused) {
       videoRef.current.pause()
     }
-  }, [activeVideoId, videoId])
+  }, [isActive])
 
   // Автопауза при выходе из viewport через IntersectionObserver
   useEffect(() => {
@@ -31,10 +31,12 @@ export function useVideoController(videoId: string): UseVideoControllerReturn {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting && !el.paused) {
-          el.pause()
-          // Освобождаем activeVideoId только если это наше видео
-          if (useFeedStore.getState().activeVideoId === videoId) {
-            useFeedStore.getState().setActiveVideo(null)
+          try {
+            el.pause()
+            // setActiveVideo(null) вызывать не нужно: el.pause() триггерит нативный
+            // pause-ивент → onPause → handlePause → setActiveVideo(null) автоматически
+          } catch {
+            // DOMException может возникнуть при маунте до полной инициализации медиа
           }
         }
       },
@@ -43,6 +45,15 @@ export function useVideoController(videoId: string): UseVideoControllerReturn {
 
     observer.observe(el)
     return () => observer.disconnect()
+  }, [videoId])
+
+  // Cleanup при unmount: сброс activeVideoId если этот компонент был активным
+  useEffect(() => {
+    return () => {
+      if (useFeedStore.getState().activeVideoId === videoId) {
+        useFeedStore.getState().setActiveVideo(null)
+      }
+    }
   }, [videoId])
 
   const handlePlay = useCallback(() => {

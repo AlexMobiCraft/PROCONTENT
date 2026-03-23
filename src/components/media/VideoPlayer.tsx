@@ -14,6 +14,8 @@ interface VideoPlayerProps {
   alt?: string
   aspectRatio?: '16/9' | '4/5' | '1/1'
   className?: string
+  /** Первое видео в ленте — предзагрузить метаданные вместо полного отказа от preload */
+  priority?: boolean
 }
 
 export function VideoPlayer({
@@ -23,6 +25,7 @@ export function VideoPlayer({
   alt = 'Videoposnetek',
   aspectRatio = '16/9',
   className,
+  priority = false,
 }: VideoPlayerProps) {
   const { videoRef, handlePlay, handlePause } = useVideoController(videoId)
 
@@ -40,11 +43,11 @@ export function VideoPlayer({
         poster={poster}
         controls
         playsInline
-        preload="none"
+        preload={priority ? 'metadata' : 'none'}
         aria-label={alt}
         onPlay={handlePlay}
         onPause={handlePause}
-        className="absolute inset-0 h-full w-full object-contain"
+        className="absolute inset-0 h-full w-full object-cover"
       />
     </div>
   )

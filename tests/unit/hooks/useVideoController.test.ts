@@ -70,6 +70,8 @@ describe('useVideoController', () => {
   })
 
   it('вызывает pause() на videoRef когда activeVideoId меняется на другое видео', () => {
+    // video-1 активно изначально (isActive: true)
+    useFeedStore.setState({ activeVideoId: 'video-1' })
     const { result } = renderHook(() => useVideoController('video-1'))
 
     // Мокаем videoRef.current — нативный HTMLVideoElement не доступен в jsdom
@@ -79,7 +81,7 @@ describe('useVideoController', () => {
       writable: true,
     })
 
-    // Активируем другое видео → должен вызваться pause()
+    // Переключаемся на video-2 → isActive: true → false → pause() вызывается
     act(() => useFeedStore.setState({ activeVideoId: 'video-2' }))
     expect(mockPause).toHaveBeenCalledTimes(1)
   })
@@ -96,5 +98,21 @@ describe('useVideoController', () => {
     // Активируем то же видео — pause() не вызывается
     act(() => useFeedStore.setState({ activeVideoId: 'video-1' }))
     expect(mockPause).not.toHaveBeenCalled()
+  })
+
+  it('сбрасывает activeVideoId при unmount если компонент был активным', () => {
+    useFeedStore.setState({ activeVideoId: 'video-1' })
+    const { unmount } = renderHook(() => useVideoController('video-1'))
+    expect(useFeedStore.getState().activeVideoId).toBe('video-1')
+    unmount()
+    expect(useFeedStore.getState().activeVideoId).toBeNull()
+  })
+
+  it('не сбрасывает activeVideoId при unmount если активно другое видео', () => {
+    useFeedStore.setState({ activeVideoId: 'video-2' })
+    const { unmount } = renderHook(() => useVideoController('video-1'))
+    unmount()
+    // video-1 не должен сбрасывать state video-2 при своём unmount
+    expect(useFeedStore.getState().activeVideoId).toBe('video-2')
   })
 })

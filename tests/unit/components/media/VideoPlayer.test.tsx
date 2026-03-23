@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, fireEvent } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { VideoPlayer } from '@/components/media/VideoPlayer'
 
@@ -23,52 +23,61 @@ beforeEach(() => {
 
 describe('VideoPlayer', () => {
   it('рендерит <video> элемент', () => {
-    render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    expect(document.querySelector('video')).toBeInTheDocument()
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    expect(container.querySelector('video')).toBeInTheDocument()
   })
 
   it('устанавливает src из пропса', () => {
-    render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    expect(document.querySelector('video')).toHaveAttribute('src', 'https://example.com/v.mp4')
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    expect(container.querySelector('video')).toHaveAttribute('src', 'https://example.com/v.mp4')
   })
 
   it('устанавливает poster из пропса', () => {
-    render(
+    const { container } = render(
       <VideoPlayer videoId="v1" src="https://example.com/v.mp4" poster="https://example.com/p.jpg" />
     )
-    expect(document.querySelector('video')).toHaveAttribute('poster', 'https://example.com/p.jpg')
+    expect(container.querySelector('video')).toHaveAttribute('poster', 'https://example.com/p.jpg')
   })
 
   it('имеет атрибут playsInline', () => {
-    render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    expect(document.querySelector('video')).toHaveAttribute('playsInline')
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    expect(container.querySelector('video')).toHaveAttribute('playsInline')
   })
 
-  it('имеет preload="none"', () => {
-    render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    expect(document.querySelector('video')).toHaveAttribute('preload', 'none')
+  it('имеет preload="none" по умолчанию', () => {
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    expect(container.querySelector('video')).toHaveAttribute('preload', 'none')
+  })
+
+  it('имеет preload="metadata" при priority=true', () => {
+    const { container } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" priority />
+    )
+    expect(container.querySelector('video')).toHaveAttribute('preload', 'metadata')
   })
 
   it('имеет атрибут controls', () => {
-    render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    expect(document.querySelector('video')).toHaveAttribute('controls')
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    expect(container.querySelector('video')).toHaveAttribute('controls')
   })
 
   it('вызывает handlePlay при событии play', () => {
-    render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    fireEvent.play(document.querySelector('video')!)
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    fireEvent.play(container.querySelector('video')!)
     expect(mockHandlePlay).toHaveBeenCalledTimes(1)
   })
 
   it('вызывает handlePause при событии pause', () => {
-    render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    fireEvent.pause(document.querySelector('video')!)
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    fireEvent.pause(container.querySelector('video')!)
     expect(mockHandlePause).toHaveBeenCalledTimes(1)
   })
 
   it('устанавливает aria-label из пропса alt', () => {
-    render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" alt="Тестовое видео" />)
-    expect(document.querySelector('video')).toHaveAttribute('aria-label', 'Тестовое видео')
+    const { container } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" alt="Тестовое видео" />
+    )
+    expect(container.querySelector('video')).toHaveAttribute('aria-label', 'Тестовое видео')
   })
 
   it('применяет aspectRatio="1/1" → aspect-square класс', () => {
@@ -86,7 +95,12 @@ describe('VideoPlayer', () => {
   })
 
   it('не рендерит poster если пропс не передан', () => {
-    render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    expect(document.querySelector('video')).not.toHaveAttribute('poster')
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    expect(container.querySelector('video')).not.toHaveAttribute('poster')
+  })
+
+  it('video имеет class object-cover для соответствия LazyMediaWrapper', () => {
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    expect(container.querySelector('video')?.className).toContain('object-cover')
   })
 })

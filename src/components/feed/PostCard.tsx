@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { LazyMediaWrapper, type MediaItem } from '../media/LazyMediaWrapper'
+import { VideoPlayer } from '../media/VideoPlayer'
 import { GalleryGrid, GalleryGridSkeleton } from './GalleryGrid'
 import type { PostMedia } from '@/features/feed/types'
 
@@ -95,10 +96,28 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
       </header>
 
       {/* Media Content — кликабельна, tabIndex=-1 чтобы не дублировать tab-stop с заголовком */}
+      {/* Галереи и одиночные видео НЕ оборачиваются в <Link>: <video controls> внутри <a> — невалидный HTML */}
       {(post.media?.length ?? 0) >= 2 ? (
-        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true" prefetch={false}>
-          <GalleryGrid media={post.media!} priority={priority} interactive={false} />
-        </Link>
+        post.media!.some((m) => m.media_type === 'video') ? (
+          <div className="mb-4">
+            <GalleryGrid media={post.media!} priority={priority} interactive={false} />
+          </div>
+        ) : (
+          <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true" prefetch={false}>
+            <GalleryGrid media={post.media!} priority={priority} interactive={false} />
+          </Link>
+        )
+      ) : post.type === 'video' && post.mediaItem ? (
+        <div className="mb-4">
+          <VideoPlayer
+            videoId={post.id}
+            src={post.mediaItem.url}
+            poster={post.mediaItem.thumbnail_url ?? undefined}
+            alt={post.title}
+            aspectRatio="16/9"
+            priority={priority}
+          />
+        </div>
       ) : (post.mediaItem || post.imageUrl) ? (
         <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} aria-hidden="true" prefetch={false}>
           <LazyMediaWrapper

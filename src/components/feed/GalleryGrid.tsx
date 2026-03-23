@@ -127,6 +127,7 @@ export function GalleryGrid({
                   poster={item.thumbnail_url ?? undefined}
                   alt={ariaLabel}
                   aspectRatio={itemAspectRatio}
+                  priority={priority && i < 2}
                 />
               </div>
             )
