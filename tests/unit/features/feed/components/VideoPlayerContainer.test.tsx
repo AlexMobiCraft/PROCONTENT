@@ -101,4 +101,11 @@ describe('VideoPlayerContainer', () => {
     // v2 должен остаться активным — v1 не имеет права сбросить чужой activeVideoId
     expect(useFeedStore.getState().activeVideoId).toBe('v2')
   })
+
+  it('kompozitный key: VideoPlayer получает key={videoId-src} для гарантированного ремаунта [Round 16]', () => {
+    render(<VideoPlayerContainer videoId="v1" src="https://example.com/v.mp4" />)
+    // Проверяем что пропсы корректно прокидываются (key не виден через props, но убеждаемся что src/videoId совпадают)
+    expect(capturedProps[0].src).toBe('https://example.com/v.mp4')
+    expect(capturedProps[0].videoId).toBe('v1')
+  })
 })

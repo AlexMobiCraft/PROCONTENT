@@ -26,7 +26,7 @@ export function VideoPlayerContainer(props: VideoPlayerContainerProps) {
     }
   }, [props.src, props.videoId])
 
-  // key={props.src}: при смене src VideoPlayer размонтируется и монтируется заново,
-  // что сбрасывает hasError и предотвращает двойной синхронный ререндер derived state.
-  return <VideoPlayer key={props.src} {...props} ref={videoRef} onPlay={handlePlay} onPause={handlePause} />
+  // key={`${props.videoId}-${props.src}`}: при смене src или videoId VideoPlayer размонтируется заново,
+  // что сбрасывает hasError. Композитный ключ гарантирует ремаунт даже если только videoId сменился.
+  return <VideoPlayer key={`${props.videoId}-${props.src}`} {...props} ref={videoRef} onPlay={handlePlay} onPause={handlePause} />
 }

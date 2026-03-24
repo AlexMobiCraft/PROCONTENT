@@ -45,7 +45,7 @@ interface LazyMediaWrapperProps {
 function resolveMediaSrc(props: LazyMediaWrapperProps): string {
   if (props.mediaItem) {
     return props.mediaItem.media_type === 'video'
-      ? (props.mediaItem.thumbnail_url ?? props.mediaItem.url)
+      ? (props.mediaItem.thumbnail_url ?? '')
       : props.mediaItem.url
   }
   return props.src ?? ''
@@ -73,7 +73,7 @@ function LazyMediaWrapperContent({
   // Если передан mediaItem — выводим src и type из него (AC 6, 7)
   const src = mediaItem
     ? mediaItem.media_type === 'video'
-      ? (mediaItem.thumbnail_url ?? mediaItem.url)
+      ? (mediaItem.thumbnail_url ?? '')
       : mediaItem.url
     : (srcProp ?? '')
   const type = mediaItem

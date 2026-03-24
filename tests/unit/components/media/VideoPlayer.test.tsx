@@ -251,14 +251,15 @@ describe('VideoPlayer', () => {
     expect(await findByText('Napaka pri nalaganju videa')).toBeInTheDocument()
   })
 
-  it('контейнер ошибки имеет role="alert" для поддержки скринридеров (A11y)', async () => {
+  it('контейнер ошибки имеет role="alert" и aria-label с контекстом alt (A11y)', async () => {
     const { container, findByTestId } = render(
-      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" />
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" alt="Testni videoposnetek" />
     )
     fireEvent.error(container.querySelector('video')!)
     const errorEl = await findByTestId('video-player-error')
     expect(errorEl).toHaveAttribute('role', 'alert')
     expect(errorEl).toHaveAttribute('aria-live', 'polite')
+    expect(errorEl).toHaveAttribute('aria-label', 'Napaka pri nalaganju videa: Testni videoposnetek')
   })
 
   it('onError вызывает onPause для сброса activeVideoId в store', async () => {

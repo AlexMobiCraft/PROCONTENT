@@ -24,6 +24,15 @@ vi.mock('@/features/feed/components/VideoPlayerContainer', () => ({
   ),
 }))
 
+vi.mock('@/components/feed/GalleryGrid', () => ({
+  GalleryGrid: ({ media, itemLinkHref }: { media: unknown[]; itemLinkHref?: string }) => (
+    <div data-testid="gallery-grid" data-count={media.length} data-item-link-href={itemLinkHref ?? ''} />
+  ),
+  GalleryGridSkeleton: ({ count }: { count?: number }) => (
+    <div data-testid="gallery-grid-skeleton" data-count={count ?? 0} />
+  ),
+}))
+
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import type { PostCardData } from '@/components/feed/PostCard'
 
@@ -427,15 +436,16 @@ describe('PostCard — галерея с видео [AI-Review High]', () => {
     expect(links.some((link) => link.getAttribute('href') === '/feed/post-mixed-1')).toBe(true)
   })
 
-  it('в смешанной галерее видео не оборачивается в ссылку', () => {
+  it('в смешанной галерее GalleryGrid не оборачивается в ссылку (видео внутри)', () => {
     const { container } = render(
       <PostCard
         post={makeCardData({ id: 'post-mixed-2', type: 'gallery', media: makeGalleryWithVideo() })}
       />
     )
 
-    const videoPlayer = container.querySelector('[data-testid="video-player"]')
-    expect(videoPlayer?.closest('a')).toBeNull()
+    // GalleryGrid (содержащий видео) не должен быть внутри <a> — иначе <video controls> внутри ссылки невалиден
+    const galleryGrid = container.querySelector('[data-testid="gallery-grid"]')
+    expect(galleryGrid?.closest('a')).toBeNull()
   })
 
   it('галерея только из изображений обёрнута в <a>-ссылку (навигация сохраняется)', () => {

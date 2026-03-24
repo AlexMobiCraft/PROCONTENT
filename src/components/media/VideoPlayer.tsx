@@ -85,6 +85,7 @@ export function VideoPlayer({
       <div
         role="alert"
         aria-live="polite"
+        aria-label={`Napaka pri nalaganju videa: ${alt}`}
         className={cn(
           'relative flex items-center justify-center overflow-hidden rounded-md bg-muted',
           ratioClass,
@@ -99,6 +100,7 @@ export function VideoPlayer({
 
   return (
     <div className={cn('relative overflow-hidden rounded-md bg-black', ratioClass, className)}>
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video
         ref={videoRef}
         data-video-id={videoId}
@@ -117,7 +119,7 @@ export function VideoPlayer({
         }}
         className="absolute inset-0 h-full w-full object-cover"
       >
-        Vaš brskalnik ne podpira videa.
+        <p>Vaš brskalnik ne podpira videa.</p>
       </video>
     </div>
   )

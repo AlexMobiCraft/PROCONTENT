@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo } from 'react'
 import { LazyMediaWrapper } from '@/components/media/LazyMediaWrapper'
 import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { cn } from '@/lib/utils'
@@ -87,7 +86,7 @@ export function GalleryGrid({
   mediaLabel = 'Slika',
   videoLabel = 'Videoposnetek',
 }: GalleryGridProps) {
-  const sorted = useMemo(() => sortByOrderIndex(media), [media])
+  const sorted = sortByOrderIndex(media)
 
   if (isLoading) {
     return <GalleryGridSkeleton count={media.length || 4} />
@@ -195,7 +194,7 @@ export function GalleryGrid({
 
       {carouselItems.length > 0 && (
         <div
-          className="mt-1 flex snap-x snap-mandatory gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="mt-1 flex snap-x snap-mandatory gap-1 overflow-x-auto"
           data-testid="gallery-carousel"
         >
           {carouselItems.map((item, i) => {

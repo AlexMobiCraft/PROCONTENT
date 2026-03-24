@@ -233,7 +233,7 @@ export function PostCardSkeleton({
   galleryCount = 4,
 }: {
   showMedia?: boolean
-  mediaType?: 'photo' | 'video' | 'gallery'
+  mediaType?: 'photo' | 'video' | 'gallery' | 'multi-video'
   /** Количество ячеек в GalleryGridSkeleton (используется только при mediaType='gallery'). */
   galleryCount?: number
 }) {
@@ -254,7 +254,7 @@ export function PostCardSkeleton({
         </div>
       )}
       {showMedia && mediaType !== 'gallery' && (
-        <div className={`mb-4 ${mediaAspectClass} w-full rounded-lg bg-muted animate-pulse`} data-testid="post-card-skeleton-media" />
+        <div className={cn('mb-4 w-full rounded-lg bg-muted animate-pulse', mediaAspectClass)} data-testid="post-card-skeleton-media" />
       )}
 
       <div className="flex flex-col gap-2">

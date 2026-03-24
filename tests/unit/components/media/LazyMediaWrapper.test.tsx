@@ -405,8 +405,8 @@ describe('LazyMediaWrapper', () => {
       expect(img).toHaveAttribute('src', 'https://example.com/thumb.jpg')
     })
 
-    it('использует url как фоллбек постера видео при thumbnail_url=null (AC 7)', () => {
-      const { getByRole } = render(
+    it('показывает error-fallback для видео при thumbnail_url=null — не передаёт .mp4 в next/image (AC 7)', () => {
+      const { getByTestId, container } = render(
         <LazyMediaWrapper
           mediaItem={makeMediaItem({
             media_type: 'video',
@@ -417,8 +417,10 @@ describe('LazyMediaWrapper', () => {
           priority
         />
       )
-      const img = getByRole('img', { name: 'Видео' })
-      expect(img).toHaveAttribute('src', 'https://example.com/video.mp4')
+      // Нет next/image <img> — не пытается загрузить .mp4 как картинку
+      expect(container.querySelector('img')).toBeNull()
+      // Показывает error-fallback сразу (src='')
+      expect(getByTestId('media-error-fallback')).toBeInTheDocument()
     })
 
     it('показывает play-иконку для видео mediaItem после загрузки (AC 7)', () => {
