@@ -19,8 +19,8 @@ vi.mock('@/components/media/LazyMediaWrapper', () => ({
 }))
 
 vi.mock('@/features/feed/components/VideoPlayerContainer', () => ({
-  VideoPlayerContainer: ({ videoId, src }: { videoId?: string; src?: string }) => (
-    <div data-testid="video-player" data-video-id={videoId} data-src={src} />
+  VideoPlayerContainer: ({ videoId, src, aspectRatio }: { videoId?: string; src?: string; aspectRatio?: string }) => (
+    <div data-testid="video-player" data-video-id={videoId} data-src={src} data-aspect-ratio={aspectRatio} />
   ),
 }))
 
@@ -300,6 +300,20 @@ describe('PostCard — одиночное видео без mediaItem, толь�
       'https://example.com/v.mp4'
     )
   })
+
+  it('type=video использует aspectRatio="16/9" для горизонтального видео', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          type: 'video',
+          mediaItem: undefined,
+          imageUrl: undefined,
+          media: makeVideoMedia(),
+        })}
+      />
+    )
+    expect(screen.getByTestId('video-player')).toHaveAttribute('data-aspect-ratio', '16/9')
+  })
 })
 
 describe('PostCard — type=multi-video с одним media[0] [AI-Review High Logic]', () => {
@@ -341,6 +355,20 @@ describe('PostCard — type=multi-video с одним media[0] [AI-Review High L
       />
     )
     expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
+  })
+
+  it('type=multi-video использует aspectRatio="4/5" для поддержки вертикальных видео', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          type: 'multi-video',
+          mediaItem: undefined,
+          imageUrl: undefined,
+          media: makeSingleVideoMedia(),
+        })}
+      />
+    )
+    expect(screen.getByTestId('video-player')).toHaveAttribute('data-aspect-ratio', '4/5')
   })
 })
 

@@ -250,12 +250,22 @@ describe('VideoPlayer', () => {
     expect(container.querySelector('video')).not.toBeInTheDocument()
   })
 
-  it('состояние ошибки показывает текст "Ошибка загрузки видео"', async () => {
+  it('состояние ошибки показывает текст "Napaka pri nalaganju videa"', async () => {
     const { container, findByText } = render(
       <VideoPlayer videoId="v1" src="https://example.com/v.mp4" />
     )
     fireEvent.error(container.querySelector('video')!)
-    expect(await findByText('Ошибка загрузки видео')).toBeInTheDocument()
+    expect(await findByText('Napaka pri nalaganju videa')).toBeInTheDocument()
+  })
+
+  it('контейнер ошибки имеет role="alert" для поддержки скринридеров (A11y)', async () => {
+    const { container, findByTestId } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" />
+    )
+    fireEvent.error(container.querySelector('video')!)
+    const errorEl = await findByTestId('video-player-error')
+    expect(errorEl).toHaveAttribute('role', 'alert')
+    expect(errorEl).toHaveAttribute('aria-live', 'polite')
   })
 
   it('onError вызывает onPause для сброса activeVideoId в store', async () => {
@@ -281,6 +291,6 @@ describe('VideoPlayer', () => {
   it('рендерит fallback-текст внутри <video> для старых браузеров [AI-Review Low]', () => {
     const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
     const video = container.querySelector('video')!
-    expect(video.textContent).toContain('Ваш браузер не поддерживает видео.')
+    expect(video.textContent).toContain('Vaš brskalnik ne podpira videa.')
   })
 })

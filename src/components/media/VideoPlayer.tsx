@@ -83,6 +83,8 @@ export function VideoPlayer({
   if (hasError) {
     return (
       <div
+        role="alert"
+        aria-live="polite"
         className={cn(
           'relative flex items-center justify-center overflow-hidden rounded-md bg-muted',
           ratioClass,
@@ -90,7 +92,7 @@ export function VideoPlayer({
         )}
         data-testid="video-player-error"
       >
-        <span className="text-xs text-muted-foreground">Ошибка загрузки видео</span>
+        <span className="text-xs text-muted-foreground">Napaka pri nalaganju videa</span>
       </div>
     )
   }
@@ -116,7 +118,7 @@ export function VideoPlayer({
         }}
         className="absolute inset-0 h-full w-full object-cover"
       >
-        Ваш браузер не поддерживает видео.
+        Vaš brskalnik ne podpira videa.
       </video>
     </div>
   )

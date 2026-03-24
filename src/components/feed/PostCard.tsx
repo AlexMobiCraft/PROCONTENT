@@ -114,7 +114,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
             src={(post.mediaItem?.url ?? post.media?.[0]?.url)!}
             poster={post.mediaItem?.thumbnail_url ?? post.media?.[0]?.thumbnail_url ?? undefined}
             alt={post.title}
-            aspectRatio="16/9"
+            aspectRatio={post.type === 'video' ? '16/9' : '4/5'}
             priority={priority}
           />
         </div>
