@@ -8,16 +8,31 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Конфиг БД
-const projectId = 'fixiwavyrcmajyzuzand';
-const password = 'ProContent+2026';
+// ── Конфигурация ─────────────────────────────────────────────────────────────
+// Пытаемся автоматически найти пароль в .env.local (даже в комментариях)
+const envLocalPath = path.join(__dirname, '../.env.local');
+let password = 'ProContent2026'; // fallback
+let source = 'fallback';
+
+if (fs.existsSync(envLocalPath)) {
+  const envContent = fs.readFileSync(envLocalPath, 'utf-8');
+  const passMatch = envContent.match(/Database password\s*-\s*([^\r\n]+)/i);
+  if (passMatch) {
+    password = passMatch[1].trim();
+    source = '.env.local comment';
+  }
+}
+
+// Если db.ID... не работает (из-за IPv6), используйте Pooler Host (порт 6543)
+const dbHost = process.env.DB_HOST || 'aws-1-eu-north-1.pooler.supabase.com';
+const dbPort = process.env.DB_PORT || '6543';
+const dbUser = process.env.DB_USER || 'postgres.fixiwavyrcmajyzuzand';
+
+// КРИТИЧНО: Для ConnectionString спецсимволы (+, @, :) должны быть закодированы
+const connectionString = `postgresql://${encodeURIComponent(dbUser)}:${encodeURIComponent(password)}@${dbHost}:${dbPort}/postgres`;
 
 const pool = new Pool({
-  host: `db.${projectId}.supabase.co`,
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres',
-  password: password,
+  connectionString,
   ssl: { rejectUnauthorized: false },
 });
 
@@ -30,28 +45,44 @@ async function applySql(filePath, description) {
     await pool.query(sql);
     console.log(`✅ Успешно!`);
   } catch (error) {
-    console.error(`❌ Ошибка: ${error.message}`);
-    throw error;
+    if (error.message.includes('already exists') || 
+        error.message.includes('already a member') || 
+        error.message.includes('already exists, skipping')) {
+      console.log(`ℹ️ Элемент уже существует, пропускаю.`);
+    } else {
+      console.error(`❌ Ошибка: ${error.message}`);
+      throw error;
+    }
   }
 }
 
 async function main() {
-  console.log(`🚀 Подключаюсь к ${projectId}.supabase.co...`);
+  console.log(`🚀 Подключаюсь к ${dbHost}:${dbPort} как ${dbUser}...`);
+  console.log(`🔑 Источник пароля: ${source} (длина: ${password.length} символов)`);
 
   try {
     // Проверка подключения
     const res = await pool.query('SELECT NOW()');
     console.log(`✅ Подключение успешно! Текущее время БД: ${res.rows[0].now}`);
 
-    // Применяем миграции
-    const migrationsDir = path.join(__dirname, 'supabase', 'migrations');
-    await applySql(
-      path.join(migrationsDir, '012_add_category_check_constraint.sql'),
-      'Миграция: CHECK constraint для категорий'
-    );
+    // Применяем ВСЕ миграции из папки migrations в алфавитном порядке
+    const migrationsDir = path.join(__dirname, 'migrations');
+    const files = fs.readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql'))
+      .sort(); // Важно: запуск по порядку 001, 002...
 
+    console.log(`\n📂 Найдено миграций: ${files.length}`);
+
+    for (const file of files) {
+      await applySql(
+        path.join(migrationsDir, file),
+        `Миграция: ${file}`
+      );
+    }
+
+    // В конце запускаем сид
     await applySql(
-      path.join(__dirname, 'supabase', 'seed_posts.sql'),
+      path.join(__dirname, 'seed_posts.sql'),
       'Seed: тестовые посты'
     );
 
