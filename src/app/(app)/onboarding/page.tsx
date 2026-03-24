@@ -1,6 +1,8 @@
 import { OnboardingScreen } from '@/features/onboarding/components/OnboardingScreen'
 import { ONBOARDING_CONFIG } from '@/features/onboarding/data/onboarding-config'
 
+export const dynamic = 'force-dynamic'
+
 export default async function OnboardingPage({
   searchParams,
 }: {

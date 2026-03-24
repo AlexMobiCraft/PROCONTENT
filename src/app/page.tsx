@@ -14,6 +14,8 @@ export const metadata: Metadata = {
     'Zaprti klub za profesionalne ustvarjalke vsebin v Sloveniji. Baza znanja, živa skupnost in srečanja v živo.',
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function LandingPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

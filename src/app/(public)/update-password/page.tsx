@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { UpdatePasswordForm } from '@/features/auth/components/UpdatePasswordForm'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Nastavitev gesla | PROCONTENT',
   description: 'Ustvarite varno geslo za dostop do kluba',

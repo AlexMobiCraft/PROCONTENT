@@ -3,6 +3,8 @@ import { stripe } from '@/lib/stripe'
 import { RegisterContainer } from '@/features/auth/components/RegisterContainer'
 import { createClient } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+
 interface RegisterPageProps {
   searchParams: Promise<{ session_id?: string }>
 }

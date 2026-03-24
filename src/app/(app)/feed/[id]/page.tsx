@@ -4,6 +4,8 @@ import { fetchPostById } from '@/features/feed/api/serverPosts'
 import { createClient } from '@/lib/supabase/server'
 import { PostDetail } from '@/components/feed/PostDetail'
 
+export const dynamic = 'force-dynamic'
+
 interface PostPageProps {
   params: Promise<{ id: string }>
 }

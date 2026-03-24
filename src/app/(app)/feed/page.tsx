@@ -1,6 +1,8 @@
 import { fetchInitialPostsServer } from '@/features/feed/api/serverPosts'
 import { FeedPageClient } from '@/features/feed/components/FeedPageClient'
 
+export const dynamic = 'force-dynamic'
+
 // Server Component: загружает первую страницу постов и текущего пользователя на сервере.
 // Это позволяет priority-изображениям первого экрана попасть в исходный HTML —
 // браузер preload-ит их немедленно, LCP соответствует NFR1 (≤ 2.5с).
