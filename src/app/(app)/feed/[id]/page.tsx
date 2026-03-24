@@ -16,16 +16,27 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
     return { title: 'Objava ni najdena' }
   }
 
-  // AC 7: OG image — для видео-постов используем thumbnail_url (не .mp4)
-  const ogImage =
-    post.mediaItem?.media_type === 'video'
-      ? post.mediaItem.thumbnail_url ?? undefined
-      : post.imageUrl ?? undefined
+  // AC 7: OG image — для видео никогда не использовать .mp4 URL (невалидно для соцсетей)
+  const ogImage = (() => {
+    const isVideo = post.type === 'video' || post.mediaItem?.media_type === 'video'
+    if (isVideo) return post.mediaItem?.thumbnail_url ?? undefined
+    const url = post.imageUrl ?? undefined
+    // Guard: старые записи могут иметь mp4 в imageUrl
+    if (url?.toLowerCase().endsWith('.mp4')) return undefined
+    return url
+  })()
 
   return {
     title: post.title,
     description: post.excerpt || post.title,
     openGraph: {
+      title: post.title,
+      description: post.excerpt || post.title,
+      url: `${process.env.NEXT_PUBLIC_SITE_URL}/feed/${id}`,
+      images: ogImage ? [ogImage] : undefined,
+    },
+    twitter: {
+      card: ogImage ? 'summary_large_image' : 'summary',
       title: post.title,
       description: post.excerpt || post.title,
       images: ogImage ? [ogImage] : undefined,
@@ -36,10 +47,11 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 export default async function PostPage({ params }: PostPageProps) {
   const { id } = await params
   const supabase = await createClient()
-  const [post, { data: { user } }] = await Promise.all([
+  const [post, authResult] = await Promise.all([
     fetchPostById(id),
-    supabase.auth.getUser(),
+    supabase.auth.getUser().catch(() => ({ data: { user: null } })),
   ])
+  const user = authResult.data.user
 
   if (!post) {
     notFound()

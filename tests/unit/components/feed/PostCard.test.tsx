@@ -472,10 +472,10 @@ describe('PostCardSkeleton', () => {
     expect(screen.getByTestId('post-card-skeleton-media')).toBeInTheDocument()
   })
 
-  it('media placeholder использует aspect-[4/5] для фото по умолчанию (CLS fix)', () => {
+  it('media placeholder использует h-72 для фото по умолчанию (CLS fix)', () => {
     render(<PostCardSkeleton showMedia />)
     const media = screen.getByTestId('post-card-skeleton-media')
-    expect(media.className).toContain('aspect-[4/5]')
+    expect(media.className).toContain('h-72')
   })
 
   it('media placeholder использует aspect-video для типа video (CLS fix)', () => {

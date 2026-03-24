@@ -56,6 +56,13 @@ vi.mock('@/components/feed/GalleryGrid', () => ({
   ),
 }))
 
+const mockToastError = vi.hoisted(() => vi.fn())
+const mockToastInfo = vi.hoisted(() => vi.fn())
+
+vi.mock('sonner', () => ({
+  toast: { error: mockToastError, info: mockToastInfo },
+}))
+
 const mockRpc = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -63,9 +70,10 @@ vi.mock('@/lib/supabase/client', () => ({
 }))
 
 const mockBack = vi.hoisted(() => vi.fn())
+const mockPush = vi.hoisted(() => vi.fn())
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ back: mockBack }),
+  useRouter: () => ({ back: mockBack, push: mockPush }),
 }))
 
 const mockUpdatePost = vi.hoisted(() => vi.fn())
@@ -76,7 +84,7 @@ vi.mock('@/features/feed/store', () => ({
 }))
 
 import { PostDetail } from '@/components/feed/PostDetail'
-import type { PostDetail as PostDetailData } from '@/features/feed/types'
+import type { PostDetail as PostDetailData, PostMedia } from '@/features/feed/types'
 
 function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
   return {
@@ -99,10 +107,13 @@ function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
 describe('PostDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Дефолтно: пользователь перешёл через навигацию внутри приложения (history.length > 1)
+    vi.stubGlobal('history', { length: 2 })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   // --- Базовый рендер ---
@@ -142,6 +153,24 @@ describe('PostDetail', () => {
     expect(screen.queryByRole('link', { name: /nazaj/i })).not.toBeInTheDocument()
   })
 
+  it('router.back() при прямом входе: fallback router.push("/feed") при history.length <= 1', async () => {
+    vi.stubGlobal('history', { length: 1 })
+    const user = userEvent.setup()
+    render(<PostDetail post={makePost()} />)
+    await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
+    expect(mockBack).not.toHaveBeenCalled()
+    expect(mockPush).toHaveBeenCalledWith('/feed')
+  })
+
+  it('router.back() при наличии истории (history.length > 1) — без fallback', async () => {
+    vi.stubGlobal('history', { length: 3 })
+    const user = userEvent.setup()
+    render(<PostDetail post={makePost()} />)
+    await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
+    expect(mockBack).toHaveBeenCalledTimes(1)
+    expect(mockPush).not.toHaveBeenCalled()
+  })
+
   // --- Рендер по типу контента ---
 
   it('text: рендерит content без медиа', () => {
@@ -178,7 +207,7 @@ describe('PostDetail', () => {
         id: 'v-1',
         url: 'https://example.com/vid.mp4',
         thumbnail_url: 'https://example.com/thumb.jpg',
-      } as any,
+      } as unknown as PostMedia,
     })
     render(<PostDetail post={post} />)
     const video = screen.getByTestId('video-player-container')
@@ -193,7 +222,7 @@ describe('PostDetail', () => {
   it('gallery: рендерит GalleryGrid при наличии 2+ медиа', () => {
     const post = makePost({
       type: 'gallery',
-      media: [{ id: '1' }, { id: '2' }] as any,
+      media: [{ id: '1' }, { id: '2' }] as unknown as PostMedia[],
     })
     render(<PostDetail post={post} />)
     const grid = screen.getByTestId('gallery-grid')
@@ -208,7 +237,7 @@ describe('PostDetail', () => {
       media: [
         { id: 'v1', media_type: 'video' },
         { id: 'v2', media_type: 'video' },
-      ] as any,
+      ] as unknown as PostMedia[],
     })
     render(<PostDetail post={post} />)
     expect(screen.getByTestId('gallery-grid')).toBeInTheDocument()
@@ -217,6 +246,30 @@ describe('PostDetail', () => {
   it('photo/video: не рендерит медиа если imageUrl=null', () => {
     render(<PostDetail post={makePost({ type: 'photo', imageUrl: null })} />)
     expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
+  })
+
+  it('multi-video с 1 медиа: рендерит VideoPlayerContainer (не null)', () => {
+    // Граничный случай: multi-video с media.length < 2 — должен рендерить плеер, а не null
+    const post = makePost({
+      type: 'multi-video',
+      media: [{ id: 'v1', media_type: 'video', url: 'https://example.com/vid.mp4' }] as unknown as PostMedia[],
+      mediaItem: { id: 'v1', url: 'https://example.com/vid.mp4', thumbnail_url: null } as unknown as PostMedia,
+    })
+    render(<PostDetail post={post} />)
+    expect(screen.getByTestId('video-player-container')).toBeInTheDocument()
+    expect(screen.queryByTestId('gallery-grid')).not.toBeInTheDocument()
+  })
+
+  it('gallery с 1 медиа: рендерит LazyMediaWrapper (не null)', () => {
+    // Граничный случай: gallery с media.length < 2 — должен рендерить фото, а не null
+    const post = makePost({
+      type: 'gallery',
+      media: [{ id: 'p1', media_type: 'image', url: 'https://example.com/img.jpg' }] as unknown as PostMedia[],
+      mediaItem: { id: 'p1', url: 'https://example.com/img.jpg', thumbnail_url: null } as unknown as PostMedia,
+    })
+    render(<PostDetail post={post} />)
+    expect(screen.getByTestId('lazy-media')).toBeInTheDocument()
+    expect(screen.queryByTestId('gallery-grid')).not.toBeInTheDocument()
   })
 
   // --- Кнопка лайка ---
@@ -250,6 +303,13 @@ describe('PostDetail', () => {
     render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId={null} />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
     expect(screen.getByText('5')).toBeInTheDocument()
+  })
+
+  it('аноним (currentUserId=null): показывает toast.info при клике лайка', async () => {
+    const user = userEvent.setup()
+    render(<PostDetail post={makePost({ isLiked: false })} currentUserId={null} />)
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+    expect(mockToastInfo).toHaveBeenCalledWith('Za všečkanje se morate prijaviti')
   })
 
   // --- Оптимистичные обновления (auth required) ---
@@ -293,6 +353,16 @@ describe('PostDetail', () => {
 
     await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'Všečkaj' })).toBeInTheDocument()
+  })
+
+  it('показывает toast при ошибке RPC лайка (уведомление пользователя)', async () => {
+    mockRpc.mockRejectedValue(new Error('RPC failed'))
+    const user = userEvent.setup()
+
+    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId="user-1" />)
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Napaka pri všečkanju'))
   })
 
   it('синхронизирует состояние с ответом сервера (source of truth)', async () => {
@@ -361,14 +431,24 @@ describe('PostDetail', () => {
     expect(screen.getByText('12')).toBeInTheDocument()
   })
 
-  // --- Hydration safety ---
+  // --- Hydration safety (Fix: синхронный toLocaleDateString с timeZone: 'UTC') ---
 
-  it('дата рендерится корректно (клиент-сайд форматирование, без mismatch)', () => {
+  it('дата: toLocaleDateString вызывается с timeZone UTC (предотвращает SSR hydration mismatch)', () => {
+    const mockToLocaleDateString = vi
+      .spyOn(Date.prototype, 'toLocaleDateString')
+      .mockReturnValue('15. marca 2026')
+    render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
+    expect(mockToLocaleDateString).toHaveBeenCalledWith(
+      'sl-SI',
+      expect.objectContaining({ timeZone: 'UTC' })
+    )
+    expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
+  })
+
+  it('дата рендерится синхронно (без useEffect — устранено мерцание после гидрации)', () => {
     vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('15. marca 2026')
     render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
-    const dateEl = screen.getByText('15. marca 2026')
-    expect(dateEl.tagName).toBe('SPAN')
-    // suppressHydrationWarning — React-only проп, не отображается в DOM,
-    // но покрыт source-review. Клиент-сайд форматирование подтверждено.
+    // Синхронно, без waitFor — дата видна сразу при рендере (нет моргания)
+    expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
   })
 })

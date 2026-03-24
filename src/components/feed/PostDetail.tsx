@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { GalleryGrid } from './GalleryGrid'
@@ -26,15 +27,29 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
   const [likesCount, setLikesCount] = useState(post.likes)
   const [isPending, setIsPending] = useState(false)
 
-  // Форматируем дату на клиенте — избегаем timezone mismatch с сервером
+  // Явный timeZone: 'UTC' гарантирует идентичный результат на сервере и клиенте —
+  // устраняет hydration mismatch и мерцание без useEffect.
   const date = new Date(post.created_at).toLocaleDateString('sl-SI', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    timeZone: 'UTC',
   })
 
+  function handleBack() {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/feed')
+    }
+  }
+
   async function handleLike() {
-    if (isPending || !currentUserId) return
+    if (isPending) return
+    if (!currentUserId) {
+      toast.info('Za všečkanje se morate prijaviti')
+      return
+    }
     const prevLiked = liked
     const prevCount = likesCount
     const newLiked = !prevLiked
@@ -54,10 +69,11 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
       setLikesCount(data.likes_count)
       updatePost(post.id, { likes_count: data.likes_count, is_liked: data.is_liked })
     } catch {
-      // Откат UI + store при ошибке
+      // Откат UI + store при ошибке, уведомляем пользователя
       setLiked(prevLiked)
       setLikesCount(prevCount)
       updatePost(post.id, { likes_count: prevCount, is_liked: prevLiked })
+      toast.error('Napaka pri všečkanju')
     } finally {
       setIsPending(false)
     }
@@ -68,7 +84,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
       {/* Back button — router.back() сохраняет позицию скролла (AC 3) */}
       <button
         type="button"
-        onClick={() => router.back()}
+        onClick={handleBack}
         className="mb-6 flex min-h-[44px] w-fit items-center gap-1.5 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
         aria-label="Nazaj na objave"
       >
@@ -96,7 +112,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {post.category}
             </span>
-            <span className="text-xs text-muted-foreground" suppressHydrationWarning>{date}</span>
+            <span className="text-xs text-muted-foreground">{date}</span>
           </div>
         </div>
       </header>
@@ -116,7 +132,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
       {/* Одиночное медиа: photo или video */}
       {(post.media?.length ?? 0) < 2 && (post.mediaItem || post.imageUrl) && (
         <div className="mb-6">
-          {post.type === 'video' ? (
+          {(post.type === 'video' || post.type === 'multi-video') ? (
             <VideoPlayerContainer
               videoId={post.mediaItem?.id ?? post.id}
               src={(post.mediaItem?.url ?? post.imageUrl)!}
@@ -125,7 +141,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
               aspectRatio="16/9"
               priority={true}
             />
-          ) : post.type === 'photo' ? (
+          ) : (post.type === 'photo' || post.type === 'gallery') ? (
             <LazyMediaWrapper
               mediaItem={post.mediaItem ?? undefined}
               src={!post.mediaItem ? (post.imageUrl ?? undefined) : undefined}

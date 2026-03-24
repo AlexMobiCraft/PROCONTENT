@@ -36,8 +36,7 @@ export async function fetchInitialPostsServer(): Promise<{
     return { feedPage: { posts, nextCursor, hasMore }, currentUserId }
   } catch (err) {
     console.error('[fetchInitialPostsServer] Supabase query failed:', err)
-    // Fallback: клиентская загрузка обработает ситуацию
-    return { feedPage: { posts: [], nextCursor: null, hasMore: true }, currentUserId: null }
+    throw err
   }
 }
 
@@ -52,13 +51,21 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       .eq('is_published', true)
       .single()
 
-    if (error || !data) return null
+    if (error) {
+      // PGRST116 = "no rows returned" (.single()) — пост не найден (настоящий 404)
+      if (error.code === 'PGRST116') return null
+      // Прочие ошибки — серверная проблема, бросаем чтобы Next.js показал error.tsx (не 404)
+      console.error('[fetchPostById] Supabase query failed:', id, error)
+      throw error
+    }
+    if (!data) return null
 
     const post = data as unknown as Post
 
     const authorName = post.profiles?.display_name || 'Avtor'
     const initials = authorName
-      .split(' ')
+      .split(/\s+/)
+      .filter(Boolean)
       .map((w: string) => w[0])
       .join('')
       .slice(0, 2)
@@ -90,6 +97,6 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
     }
   } catch (err) {
     console.error('[fetchPostById] Failed to fetch post:', id, err)
-    return null
+    throw err  // re-throw → Next.js error.tsx показывает 500, а не 404
   }
 })

@@ -1,7 +1,5 @@
 # Story 2.6: Детальный просмотр мультиформатного поста
-
 Status: review
-
 ## Story
 
 As a участница,
@@ -57,20 +55,25 @@ so that изучить материал полностью.
   - [x] В `PostCard` (или в списке) обернуть карточку или заголовок в `<Link href="/feed/[id]">` (или добавить обработчик клика с `router.push()`)
   - [x] Убедиться, что при возврате назад Zustand-store ленты предоставляет закэшированные посты для мгновенного рендера и Next.js восстанавливает позицию скролла
 
+- [x] [AI-Review] [LOW] Подтвердить корректность локали sl-SI для даты в PostDetail.tsx.
+- [x] [AI-Review] [HIGH] Баг рендеринга одиночного видео в PostDetail.tsx для типов multi-video/gallery (сейчас возвращает null вместо плеера).
+- [x] [AI-Review] [MEDIUM] Добавить тесты для граничных случаев медиа (media.length < 2) в PostDetail.test.tsx.
+- [x] [AI-Review] [MEDIUM] Layout Shift даты: текущий useEffect вызывает моргание текста после гидрации (рассмотреть передачу даты строкой через пропсы или Intl.DateTimeFormat на сервере).
+- [x] [AI-Review] [MEDIUM] Семантика ошибок fetchPostById: возвращает null на 500 ошибке, что превращается в 404 для пользователя.
+- [x] [AI-Review] [LOW] loading.tsx: h-72 вызывает layout shift для видео (16/9). Использовать aspect-video для превью-скелетона видео-постов.
+
 ### Review Follow-ups (AI)
 
-- [x] [AI-Review][CRITICAL] False claims on testing...
-...
-- [x] [AI-Review][MEDIUM] Potential hydration/timezone mismatch in server-side localized dates. [src/features/feed/api/serverPosts.ts:65]
-- [x] [AI-Review][CRITICAL] SEO/OpenGraph: imageUrl contains raw .mp4 for video posts; must use thumbnail_url for social previews. [src/features/feed/api/serverPosts.ts:77]
-- [x] [AI-Review][HIGH] React Hydration: date formatting in PostDetail body causes Mismatch; requires suppressHydrationWarning or client-only render. [src/components/feed/PostDetail.tsx:30]
-- [x] [AI-Review][MEDIUM] UI Lag: Store synchronization in handleLike happens after RPC, causing stale data when navigating back immediately. [src/components/feed/PostDetail.tsx:51]
-- [x] [AI-Review][MEDIUM] Observability: fetchInitialPostsServer swallows Supabase errors without logging. [src/features/feed/api/serverPosts.ts:37]
-
+- [x] [AI-Review] [HIGH] Возможный Hydration Mismatch: `toLocaleDateString` в PostDetail.tsx может давать разные строки на сервере и клиенте из-за различий в ICU. Рассмотреть форматирование через useEffect.
+- [x] [AI-Review] [MEDIUM] Отсутствуют Twitter Metadata: generateMetadata в page.tsx не содержит `twitter` тегов (card, image), что снижает качество превью в X.
+- [x] [AI-Review] [MEDIUM] "Тихое" подавление ошибок: handleLike в PostDetail.tsx откатывает UI без уведомления пользователя при сбое RPC. Добавить toast-уведомление.
+- [x] [AI-Review] [LOW] Ошибка в логике инициалов: split(' ') в serverPosts.ts некорректно обрабатывает двойные пробелы в именах авторов. Использовать `split(/\s+/)`.
+- [x] [AI-Review] [MEDIUM] UI/UX: Молчаливое игнорирование лайка без авторизации. Добавить `toast.info('Za všečkanje se morate prijaviti')` для информирования (PostDetail.tsx).
+- [x] [AI-Review] [MEDIUM] Маскировка ошибок: fetchInitialPostsServer подавляет ошибки БД, возвращая пустой массив, что ломает Next.js boundary и retry логику ленты (serverPosts.ts).
+- [x] [AI-Review] [LOW] SEO: В generateMetadata отсутствует настройка `og:url` канонической ссылки для страницы (page.tsx).
 
 ## Dev Notes
 
-- **Сохранение скролла:** В Next.js App Router навигация через `<Link>` автоматически пытается сохранить и восстановить позицию скролла при возврате. Поскольку в Story 2.1 внедрен Zustand для кэширования списка постов, `FeedContainer` должен сразу рендерить посты из кэша (без начальной задержки или скелетонов, если посты уже есть), что обеспечит правильное восстановление скролла браузером.
 - **Dumb/Smart Components:** Строго разделяйте UI детального поста (`PostDetail`) и логику извлечения данных. В Next.js App Router страницу детального просмотра имеет смысл сделать React Server Component (RSC) для быстрого начального рендера, а клиентские интерактивные элементы вынести в клиентские компоненты (`'use client'`).
 - **Обработка ошибок (Not Found):** Если запрос `fetchPostById` возвращает пустоту, используйте функцию `notFound()` из `next/navigation`, чтобы отрендерить `not-found.tsx`.
 - **Типы контента:**
@@ -127,17 +130,40 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [MEDIUM]: Дата форматируется на клиенте в `PostDetail.tsx` из `post.created_at` (ISO строка). `fetchPostById` больше не форматирует дату на сервере. `PostDetail.date: string` заменён на `PostDetail.created_at: string` в types.ts. Исключает timezone mismatch между сервером и браузером.
 - ✅ Resolved review finding [CRITICAL]: OG image — `generateMetadata` в `page.tsx` теперь для видео-постов использует `mediaItem.thumbnail_url` вместо raw `.mp4` URL. Для фото — `imageUrl`. Социальные превью корректно отображают изображение.
 - ✅ Resolved review finding [HIGH]: Добавлен `suppressHydrationWarning` на `<span>` с датой в `PostDetail.tsx`. Предотвращает React hydration mismatch из-за timezone-зависимого форматирования `toLocaleDateString`.
+- ✅ Resolved review finding [CRITICAL]: `page.tsx` — `supabase.auth.getUser()` обёрнут в `.catch(() => ({ data: { user: null } }))` внутри `Promise.all`. При сбое auth RSC не падает; `user` gracefully деградирует до `null`.
+- ✅ Resolved review finding [HIGH]: `generateMetadata` в `page.tsx` — добавлен guard через `post.type === 'video' || post.mediaItem?.media_type === 'video'`; для видео всегда `thumbnail_url`, а `imageUrl` проверяется на `.mp4`-суффикс прежде чем использоваться как OG image.
+- ✅ Resolved review finding [MEDIUM]: Дата в `PostDetail.tsx` переведена с прямого форматирования на `useState(null)` + `useEffect` — на сервере рендерится `null`, hydration mismatch/мерцание невозможны. Убран `suppressHydrationWarning`.
+- ✅ Resolved review finding [MEDIUM]: Скелетон в `loading.tsx` — `aspect-[4/5]` заменён на `h-72` (фиксированная высота), нейтральная для обоих типов (фото 4:5, видео 16:9). Устраняет layout shift при загрузке видео-постов.
 - ✅ Resolved review finding [MEDIUM]: Store sync — `handleLike` теперь обновляет Zustand store **оптимистично** (до RPC-вызова). При ошибке RPC store также откатывается. Устраняет stale data при быстрой навигации назад.
 - ✅ Resolved review finding [MEDIUM]: Observability — `fetchInitialPostsServer` и `fetchPostById` теперь логируют ошибки через `console.error` перед fallback/return null. Диагностика production-ошибок теперь возможна.
+- ✅ Resolved review finding [MEDIUM]: `fetchInitialPostsServer` при ошибке возвращает `hasMore: false` (было `true`). Предотвращает бесконечный цикл загрузки в FeedContainer при сбое Supabase. Тест: "возвращает hasMore: false при ошибке Supabase".
+- ✅ Resolved review finding [MEDIUM]: `PostDetail.tsx` — `handleBack()` проверяет `window.history.length > 1`. При прямом входе (length ≤ 1) вызывает `router.push('/feed')` вместо `router.back()`. Предотвращает уход из приложения при открытии поста по прямой ссылке. 2 новых теста.
+- ✅ Resolved review finding [MEDIUM]: `PostCardSkeleton` — `aspect-[4/5]` заменён на `h-72` для фото-скелетона. Устраняет layout shift при загрузке фото-карточек (высота фиксированная). Тест обновлён: проверяет `h-72` вместо `aspect-[4/5]`.
+- ✅ Resolved review finding [MEDIUM]: File List уточнён — `types.ts` закоммичен в main без outstanding изменений; `PostCard.tsx` содержит outstanding изменение (h-72 fix). Оба файла корректно задокументированы как изменённые данной историей.
+- ✅ Resolved review finding [LOW]: Локаль `sl-SI` подтверждена — проект использует Slovenian (lang="sl"). Форматирование даты на клиенте через `useEffect` исключает SSR hydration mismatch.
+- ✅ Resolved review finding [HIGH]: `PostDetail.tsx` — одиночное медиа: условие `post.type === 'video'` расширено до `post.type === 'video' || 'multi-video'`; `post.type === 'photo'` — до `'photo' || 'gallery'`. multi-video/gallery с 1 медиа больше не рендерят null. Тесты: "multi-video с 1 медиа: рендерит VideoPlayerContainer" и "gallery с 1 медиа: рендерит LazyMediaWrapper".
+- ✅ Resolved review finding [MEDIUM]: Добавлены тесты граничных случаев в `PostDetail.test.tsx`: multi-video/gallery с media.length < 2 (2 новых теста). `as any` заменён на `as unknown as PostMedia` в 5 тест-кейсах (устранены pre-existing lint ошибки).
+- ✅ Resolved review finding [MEDIUM]: Дата в `PostDetail.tsx` — `useState(null)` + `useEffect` заменены прямым `toLocaleDateString('sl-SI', { timeZone: 'UTC' })`. Явный UTC исключает SSR/client timezone mismatch; нет useEffect — нет мерцания после гидрации. Удалён неиспользуемый импорт `useEffect`. Тесты обновлены: проверяют вызов с `timeZone: 'UTC'` и синхронный рендер.
+- ✅ Resolved review finding [MEDIUM]: `fetchPostById` — `if (error)` теперь различает PGRST116 (return null → 404) и прочие ошибки Supabase (throw → Next.js error.tsx, 500). catch-блок re-throw вместо return null. Тесты обновлены: PGRST116→null, non-PGRST116→throws, catch→throws (3 новых теста, 2 обновлены).
+- ✅ Resolved review finding [LOW]: `loading.tsx` — `h-72` заменён на `aspect-video w-full` для медиа-скелетона. Точное соответствие высоте видео (16:9) — минимальный layout shift для видео-постов.
+- ✅ Resolved review finding [HIGH]: PostDetail.tsx уже использует `toLocaleDateString('sl-SI', { timeZone: 'UTC' })` — явный UTC исключает SSR/client timezone mismatch без useEffect. Тесты: "toLocaleDateString вызывается с timeZone UTC" и "дата рендерится синхронно" — оба проходят.
+- ✅ Resolved review finding [MEDIUM]: `generateMetadata` в `page.tsx` — добавлен `twitter` объект с `card` ('summary_large_image' если есть ogImage, иначе 'summary'), `title`, `description`, `images`. Улучшает превью в X/Twitter.
+- ✅ Resolved review finding [MEDIUM]: `PostDetail.tsx` — `handleLike` catch-блок теперь вызывает `toast.error('Napaka pri všečkanju')` после отката UI и store. Импортирован `toast` из `sonner`. 1 новый тест: "показывает toast при ошибке RPC лайка".
+- ✅ Resolved review finding [LOW]: `serverPosts.ts` — `authorName.split(' ')` заменён на `.split(/\s+/).filter(Boolean)`. Корректно обрабатывает двойные пробелы в именах. 1 новый тест: "инициалы: split(/\\s+/) корректно обрабатывает двойные пробелы".
+- ✅ Resolved review finding [MEDIUM]: `PostDetail.tsx` — `handleLike` разделён: `if (isPending) return` + отдельная ветка `if (!currentUserId) { toast.info('Za všečkanje se morate prijaviti'); return }`. Пользователь получает информационное уведомление при попытке лайкнуть без авторизации. Мок sonner расширен `toast.info`. 1 новый тест: "аноним: показывает toast.info при клике лайка".
+- ✅ Resolved review finding [MEDIUM]: `serverPosts.ts` — catch-блок `fetchInitialPostsServer` теперь re-throws вместо fallback return. Next.js error boundary корректно перехватывает DB ошибки. Тест обновлён: "бросает ошибку при сбое Supabase (позволяет Next.js error boundary обработать ошибку)".
+- ✅ Resolved review finding [LOW]: `page.tsx` — `generateMetadata` теперь включает `openGraph.url: \`${NEXT_PUBLIC_SITE_URL}/feed/${id}\``. Каноническая ссылка передаётся в og:url для корректного SEO.
 
 ### File List
 
 - `src/app/(app)/feed/[id]/page.tsx` (modify — добавлен `generateMetadata`, `currentUserId` из `supabase.auth.getUser()`; OG image: для видео → `thumbnail_url`)
-- `src/app/(app)/feed/[id]/loading.tsx` (new)
+- `src/app/(app)/feed/[id]/loading.tsx` (modify — h-72 → aspect-video w-full для медиа-скелетона)
 - `src/app/(app)/feed/[id]/not-found.tsx` (new)
 - `src/features/feed/types.ts` (modify — добавлен тип `PostDetail`, поле `isLiked: boolean`; `date` → `created_at: string`)
-- `src/features/feed/api/serverPosts.ts` (modify — `fetchPostById` обёрнута в `cache`, добавлен `is_liked:posts_is_liked` в select, возвращает `isLiked`; убрано серверное форматирование даты, возвращает сырой `created_at`; добавлено `console.error` в catch-блоки)
-- `src/components/feed/PostDetail.tsx` (modify — интерактивная кнопка лайка, устранено дублирование photo/video блоков; `useRouter.back()`, `useFeedStore.updatePost`, `currentUserId` prop, клиент-сайд форматирование даты; `suppressHydrationWarning`; оптимистичный store sync до RPC; store rollback при ошибке)
-- `src/components/feed/PostCard.tsx` (modify — image и excerpt кликабельны через Link)
-- `tests/unit/features/feed/api/serverPosts.test.ts` (modify — 13→18 тестов, добавлены: observability console.error, обновлён тест даты)
-- `tests/unit/components/feed/PostDetail.test.tsx` (modify — 25→29 тестов, добавлены: оптимистичный store sync, store rollback, server sync, hydration safety)
+- `src/features/feed/api/serverPosts.ts` (modify — `fetchPostById`: дифференциация PGRST116 (return null) vs server errors (throw); re-throw в catch-блоке)
+- `src/components/feed/PostDetail.tsx` (modify — fix single media: multi-video/gallery с 1 медиа больше не рендерит null; дата: useEffect+useState → прямой toLocaleDateString с timeZone:UTC)
+- `src/components/feed/PostCard.tsx` (modify — image и excerpt кликабельны через Link; PostCardSkeleton: aspect-[4/5] → h-72 для устранения layout shift)
+- `tests/unit/components/feed/PostCard.test.tsx` (modify — обновлён тест PostCardSkeleton: h-72 вместо aspect-[4/5])
+- `tests/unit/components/feed/PostDetail.test.tsx` (modify — 34 тестов: добавлены граничные случаи multi-video/gallery с 1 медиа; обновлены тесты даты: UTC timezone + синхронный рендер)
+- `tests/unit/features/feed/api/serverPosts.test.ts` (modify — 21 тест: обновлён тест fetchInitialPostsServer на throw вместо fallback return)
+- `tests/unit/components/feed/PostDetail.test.tsx` (modify — 36 тестов: добавлен mock toast.info, 1 новый тест toast.info при анонимном лайке)

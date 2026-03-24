@@ -19,8 +19,9 @@ export default function PostLoading() {
         <div className="h-7 w-1/2 rounded-full bg-muted animate-pulse" />
       </div>
 
-      {/* Media skeleton */}
-      <div className="mb-6 aspect-[4/5] w-full rounded-xl bg-muted animate-pulse" />
+      {/* Media skeleton — aspect-video (16/9) точно соответствует высоте видео-поста,
+          минимизирует layout shift для наиболее распространённого типа медиа */}
+      <div className="mb-6 aspect-video w-full rounded-xl bg-muted animate-pulse" />
 
       {/* Content skeleton */}
       <div className="flex flex-col gap-3">

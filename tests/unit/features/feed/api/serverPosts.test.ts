@@ -13,14 +13,18 @@ const mockSingle = vi.hoisted(() => vi.fn())
 const mockEq = vi.hoisted(() => vi.fn())
 const mockSelect = vi.hoisted(() => vi.fn())
 const mockFrom = vi.hoisted(() => vi.fn())
+const mockOrder = vi.hoisted(() => vi.fn())
+const mockLimit = vi.hoisted(() => vi.fn())
+const mockGetUser = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(() => ({
     from: mockFrom,
+    auth: { getUser: mockGetUser },
   })),
 }))
 
-import { fetchPostById } from '@/features/feed/api/serverPosts'
+import { fetchPostById, fetchInitialPostsServer } from '@/features/feed/api/serverPosts'
 
 function makeDbPost(overrides: Record<string, unknown> = {}) {
   return {
@@ -50,6 +54,35 @@ function setupChain() {
   mockSelect.mockReturnValue(chain)
   mockEq.mockReturnValue(chain)
 }
+
+function setupInitialPostsChain() {
+  const chain = { select: mockSelect, eq: mockEq, order: mockOrder, limit: mockLimit, single: mockSingle }
+  mockFrom.mockReturnValue(chain)
+  mockSelect.mockReturnValue(chain)
+  mockEq.mockReturnValue(chain)
+  mockOrder.mockReturnValue(chain)
+}
+
+describe('fetchInitialPostsServer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('бросает ошибку при сбое Supabase (позволяет Next.js error boundary обработать ошибку)', async () => {
+    setupInitialPostsChain()
+    const dbError = { code: '500', message: 'DB error' }
+    mockLimit.mockResolvedValue({ data: null, error: dbError })
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null })
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(fetchInitialPostsServer()).rejects.toEqual(dbError)
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[fetchInitialPostsServer] Supabase query failed:',
+      dbError,
+    )
+    consoleSpy.mockRestore()
+  })
+})
 
 describe('fetchPostById', () => {
   beforeEach(() => {
@@ -138,6 +171,19 @@ describe('fetchPostById', () => {
     expect(result?.author.initials).toBe('A')
   })
 
+  it('инициалы: split(/\\s+/) корректно обрабатывает двойные пробелы', async () => {
+    setupChain()
+    mockSingle.mockResolvedValue({
+      data: makeDbPost({ profiles: { display_name: 'Ana  Ivanova', avatar_url: null } }),
+      error: null,
+    })
+
+    const result = await fetchPostById('post-abc')
+
+    expect(result?.author.name).toBe('Ana  Ivanova')
+    expect(result?.author.initials).toBe('AI')
+  })
+
   it('использует fallback "Avtor" при null display_name', async () => {
     setupChain()
     mockSingle.mockResolvedValue({
@@ -197,13 +243,31 @@ describe('fetchPostById', () => {
     expect(result?.content).toBeNull()
   })
 
-  it('возвращает null при Supabase error', async () => {
+  it('возвращает null при PGRST116 error (пост не найден — настоящий 404)', async () => {
     setupChain()
-    mockSingle.mockResolvedValue({ data: null, error: { message: 'DB error' } })
+    mockSingle.mockResolvedValue({
+      data: null,
+      error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+    })
 
     const result = await fetchPostById('post-abc')
 
     expect(result).toBeNull()
+  })
+
+  it('бросает ошибку при серверной ошибке Supabase (не PGRST116) — предотвращает ложный 404', async () => {
+    setupChain()
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const dbError = { code: '500', message: 'DB connection failed' }
+    mockSingle.mockResolvedValue({ data: null, error: dbError })
+
+    await expect(fetchPostById('post-abc')).rejects.toEqual(dbError)
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[fetchPostById] Supabase query failed:',
+      'post-abc',
+      dbError,
+    )
+    consoleSpy.mockRestore()
   })
 
   it('возвращает null при data=null без error', async () => {
@@ -215,13 +279,14 @@ describe('fetchPostById', () => {
     expect(result).toBeNull()
   })
 
-  it('возвращает null при исключении в catch-блоке', async () => {
+  it('бросает исключение в catch-блоке (re-throw → Next.js error.tsx)', async () => {
     setupChain()
-    mockSingle.mockRejectedValue(new Error('Network error'))
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const networkError = new Error('Network error')
+    mockSingle.mockRejectedValue(networkError)
 
-    const result = await fetchPostById('post-abc')
-
-    expect(result).toBeNull()
+    await expect(fetchPostById('post-abc')).rejects.toThrow('Network error')
+    consoleSpy.mockRestore()
   })
 
   it('логирует ошибку в catch-блоке (observability)', async () => {
@@ -230,7 +295,7 @@ describe('fetchPostById', () => {
     const error = new Error('Network error')
     mockSingle.mockRejectedValue(error)
 
-    await fetchPostById('post-abc')
+    await expect(fetchPostById('post-abc')).rejects.toThrow('Network error')
 
     expect(consoleSpy).toHaveBeenCalledWith(
       '[fetchPostById] Failed to fetch post:',
