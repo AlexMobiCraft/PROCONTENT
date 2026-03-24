@@ -7,6 +7,8 @@ import { useInView } from '@/hooks/useInView'
 
 /** Минимальный интерфейс медиафайла — совместим с таблицей post_media из БД */
 export interface MediaItem {
+  /** ID медиафайла из post_media.id — используется как videoId в VideoPlayerContainer */
+  id?: string
   url: string
   media_type: 'image' | 'video'
   thumbnail_url?: string | null

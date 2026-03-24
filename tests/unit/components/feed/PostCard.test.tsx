@@ -255,6 +255,30 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
     )
     expect(screen.getByTestId('video-player')).toHaveAttribute('data-video-id', 'media-item-1')
   })
+
+  it('использует mediaItem.id как приоритетный videoId (priority over media[0].id) [AI-Review Round 14]', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          id: 'post-vid-1',
+          type: 'video',
+          mediaItem: { id: 'mediaitem-id-123', url: 'https://example.com/v.mp4', media_type: 'video', thumbnail_url: null },
+          media: [
+            {
+              id: 'media-item-1',
+              post_id: 'post-vid-1',
+              media_type: 'video' as const,
+              url: 'https://example.com/v.mp4',
+              thumbnail_url: null,
+              order_index: 0,
+              is_cover: true,
+            },
+          ],
+        })}
+      />
+    )
+    expect(screen.getByTestId('video-player')).toHaveAttribute('data-video-id', 'mediaitem-id-123')
+  })
 })
 
 describe('PostCard — одиночное видео без mediaItem, только media[0] [AI-Review High Logic]', () => {

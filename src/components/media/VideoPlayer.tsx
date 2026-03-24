@@ -68,7 +68,7 @@ export function VideoPlayer({
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasError, isLoading])
+  }, [videoRef, hasError, isLoading])
 
   if (isLoading) {
     return (
@@ -104,7 +104,6 @@ export function VideoPlayer({
         data-video-id={videoId}
         src={src}
         poster={poster}
-        title={alt}
         controls
         playsInline
         preload={priority ? 'metadata' : 'none'}

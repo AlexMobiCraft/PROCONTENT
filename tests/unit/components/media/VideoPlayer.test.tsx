@@ -233,13 +233,6 @@ describe('VideoPlayer', () => {
     expect(container.querySelector('video')).toHaveAttribute('src', 'https://example.com/new-video.mp4')
   })
 
-  it('<video> имеет атрибут title для поддержки screen readers (A11y)', () => {
-    const { container } = render(
-      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" alt="Видео поста" />
-    )
-    expect(container.querySelector('video')).toHaveAttribute('title', 'Видео поста')
-  })
-
   it('onError → рендерит состояние ошибки вместо плеера', async () => {
     const { container, findByTestId } = render(
       <VideoPlayer videoId="v1" src="https://example.com/v.mp4" />
