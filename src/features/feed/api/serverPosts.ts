@@ -34,7 +34,8 @@ export async function fetchInitialPostsServer(): Promise<{
     const currentUserId = userResult.data?.user?.id ?? null
 
     return { feedPage: { posts, nextCursor, hasMore }, currentUserId }
-  } catch {
+  } catch (err) {
+    console.error('[fetchInitialPostsServer] Supabase query failed:', err)
     // Fallback: клиентская загрузка обработает ситуацию
     return { feedPage: { posts: [], nextCursor: null, hasMore: true }, currentUserId: null }
   }
@@ -87,7 +88,8 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
         initials,
       },
     }
-  } catch {
+  } catch (err) {
+    console.error('[fetchPostById] Failed to fetch post:', id, err)
     return null
   }
 })

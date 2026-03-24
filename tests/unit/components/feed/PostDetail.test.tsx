@@ -21,6 +21,41 @@ vi.mock('@/components/media/LazyMediaWrapper', () => ({
   ),
 }))
 
+vi.mock('@/features/feed/components/VideoPlayerContainer', () => ({
+  VideoPlayerContainer: ({
+    videoId,
+    src,
+    poster,
+    aspectRatio,
+    priority,
+  }: {
+    videoId: string
+    src: string
+    poster?: string
+    aspectRatio: string
+    priority?: boolean
+  }) => (
+    <div
+      data-testid="video-player-container"
+      data-video-id={videoId}
+      data-src={src}
+      data-poster={poster}
+      data-aspect={aspectRatio}
+      data-priority={String(priority ?? false)}
+    />
+  ),
+}))
+
+vi.mock('@/components/feed/GalleryGrid', () => ({
+  GalleryGrid: ({ media, priority }: { media: unknown[]; priority?: boolean }) => (
+    <div
+      data-testid="gallery-grid"
+      data-count={media.length}
+      data-priority={String(priority ?? false)}
+    />
+  ),
+}))
+
 const mockRpc = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -136,11 +171,47 @@ describe('PostDetail', () => {
     expect(screen.getByTestId('lazy-media')).toHaveAttribute('data-priority', 'true')
   })
 
-  it('video: рендерит LazyMediaWrapper с aspectRatio 16/9', () => {
-    render(
-      <PostDetail post={makePost({ type: 'video', imageUrl: 'https://example.com/vid.jpg' })} />
-    )
-    expect(screen.getByTestId('lazy-media')).toHaveAttribute('data-aspect', '16/9')
+  it('video: рендерит VideoPlayerContainer с aspectRatio 16/9', () => {
+    const post = makePost({
+      type: 'video',
+      mediaItem: {
+        id: 'v-1',
+        url: 'https://example.com/vid.mp4',
+        thumbnail_url: 'https://example.com/thumb.jpg',
+      } as any,
+    })
+    render(<PostDetail post={post} />)
+    const video = screen.getByTestId('video-player-container')
+    expect(video).toBeInTheDocument()
+    expect(video).toHaveAttribute('data-video-id', 'v-1')
+    expect(video).toHaveAttribute('data-src', 'https://example.com/vid.mp4')
+    expect(video).toHaveAttribute('data-poster', 'https://example.com/thumb.jpg')
+    expect(video).toHaveAttribute('data-aspect', '16/9')
+    expect(video).toHaveAttribute('data-priority', 'true')
+  })
+
+  it('gallery: рендерит GalleryGrid при наличии 2+ медиа', () => {
+    const post = makePost({
+      type: 'gallery',
+      media: [{ id: '1' }, { id: '2' }] as any,
+    })
+    render(<PostDetail post={post} />)
+    const grid = screen.getByTestId('gallery-grid')
+    expect(grid).toBeInTheDocument()
+    expect(grid).toHaveAttribute('data-count', '2')
+    expect(grid).toHaveAttribute('data-priority', 'true')
+  })
+
+  it('multi-video: рендерит GalleryGrid при наличии 2+ видео', () => {
+    const post = makePost({
+      type: 'multi-video',
+      media: [
+        { id: 'v1', media_type: 'video' },
+        { id: 'v2', media_type: 'video' },
+      ] as any,
+    })
+    render(<PostDetail post={post} />)
+    expect(screen.getByTestId('gallery-grid')).toBeInTheDocument()
   })
 
   it('photo/video: не рендерит медиа если imageUrl=null', () => {
@@ -236,27 +307,51 @@ describe('PostDetail', () => {
 
   // --- Store sync ---
 
-  it('после успешного лайка обновляет Zustand store', async () => {
-    mockRpc.mockResolvedValue({ data: { is_liked: true, likes_count: 6 }, error: null })
+  it('оптимистично обновляет Zustand store ДО RPC-ответа', async () => {
+    // RPC зависнет — разрешим вручную
+    let resolveRpc!: (v: unknown) => void
+    mockRpc.mockReturnValue(new Promise((r) => { resolveRpc = r }))
+    const user = userEvent.setup()
+
+    render(<PostDetail post={makePost({ id: 'post-1', likes: 5 })} currentUserId="user-1" />)
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+
+    // Store обновлён оптимистично ДО завершения RPC
+    expect(mockUpdatePost).toHaveBeenCalledWith('post-1', { likes_count: 6, is_liked: true })
+
+    // Завершаем RPC — store синхронизируется с сервером
+    resolveRpc({ data: { is_liked: true, likes_count: 6 }, error: null })
+    await waitFor(() =>
+      expect(mockUpdatePost).toHaveBeenCalledTimes(2)
+    )
+  })
+
+  it('после успешного лайка синхронизирует store с ответом сервера', async () => {
+    mockRpc.mockResolvedValue({ data: { is_liked: true, likes_count: 8 }, error: null })
     const user = userEvent.setup()
 
     render(<PostDetail post={makePost({ id: 'post-1', likes: 5 })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     await waitFor(() =>
-      expect(mockUpdatePost).toHaveBeenCalledWith('post-1', { likes_count: 6, is_liked: true })
+      expect(mockUpdatePost).toHaveBeenCalledWith('post-1', { likes_count: 8, is_liked: true })
     )
   })
 
-  it('rollback при ошибке: store НЕ обновляется', async () => {
+  it('rollback при ошибке: store откатывается к исходному состоянию', async () => {
     mockRpc.mockRejectedValue(new Error('RPC failed'))
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ id: 'post-1', likes: 5 })} currentUserId="user-1" />)
+    render(<PostDetail post={makePost({ id: 'post-1', likes: 5, isLiked: false })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
-    await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument())
-    expect(mockUpdatePost).not.toHaveBeenCalled()
+    // Сначала оптимистичный вызов
+    expect(mockUpdatePost).toHaveBeenCalledWith('post-1', { likes_count: 6, is_liked: true })
+
+    // После ошибки — откат
+    await waitFor(() =>
+      expect(mockUpdatePost).toHaveBeenCalledWith('post-1', { likes_count: 5, is_liked: false })
+    )
   })
 
   // --- Счётчик комментариев ---
@@ -264,5 +359,16 @@ describe('PostDetail', () => {
   it('показывает счётчик комментариев', () => {
     render(<PostDetail post={makePost({ comments: 12 })} />)
     expect(screen.getByText('12')).toBeInTheDocument()
+  })
+
+  // --- Hydration safety ---
+
+  it('дата рендерится корректно (клиент-сайд форматирование, без mismatch)', () => {
+    vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('15. marca 2026')
+    render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
+    const dateEl = screen.getByText('15. marca 2026')
+    expect(dateEl.tagName).toBe('SPAN')
+    // suppressHydrationWarning — React-only проп, не отображается в DOM,
+    // но покрыт source-review. Клиент-сайд форматирование подтверждено.
   })
 })

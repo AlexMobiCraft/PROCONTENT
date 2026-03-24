@@ -224,6 +224,22 @@ describe('fetchPostById', () => {
     expect(result).toBeNull()
   })
 
+  it('логирует ошибку в catch-блоке (observability)', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    setupChain()
+    const error = new Error('Network error')
+    mockSingle.mockRejectedValue(error)
+
+    await fetchPostById('post-abc')
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[fetchPostById] Failed to fetch post:',
+      'post-abc',
+      error,
+    )
+    consoleSpy.mockRestore()
+  })
+
   it('возвращает mediaItem=null при пустом post_media', async () => {
     setupChain()
     mockSingle.mockResolvedValue({ data: makeDbPost({ post_media: [] }), error: null })

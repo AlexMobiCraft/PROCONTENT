@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
+import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { GalleryGrid } from './GalleryGrid'
 import { createClient } from '@/lib/supabase/client'
 import { useFeedStore } from '@/features/feed/store'
@@ -36,21 +37,27 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
     if (isPending || !currentUserId) return
     const prevLiked = liked
     const prevCount = likesCount
-    setLiked(!prevLiked)
-    setLikesCount(prevCount + (!prevLiked ? 1 : -1))
+    const newLiked = !prevLiked
+    const newCount = prevCount + (newLiked ? 1 : -1)
+    // Оптимистичное обновление: UI + Zustand store синхронно (до RPC)
+    setLiked(newLiked)
+    setLikesCount(newCount)
+    updatePost(post.id, { likes_count: newCount, is_liked: newLiked })
     setIsPending(true)
     try {
       const supabase = createClient()
       const { data, error } = await supabase.rpc('toggle_like', { p_post_id: post.id })
       if (error) throw error
       if (!isToggleLikeResponse(data)) throw new Error('Unexpected toggle_like response')
+      // Синхронизируем с ответом сервера — source of truth
       setLiked(data.is_liked)
       setLikesCount(data.likes_count)
-      // Синхронизируем Zustand store — при возврате в ленту данные актуальны
       updatePost(post.id, { likes_count: data.likes_count, is_liked: data.is_liked })
     } catch {
+      // Откат UI + store при ошибке
       setLiked(prevLiked)
       setLikesCount(prevCount)
+      updatePost(post.id, { likes_count: prevCount, is_liked: prevLiked })
     } finally {
       setIsPending(false)
     }
@@ -89,7 +96,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {post.category}
             </span>
-            <span className="text-xs text-muted-foreground">{date}</span>
+            <span className="text-xs text-muted-foreground" suppressHydrationWarning>{date}</span>
           </div>
         </div>
       </header>
@@ -107,17 +114,28 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
       )}
 
       {/* Одиночное медиа: photo или video */}
-      {(post.media?.length ?? 0) < 2 && (post.type === 'photo' || post.type === 'video') && (post.mediaItem || post.imageUrl) && (
+      {(post.media?.length ?? 0) < 2 && (post.mediaItem || post.imageUrl) && (
         <div className="mb-6">
-          <LazyMediaWrapper
-            mediaItem={post.mediaItem ?? undefined}
-            src={!post.mediaItem ? (post.imageUrl ?? undefined) : undefined}
-            alt={post.title}
-            aspectRatio={post.type === 'video' ? '16/9' : '4/5'}
-            type={post.type}
-            priority={true}
-            sizes="(max-width: 768px) 100vw, 672px"
-          />
+          {post.type === 'video' ? (
+            <VideoPlayerContainer
+              videoId={post.mediaItem?.id ?? post.id}
+              src={(post.mediaItem?.url ?? post.imageUrl)!}
+              poster={post.mediaItem?.thumbnail_url ?? undefined}
+              alt={post.title}
+              aspectRatio="16/9"
+              priority={true}
+            />
+          ) : post.type === 'photo' ? (
+            <LazyMediaWrapper
+              mediaItem={post.mediaItem ?? undefined}
+              src={!post.mediaItem ? (post.imageUrl ?? undefined) : undefined}
+              alt={post.title}
+              aspectRatio="4/5"
+              type="photo"
+              priority={true}
+              sizes="(max-width: 768px) 100vw, 672px"
+            />
+          ) : null}
         </div>
       )}
 

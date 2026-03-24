@@ -16,13 +16,19 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
     return { title: 'Objava ni najdena' }
   }
 
+  // AC 7: OG image — для видео-постов используем thumbnail_url (не .mp4)
+  const ogImage =
+    post.mediaItem?.media_type === 'video'
+      ? post.mediaItem.thumbnail_url ?? undefined
+      : post.imageUrl ?? undefined
+
   return {
     title: post.title,
     description: post.excerpt || post.title,
     openGraph: {
       title: post.title,
       description: post.excerpt || post.title,
-      images: post.imageUrl ? [post.imageUrl] : undefined,
+      images: ogImage ? [ogImage] : undefined,
     },
   }
 }
