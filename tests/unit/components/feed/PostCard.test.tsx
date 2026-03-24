@@ -219,7 +219,7 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
     expect(videoPlayer.closest('a')).toBeNull()
   })
 
-  it('использует post.id как videoId когда нет media[] (фоллбэк)', () => {
+  it('использует fallback-video-${post.id} как videoId когда нет media[] (без коллизий с UUID медиафайлов)', () => {
     render(
       <PostCard
         post={makeCardData({
@@ -229,7 +229,7 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
         })}
       />
     )
-    expect(screen.getByTestId('video-player')).toHaveAttribute('data-video-id', 'post-vid-1')
+    expect(screen.getByTestId('video-player')).toHaveAttribute('data-video-id', 'fallback-video-post-vid-1')
   })
 
   it('использует media[0].id как videoId когда media[] присутствует (согласованность с GalleryGrid)', () => {

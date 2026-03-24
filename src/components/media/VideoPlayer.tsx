@@ -41,14 +41,9 @@ export function VideoPlayer({
 }: VideoPlayerProps) {
   const internalRef = useRef<HTMLVideoElement>(null)
   const videoRef = externalRef ?? internalRef
-  // Состояние ошибки загрузки — presentation state, управляется внутри компонента (по аналогии с isLoading)
+  // Состояние ошибки загрузки — presentation state, управляется внутри компонента (по аналогии с isLoading).
+  // Сброс при смене src выполняется через key={src} в VideoPlayerContainer (React-рекомендованный паттерн).
   const [hasError, setHasError] = useState(false)
-  // Сброс ошибки при смене src: derived state during render (React-рекомендованный паттерн вместо useEffect)
-  const [prevSrc, setPrevSrc] = useState(src)
-  if (prevSrc !== src) {
-    setPrevSrc(src)
-    setHasError(false)
-  }
 
   const ratioClass = {
     '16/9': 'aspect-video',
@@ -64,7 +59,7 @@ export function VideoPlayer({
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (!entry.isIntersecting && !el.paused) {
+        if (entry.intersectionRatio < 0.2 && !el.paused) {
           el.pause()
         }
       },
@@ -73,7 +68,7 @@ export function VideoPlayer({
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [videoRef, hasError, isLoading])
+  }, [hasError, isLoading])
 
   if (isLoading) {
     return (

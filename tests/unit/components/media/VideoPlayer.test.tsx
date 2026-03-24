@@ -156,7 +156,7 @@ describe('VideoPlayer', () => {
 
     act(() => {
       capturedCallback!(
-        [{ isIntersecting: false, target: video } as unknown as IntersectionObserverEntry],
+        [{ isIntersecting: false, intersectionRatio: 0.1, target: video } as unknown as IntersectionObserverEntry],
         {} as IntersectionObserver
       )
     })
@@ -164,7 +164,7 @@ describe('VideoPlayer', () => {
     expect(pauseSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('автопауза при выходе из viewport (isIntersecting=false → pause)', () => {
+  it('автопауза при выходе из viewport (intersectionRatio<0.2 → pause)', () => {
     const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
     const video = container.querySelector('video')!
 
@@ -173,7 +173,7 @@ describe('VideoPlayer', () => {
 
     act(() => {
       capturedCallback!(
-        [{ isIntersecting: false, target: video } as unknown as IntersectionObserverEntry],
+        [{ isIntersecting: false, intersectionRatio: 0.1, target: video } as unknown as IntersectionObserverEntry],
         {} as IntersectionObserver
       )
     })
@@ -190,7 +190,7 @@ describe('VideoPlayer', () => {
 
     act(() => {
       capturedCallback!(
-        [{ isIntersecting: false, target: video } as unknown as IntersectionObserverEntry],
+        [{ isIntersecting: false, intersectionRatio: 0.1, target: video } as unknown as IntersectionObserverEntry],
         {} as IntersectionObserver
       )
     })
@@ -210,17 +210,22 @@ describe('VideoPlayer', () => {
     expect(container.querySelector('track')).not.toBeInTheDocument()
   })
 
-  it('сбрасывает состояние ошибки при смене src (новое видео загружается)', async () => {
+  it('сбрасывает состояние ошибки при смене src (key={src} → remount)', async () => {
+    // Используем wrapper с key={src}: при смене src VideoPlayer ремаунтируется → hasError сбрасывается
+    function Wrapper({ src }: { src: string }) {
+      return <VideoPlayer key={src} videoId="v1" src={src} />
+    }
+
     const { container, findByTestId, rerender, queryByTestId } = render(
-      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" />
+      <Wrapper src="https://example.com/v.mp4" />
     )
 
     // Вызываем ошибку загрузки
     fireEvent.error(container.querySelector('video')!)
     await findByTestId('video-player-error')
 
-    // Меняем src → hasError должен сброситься
-    rerender(<VideoPlayer videoId="v1" src="https://example.com/new-video.mp4" />)
+    // Меняем src → key меняется → VideoPlayer ремаунтируется с hasError=false
+    rerender(<Wrapper src="https://example.com/new-video.mp4" />)
 
     // Состояние ошибки сброшено, рендерится плеер с новым src
     expect(queryByTestId('video-player-error')).not.toBeInTheDocument()
