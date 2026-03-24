@@ -494,4 +494,29 @@ describe('GalleryGrid — itemLinkHref для смешанных галерей 
     expect(screen.getByRole('link', { name: 'Slika 1' })).toHaveAttribute('href', '/feed/post-1')
     expect(container.querySelector('[data-testid="video-player"]')?.closest('a')).toBeNull()
   })
+
+  it('Link элементы имеют hover/focus стили даже при interactive=false [AI-Review High A11y]', () => {
+    const { container } = render(
+      <GalleryGrid media={makeMedia(2)} interactive={false} itemLinkHref="/feed/post-1" />
+    )
+    const links = container.querySelectorAll('a')
+    expect(links.length).toBeGreaterThan(0)
+    for (const link of Array.from(links)) {
+      expect(link.className).toContain('hover:opacity-90')
+      expect(link.className).toContain('focus-visible:ring-2')
+    }
+  })
+
+  it('carousel: Link элементы имеют hover/focus стили при interactive=false [AI-Review High A11y]', () => {
+    const { container } = render(
+      <GalleryGrid media={makeMedia(7)} interactive={false} itemLinkHref="/feed/post-1" />
+    )
+    const carousel = container.querySelector('[data-testid="gallery-carousel"]')!
+    const links = carousel.querySelectorAll('a')
+    expect(links.length).toBeGreaterThan(0)
+    for (const link of Array.from(links)) {
+      expect(link.className).toContain('hover:opacity-90')
+      expect(link.className).toContain('focus-visible:ring-2')
+    }
+  })
 })

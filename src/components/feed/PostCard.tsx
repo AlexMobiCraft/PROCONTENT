@@ -110,7 +110,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
       ) : (post.type === 'video' || post.type === 'multi-video') && (post.mediaItem?.url || post.media?.[0]?.url) ? (
         <div className="mb-4">
           <VideoPlayerContainer
-            videoId={post.id}
+            videoId={post.media?.[0]?.id ?? post.id}
             src={(post.mediaItem?.url ?? post.media?.[0]?.url)!}
             poster={post.mediaItem?.thumbnail_url ?? post.media?.[0]?.thumbnail_url ?? undefined}
             alt={post.title}

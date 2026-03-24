@@ -95,7 +95,7 @@ export function VideoPlayer({
         )}
         data-testid="video-player-error"
       >
-        <span className="text-sm text-muted-foreground">Ошибка загрузки видео</span>
+        <span className="text-xs text-muted-foreground">Ошибка загрузки видео</span>
       </div>
     )
   }
@@ -120,7 +120,9 @@ export function VideoPlayer({
           onPause?.()
         }}
         className="absolute inset-0 h-full w-full object-cover"
-      />
+      >
+        Ваш браузер не поддерживает видео.
+      </video>
     </div>
   )
 }

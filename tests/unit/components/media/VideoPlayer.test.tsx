@@ -272,4 +272,10 @@ describe('VideoPlayer', () => {
     })
     expect(disconnectMock).toHaveBeenCalled()
   })
+
+  it('рендерит fallback-текст внутри <video> для старых браузеров [AI-Review Low]', () => {
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    const video = container.querySelector('video')!
+    expect(video.textContent).toContain('Ваш браузер не поддерживает видео.')
+  })
 })

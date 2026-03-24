@@ -115,7 +115,8 @@ export function GalleryGrid({
           const itemSizes = isLastOdd ? '(max-width: 768px) 100vw, 640px' : gridItemSizes
           const itemClass = cn(
             'overflow-hidden rounded-sm',
-            interactive &&
+            // <Link> элементы всегда интерактивны независимо от флага interactive
+            (interactive || !!itemLinkHref) &&
               'min-h-[44px] min-w-[44px] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
             isLastOdd && 'col-span-2'
           )
@@ -205,7 +206,8 @@ export function GalleryGrid({
                 : `${mediaLabel} ${globalIndex + 1}`
             const itemClass = cn(
               'w-32 flex-none snap-start overflow-hidden rounded-sm',
-              interactive &&
+              // <Link> элементы всегда интерактивны независимо от флага interactive
+              (interactive || !!itemLinkHref) &&
                 'min-h-[44px] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
             )
 
