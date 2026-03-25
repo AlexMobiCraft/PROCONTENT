@@ -166,6 +166,13 @@ claude-sonnet-4-6
 - ✅ Resolved review follow-up [MEDIUM]: `PostDetail.tsx` — Layout Shift даты устранён: `useState('')` + `useEffect` заменены на `formattedDate` prop (форматируется в RSC `page.tsx`). Дата всегда присутствует с первого рендера — нет пустой строки, нет "прыгания". Fallback через синхронный `toLocaleDateString` если prop не передан. Тесты: синхронный рендер formattedDate + fallback.
 - ✅ Resolved review follow-up [LOW]: `PostDetail.tsx` — dead code убран из блока `(post.media?.length ?? 0) < 2`: оставлены только `post.type === 'video'` и `post.type === 'photo'`. multi-video/gallery с < 2 медиа невозможны по инварианту derivePostType. Тесты обновлены: граничные случаи теперь проверяют отсутствие рендера (not.toBeInTheDocument).
 
+### Code Review (CR) Fixes
+
+- ❌ [High] `router.back()` Logic: Отклонено как не баг, так как поведение предназначено для предотвращения доступа к приватным или специфичным роутам по прямой ссылке.
+- ✅ [Medium] Улучшена кликабельность: В `PostCard.tsx` добавлен `onClick` на весь `article` (исключая интерактивные элементы) для улучшения UX на мобильных.
+- ✅ [Medium] Inconsistent Typography: В `PostDetail.tsx` унифицирована стилизация текста (`prose prose-sm max-w-none text-foreground`) независимо от наличия медиа.
+- ✅ [Medium] Отсутствие фоллбэка для Canonical URL: В `page.tsx` добавлен fallback `http://localhost:3000` для `NEXT_PUBLIC_SITE_URL` при генерации `openGraph.url`.
+
 ### File List
 
 - `src/app/(app)/feed/[id]/page.tsx` (modify — добавлен `generateMetadata`, `currentUserId` из `supabase.auth.getUser()`; OG image: для видео → `thumbnail_url`)
