@@ -85,9 +85,8 @@ development_status:
   # 2026-03-25: Final Code Review completed successfully → done
   2-6-detailed-view-of-multiformat-post: done
 
-  # Ранее 2-4, 2-5 → переименованы в 2-7, 2-8 (статусы сохранены)
-  2-7-horizontal-category-filters-sticky-pill-filters: backlog
-  2-8-search-across-the-entire-knowledge-base: backlog
+  # Ранее 2-4 → переименованы в 2-7 (статусы сохранены)
+  2-7-search-across-the-entire-knowledge-base: in-progress
 
   epic-2-retrospective: optional
 
