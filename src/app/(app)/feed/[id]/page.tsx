@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { fetchPostById } from '@/features/feed/api/serverPosts'
+import { fetchPostComments } from '@/features/comments/api/comments'
 import { createClient } from '@/lib/supabase/server'
 import { PostDetail } from '@/components/feed/PostDetail'
 
@@ -63,6 +64,9 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
     notFound()
   }
 
+  // Загружаем комментарии после того как убедились, что пост существует
+  const comments = await fetchPostComments(id).catch(() => [])
+
   // Форматируем дату в RSC — исключает useState+useEffect и layout shift на клиенте (Fix #3)
   const formattedDate = new Date(post.created_at).toLocaleDateString('sl-SI', {
     day: 'numeric',
@@ -76,6 +80,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
       currentUserId={user?.id ?? null}
       from={from}
       formattedDate={formattedDate}
+      initialComments={comments}
     />
   )
 }

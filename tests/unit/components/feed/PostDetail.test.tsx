@@ -96,6 +96,7 @@ import type { PostDetail as PostDetailData, PostMedia } from '@/features/feed/ty
 function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
   return {
     id: 'post-1',
+    author_id: 'author-1',
     title: 'Testna objava',
     excerpt: 'Kratek opis',
     content: 'Celotno besedilo',
@@ -205,9 +206,10 @@ describe('PostDetail', () => {
     render(<PostDetail post={makePost({ type: 'text', content: '', excerpt: 'Kratek opis' })} />)
     // Пустая строка — валидный контент, не должна быть заменена на excerpt
     expect(screen.queryByText('Kratek opis')).not.toBeInTheDocument()
-    // Проверяем что рендерится пустой абзац контента
-    const contentParagraph = screen.getByRole('paragraph')
-    expect(contentParagraph.textContent).toBe('')
+    // Проверяем что рендерится пустой абзац контента (первый <p> в .prose секции)
+    const proseSection = document.querySelector('.prose')
+    const contentParagraph = proseSection?.querySelector('p')
+    expect(contentParagraph?.textContent).toBe('')
   })
 
   it('photo: рендерит LazyMediaWrapper с aspectRatio 4/5', () => {

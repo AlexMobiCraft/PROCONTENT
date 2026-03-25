@@ -10,142 +10,214 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.4"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
-      posts: {
+      post_comments: {
         Row: {
-          id: string
-          author_id: string
-          title: string
-          excerpt: string | null
-          content: string | null
-          category: string
-          type: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
-          image_url: string | null
-          likes_count: number
-          comments_count: number
-          is_published: boolean
-          is_landing_preview: boolean
-          is_onboarding: boolean
+          content: string
           created_at: string
+          id: string
+          parent_id: string | null
+          post_id: string
           updated_at: string
-          posts_is_liked: boolean
+          user_id: string
         }
         Insert: {
-          id?: string
-          author_id: string
-          title: string
-          excerpt?: string | null
-          content?: string | null
-          category?: string
-          type?: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
-          image_url?: string | null
-          likes_count?: number
-          comments_count?: number
-          is_published?: boolean
-          is_landing_preview?: boolean
-          is_onboarding?: boolean
+          content: string
           created_at?: string
+          id?: string
+          parent_id?: string | null
+          post_id: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          author_id?: string
-          title?: string
-          excerpt?: string | null
-          content?: string | null
-          category?: string
-          type?: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
-          image_url?: string | null
-          likes_count?: number
-          comments_count?: number
-          is_published?: boolean
-          is_landing_preview?: boolean
-          is_onboarding?: boolean
+          content?: string
           created_at?: string
+          id?: string
+          parent_id?: string | null
+          post_id?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: 'posts_author_id_fkey'
-            columns: ['author_id']
+            foreignKeyName: "post_comments_parent_id_fkey"
+            columns: ["parent_id"]
             isOneToOne: false
-            referencedRelation: 'profiles'
-            referencedColumns: ['id']
-          }
+            referencedRelation: "post_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_likes: {
+        Row: {
+          created_at: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
         ]
       }
       post_media: {
         Row: {
           id: string
-          post_id: string
-          media_type: 'image' | 'video'
-          url: string
-          thumbnail_url: string | null
-          order_index: number
           is_cover: boolean
+          media_type: string
+          order_index: number
+          post_id: string
+          thumbnail_url: string | null
+          url: string
         }
         Insert: {
           id?: string
-          post_id: string
-          media_type: 'image' | 'video'
-          url: string
-          thumbnail_url?: string | null
-          order_index?: number
           is_cover?: boolean
+          media_type: string
+          order_index?: number
+          post_id: string
+          thumbnail_url?: string | null
+          url: string
         }
         Update: {
           id?: string
-          post_id?: string
-          media_type?: 'image' | 'video'
-          url?: string
-          thumbnail_url?: string | null
-          order_index?: number
           is_cover?: boolean
+          media_type?: string
+          order_index?: number
+          post_id?: string
+          thumbnail_url?: string | null
+          url?: string
         }
         Relationships: [
           {
-            foreignKeyName: 'post_media_post_id_fkey'
-            columns: ['post_id']
+            foreignKeyName: "post_media_post_id_fkey"
+            columns: ["post_id"]
             isOneToOne: false
-            referencedRelation: 'posts'
-            referencedColumns: ['id']
-          }
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
         ]
       }
-      post_likes: {
+      posts: {
         Row: {
-          post_id: string
-          user_id: string
+          author_id: string
+          category: string
+          comments_count: number
+          content: string | null
           created_at: string
+          excerpt: string | null
+          fts: unknown
+          id: string
+          image_url: string | null
+          is_landing_preview: boolean
+          is_onboarding: boolean
+          is_published: boolean
+          likes_count: number
+          title: string
+          type: string
+          updated_at: string
         }
         Insert: {
-          post_id: string
-          user_id: string
+          author_id: string
+          category?: string
+          comments_count?: number
+          content?: string | null
           created_at?: string
+          excerpt?: string | null
+          fts?: unknown
+          id?: string
+          image_url?: string | null
+          is_landing_preview?: boolean
+          is_onboarding?: boolean
+          is_published?: boolean
+          likes_count?: number
+          title: string
+          type?: string
+          updated_at?: string
         }
         Update: {
-          post_id?: string
-          user_id?: string
+          author_id?: string
+          category?: string
+          comments_count?: number
+          content?: string | null
           created_at?: string
+          excerpt?: string | null
+          fts?: unknown
+          id?: string
+          image_url?: string | null
+          is_landing_preview?: boolean
+          is_onboarding?: boolean
+          is_published?: boolean
+          likes_count?: number
+          title?: string
+          type?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: 'post_likes_post_id_fkey'
-            columns: ['post_id']
+            foreignKeyName: "posts_author_id_fkey"
+            columns: ["author_id"]
             isOneToOne: false
-            referencedRelation: 'posts'
-            referencedColumns: ['id']
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: 'post_likes_user_id_fkey'
-            columns: ['user_id']
-            isOneToOne: false
-            referencedRelation: 'users'
-            referencedColumns: ['id']
-          }
         ]
       }
       profiles: {
@@ -156,7 +228,7 @@ export type Database = {
           display_name: string | null
           email: string
           id: string
-          role: 'member' | 'admin'
+          role: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_status: string | null
@@ -168,7 +240,7 @@ export type Database = {
           display_name?: string | null
           email: string
           id: string
-          role?: 'member' | 'admin'
+          role?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
@@ -180,7 +252,7 @@ export type Database = {
           display_name?: string | null
           email?: string
           id?: string
-          role?: 'member' | 'admin'
+          role?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
@@ -192,24 +264,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_auth_user_id_by_email: {
-        Args: {
-          p_email: string
-        }
-        Returns: string | null
-      }
-      toggle_like: {
-        Args: {
-          p_post_id: string
-        }
-        Returns: Json
-      }
+      get_auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      is_active_subscriber: { Args: never; Returns: boolean }
       posts_is_liked: {
-        Args: {
-          post_row: Database["public"]["Tables"]["posts"]["Row"]
-        }
+        Args: { post_row: Database["public"]["Tables"]["posts"]["Row"] }
         Returns: boolean
       }
+      toggle_like: { Args: { p_post_id: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
@@ -338,6 +399,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

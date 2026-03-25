@@ -77,6 +77,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
 
     return {
       id: post.id,
+      author_id: post.author_id,
       title: post.title,
       content: post.content ?? null,
       excerpt: post.excerpt ?? '',

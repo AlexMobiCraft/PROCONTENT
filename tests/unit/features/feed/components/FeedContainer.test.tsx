@@ -72,7 +72,6 @@ function makePost(id: string, category = 'insight'): Post {
     is_landing_preview: false,
     is_onboarding: false,
     is_liked: false,
-    posts_is_liked: false,
     created_at: '2026-03-15T10:00:00Z',
     updated_at: '2026-03-15T10:00:00Z',
     profiles: { display_name: 'Avtorica', avatar_url: null },

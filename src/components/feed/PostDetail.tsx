@@ -11,8 +11,10 @@ import { HeartIcon } from '@/components/ui/icons/HeartIcon'
 import { CommentIcon } from '@/components/ui/icons/CommentIcon'
 import { createClient } from '@/lib/supabase/client'
 import { useFeedStore } from '@/features/feed/store'
+import { CommentsList } from '@/features/comments/components/CommentsList'
 import { cn } from '@/lib/utils'
 import type { PostDetail as PostDetailData, ToggleLikeResponse } from '@/features/feed/types'
+import type { Comment } from '@/features/comments/types'
 
 function isToggleLikeResponse(v: unknown): v is ToggleLikeResponse {
   return typeof v === 'object' && v !== null && 'is_liked' in v && 'likes_count' in v
@@ -26,9 +28,11 @@ interface PostDetailProps {
   from?: string
   /** Дата, форматированная в RSC — исключает layout shift (нет useEffect/useState). */
   formattedDate?: string
+  /** Комментарии, загруженные в RSC (Story 3.1) */
+  initialComments?: Comment[]
 }
 
-export function PostDetail({ post, currentUserId, from, formattedDate }: PostDetailProps) {
+export function PostDetail({ post, currentUserId, from, formattedDate, initialComments = [] }: PostDetailProps) {
   const router = useRouter()
   const updatePost = useFeedStore((s) => s.updatePost)
   const [liked, setLiked] = useState(post.is_liked)
@@ -227,6 +231,14 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
           <span>{post.comments}</span>
         </span>
       </footer>
+
+      {/* Discussion section (Story 3.1) */}
+      <section className="mt-8" aria-label="Komentarji">
+        <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">
+          Komentarji
+        </h2>
+        <CommentsList comments={initialComments} postAuthorId={post.author_id} />
+      </section>
     </article>
   )
 }

@@ -37,7 +37,6 @@ function makePost(id: string, overrides: Partial<Post> = {}): Post {
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     is_liked: false,
-    posts_is_liked: false,
     profiles: { display_name: 'Author', avatar_url: null },
     post_media: [],
     ...overrides,

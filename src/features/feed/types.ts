@@ -3,10 +3,15 @@ import type { PostCardData } from '@/components/feed/PostCard'
 
 // Тип медиафайла поста (соответствует таблице post_media в БД)
 // snake_case — прямые поля из Supabase, без маппинга в camelCase
-export type PostMedia = Tables<'post_media'>
+// media_type переопределён как union: Supabase gen types возвращает string для CHECK-колонок
+export type PostMedia = Omit<Tables<'post_media'>, 'media_type'> & {
+  media_type: 'image' | 'video'
+}
 
 // Тип строки из БД с join профиля автора + join post_media + computed column is_liked
-export type PostRow = Tables<'posts'> & {
+// fts переопределён как optional — тестовые моки не включают tsvector-колонку
+export type PostRow = Omit<Tables<'posts'>, 'fts'> & {
+  fts?: unknown
   profiles: {
     display_name: string | null
     avatar_url: string | null
@@ -36,6 +41,7 @@ export interface ToggleLikeResponse {
 // Тип для детальной страницы поста
 export interface PostDetail {
   id: string
+  author_id: string
   title: string
   content: string | null
   excerpt: string
