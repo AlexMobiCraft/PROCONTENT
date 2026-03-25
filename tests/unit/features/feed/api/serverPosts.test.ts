@@ -119,27 +119,27 @@ describe('fetchPostById', () => {
       imageUrl: null,
       likes: 5,
       comments: 3,
-      isLiked: false,
+      is_liked: false,
       created_at: '2026-03-15T10:00:00Z',
     })
   })
 
-  it('возвращает isLiked=true при is_liked=true', async () => {
+  it('возвращает is_liked=true при is_liked=true', async () => {
     setupChain()
     mockSingle.mockResolvedValue({ data: makeDbPost({ is_liked: true }), error: null })
 
     const result = await fetchPostById('post-abc')
 
-    expect(result?.isLiked).toBe(true)
+    expect(result?.is_liked).toBe(true)
   })
 
-  it('возвращает isLiked=false при is_liked=null (анонимный пользователь)', async () => {
+  it('возвращает is_liked=false при is_liked=null (анонимный пользователь)', async () => {
     setupChain()
     mockSingle.mockResolvedValue({ data: makeDbPost({ is_liked: null }), error: null })
 
     const result = await fetchPostById('post-abc')
 
-    expect(result?.isLiked).toBe(false)
+    expect(result?.is_liked).toBe(false)
   })
 
   it('возвращает сырой created_at (форматирование на клиенте)', async () => {

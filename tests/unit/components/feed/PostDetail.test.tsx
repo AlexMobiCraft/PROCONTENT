@@ -97,7 +97,7 @@ function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
     imageUrl: null,
     likes: 5,
     comments: 3,
-    isLiked: false,
+    is_liked: false,
     created_at: '2026-03-15T12:00:00Z',
     author: { name: 'Ana Ivanova', initials: 'AI' },
     ...overrides,
@@ -284,12 +284,12 @@ describe('PostDetail', () => {
   // --- Кнопка лайка ---
 
   it('кнопка лайка: начальное состояние isLiked=false (Všečkaj)', () => {
-    render(<PostDetail post={makePost({ isLiked: false })} />)
+    render(<PostDetail post={makePost({ is_liked: false })} />)
     expect(screen.getByRole('button', { name: 'Všečkaj' })).toBeInTheDocument()
   })
 
   it('кнопка лайка: начальное состояние isLiked=true (Odstrani všeček)', () => {
-    render(<PostDetail post={makePost({ isLiked: true })} />)
+    render(<PostDetail post={makePost({ is_liked: true })} />)
     expect(screen.getByRole('button', { name: 'Odstrani všeček' })).toBeInTheDocument()
   })
 
@@ -302,21 +302,21 @@ describe('PostDetail', () => {
 
   it('аноним (currentUserId=null): клик лайка не вызывает RPC', async () => {
     const user = userEvent.setup()
-    render(<PostDetail post={makePost({ isLiked: false })} currentUserId={null} />)
+    render(<PostDetail post={makePost({ is_liked: false })} currentUserId={null} />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
     expect(mockRpc).not.toHaveBeenCalled()
   })
 
   it('аноним (currentUserId=null): счётчик не меняется при клике', async () => {
     const user = userEvent.setup()
-    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId={null} />)
+    render(<PostDetail post={makePost({ likes: 5, is_liked: false })} currentUserId={null} />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
     expect(screen.getByText('5')).toBeInTheDocument()
   })
 
   it('аноним (currentUserId=null): показывает toast.info при клике лайка', async () => {
     const user = userEvent.setup()
-    render(<PostDetail post={makePost({ isLiked: false })} currentUserId={null} />)
+    render(<PostDetail post={makePost({ is_liked: false })} currentUserId={null} />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
     expect(mockToastInfo).toHaveBeenCalledWith('Za všečkanje se morate prijaviti')
   })
@@ -327,7 +327,7 @@ describe('PostDetail', () => {
     mockRpc.mockResolvedValue({ data: { is_liked: true, likes_count: 6 }, error: null })
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId="user-1" />)
+    render(<PostDetail post={makePost({ likes: 5, is_liked: false })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     expect(screen.getByText('6')).toBeInTheDocument()
@@ -337,7 +337,7 @@ describe('PostDetail', () => {
     mockRpc.mockResolvedValue({ data: { is_liked: false, likes_count: 4 }, error: null })
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ likes: 5, isLiked: true })} currentUserId="user-1" />)
+    render(<PostDetail post={makePost({ likes: 5, is_liked: true })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Odstrani všeček' }))
 
     expect(screen.getByText('4')).toBeInTheDocument()
@@ -357,7 +357,7 @@ describe('PostDetail', () => {
     mockRpc.mockRejectedValue(new Error('RPC failed'))
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId="user-1" />)
+    render(<PostDetail post={makePost({ likes: 5, is_liked: false })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument())
@@ -368,7 +368,7 @@ describe('PostDetail', () => {
     mockRpc.mockRejectedValue(new Error('RPC failed'))
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId="user-1" />)
+    render(<PostDetail post={makePost({ likes: 5, is_liked: false })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Napaka pri všečkanju'))
@@ -378,7 +378,7 @@ describe('PostDetail', () => {
     mockRpc.mockResolvedValue({ data: { is_liked: true, likes_count: 8 }, error: null })
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ likes: 5, isLiked: false })} currentUserId="user-1" />)
+    render(<PostDetail post={makePost({ likes: 5, is_liked: false })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     await waitFor(() => expect(screen.getByText('8')).toBeInTheDocument())
@@ -421,7 +421,7 @@ describe('PostDetail', () => {
     mockRpc.mockRejectedValue(new Error('RPC failed'))
     const user = userEvent.setup()
 
-    render(<PostDetail post={makePost({ id: 'post-1', likes: 5, isLiked: false })} currentUserId="user-1" />)
+    render(<PostDetail post={makePost({ id: 'post-1', likes: 5, is_liked: false })} currentUserId="user-1" />)
     await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
 
     // Сначала оптимистичный вызов

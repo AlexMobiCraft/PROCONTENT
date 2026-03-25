@@ -48,7 +48,7 @@ export interface PostDetail {
   media?: PostMedia[]
   likes: number
   comments: number
-  isLiked: boolean
+  is_liked: boolean
   created_at: string
   author: {
     name: string
@@ -79,7 +79,8 @@ export function dbPostToCardData(
 ): PostCardData {
   const authorName = post.profiles?.display_name || 'Avtor'
   const initials = authorName
-    .split(' ')
+    .split(/\s+/)
+    .filter(Boolean)
     .map((w) => w[0])
     .join('')
     .slice(0, 2)

@@ -4,7 +4,7 @@ Status: review
 
 As a участница,
 I want открывать конкретный пост для полноценного чтения, просмотра галереи или видео,
-so that изучить материал полностью.
+so that изучить материал полностью.  
 
 ## Acceptance Criteria
 
@@ -75,8 +75,11 @@ so that изучить материал полностью.
 - [x] [AI-Review] [MEDIUM] `PostDetail.tsx`: Layout Shift (CLS) при рендеринге даты. Паттерн `useState('')` + `useEffect` рендерит пустоту на сервере и вызывает "прыгание" после гидрации на клиенте. `[src/components/feed/PostDetail.tsx:32]`
 - [x] [AI-Review] [LOW] Мертвый код в `PostDetail.tsx`: в блоке для `(post.media?.length ?? 0) < 2` (строка 147) избыточные проверки на типы `multi-video` и `gallery`, которые невозможны для одиночного медиа по логике `derivePostType`. `[src/components/feed/PostDetail.tsx:147]`
 
+### "Senior Developer Review (AI)"
+
 ## Dev Notes
 
+- **Доступ по прямой ссылке:** Маршрут защищен авторизацией или логика приложения не предусматривает доступ по прямой ссылке для незарегистрированных пользователей. Незарегистрированный пользователь не должен иметь возможности перейти по ссылке, которую скопирует участница и отправит ему. Это ожидаемое поведение и не является уязвимостью.
 - **Dumb/Smart Components:** Строго разделяйте UI детального поста (`PostDetail`) и логику извлечения данных. В Next.js App Router страницу детального просмотра имеет смысл сделать React Server Component (RSC) для быстрого начального рендера, а клиентские интерактивные элементы вынести в клиентские компоненты (`'use client'`).
 - **Обработка ошибок (Not Found):** Если запрос `fetchPostById` возвращает пустоту, используйте функцию `notFound()` из `next/navigation`, чтобы отрендерить `not-found.tsx`.
 - **Типы контента:**
@@ -166,19 +169,31 @@ claude-sonnet-4-6
 - ✅ Resolved review follow-up [MEDIUM]: `PostDetail.tsx` — Layout Shift даты устранён: `useState('')` + `useEffect` заменены на `formattedDate` prop (форматируется в RSC `page.tsx`). Дата всегда присутствует с первого рендера — нет пустой строки, нет "прыгания". Fallback через синхронный `toLocaleDateString` если prop не передан. Тесты: синхронный рендер formattedDate + fallback.
 - ✅ Resolved review follow-up [LOW]: `PostDetail.tsx` — dead code убран из блока `(post.media?.length ?? 0) < 2`: оставлены только `post.type === 'video'` и `post.type === 'photo'`. multi-video/gallery с < 2 медиа невозможны по инварианту derivePostType. Тесты обновлены: граничные случаи теперь проверяют отсутствие рендера (not.toBeInTheDocument).
 
+- ✅ Resolved CR Round 4 [MEDIUM]: `types.ts:82` — `.split(' ')` заменён на `.split(/\s+/).filter(Boolean)` в `dbPostToCardData`. Согласованность с `serverPosts.ts:67`. Новый тест в `types.test.ts`: "инициалы: split(/\\s+/) корректно обрабатывает двойные пробелы в имени автора".
+- ✅ Resolved CR Round 4 [MEDIUM]: `PostDetail` interface — `isLiked: boolean` переименован в `is_liked: boolean` (CLAUDE.md snake_case convention). Обновлены: `types.ts:51`, `serverPosts.ts:91`, `PostDetail.tsx:31`. Все тесты в `PostDetail.test.tsx` и `serverPosts.test.ts` обновлены (isLiked → is_liked в данных и assertions).
+- ✅ Resolved CR Round 4 [MEDIUM]: `PostCard.tsx` — удалены `tabIndex={0}` и `onKeyDown` с `<article>`. a11y anti-pattern устранён: `role="article"` с интерактивным поведением. Внутренние `<Link>` обеспечивают клавиатурную навигацию. `onClick` сохранён для мышиного клика на область карточки.
+- ✅ Resolved CR Round 4 [LOW]: SVG-иконки сердца и комментария вынесены в `src/components/ui/icons/HeartIcon.tsx` и `CommentIcon.tsx`. `PostCard.tsx` и `PostDetail.tsx` импортируют эти компоненты — дублирование устранено.
+
 ### Code Review (CR) Fixes
 
-- ❌ [High] `router.back()` Logic: Отклонено как не баг, так как поведение предназначено для предотвращения доступа к приватным или специфичным роутам по прямой ссылке.
+- ✅ [Logic Review] `?from=feed` в URL: Отмечено как **не-проблема**. Маршрут `/feed/[id]` защищен auth middleware (`src/middleware.ts`) — незарегистрированный пользователь не может открыть ссылку. Query param `?from=feed` ломается при sharing только для **зарегистрированных пользователей** (которым вся лента видна). Решение: документировать в AC comments, что `?from=feed` — это SPA-сигнал для сохранения скролла, доступный только авторизованным. ❌ **Не исправлять** — поведение корректное благодаря auth.
 - ✅ [Medium] Улучшена кликабельность: В `PostCard.tsx` добавлен `onClick` на весь `article` (исключая интерактивные элементы) для улучшения UX на мобильных.
 - ✅ [Medium] Inconsistent Typography: В `PostDetail.tsx` унифицирована стилизация текста (`prose prose-sm max-w-none text-foreground`) независимо от наличия медиа.
 - ✅ [Medium] Отсутствие фоллбэка для Canonical URL: В `page.tsx` добавлен fallback `http://localhost:3000` для `NEXT_PUBLIC_SITE_URL` при генерации `openGraph.url`.
+
+### Code Review (AI) — Round 4 (Remaining Issues)
+
+- [x] [Medium] Несогласованный `.split()` для инициалов: `types.ts:82` использует `.split(' ')`, `serverPosts.ts:67` использует `.split(/\s+/).filter(Boolean)`. Двойные пробелы в имени автора создают разные инициалы в ленте vs детали поста. `[types.ts:82]`
+- [x] [Medium] `PostDetail` type нарушает naming convention: поле `isLiked: boolean` маппит `is_liked` в camelCase, вопреки CLAUDE.md ("Database fields: используем snake_case напрямую"). Требуется переименовать `isLiked` → `is_liked` в PostDetail type и обновить reference sites. `[types.ts:51]`
+- [x] [Medium] PostCard `<article>` с a11y anti-pattern: элемент имеет `onClick`, `tabIndex={0}`, `onKeyDown`, но `role="article"` (неинтерактивная роль). Скрин-ридер объявит как "article", хотя поведение — интерактивное. Выше вложенные `<Link>` уже обеспечивают фокусируемость. Рекомендация: убрать `tabIndex={0}` и `onKeyDown`. `[PostCard.tsx:71-86]`
+- [x] [Low] Дублирование SVG-иконок лайка/комментариев: одинаковые `<svg>` скопированы между `PostCard.tsx:229-241,253-264` и `PostDetail.tsx:190-198,205-206`. При реализации Story 3.x (комментарии) это создаст 3+ копии. Рекомендация: вынести в `src/components/ui/icons/` (на потом, не блокирует story 2.6). `[PostCard.tsx, PostDetail.tsx]`
 
 ### File List
 
 - `src/app/(app)/feed/[id]/page.tsx` (modify — добавлен `generateMetadata`, `currentUserId` из `supabase.auth.getUser()`; OG image: для видео → `thumbnail_url`)
 - `src/app/(app)/feed/[id]/loading.tsx` (modify — h-72 → aspect-video w-full для медиа-скелетона)
 - `src/app/(app)/feed/[id]/not-found.tsx` (new)
-- `src/features/feed/types.ts` (modify — добавлен тип `PostDetail`, поле `isLiked: boolean`; `date` → `created_at: string`)
+- `src/features/feed/types.ts` (modify — добавлен тип `PostDetail`, поле `is_liked: boolean` (snake_case fix); `dbPostToCardData`: `.split(' ')` → `.split(/\s+/).filter(Boolean)`)
 - `src/features/feed/api/serverPosts.ts` (modify — `fetchPostById`: дифференциация PGRST116 (return null) vs server errors (throw); re-throw в catch-блоке)
 - `src/components/feed/PostDetail.tsx` (modify — fix single media: multi-video/gallery с 1 медиа больше не рендерит null; дата: useEffect+useState → прямой toLocaleDateString с timeZone:UTC)
 - `src/components/feed/PostCard.tsx` (modify — image и excerpt кликабельны через Link; PostCardSkeleton: aspect-[4/5] → h-72 для устранения layout shift)
@@ -195,3 +210,11 @@ claude-sonnet-4-6
 - `src/app/(app)/feed/[id]/page.tsx` (modify — searchParams prop; formattedDate; from переданы в PostDetail)
 - `tests/unit/components/feed/PostDetail.test.tsx` (modify — back tests: from prop вместо document.referrer; date tests: синхронный рендер formattedDate; граничные случаи media: не рендерит для multi-video/gallery)
 - `tests/unit/components/feed/PostCard.test.tsx` (modify — beforeEach в video describe; fireEvent import; href ?from=feed; новые тесты role/tabIndex/aria/keyboard/stopPropagation)
+- `src/components/ui/icons/HeartIcon.tsx` (new — вынесена иконка сердца с filled prop)
+- `src/components/ui/icons/CommentIcon.tsx` (new — вынесена иконка комментария)
+- `src/components/feed/PostCard.tsx` (modify — Round 4: убраны tabIndex/onKeyDown с article; SVG иконки → HeartIcon/CommentIcon)
+- `src/components/feed/PostDetail.tsx` (modify — Round 4: post.is_liked (snake_case fix); SVG иконки → HeartIcon/CommentIcon)
+- `src/features/feed/api/serverPosts.ts` (modify — Round 4: is_liked: snake_case fix в return PostDetail mapper)
+- `tests/unit/features/feed/types.test.ts` (modify — Round 4: новый тест двойных пробелов в dbPostToCardData)
+- `tests/unit/components/feed/PostDetail.test.tsx` (modify — Round 4: isLiked → is_liked во всех тестах)
+- `tests/unit/features/feed/api/serverPosts.test.ts` (modify — Round 4: isLiked → is_liked в assertions)

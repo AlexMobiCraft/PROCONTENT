@@ -88,7 +88,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       media: sortedMedia ?? [],
       likes: post.likes_count,
       comments: post.comments_count,
-      isLiked: post.is_liked ?? false,
+      is_liked: post.is_liked ?? false,
       created_at: post.created_at,
       author: {
         name: authorName,

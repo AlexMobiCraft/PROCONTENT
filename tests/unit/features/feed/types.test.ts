@@ -79,6 +79,14 @@ describe('dbPostToCardData', () => {
     expect(card.author.isAuthor).toBe(true)
   })
 
+  it('инициалы: split(/\\s+/) корректно обрабатывает двойные пробелы в имени автора', () => {
+    const card = dbPostToCardData(
+      makePost({ profiles: { display_name: 'Ana  Ivanova', avatar_url: null } })
+    )
+    expect(card.author.name).toBe('Ana  Ivanova')
+    expect(card.author.initials).toBe('AI')
+  })
+
   it('ставит isAuthor=false если текущий пользователь не совпадает с author_id или отсутствует', () => {
     expect(dbPostToCardData(makePost(), 'user-2').author.isAuthor).toBe(false)
     expect(dbPostToCardData(makePost()).author.isAuthor).toBe(false)

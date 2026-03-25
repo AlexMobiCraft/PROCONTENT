@@ -78,7 +78,8 @@ development_status:
   2-5-global-video-playback-controller: done
 
   # Ранее 2-3 → переименована в 2-6 (файл переименован), статус сохранён
-  2-6-detailed-view-of-multiformat-post: done
+  # 2026-03-25: CR выявил 4 action items (3 MEDIUM + 1 LOW) → back to in-progress
+  2-6-detailed-view-of-multiformat-post: review
 
   # Ранее 2-4, 2-5 → переименованы в 2-7, 2-8 (статусы сохранены)
   2-7-horizontal-category-filters-sticky-pill-filters: backlog
