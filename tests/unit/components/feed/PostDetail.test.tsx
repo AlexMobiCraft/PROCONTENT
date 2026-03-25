@@ -107,13 +107,14 @@ function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
 describe('PostDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Дефолтно: пользователь перешёл через навигацию внутри приложения (history.length > 1)
-    vi.stubGlobal('history', { length: 2 })
+    // Дефолтно: пользователь пришёл с той же origin (handleBack → router.back())
+    Object.defineProperty(document, 'referrer', { get: () => 'http://localhost/feed', configurable: true })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
+    // Сбросить document.referrer до пустого дефолтного значения
+    Object.defineProperty(document, 'referrer', { get: () => '', configurable: true })
   })
 
   // --- Базовый рендер ---
@@ -128,10 +129,10 @@ describe('PostDetail', () => {
     expect(screen.getByText('Ana Ivanova')).toBeInTheDocument()
   })
 
-  it('рендерит дату из created_at (клиент-сайд форматирование)', () => {
+  it('рендерит дату из created_at (клиент-сайд через useEffect)', async () => {
     vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('15. marca 2026')
     render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
-    expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('15. marca 2026')).toBeInTheDocument())
   })
 
   it('рендерит категорию', () => {
@@ -141,7 +142,8 @@ describe('PostDetail', () => {
 
   // --- Кнопка "Назад" ---
 
-  it('кнопка "Назад" вызывает router.back() (AC 3 — сохранение скролла)', async () => {
+  it('кнопка "Назад" вызывает router.back() при same-origin referrer (AC 3 — сохранение скролла)', async () => {
+    // beforeEach устанавливает referrer = 'http://localhost/feed' (same origin)
     const user = userEvent.setup()
     render(<PostDetail post={makePost()} />)
     await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
@@ -153,8 +155,8 @@ describe('PostDetail', () => {
     expect(screen.queryByRole('link', { name: /nazaj/i })).not.toBeInTheDocument()
   })
 
-  it('router.back() при прямом входе: fallback router.push("/feed") при history.length <= 1', async () => {
-    vi.stubGlobal('history', { length: 1 })
+  it('router.push("/feed") при прямом входе — нет referrer (прямая ссылка / новая вкладка)', async () => {
+    Object.defineProperty(document, 'referrer', { get: () => '', configurable: true })
     const user = userEvent.setup()
     render(<PostDetail post={makePost()} />)
     await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
@@ -162,8 +164,18 @@ describe('PostDetail', () => {
     expect(mockPush).toHaveBeenCalledWith('/feed')
   })
 
-  it('router.back() при наличии истории (history.length > 1) — без fallback', async () => {
-    vi.stubGlobal('history', { length: 3 })
+  it('router.push("/feed") при переходе с внешнего сайта (referrer другого origin)', async () => {
+    // Случай: history.length > 1, но back() уведёт из приложения на внешний сайт
+    Object.defineProperty(document, 'referrer', { get: () => 'https://google.com/search?q=procontent', configurable: true })
+    const user = userEvent.setup()
+    render(<PostDetail post={makePost()} />)
+    await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
+    expect(mockBack).not.toHaveBeenCalled()
+    expect(mockPush).toHaveBeenCalledWith('/feed')
+  })
+
+  it('router.back() при same-origin referrer — без fallback (навигация внутри приложения)', async () => {
+    Object.defineProperty(document, 'referrer', { get: () => 'http://localhost/feed', configurable: true })
     const user = userEvent.setup()
     render(<PostDetail post={makePost()} />)
     await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
@@ -431,24 +443,23 @@ describe('PostDetail', () => {
     expect(screen.getByText('12')).toBeInTheDocument()
   })
 
-  // --- Hydration safety (Fix: синхронный toLocaleDateString с timeZone: 'UTC') ---
+  // --- Hydration safety (Fix: useEffect + локальный timezone пользователя) ---
 
-  it('дата: toLocaleDateString вызывается с timeZone UTC (предотвращает SSR hydration mismatch)', () => {
+  it('дата: toLocaleDateString вызывается без принудительного UTC (локальный timezone пользователя)', async () => {
     const mockToLocaleDateString = vi
       .spyOn(Date.prototype, 'toLocaleDateString')
       .mockReturnValue('15. marca 2026')
     render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
-    expect(mockToLocaleDateString).toHaveBeenCalledWith(
-      'sl-SI',
-      expect.objectContaining({ timeZone: 'UTC' })
-    )
-    expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockToLocaleDateString).toHaveBeenCalledWith('sl-SI', expect.not.objectContaining({ timeZone: 'UTC' }))
+      expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
+    })
   })
 
-  it('дата рендерится синхронно (без useEffect — устранено мерцание после гидрации)', () => {
+  it('дата рендерится через useEffect (локальный timezone — нет принудительного UTC)', async () => {
     vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('15. marca 2026')
     render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
-    // Синхронно, без waitFor — дата видна сразу при рендере (нет моргания)
-    expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
+    // useEffect выполняется асинхронно после гидрации — корректный timezone пользователя
+    await waitFor(() => expect(screen.getByText('15. marca 2026')).toBeInTheDocument())
   })
 })

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { LazyMediaWrapper, type MediaItem } from '../media/LazyMediaWrapper'
 import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
@@ -47,6 +48,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, priority = false, isPending = false, onCommentClick, onLikeToggle, onOptionsClick }: PostCardProps) {
+  const router = useRouter()
   // Локальный state не нужен: FeedContainer управляет оптимистичным обновлением post.isLiked/post.likes
   const liked = post.isLiked ?? false
   const likeCount = post.likes
@@ -108,7 +110,13 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
           </Link>
         )
       ) : (post.type === 'video' || post.type === 'multi-video') && (post.mediaItem?.url || post.media?.[0]?.url) ? (
-        <div className="mb-4">
+        /* Клик по контейнеру видео ведёт на страницу поста. Нативные контролы <video> перехватывают
+           свои события до всплытия, поэтому play/pause работают без триггера навигации. */
+        <div
+          className="mb-4 cursor-pointer"
+          onClick={() => router.push(`/feed/${post.id}`)}
+          data-testid="video-card-container"
+        >
           <VideoPlayerContainer
             videoId={post.mediaItem?.id ?? post.media?.[0]?.id ?? `fallback-video-${post.id}`}
             src={(post.mediaItem?.url ?? post.media?.[0]?.url)!}

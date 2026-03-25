@@ -1,6 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
+
+const mockRouterPush = vi.hoisted(() => vi.fn())
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}))
 
 vi.mock('@/components/media/LazyMediaWrapper', () => ({
   LazyMediaWrapper: ({
@@ -53,6 +59,10 @@ function makeCardData(overrides?: Partial<PostCardData>): PostCardData {
 }
 
 describe('PostCard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('likeCount обновляется при изменении prop post.likes (derived state sync)', () => {
     const { rerender } = render(<PostCard post={makeCardData({ likes: 5 })} />)
     expect(screen.getByText('5')).toBeInTheDocument()
@@ -214,7 +224,7 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
     expect(screen.getByTestId('video-player')).toBeInTheDocument()
   })
 
-  it('VideoPlayer не обёрнут в <a>-ссылку (невалидный HTML)', () => {
+  it('VideoPlayer не обёрнут в <a>-ссылку', () => {
     const { container } = render(
       <PostCard
         post={makeCardData({
@@ -226,6 +236,22 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
     )
     const videoPlayer = container.querySelector('[data-testid="video-player"]')!
     expect(videoPlayer.closest('a')).toBeNull()
+  })
+
+  it('клик по контейнеру одиночного видео навигирует к посту (кликабельность AC)', async () => {
+    const user = userEvent.setup()
+    render(
+      <PostCard
+        post={makeCardData({
+          id: 'post-vid-nav',
+          type: 'video',
+          mediaItem: makeVideoMediaItem(),
+          imageUrl: undefined,
+        })}
+      />
+    )
+    await user.click(screen.getByTestId('video-card-container'))
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed/post-vid-nav')
   })
 
   it('использует fallback-video-${post.id} как videoId когда нет media[] (без коллизий с UUID медиафайлов)', () => {

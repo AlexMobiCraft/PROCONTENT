@@ -9,7 +9,7 @@ export default function PostNotFound() {
           Objava ni bila najdena
         </h1>
         <p className="text-sm text-muted-foreground">
-          Te objave ne obstaja ali pa je bila izbrisana.
+          Ta objava ne obstaja ali pa je bila izbrisana.
         </p>
       </div>
       <Link

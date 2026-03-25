@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
@@ -27,17 +27,31 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
   const [likesCount, setLikesCount] = useState(post.likes)
   const [isPending, setIsPending] = useState(false)
 
-  // Явный timeZone: 'UTC' гарантирует идентичный результат на сервере и клиенте —
-  // устраняет hydration mismatch и мерцание без useEffect.
-  const date = new Date(post.created_at).toLocaleDateString('sl-SI', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  // useState('') + useEffect: SSR рендерит пустую строку (нет hydration mismatch),
+  // клиент форматирует дату с локальным timezone пользователя — без принудительного UTC.
+  const [date, setDate] = useState('')
+  useEffect(() => {
+    setDate(
+      new Date(post.created_at).toLocaleDateString('sl-SI', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    )
+  }, [post.created_at])
 
   function handleBack() {
-    if (window.history.length > 1) {
+    // document.referrer проверяет origin реального предыдущего перехода —
+    // history.length > 1 недостаточно: он > 1 даже при переходе с внешнего сайта.
+    let isSameOriginReferrer = false
+    try {
+      if (document.referrer) {
+        isSameOriginReferrer = new URL(document.referrer).origin === window.location.origin
+      }
+    } catch {
+      // некорректный URL referrer — трактуем как внешний
+    }
+    if (isSameOriginReferrer) {
       router.back()
     } else {
       router.push('/feed')
