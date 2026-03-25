@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
@@ -18,40 +18,34 @@ function isToggleLikeResponse(v: unknown): v is ToggleLikeResponse {
 interface PostDetailProps {
   post: PostDetailData
   currentUserId?: string | null
+  /** 'feed' = SPA-переход из ленты → router.back() сохраняет скролл (AC 3).
+   * undefined = прямая ссылка / внешний переход → router.push('/feed'). */
+  from?: string
+  /** Дата, форматированная в RSC — исключает layout shift (нет useEffect/useState). */
+  formattedDate?: string
 }
 
-export function PostDetail({ post, currentUserId }: PostDetailProps) {
+export function PostDetail({ post, currentUserId, from, formattedDate }: PostDetailProps) {
   const router = useRouter()
   const updatePost = useFeedStore((s) => s.updatePost)
   const [liked, setLiked] = useState(post.isLiked)
   const [likesCount, setLikesCount] = useState(post.likes)
   const [isPending, setIsPending] = useState(false)
 
-  // useState('') + useEffect: SSR рендерит пустую строку (нет hydration mismatch),
-  // клиент форматирует дату с локальным timezone пользователя — без принудительного UTC.
-  const [date, setDate] = useState('')
-  useEffect(() => {
-    setDate(
-      new Date(post.created_at).toLocaleDateString('sl-SI', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })
-    )
-  }, [post.created_at])
+  // Дата: если formattedDate не передан (тесты/storybook), форматируем синхронно.
+  // В production всегда передаётся из RSC page.tsx — исключает layout shift.
+  const displayDate =
+    formattedDate ??
+    new Date(post.created_at).toLocaleDateString('sl-SI', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
 
   function handleBack() {
-    // document.referrer проверяет origin реального предыдущего перехода —
-    // history.length > 1 недостаточно: он > 1 даже при переходе с внешнего сайта.
-    let isSameOriginReferrer = false
-    try {
-      if (document.referrer) {
-        isSameOriginReferrer = new URL(document.referrer).origin === window.location.origin
-      }
-    } catch {
-      // некорректный URL referrer — трактуем как внешний
-    }
-    if (isSameOriginReferrer) {
+    // AC 3: from='feed' означает SPA-переход из ленты → router.back() сохраняет позицию скролла.
+    // document.referrer некорректен для SPA-переходов в Next.js App Router (не обновляется).
+    if (from === 'feed') {
       router.back()
     } else {
       router.push('/feed')
@@ -126,7 +120,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {post.category}
             </span>
-            <span className="text-xs text-muted-foreground">{date}</span>
+            <span className="text-xs text-muted-foreground">{displayDate}</span>
           </div>
         </div>
       </header>
@@ -143,10 +137,11 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         </div>
       )}
 
-      {/* Одиночное медиа: photo или video */}
+      {/* Одиночное медиа: только 'video' и 'photo'.
+          multi-video/gallery с media.length < 2 невозможны по инварианту derivePostType. */}
       {(post.media?.length ?? 0) < 2 && (post.mediaItem || post.imageUrl) && (
         <div className="mb-6">
-          {(post.type === 'video' || post.type === 'multi-video') ? (
+          {post.type === 'video' ? (
             <VideoPlayerContainer
               videoId={post.mediaItem?.id ?? post.id}
               src={(post.mediaItem?.url ?? post.imageUrl)!}
@@ -155,7 +150,7 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
               aspectRatio="16/9"
               priority={true}
             />
-          ) : (post.type === 'photo' || post.type === 'gallery') ? (
+          ) : post.type === 'photo' ? (
             <LazyMediaWrapper
               mediaItem={post.mediaItem ?? undefined}
               src={!post.mediaItem ? (post.imageUrl ?? undefined) : undefined}
@@ -169,29 +164,14 @@ export function PostDetail({ post, currentUserId }: PostDetailProps) {
         </div>
       )}
 
-      {/* Rich text content */}
-      {post.type === 'text' && (
-        <div className="prose prose-sm max-w-none text-foreground">
-          {post.content ? (
-            <p className="whitespace-pre-wrap leading-relaxed text-foreground">{post.content}</p>
-          ) : (
-            <p className="leading-relaxed text-muted-foreground">{post.excerpt}</p>
-          )}
-        </div>
-      )}
-
-      {/* Photo/Video: подпись или контент под медиа */}
-      {post.type !== 'text' && (
-        <div>
-          {post.content ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-              {post.content}
-            </p>
-          ) : (
-            <p className="text-sm leading-relaxed text-muted-foreground">{post.excerpt}</p>
-          )}
-        </div>
-      )}
+      {/* Content */}
+      <div className="prose prose-sm max-w-none text-foreground mt-4">
+        {post.content ? (
+          <p className="whitespace-pre-wrap leading-relaxed">{post.content}</p>
+        ) : (
+          <p className="leading-relaxed text-muted-foreground">{post.excerpt}</p>
+        )}
+      </div>
 
       {/* Footer stats */}
       <footer className="mt-8 flex items-center gap-1 border-t border-border pt-4">

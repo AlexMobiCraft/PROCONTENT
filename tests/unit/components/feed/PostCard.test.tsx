@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
@@ -204,6 +204,10 @@ describe('PostCard', () => {
 })
 
 describe('PostCard — одиночное видео с mediaItem [AI-Review High]', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   const makeVideoMediaItem = () => ({
     url: 'https://example.com/v.mp4',
     media_type: 'video' as const,
@@ -238,7 +242,7 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
     expect(videoPlayer.closest('a')).toBeNull()
   })
 
-  it('клик по контейнеру одиночного видео навигирует к посту (кликабельность AC)', async () => {
+  it('клик по контейнеру одиночного видео навигирует к посту с ?from=feed (кликабельность AC)', async () => {
     const user = userEvent.setup()
     render(
       <PostCard
@@ -251,7 +255,74 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
       />
     )
     await user.click(screen.getByTestId('video-card-container'))
-    expect(mockRouterPush).toHaveBeenCalledWith('/feed/post-vid-nav')
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed/post-vid-nav?from=feed')
+  })
+
+  it('video-card-container имеет role="button" и tabIndex=0 (a11y Fix #2)', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          type: 'video',
+          mediaItem: makeVideoMediaItem(),
+          imageUrl: undefined,
+        })}
+      />
+    )
+    const container = screen.getByTestId('video-card-container')
+    expect(container).toHaveAttribute('role', 'button')
+    expect(container).toHaveAttribute('tabindex', '0')
+  })
+
+  it('video-card-container имеет aria-label с названием поста (a11y Fix #2)', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          title: 'Moj video',
+          type: 'video',
+          mediaItem: makeVideoMediaItem(),
+          imageUrl: undefined,
+        })}
+      />
+    )
+    expect(screen.getByTestId('video-card-container')).toHaveAttribute('aria-label', 'Poglej objavo: Moj video')
+  })
+
+  it('Enter на video-card-container навигирует к посту (keyboard a11y Fix #2)', async () => {
+    const user = userEvent.setup()
+    render(
+      <PostCard
+        post={makeCardData({
+          id: 'post-key-nav',
+          type: 'video',
+          mediaItem: makeVideoMediaItem(),
+          imageUrl: undefined,
+        })}
+      />
+    )
+    screen.getByTestId('video-card-container').focus()
+    await user.keyboard('{Enter}')
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed/post-key-nav?from=feed')
+  })
+
+  it('клик по кнопке внутри video-card-container не вызывает навигацию (stopPropagation Fix #2)', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          id: 'post-vid-btn',
+          type: 'video',
+          mediaItem: makeVideoMediaItem(),
+          imageUrl: undefined,
+        })}
+      />
+    )
+    // Создаём кнопку внутри контейнера для имитации контролов плеера
+    const videoContainer = screen.getByTestId('video-card-container')
+    const innerBtn = document.createElement('button')
+    innerBtn.textContent = 'Play'
+    videoContainer.appendChild(innerBtn)
+    // fireEvent.click сохраняет корректный e.target при bubbling — userEvent может отклоняться
+    fireEvent.click(innerBtn)
+    expect(mockRouterPush).not.toHaveBeenCalled()
   })
 
   it('использует fallback-video-${post.id} как videoId когда нет media[] (без коллизий с UUID медиафайлов)', () => {
@@ -451,7 +522,7 @@ describe('PostCard — галерея с видео [AI-Review High]', () => {
     expect(galleryGrid?.closest('a')).toBeNull()
   })
 
-  it('в смешанной галерее изображения остаются кликабельными ссылками на пост', () => {
+  it('в смешанной галерее изображения остаются кликабельными ссылками на пост (с ?from=feed)', () => {
     render(
       <PostCard
         post={makeCardData({ id: 'post-mixed-1', type: 'gallery', media: makeGalleryWithVideo() })}
@@ -459,7 +530,7 @@ describe('PostCard — галерея с видео [AI-Review High]', () => {
     )
 
     const links = screen.getAllByRole('link')
-    expect(links.some((link) => link.getAttribute('href') === '/feed/post-mixed-1')).toBe(true)
+    expect(links.some((link) => link.getAttribute('href') === '/feed/post-mixed-1?from=feed')).toBe(true)
   })
 
   it('в смешанной галерее GalleryGrid не оборачивается в ссылку (видео внутри)', () => {

@@ -1,5 +1,5 @@
 # Story 2.6: Детальный просмотр мультиформатного поста
-Status: complete
+Status: review
 ## Story
 
 As a участница,
@@ -69,6 +69,11 @@ so that изучить материал полностью.
 - [x] [AI-Review] [MEDIUM] Устранить Layout Shift в `loading.tsx`: скелетон всегда показывает 16:9, даже если пост текстовый или фото (4:5).
 - [x] [AI-Review] [MEDIUM] Повысить кликабельность: в ленте (`PostCard.tsx`) клик по контейнеру одиночного видео должен вести на страницу поста.
 - [x] [AI-Review] [LOW] Исправить опечатку в `not-found.tsx`: "Te objave ne obstaja" -> "Ta objava ne obstaja".
+
+- [x] [AI-Review] [HIGH] Логика `handleBack` в `PostDetail.tsx` сломана для client-side навигации: использование `document.referrer` в Next.js App Router некорректно для SPA-переходов. Если зайти по прямой ссылке, а затем открыть пост, referrer пуст, и кнопка "Назад" вызовет `router.push('/feed')`, сбрасывая состояние ленты и нарушая AC 3. `[src/components/feed/PostDetail.tsx]`
+- [x] [AI-Review] [MEDIUM] `PostCard.tsx`: Конфликт кликов на одиночном видео. Обертка `onClick` на `div` вокруг `VideoPlayerContainer` перехватывает клики по контролам плеера без `stopPropagation()`, вызывая нежелательную навигацию. Также нарушает a11y (отсутствует `role="button"`). `[src/components/feed/PostCard.tsx:116]`
+- [x] [AI-Review] [MEDIUM] `PostDetail.tsx`: Layout Shift (CLS) при рендеринге даты. Паттерн `useState('')` + `useEffect` рендерит пустоту на сервере и вызывает "прыгание" после гидрации на клиенте. `[src/components/feed/PostDetail.tsx:32]`
+- [x] [AI-Review] [LOW] Мертвый код в `PostDetail.tsx`: в блоке для `(post.media?.length ?? 0) < 2` (строка 147) избыточные проверки на типы `multi-video` и `gallery`, которые невозможны для одиночного медиа по логике `derivePostType`. `[src/components/feed/PostDetail.tsx:147]`
 
 ## Dev Notes
 
@@ -156,6 +161,10 @@ claude-sonnet-4-6
 - ✅ Resolved review follow-up [HIGH]: `PostDetail.tsx` — `handleBack` переработан: вместо `window.history.length > 1` (недостаточно — > 1 даже при переходе с внешнего сайта) использует `document.referrer` для проверки same-origin. Если referrer того же origin → `router.back()`, иначе → `router.push('/feed')`. Тесты обновлены: удалён history stub, добавлен мок `document.referrer`; добавлен тест "router.push('/feed') при переходе с внешнего сайта".
 - ✅ Resolved review follow-up [MEDIUM]: `PostDetail.tsx` — дата: принудительный `timeZone: 'UTC'` заменён на `useState('') + useEffect` с локальным timezone пользователя. SSR рендерит пустую строку (нет hydration mismatch), клиент форматирует корректно. Тесты обновлены: убрана проверка `timeZone: 'UTC'`, добавлен `waitFor`. `vitest.config.ts` получил `environmentOptions.jsdom.url: 'http://localhost/'` для корректной работы `window.location.origin` в тестах.
 - ✅ Resolved review follow-up [MEDIUM]: `PostCard.tsx` — клик по контейнеру одиночного видео навигирует к посту. Добавлен `useRouter`, враппер получил `onClick={() => router.push('/feed/${post.id}')}` + `cursor-pointer` + `data-testid="video-card-container"`. Нативные контролы `<video>` перехватывают события до всплытия — play/pause работают без триггера навигации. Тест: "клик по контейнеру одиночного видео навигирует к посту".
+- ✅ Resolved review follow-up [HIGH]: `PostDetail.tsx` — handleBack переработан окончательно: вместо `document.referrer` (не работает для SPA-переходов) используется `from` prop. `PostCard.tsx` добавляет `?from=feed` ко всем Links/router.push. `page.tsx` извлекает `from` из `searchParams` и передаёт в PostDetail. SPA-переход → `router.back()`, прямая ссылка → `router.push('/feed')`. Тесты переписаны на from prop.
+- ✅ Resolved review follow-up [MEDIUM]: `PostCard.tsx` video div — добавлены `role="button"`, `tabIndex={0}`, `aria-label`, `onKeyDown` (Enter/Space). onClick проверяет `target.closest('button') || target.tagName === 'VIDEO'` — клики по контролам плеера не вызывают навигацию. Новые тесты: role/tabIndex, aria-label, keyboard, stopPropagation.
+- ✅ Resolved review follow-up [MEDIUM]: `PostDetail.tsx` — Layout Shift даты устранён: `useState('')` + `useEffect` заменены на `formattedDate` prop (форматируется в RSC `page.tsx`). Дата всегда присутствует с первого рендера — нет пустой строки, нет "прыгания". Fallback через синхронный `toLocaleDateString` если prop не передан. Тесты: синхронный рендер formattedDate + fallback.
+- ✅ Resolved review follow-up [LOW]: `PostDetail.tsx` — dead code убран из блока `(post.media?.length ?? 0) < 2`: оставлены только `post.type === 'video'` и `post.type === 'photo'`. multi-video/gallery с < 2 медиа невозможны по инварианту derivePostType. Тесты обновлены: граничные случаи теперь проверяют отсутствие рендера (not.toBeInTheDocument).
 
 ### File List
 
@@ -174,3 +183,8 @@ claude-sonnet-4-6
 - `src/components/feed/PostCard.tsx` (modify — добавлен useRouter + onClick навигация на контейнере видео)
 - `tests/unit/components/feed/PostCard.test.tsx` (modify — добавлен мок useRouter, тест кликабельности видео контейнера)
 - `vitest.config.ts` (modify — environmentOptions.jsdom.url для корректного window.location.origin в тестах)
+- `src/components/feed/PostDetail.tsx` (modify — handleBack: document.referrer → from prop; дата: useState+useEffect → displayDate с formattedDate prop; dead code: multi-video/gallery убраны из блока < 2)
+- `src/components/feed/PostCard.tsx` (modify — все Links ?from=feed; video div: role=button, tabIndex=0, aria-label, onKeyDown, умный onClick с target.closest('button'))
+- `src/app/(app)/feed/[id]/page.tsx` (modify — searchParams prop; formattedDate; from переданы в PostDetail)
+- `tests/unit/components/feed/PostDetail.test.tsx` (modify — back tests: from prop вместо document.referrer; date tests: синхронный рендер formattedDate; граничные случаи media: не рендерит для multi-video/gallery)
+- `tests/unit/components/feed/PostCard.test.tsx` (modify — beforeEach в video describe; fireEvent import; href ?from=feed; новые тесты role/tabIndex/aria/keyboard/stopPropagation)

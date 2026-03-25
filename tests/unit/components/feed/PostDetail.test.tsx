@@ -107,14 +107,10 @@ function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
 describe('PostDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Дефолтно: пользователь пришёл с той же origin (handleBack → router.back())
-    Object.defineProperty(document, 'referrer', { get: () => 'http://localhost/feed', configurable: true })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
-    // Сбросить document.referrer до пустого дефолтного значения
-    Object.defineProperty(document, 'referrer', { get: () => '', configurable: true })
   })
 
   // --- Базовый рендер ---
@@ -129,10 +125,15 @@ describe('PostDetail', () => {
     expect(screen.getByText('Ana Ivanova')).toBeInTheDocument()
   })
 
-  it('рендерит дату из created_at (клиент-сайд через useEffect)', async () => {
+  it('рендерит formattedDate синхронно без layout shift (Fix #3)', () => {
+    render(<PostDetail post={makePost()} formattedDate="15. marca 2026" />)
+    expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
+  })
+
+  it('рендерит дату из created_at если formattedDate не передан (fallback)', () => {
     vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('15. marca 2026')
     render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
-    await waitFor(() => expect(screen.getByText('15. marca 2026')).toBeInTheDocument())
+    expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
   })
 
   it('рендерит категорию', () => {
@@ -140,12 +141,11 @@ describe('PostDetail', () => {
     expect(screen.getByText('UGC')).toBeInTheDocument()
   })
 
-  // --- Кнопка "Назад" ---
+  // --- Кнопка "Назад" (Fix #1: from prop вместо document.referrer) ---
 
-  it('кнопка "Назад" вызывает router.back() при same-origin referrer (AC 3 — сохранение скролла)', async () => {
-    // beforeEach устанавливает referrer = 'http://localhost/feed' (same origin)
+  it('кнопка "Назад" вызывает router.back() при from="feed" (AC 3 — SPA-переход из ленты)', async () => {
     const user = userEvent.setup()
-    render(<PostDetail post={makePost()} />)
+    render(<PostDetail post={makePost()} from="feed" />)
     await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
     expect(mockBack).toHaveBeenCalledTimes(1)
   })
@@ -155,8 +155,7 @@ describe('PostDetail', () => {
     expect(screen.queryByRole('link', { name: /nazaj/i })).not.toBeInTheDocument()
   })
 
-  it('router.push("/feed") при прямом входе — нет referrer (прямая ссылка / новая вкладка)', async () => {
-    Object.defineProperty(document, 'referrer', { get: () => '', configurable: true })
+  it('router.push("/feed") при прямом входе — нет from prop (прямая ссылка / новая вкладка)', async () => {
     const user = userEvent.setup()
     render(<PostDetail post={makePost()} />)
     await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
@@ -164,20 +163,17 @@ describe('PostDetail', () => {
     expect(mockPush).toHaveBeenCalledWith('/feed')
   })
 
-  it('router.push("/feed") при переходе с внешнего сайта (referrer другого origin)', async () => {
-    // Случай: history.length > 1, но back() уведёт из приложения на внешний сайт
-    Object.defineProperty(document, 'referrer', { get: () => 'https://google.com/search?q=procontent', configurable: true })
+  it('router.push("/feed") при from=undefined (внешний переход или прямая ссылка)', async () => {
     const user = userEvent.setup()
-    render(<PostDetail post={makePost()} />)
+    render(<PostDetail post={makePost()} from={undefined} />)
     await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
     expect(mockBack).not.toHaveBeenCalled()
     expect(mockPush).toHaveBeenCalledWith('/feed')
   })
 
-  it('router.back() при same-origin referrer — без fallback (навигация внутри приложения)', async () => {
-    Object.defineProperty(document, 'referrer', { get: () => 'http://localhost/feed', configurable: true })
+  it('router.back() при from="feed" — без push (SPA навигация из ленты)', async () => {
     const user = userEvent.setup()
-    render(<PostDetail post={makePost()} />)
+    render(<PostDetail post={makePost()} from="feed" />)
     await user.click(screen.getByRole('button', { name: 'Nazaj na objave' }))
     expect(mockBack).toHaveBeenCalledTimes(1)
     expect(mockPush).not.toHaveBeenCalled()
@@ -260,27 +256,28 @@ describe('PostDetail', () => {
     expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
   })
 
-  it('multi-video с 1 медиа: рендерит VideoPlayerContainer (не null)', () => {
-    // Граничный случай: multi-video с media.length < 2 — должен рендерить плеер, а не null
+  it('multi-video с 1 медиа: не рендерит медиа (невозможное состояние по derivePostType)', () => {
+    // Fix #4: multi-video/gallery с media.length < 2 — невозможно по инварианту derivePostType.
+    // Упрощённый код не содержит dead code проверок для этих типов в блоке < 2.
     const post = makePost({
       type: 'multi-video',
       media: [{ id: 'v1', media_type: 'video', url: 'https://example.com/vid.mp4' }] as unknown as PostMedia[],
       mediaItem: { id: 'v1', url: 'https://example.com/vid.mp4', thumbnail_url: null } as unknown as PostMedia,
     })
     render(<PostDetail post={post} />)
-    expect(screen.getByTestId('video-player-container')).toBeInTheDocument()
+    expect(screen.queryByTestId('video-player-container')).not.toBeInTheDocument()
     expect(screen.queryByTestId('gallery-grid')).not.toBeInTheDocument()
   })
 
-  it('gallery с 1 медиа: рендерит LazyMediaWrapper (не null)', () => {
-    // Граничный случай: gallery с media.length < 2 — должен рендерить фото, а не null
+  it('gallery с 1 медиа: не рендерит медиа (невозможное состояние по derivePostType)', () => {
+    // Fix #4: dead code удалён — type='gallery' с media.length < 2 невозможен в production.
     const post = makePost({
       type: 'gallery',
       media: [{ id: 'p1', media_type: 'image', url: 'https://example.com/img.jpg' }] as unknown as PostMedia[],
       mediaItem: { id: 'p1', url: 'https://example.com/img.jpg', thumbnail_url: null } as unknown as PostMedia,
     })
     render(<PostDetail post={post} />)
-    expect(screen.getByTestId('lazy-media')).toBeInTheDocument()
+    expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
     expect(screen.queryByTestId('gallery-grid')).not.toBeInTheDocument()
   })
 
@@ -443,23 +440,17 @@ describe('PostDetail', () => {
     expect(screen.getByText('12')).toBeInTheDocument()
   })
 
-  // --- Hydration safety (Fix: useEffect + локальный timezone пользователя) ---
+  // --- Дата: formattedDate prop (Fix #3 — нет layout shift) ---
 
-  it('дата: toLocaleDateString вызывается без принудительного UTC (локальный timezone пользователя)', async () => {
-    const mockToLocaleDateString = vi
-      .spyOn(Date.prototype, 'toLocaleDateString')
-      .mockReturnValue('15. marca 2026')
-    render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
-    await waitFor(() => {
-      expect(mockToLocaleDateString).toHaveBeenCalledWith('sl-SI', expect.not.objectContaining({ timeZone: 'UTC' }))
-      expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
-    })
+  it('дата: formattedDate из RSC рендерится синхронно (нет useEffect, нет layout shift)', () => {
+    render(<PostDetail post={makePost()} formattedDate="15. marca 2026" />)
+    // Синхронный рендер — без waitFor
+    expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
   })
 
-  it('дата рендерится через useEffect (локальный timezone — нет принудительного UTC)', async () => {
+  it('дата: fallback через toLocaleDateString если formattedDate не передан', () => {
     vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('15. marca 2026')
     render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
-    // useEffect выполняется асинхронно после гидрации — корректный timezone пользователя
-    await waitFor(() => expect(screen.getByText('15. marca 2026')).toBeInTheDocument())
+    expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
   })
 })

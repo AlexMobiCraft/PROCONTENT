@@ -58,8 +58,32 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
     onLikeToggle?.(post.id)
   }
 
+  function handleCardClick(e: React.MouseEvent) {
+    const target = e.target as HTMLElement
+    // Ignore clicks on buttons, links, or specific interactive elements
+    if (target.closest('button') || target.closest('a') || target.tagName === 'VIDEO') {
+      return
+    }
+    router.push(`/feed/${post.id}?from=feed`)
+  }
+
   return (
-    <article className="border-b border-border bg-background px-4 py-5">
+    <article 
+      className="border-b border-border bg-background px-4 py-5 cursor-pointer transition-colors hover:bg-muted/50"
+      onClick={handleCardClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          // Only handle if the focus is on the article itself, not on its children
+          if (e.target === e.currentTarget) {
+            e.preventDefault()
+            router.push(`/feed/${post.id}?from=feed`)
+          }
+        }
+      }}
+      tabIndex={0}
+      role="article"
+      aria-label={`Objava uporabnika ${post.author.name}`}
+    >
       {/* Header */}
       <header className="mb-3 flex items-center gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
@@ -102,19 +126,32 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
       {(post.media?.length ?? 0) >= 2 ? (
         post.media!.some((m) => m.media_type === 'video') ? (
           <div className="mb-4">
-            <GalleryGrid media={post.media!} priority={priority} itemLinkHref={`/feed/${post.id}`} interactive={false} />
+            <GalleryGrid media={post.media!} priority={priority} itemLinkHref={`/feed/${post.id}?from=feed`} interactive={false} />
           </div>
         ) : (
-          <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} prefetch={false}>
+          <Link href={`/feed/${post.id}?from=feed`} className="mb-4 block" tabIndex={-1} prefetch={false}>
             <GalleryGrid media={post.media!} priority={priority} interactive={false} />
           </Link>
         )
       ) : (post.type === 'video' || post.type === 'multi-video') && (post.mediaItem?.url || post.media?.[0]?.url) ? (
-        /* Клик по контейнеру видео ведёт на страницу поста. Нативные контролы <video> перехватывают
-           свои события до всплытия, поэтому play/pause работают без триггера навигации. */
+        /* Клик на контейнере ведёт к посту. Нативные контролы <video> и кнопки плеера
+           перехватываются через проверку target — play/pause не вызывают навигацию. */
         <div
           className="mb-4 cursor-pointer"
-          onClick={() => router.push(`/feed/${post.id}`)}
+          role="button"
+          tabIndex={0}
+          aria-label={`Poglej objavo: ${post.title}`}
+          onClick={(e) => {
+            const target = e.target as HTMLElement
+            if (target.closest('button') || target.tagName === 'VIDEO') return
+            router.push(`/feed/${post.id}?from=feed`)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              router.push(`/feed/${post.id}?from=feed`)
+            }
+          }}
           data-testid="video-card-container"
         >
           <VideoPlayerContainer
@@ -127,7 +164,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
           />
         </div>
       ) : (post.mediaItem || post.imageUrl) ? (
-        <Link href={`/feed/${post.id}`} className="mb-4 block" tabIndex={-1} prefetch={false}>
+        <Link href={`/feed/${post.id}?from=feed`} className="mb-4 block" tabIndex={-1} prefetch={false}>
           <LazyMediaWrapper
             {...(post.mediaItem
               ? { mediaItem: post.mediaItem }
@@ -141,7 +178,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
 
       {/* Content — заголовок + excerpt в одном Link для правильного UX */}
       <div className="flex flex-col gap-2">
-        <Link href={`/feed/${post.id}`} className="group flex flex-col gap-2" prefetch={false}>
+        <Link href={`/feed/${post.id}?from=feed`} className="group flex flex-col gap-2" prefetch={false}>
           <h2 className="font-heading text-base font-semibold leading-snug text-foreground text-balance group-hover:text-primary transition-colors">
             {post.title}
           </h2>

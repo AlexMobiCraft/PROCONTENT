@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic'
 
 interface PostPageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ from?: string }>
 }
 
 export async function generateMetadata({ params }: PostPageProps): Promise<Metadata> {
@@ -28,13 +29,15 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
     return url
   })()
 
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+
   return {
     title: post.title,
     description: post.excerpt || post.title,
     openGraph: {
       title: post.title,
       description: post.excerpt || post.title,
-      url: `${process.env.NEXT_PUBLIC_SITE_URL}/feed/${id}`,
+      url: `${baseUrl}/feed/${id}`,
       images: ogImage ? [ogImage] : undefined,
     },
     twitter: {
@@ -46,8 +49,9 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
   }
 }
 
-export default async function PostPage({ params }: PostPageProps) {
+export default async function PostPage({ params, searchParams }: PostPageProps) {
   const { id } = await params
+  const { from } = await searchParams
   const supabase = await createClient()
   const [post, authResult] = await Promise.all([
     fetchPostById(id),
@@ -59,5 +63,19 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound()
   }
 
-  return <PostDetail post={post} currentUserId={user?.id ?? null} />
+  // Форматируем дату в RSC — исключает useState+useEffect и layout shift на клиенте (Fix #3)
+  const formattedDate = new Date(post.created_at).toLocaleDateString('sl-SI', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
+  return (
+    <PostDetail
+      post={post}
+      currentUserId={user?.id ?? null}
+      from={from}
+      formattedDate={formattedDate}
+    />
+  )
 }
