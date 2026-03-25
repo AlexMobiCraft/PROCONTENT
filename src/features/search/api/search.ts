@@ -2,6 +2,14 @@ import { createClient } from '@/lib/supabase/client'
 import type { Post } from '@/features/feed/types'
 
 /**
+ * Типизированный валидатор ответа Supabase: проверяет что данные — массив.
+ * Заменяет небезопасный двойной cast `as unknown as Post[]`.
+ */
+function isPostArray(data: unknown): data is Post[] {
+  return Array.isArray(data)
+}
+
+/**
  * Поиск постов по полнотекстовому индексу (FTS) через generated column `fts`.
  * Fallback на .ilike() если query не является валидным tsquery.
  * Возвращает опубликованные посты с join profiles + post_media — совместимо с dbPostToCardData.
@@ -22,5 +30,6 @@ export async function searchPosts(query: string): Promise<Post[]> {
     .limit(50)
 
   if (error) throw error
-  return (data ?? []) as unknown as Post[]
+  if (!isPostArray(data)) return []
+  return data
 }

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent } from '@testing-library/react'
 import type { Post } from '@/features/feed/types'
@@ -10,7 +10,7 @@ vi.mock('@/hooks/useDebounce', () => ({
 
 // --- Остальные моки ---
 const mockSearchPosts = vi.fn()
-const mockRpc = vi.fn()
+const mockHandleLikeToggle = vi.fn()
 const mockRouterReplace = vi.fn()
 const mockRouterPush = vi.fn()
 
@@ -18,9 +18,10 @@ vi.mock('@/features/search/api/search', () => ({
   searchPosts: (...args: unknown[]) => mockSearchPosts(...args),
 }))
 
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({
-    rpc: (...args: unknown[]) => mockRpc(...args),
+vi.mock('@/hooks/useLikeToggle', () => ({
+  useLikeToggle: () => ({
+    pendingLikes: [],
+    handleLikeToggle: mockHandleLikeToggle,
   }),
 }))
 
@@ -146,10 +147,15 @@ describe('SearchContainer', () => {
     await waitFor(() => expect(mockSearchPosts).toHaveBeenCalledWith('vsebina'))
   })
 
-  it('не вызывает searchPosts при пустом запросе', async () => {
+  it('не вызывает searchPosts при пустом запросе', () => {
     render(<SearchContainer />)
     // Нет ввода — не вызываем API
-    await act(async () => {})
+    expect(mockSearchPosts).not.toHaveBeenCalled()
+  })
+
+  it('не вызывает searchPosts при коротком запросе (< 3 символа)', () => {
+    render(<SearchContainer />)
+    typeInInput(screen.getByRole('searchbox'), 'ab')
     expect(mockSearchPosts).not.toHaveBeenCalled()
   })
 
@@ -164,9 +170,11 @@ describe('SearchContainer', () => {
     })
   })
 
-  it('передаёт initialQuery в поле ввода', () => {
+  it('передаёт initialQuery в поле ввода', async () => {
+    mockSearchPosts.mockResolvedValue([])
     render(<SearchContainer initialQuery="vsebina" />)
     expect(screen.getByRole('searchbox')).toHaveValue('vsebina')
+    await waitFor(() => expect(mockSearchPosts).toHaveBeenCalledWith('vsebina'))
   })
 
   it('синхронизирует запрос с URL (?q=)', async () => {
@@ -198,10 +206,6 @@ describe('SearchContainer', () => {
   it('обновляет лайк оптимистично и синхронизирует с сервером', async () => {
     const posts = [makePost('p1')]
     mockSearchPosts.mockResolvedValue(posts)
-    mockRpc.mockResolvedValue({
-      data: { is_liked: true, likes_count: 6 },
-      error: null,
-    })
 
     render(<SearchContainer />)
     typeInInput(screen.getByRole('searchbox'), 'test')
@@ -209,10 +213,10 @@ describe('SearchContainer', () => {
     await waitFor(() => screen.getByTestId('post-p1'))
 
     const likeBtn = screen.getByRole('button', { name: 'Like' })
-    await act(async () => { likeBtn.click() })
+    fireEvent.click(likeBtn)
 
     await waitFor(() => {
-      expect(mockRpc).toHaveBeenCalledWith('toggle_like', { p_post_id: 'p1' })
+      expect(mockHandleLikeToggle).toHaveBeenCalledWith('p1')
     })
   })
 

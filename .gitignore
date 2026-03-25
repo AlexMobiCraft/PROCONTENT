@@ -36,6 +36,10 @@ next-env.d.ts
 # Supabase
 supabase/.temp/
 
+# Dev utility seed scripts (не для продакшн)
+supabase/run-custom-seed.js
+supabase/seed_gallery_test_2_4.sql
+
 # Claude
 .claude/settings.local.json
 .claude/settings.json

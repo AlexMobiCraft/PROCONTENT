@@ -1,6 +1,6 @@
 # Story 2.7: Поиск по всей базе знаний
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -44,12 +44,12 @@ so that находить конкретные советы или разборы
 
 ## Review Follow-ups (AI)
 
-- [ ] [AI-Review][Medium] Исправить предупреждения `act()` в SearchContainer тестах (SearchContainer.test.tsx:157)
-- [ ] [AI-Review][Medium] Вынести логику лайков из SearchContainer в переиспользуемый хук `useLikeToggle` (SearchContainer.tsx:186-234)
-- [ ] [AI-Review][Medium] Заменить небезопасное приведение типов в searchPosts.ts:25 на типизированный валидатор
-- [ ] [AI-Review][Medium] Добавить незакоммиченные файлы в git или удалить (supabase/run-custom-seed.js, supabase/seed_gallery_test_2_4.sql)
-- [ ] [AI-Review][Low] Добавить проверку минимальной длины запроса (>=3 символа) в SearchContainer.tsx:150
-- [ ] [AI-Review][Low] Рассмотреть возможность использования стандартных паттернов для SearchInput вместо жестких стилей
+- [x] [AI-Review][Medium] Исправить предупреждения `act()` в SearchContainer тестах (SearchContainer.test.tsx:157)
+- [x] [AI-Review][Medium] Вынести логику лайков из SearchContainer в переиспользуемый хук `useLikeToggle` (SearchContainer.tsx:186-234)
+- [x] [AI-Review][Medium] Заменить небезопасное приведение типов в searchPosts.ts:25 на типизированный валидатор
+- [x] [AI-Review][Medium] Добавить незакоммиченные файлы в git или удалить (supabase/run-custom-seed.js, supabase/seed_gallery_test_2_4.sql)
+- [x] [AI-Review][Low] Добавить проверку минимальной длины запроса (>=3 символа) в SearchContainer.tsx:150
+- [x] [AI-Review][Low] Рассмотреть возможность использования стандартных паттернов для SearchInput вместо жестких стилей
 
 ## Dev Notes
 
@@ -90,6 +90,7 @@ claude-sonnet-4-6
 - Task 4: Навигация уже содержала `/search` в `MobileNav` и `DesktopSidebar` — изменений не потребовалось.
 - Task 5: Миграция `018_add_fts_to_posts.sql` — generated column `fts tsvector` + GIN индекс. Словарь `simple` — оптимален для sl-SI (нет встроенного словенского в PostgreSQL).
 - Все 711 тестов прошли (27 новых), typecheck и lint без ошибок.
+- Review Follow-ups (6 шт.): все выполнены — 717 тестов (36 новых), нулевые регрессии.
 
 ### File List
 
@@ -98,9 +99,13 @@ claude-sonnet-4-6
 - `src/features/search/api/search.ts` (новый)
 - `src/features/search/components/SearchContainer.tsx` (новый)
 - `src/hooks/useDebounce.ts` (новый)
+- `src/hooks/useLikeToggle.ts` (новый — рефакторинг логики лайков)
+- `src/components/ui/input.tsx` (новый — стандартный Input компонент)
 - `supabase/migrations/018_add_fts_to_posts.sql` (новый)
 - `tests/unit/features/search/api/search.test.ts` (новый)
-- `tests/unit/features/search/components/SearchContainer.test.tsx` (новый)
+- `tests/unit/features/search/components/SearchContainer.test.tsx` (обновлён: act() fixes, MIN_QUERY_LENGTH тест, мок useLikeToggle)
 - `tests/unit/hooks/useDebounce.test.ts` (новый)
+- `tests/unit/hooks/useLikeToggle.test.ts` (новый — тесты хука лайков)
 - `tests/unit/app/search/page.test.tsx` (новый)
-- `_bmad-output/implementation-artifacts/sprint-status.yaml` (обновлён: 2-7 → in-progress)
+- `.gitignore` (обновлён: добавлены seed-утилиты)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (обновлён: 2-7 → review)

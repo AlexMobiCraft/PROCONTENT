@@ -1,14 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import { dbPostToCardData } from '@/features/feed/types'
 import { useAuthStore } from '@/features/auth/store'
-import { createClient } from '@/lib/supabase/client'
 import { searchPosts } from '../api/search'
 import { useDebounce } from '@/hooks/useDebounce'
-import type { Post, ToggleLikeResponse } from '@/features/feed/types'
+import { useLikeToggle } from '@/hooks/useLikeToggle'
+import { Input } from '@/components/ui/input'
+import type { Post } from '@/features/feed/types'
+
+const MIN_QUERY_LENGTH = 3
 
 // ---------- SearchInput ----------
 
@@ -36,13 +39,13 @@ function SearchInput({ value, onChange }: SearchInputProps) {
           />
         </svg>
       </span>
-      <input
+      <Input
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Iskanje po vsebini…"
         aria-label="Iskanje po vsebini"
-        className="w-full rounded-xl border border-border bg-muted/50 py-3 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
+        className="pl-10 pr-4"
       />
     </div>
   )
@@ -127,13 +130,18 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
   const [results, setResults] = useState<Post[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pendingLikes, setPendingLikes] = useState<string[]>([])
 
   const debouncedQuery = useDebounce(inputValue, 400)
   const abortRef = useRef<AbortController | null>(null)
 
   const currentUser = useAuthStore((s) => s.user)
   const currentUserId = currentUser?.id ?? null
+
+  const { pendingLikes, handleLikeToggle } = useLikeToggle({
+    posts: results,
+    setPosts: setResults,
+    currentUser,
+  })
 
   // Синхронизация inputValue → URL ?q=
   useEffect(() => {
@@ -148,7 +156,7 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
 
   // Выполняем поиск при изменении debouncedQuery
   useEffect(() => {
-    if (!debouncedQuery.trim()) {
+    if (debouncedQuery.trim().length < MIN_QUERY_LENGTH) {
       setResults([])
       setError(null)
       setIsLoading(false)
@@ -183,58 +191,8 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
     }
   }, [debouncedQuery])
 
-  const handleLikeToggle = useCallback(
-    async (postId: string) => {
-      if (!currentUser) {
-        router.push('/login')
-        return
-      }
-      if (pendingLikes.includes(postId)) return
-
-      const post = results.find((p) => p.id === postId)
-      if (!post) return
-      const prevIsLiked = post.is_liked ?? false
-      const prevLikesCount = post.likes_count
-
-      setPendingLikes((prev) => [...prev, postId])
-      setResults((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? { ...p, is_liked: !prevIsLiked, likes_count: prevLikesCount + (prevIsLiked ? -1 : 1) }
-            : p
-        )
-      )
-
-      try {
-        const supabase = createClient()
-        const { data, error } = await supabase.rpc('toggle_like', { p_post_id: postId })
-        if (error) throw error
-        const result = data as unknown as ToggleLikeResponse
-        setResults((prev) =>
-          prev.map((p) =>
-            p.id === postId
-              ? { ...p, is_liked: result.is_liked, likes_count: result.likes_count }
-              : p
-          )
-        )
-      } catch (err) {
-        console.error('Ошибка toggle_like:', err)
-        setResults((prev) =>
-          prev.map((p) =>
-            p.id === postId
-              ? { ...p, is_liked: prevIsLiked, likes_count: prevLikesCount }
-              : p
-          )
-        )
-      } finally {
-        setPendingLikes((prev) => prev.filter((id) => id !== postId))
-      }
-    },
-    [currentUser, router, results, pendingLikes]
-  )
-
   const showEmpty = !isLoading && !error && results.length === 0
-  const hasQuery = debouncedQuery.trim().length > 0
+  const hasQuery = debouncedQuery.trim().length >= MIN_QUERY_LENGTH
 
   return (
     <div className="flex flex-col">
