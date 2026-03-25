@@ -93,6 +93,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
       author: {
         name: authorName,
         initials,
+        avatar_url: post.profiles?.avatar_url ?? null,
       },
     }
   } catch (err) {

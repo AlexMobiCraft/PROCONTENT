@@ -64,9 +64,10 @@ vi.mock('sonner', () => ({
 }))
 
 const mockRpc = vi.hoisted(() => vi.fn())
+const mockGetUser = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({ rpc: mockRpc }),
+  createClient: () => ({ rpc: mockRpc, auth: { getUser: mockGetUser } }),
 }))
 
 const mockBack = vi.hoisted(() => vi.fn())
@@ -107,6 +108,8 @@ function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
 describe('PostDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // По умолчанию: сессия активна (для существующих тестов, проверяющих generic error toast)
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null })
   })
 
   afterEach(() => {
@@ -452,5 +455,74 @@ describe('PostDetail', () => {
     vi.spyOn(Date.prototype, 'toLocaleDateString').mockReturnValue('15. marca 2026')
     render(<PostDetail post={makePost({ created_at: '2026-03-15T12:00:00Z' })} />)
     expect(screen.getByText('15. marca 2026')).toBeInTheDocument()
+  })
+
+  // --- Аватар автора ---
+
+  it('показывает img аватара если author.avatar_url задан', () => {
+    render(
+      <PostDetail
+        post={makePost({ author: { name: 'Ana Ivanova', initials: 'AI', avatar_url: 'https://example.com/avatar.jpg' } })}
+      />
+    )
+    const img = screen.getByRole('img', { name: 'Ana Ivanova' })
+    expect(img).toHaveAttribute('src', 'https://example.com/avatar.jpg')
+  })
+
+  it('показывает инициалы если author.avatar_url не задан', () => {
+    render(<PostDetail post={makePost({ author: { name: 'Ana Ivanova', initials: 'AI' } })} />)
+    expect(screen.getByText('AI')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'Ana Ivanova' })).not.toBeInTheDocument()
+  })
+
+  it('показывает инициалы если author.avatar_url=null', () => {
+    render(
+      <PostDetail
+        post={makePost({ author: { name: 'Ana Ivanova', initials: 'AI', avatar_url: null } })}
+      />
+    )
+    expect(screen.getByText('AI')).toBeInTheDocument()
+  })
+
+  // --- Семантика даты: <time dateTime> ---
+
+  it('рендерит дату в элементе <time> с атрибутом dateTime (семантика a11y)', () => {
+    render(
+      <PostDetail
+        post={makePost({ created_at: '2026-03-15T12:00:00Z' })}
+        formattedDate="15. marca 2026"
+      />
+    )
+    const timeEl = screen.getByText('15. marca 2026').closest('time')
+    expect(timeEl).toBeInTheDocument()
+    expect(timeEl).toHaveAttribute('dateTime', '2026-03-15T12:00:00Z')
+  })
+
+  // --- Auth check при ошибке RPC лайка ---
+
+  it('при ошибке RPC: если сессия истекла (getUser=null) — показывает toast о просроченной сессии', async () => {
+    mockRpc.mockRejectedValue(new Error('JWT expired'))
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null })
+    const user = userEvent.setup()
+
+    render(<PostDetail post={makePost({ likes: 5, is_liked: false })} currentUserId="user-1" />)
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith('Vaša seja je potekla. Prijavite se znova.')
+    )
+  })
+
+  it('при ошибке RPC: если сессия активна (getUser=user) — показывает общий toast ошибки', async () => {
+    mockRpc.mockRejectedValue(new Error('Network error'))
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null })
+    const user = userEvent.setup()
+
+    render(<PostDetail post={makePost({ likes: 5, is_liked: false })} currentUserId="user-1" />)
+    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith('Napaka pri všečkanju')
+    )
   })
 })

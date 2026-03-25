@@ -161,6 +161,30 @@ describe('fetchPostById', () => {
     expect(result?.author.initials).toBe('AI')
   })
 
+  it('маппит avatar_url автора из profiles', async () => {
+    setupChain()
+    mockSingle.mockResolvedValue({
+      data: makeDbPost({ profiles: { display_name: 'Ana Ivanova', avatar_url: 'https://example.com/avatar.jpg' } }),
+      error: null,
+    })
+
+    const result = await fetchPostById('post-abc')
+
+    expect(result?.author.avatar_url).toBe('https://example.com/avatar.jpg')
+  })
+
+  it('возвращает avatar_url=null если profiles.avatar_url=null', async () => {
+    setupChain()
+    mockSingle.mockResolvedValue({
+      data: makeDbPost({ profiles: { display_name: 'Ana Ivanova', avatar_url: null } }),
+      error: null,
+    })
+
+    const result = await fetchPostById('post-abc')
+
+    expect(result?.author.avatar_url).toBeNull()
+  })
+
   it('использует fallback "Avtor" при null profiles', async () => {
     setupChain()
     mockSingle.mockResolvedValue({ data: makeDbPost({ profiles: null }), error: null })

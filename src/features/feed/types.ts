@@ -53,6 +53,7 @@ export interface PostDetail {
   author: {
     name: string
     initials: string
+    avatar_url?: string | null
   }
 }
 
@@ -111,7 +112,9 @@ export function dbPostToCardData(
       name: authorName,
       initials,
       isAuthor: currentUserId === post.author_id,
+      avatar_url: post.profiles?.avatar_url ?? null,
     },
+    created_at: post.created_at,
     imageUrl,
     // AC 6: передаём полный объект post_media для LazyMediaWrapper
     mediaItem: coverItem,

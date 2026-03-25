@@ -556,6 +556,58 @@ describe('PostCard — галерея с видео [AI-Review High]', () => {
   })
 })
 
+describe('PostCard — аватар автора', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('показывает img аватара если author.avatar_url задан', () => {
+    render(
+      <PostCard
+        post={makeCardData({ author: { name: 'Ana', initials: 'A', avatar_url: 'https://example.com/avatar.jpg' } })}
+      />
+    )
+    const img = screen.getByRole('img', { name: 'Ana' })
+    expect(img).toHaveAttribute('src', 'https://example.com/avatar.jpg')
+  })
+
+  it('показывает инициалы если author.avatar_url не задан', () => {
+    render(<PostCard post={makeCardData({ author: { name: 'Ana', initials: 'AV' } })} />)
+    expect(screen.getByText('AV')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'Ana' })).not.toBeInTheDocument()
+  })
+
+  it('показывает инициалы если author.avatar_url=null', () => {
+    render(
+      <PostCard post={makeCardData({ author: { name: 'Ana', initials: 'AV', avatar_url: null } })} />
+    )
+    expect(screen.getByText('AV')).toBeInTheDocument()
+  })
+})
+
+describe('PostCard — семантика даты <time dateTime>', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('рендерит дату в элементе <time> с атрибутом dateTime (a11y)', () => {
+    render(
+      <PostCard
+        post={makeCardData({ date: '1. jan. 2026', created_at: '2026-01-01T00:00:00Z' })}
+      />
+    )
+    const timeEl = screen.getByText('1. jan. 2026').closest('time')
+    expect(timeEl).toBeInTheDocument()
+    expect(timeEl).toHaveAttribute('dateTime', '2026-01-01T00:00:00Z')
+  })
+
+  it('рендерит <time> без dateTime если created_at не передан', () => {
+    render(<PostCard post={makeCardData({ date: '01.01.2026' })} />)
+    const timeEl = screen.getByText('01.01.2026').closest('time')
+    expect(timeEl).toBeInTheDocument()
+  })
+})
+
 describe('PostCardSkeleton', () => {
   it('по умолчанию не рендерит media placeholder для text-карточек', () => {
     render(<PostCardSkeleton />)

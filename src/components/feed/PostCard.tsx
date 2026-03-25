@@ -24,7 +24,10 @@ export interface PostCardData {
     name: string
     initials: string
     isAuthor?: boolean
+    avatar_url?: string | null
   }
+  /** ISO дата для атрибута dateTime элемента time (семантика + a11y). */
+  created_at?: string
   /** Устаревший URL медиафайла. Предпочтительно использовать mediaItem (AC 6). */
   imageUrl?: string
   /**
@@ -77,8 +80,12 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
     >
       {/* Header */}
       <header className="mb-3 flex items-center gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
-          {post.author.initials}
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary overflow-hidden">
+          {post.author.avatar_url ? (
+            <img src={post.author.avatar_url} alt={post.author.name} className="size-full object-cover" />
+          ) : (
+            post.author.initials
+          )}
         </div>
         <div className="flex flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
@@ -95,7 +102,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {post.category}
             </span>
-            <span className="text-xs text-muted-foreground">{post.date}</span>
+            <time dateTime={post.created_at} className="text-xs text-muted-foreground">{post.date}</time>
           </div>
         </div>
 

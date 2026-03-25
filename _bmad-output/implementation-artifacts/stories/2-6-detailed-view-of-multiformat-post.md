@@ -75,6 +75,11 @@ so that изучить материал полностью.
 - [x] [AI-Review] [MEDIUM] `PostDetail.tsx`: Layout Shift (CLS) при рендеринге даты. Паттерн `useState('')` + `useEffect` рендерит пустоту на сервере и вызывает "прыгание" после гидрации на клиенте. `[src/components/feed/PostDetail.tsx:32]`
 - [x] [AI-Review] [LOW] Мертвый код в `PostDetail.tsx`: в блоке для `(post.media?.length ?? 0) < 2` (строка 147) избыточные проверки на типы `multi-video` и `gallery`, которые невозможны для одиночного медиа по логике `derivePostType`. `[src/components/feed/PostDetail.tsx:147]`
 
+- [x] [AI-Review] [MEDIUM] Реализовать поддержку аватаров: добавить `avatar_url` в типы `PostCardData` и `PostDetail`, обновить мапперы в `dbPostToCardData` и `fetchPostById`, показать аватары в `PostCard` и `PostDetail` вместо/рядом с инициалами. `[src/features/feed/types.ts, src/features/feed/api/serverPosts.ts, src/components/feed/PostCard.tsx, src/components/feed/PostDetail.tsx]`
+- [x] [AI-Review] [MEDIUM] Создать `error.tsx` для сегмента `feed/[id]`: обработать серверные ошибки Supabase (не 404) с предложением вернуться в ленту и кнопкой повтора запроса. `[src/app/(app)/feed/[id]/error.tsx]`
+- [x] [AI-Review] [LOW] Заменить `<span>` на `<time dateTime>` для дат в `PostCard.tsx` и `PostDetail.tsx` для улучшения семантики и доступности. `[src/components/feed/PostCard.tsx:98, src/components/feed/PostDetail.tsx:125]`
+- [x] [AI-Review] [LOW] Добавить проверку актуальности авторизации в `PostDetail.tsx`: при ошибке RPC лайка проверить `supabase.auth.getUser()` на клиенте и показать соответствующее сообщение если сессия устарела. `[src/components/feed/PostDetail.tsx:81]`
+
 ### "Senior Developer Review (AI)"
 
 ## Dev Notes
@@ -170,6 +175,10 @@ claude-sonnet-4-6
 - ✅ Resolved review follow-up [LOW]: `PostDetail.tsx` — dead code убран из блока `(post.media?.length ?? 0) < 2`: оставлены только `post.type === 'video'` и `post.type === 'photo'`. multi-video/gallery с < 2 медиа невозможны по инварианту derivePostType. Тесты обновлены: граничные случаи теперь проверяют отсутствие рендера (not.toBeInTheDocument).
 
 - ✅ Resolved CR Round 4 [MEDIUM]: `types.ts:82` — `.split(' ')` заменён на `.split(/\s+/).filter(Boolean)` в `dbPostToCardData`. Согласованность с `serverPosts.ts:67`. Новый тест в `types.test.ts`: "инициалы: split(/\\s+/) корректно обрабатывает двойные пробелы в имени автора".
+- ✅ Resolved review finding [MEDIUM]: Аватары реализованы — `avatar_url?: string | null` добавлен в `PostDetail.author` (types.ts) и `PostCardData.author` (PostCard.tsx). Маппер `dbPostToCardData` и `fetchPostById` теперь возвращают `avatar_url` из `profiles!author_id`. `PostCard` и `PostDetail` показывают `<img>` если `avatar_url` задан, иначе инициалы. 6 новых тестов (3 в PostCard, 2 в PostDetail, 2 в serverPosts).
+- ✅ Resolved review finding [MEDIUM]: Создан `src/app/(app)/feed/[id]/error.tsx` — error boundary для сегмента `feed/[id]`. Обрабатывает серверные ошибки Supabase (не 404). Показывает кнопку "Poskusi znova" (вызывает `reset()`) и ссылку "Nazaj na objave" (→ /feed).
+- ✅ Resolved review finding [LOW]: `<span>` заменён на `<time dateTime>` для дат в `PostCard.tsx` и `PostDetail.tsx`. `PostCardData` получил `created_at?: string`; `dbPostToCardData` передаёт `post.created_at`. 2 новых теста (PostCard, PostDetail).
+- ✅ Resolved review finding [LOW]: `PostDetail.tsx` handleLike — auth session check: `supabase` вынесен перед try-блоком; в catch вызывается `supabase.auth.getUser()` для диагностики истёкшей сессии. Если user=null → `toast.error('Vaša seja je potekla. Prijavite se znova.')`, иначе → `toast.error('Napaka pri všečkanju')`. 2 новых теста. TypeScript + lint чисты. 676 тестов ✅.
 - ✅ Resolved CR Round 4 [MEDIUM]: `PostDetail` interface — `isLiked: boolean` переименован в `is_liked: boolean` (CLAUDE.md snake_case convention). Обновлены: `types.ts:51`, `serverPosts.ts:91`, `PostDetail.tsx:31`. Все тесты в `PostDetail.test.tsx` и `serverPosts.test.ts` обновлены (isLiked → is_liked в данных и assertions).
 - ✅ Resolved CR Round 4 [MEDIUM]: `PostCard.tsx` — удалены `tabIndex={0}` и `onKeyDown` с `<article>`. a11y anti-pattern устранён: `role="article"` с интерактивным поведением. Внутренние `<Link>` обеспечивают клавиатурную навигацию. `onClick` сохранён для мышиного клика на область карточки.
 - ✅ Resolved CR Round 4 [LOW]: SVG-иконки сердца и комментария вынесены в `src/components/ui/icons/HeartIcon.tsx` и `CommentIcon.tsx`. `PostCard.tsx` и `PostDetail.tsx` импортируют эти компоненты — дублирование устранено.
@@ -184,6 +193,15 @@ claude-sonnet-4-6
 ### Code Review (AI) — Round 4 (Remaining Issues)
 
 - [x] [Medium] Несогласованный `.split()` для инициалов: `types.ts:82` использует `.split(' ')`, `serverPosts.ts:67` использует `.split(/\s+/).filter(Boolean)`. Двойные пробелы в имени автора создают разные инициалы в ленте vs детали поста. `[types.ts:82]`
+
+### Review Follow-ups (AI) — Round 5
+
+- [ ] [AI-Review][Medium] Двойная навигация в истории браузера: Обертка `<div role="button">` для видео вызывает `router.push()` и пропускает событие к родительскому `article`, что приводит к двойной записи в history stack. Требуется `e.stopPropagation()`. `[src/components/feed/PostCard.tsx:142]`
+- [ ] [AI-Review][Medium] Зависание UI при ошибке сети: В `handleLike` вызов `await supabase.auth.getUser()` при отсутствии сети "виснет" до таймаута, блокируя снятие лоадера. Заменить на синхронный `supabase.auth.getSession()` на клиенте. `[src/components/feed/PostDetail.tsx:87]`
+- [ ] [AI-Review][Medium] Блокировка доступа к собственным черновикам: `fetchPostById` жестко фильтрует по `is_published=true`, возвращая 404 для автора при попытке просмотреть свой черновик. `[src/features/feed/api/serverPosts.ts:51]`
+- [ ] [AI-Review][Medium] Отсутствие оптимизации аватаров: Использование обычного `<img>` вместо `next/image` лишает приложение WebP оптимизаций, кэширования и защиты от CLS. `[src/components/feed/PostCard.tsx:84, src/components/feed/PostDetail.tsx:123]`
+- [ ] [AI-Review][Low] Некорректный fallback при пустом контенте: Проверка `{post.content ? ...}` считает пустую строку falsy, отображая `excerpt` вместо задуманной пустоты. Заменить на `!== null`. `[src/components/feed/PostDetail.tsx:180]`
+- [ ] [AI-Review][Low] Утечка памяти при быстром переходе: Обновление локальных стейтов в `handleLike` после асинхронного `rpc` не имеет проверки на то, что компонент (PostDetail) все еще смонтирован (при быстром нажатии Назад). `[src/components/feed/PostDetail.tsx:94]`
 - [x] [Medium] `PostDetail` type нарушает naming convention: поле `isLiked: boolean` маппит `is_liked` в camelCase, вопреки CLAUDE.md ("Database fields: используем snake_case напрямую"). Требуется переименовать `isLiked` → `is_liked` в PostDetail type и обновить reference sites. `[types.ts:51]`
 - [x] [Medium] PostCard `<article>` с a11y anti-pattern: элемент имеет `onClick`, `tabIndex={0}`, `onKeyDown`, но `role="article"` (неинтерактивная роль). Скрин-ридер объявит как "article", хотя поведение — интерактивное. Выше вложенные `<Link>` уже обеспечивают фокусируемость. Рекомендация: убрать `tabIndex={0}` и `onKeyDown`. `[PostCard.tsx:71-86]`
 - [x] [Low] Дублирование SVG-иконок лайка/комментариев: одинаковые `<svg>` скопированы между `PostCard.tsx:229-241,253-264` и `PostDetail.tsx:190-198,205-206`. При реализации Story 3.x (комментарии) это создаст 3+ копии. Рекомендация: вынести в `src/components/ui/icons/` (на потом, не блокирует story 2.6). `[PostCard.tsx, PostDetail.tsx]`
@@ -218,3 +236,11 @@ claude-sonnet-4-6
 - `tests/unit/features/feed/types.test.ts` (modify — Round 4: новый тест двойных пробелов в dbPostToCardData)
 - `tests/unit/components/feed/PostDetail.test.tsx` (modify — Round 4: isLiked → is_liked во всех тестах)
 - `tests/unit/features/feed/api/serverPosts.test.ts` (modify — Round 4: isLiked → is_liked в assertions)
+- `src/app/(app)/feed/[id]/error.tsx` (new — error boundary для feed/[id]; кнопка "Poskusi znova" + ссылка "Nazaj na objave")
+- `src/features/feed/types.ts` (modify — PostDetail.author: добавлен `avatar_url?`; dbPostToCardData: добавлены `avatar_url` и `created_at`)
+- `src/features/feed/api/serverPosts.ts` (modify — fetchPostById: добавлен `avatar_url` в возвращаемый author)
+- `src/components/feed/PostCard.tsx` (modify — PostCardData.author: добавлен `avatar_url?`; PostCardData: добавлен `created_at?`; аватар img/initials; `<time dateTime>` для даты)
+- `src/components/feed/PostDetail.tsx` (modify — аватар img/initials; `<time dateTime>` для даты; auth session check в handleLike catch)
+- `tests/unit/components/feed/PostCard.test.tsx` (modify — новые тесты аватара и time dateTime)
+- `tests/unit/components/feed/PostDetail.test.tsx` (modify — обновлён mock supabase client + getUser; новые тесты аватара, time dateTime, auth check)
+- `tests/unit/features/feed/api/serverPosts.test.ts` (modify — новые тесты avatar_url в returned author)

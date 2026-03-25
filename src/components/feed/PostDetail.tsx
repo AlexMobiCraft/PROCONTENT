@@ -69,8 +69,8 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
     setLikesCount(newCount)
     updatePost(post.id, { likes_count: newCount, is_liked: newLiked })
     setIsPending(true)
+    const supabase = createClient()
     try {
-      const supabase = createClient()
       const { data, error } = await supabase.rpc('toggle_like', { p_post_id: post.id })
       if (error) throw error
       if (!isToggleLikeResponse(data)) throw new Error('Unexpected toggle_like response')
@@ -79,11 +79,17 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
       setLikesCount(data.likes_count)
       updatePost(post.id, { likes_count: data.likes_count, is_liked: data.is_liked })
     } catch {
-      // Откат UI + store при ошибке, уведомляем пользователя
+      // Откат UI + store при ошибке
       setLiked(prevLiked)
       setLikesCount(prevCount)
       updatePost(post.id, { likes_count: prevCount, is_liked: prevLiked })
-      toast.error('Napaka pri všečkanju')
+      // Проверяем актуальность сессии: разные сообщения для истёкшей сессии vs сетевой ошибки
+      const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+      if (!user) {
+        toast.error('Vaša seja je potekla. Prijavite se znova.')
+      } else {
+        toast.error('Napaka pri všečkanju')
+      }
     } finally {
       setIsPending(false)
     }
@@ -113,8 +119,12 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
 
       {/* Author header */}
       <header className="mb-6 flex items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
-          {post.author.initials}
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary overflow-hidden">
+          {post.author.avatar_url ? (
+            <img src={post.author.avatar_url} alt={post.author.name} className="size-full object-cover" />
+          ) : (
+            post.author.initials
+          )}
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-foreground">{post.author.name}</span>
@@ -122,7 +132,7 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {post.category}
             </span>
-            <span className="text-xs text-muted-foreground">{displayDate}</span>
+            <time dateTime={post.created_at} className="text-xs text-muted-foreground">{displayDate}</time>
           </div>
         </div>
       </header>
