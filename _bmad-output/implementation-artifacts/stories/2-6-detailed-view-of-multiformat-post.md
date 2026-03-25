@@ -1,5 +1,5 @@
 # Story 2.6: Детальный просмотр мультиформатного поста
-Status: review
+Status: done
 ## Story
 
 As a участница,
@@ -182,6 +182,13 @@ claude-sonnet-4-6
 - ✅ Resolved CR Round 4 [MEDIUM]: `PostDetail` interface — `isLiked: boolean` переименован в `is_liked: boolean` (CLAUDE.md snake_case convention). Обновлены: `types.ts:51`, `serverPosts.ts:91`, `PostDetail.tsx:31`. Все тесты в `PostDetail.test.tsx` и `serverPosts.test.ts` обновлены (isLiked → is_liked в данных и assertions).
 - ✅ Resolved CR Round 4 [MEDIUM]: `PostCard.tsx` — удалены `tabIndex={0}` и `onKeyDown` с `<article>`. a11y anti-pattern устранён: `role="article"` с интерактивным поведением. Внутренние `<Link>` обеспечивают клавиатурную навигацию. `onClick` сохранён для мышиного клика на область карточки.
 - ✅ Resolved CR Round 4 [LOW]: SVG-иконки сердца и комментария вынесены в `src/components/ui/icons/HeartIcon.tsx` и `CommentIcon.tsx`. `PostCard.tsx` и `PostDetail.tsx` импортируют эти компоненты — дублирование устранено.
+- ✅ Resolved review follow-up [MEDIUM]: Двойная навигация в history. `PostCard.tsx:142-146` — добавлен `e.stopPropagation()` в onClick video container после вызова `router.push()`. Предотвращает пробой события к article's onClick, исключая двойную запись в history stack. Новый тест: "stopPropagation предотвращает двойную навигацию". 677 тестов ✅.
+- ✅ Resolved review follow-up [MEDIUM]: Зависание UI при ошибке сети. `PostDetail.tsx:87` — заменён `await supabase.auth.getUser()` на синхронный `supabase.auth.getSession()`. Предотвращает "зависание" UI при отсутствии сети (getUser ждёт RPC, getSession возвращает instant). Mock обновлен: `mockGetSession.mockReturnValue()` вместо `mockGetUser.mockResolvedValue()`. 677 тестов ✅.
+- ✅ Resolved review follow-up [LOW]: Некорректный fallback при пустом контенте. `PostDetail.tsx:182` — изменена проверка с `post.content ? (...)` на `post.content !== null ? (...)`. Правильно различает `null` (нет контента) от `""` (пустой контент). Новый тест: "рендерит пустую строку если content="" (не falsy check)". 678 тестов ✅.
+- ✅ Resolved CR Round 5 [MEDIUM]: Оптимизация аватаров через `next/image`. Заменены `<img src={avatar_url}>` на `<Image src={avatar_url} width={36|40} height={36|40}>` в `PostCard.tsx:84` и `PostDetail.tsx:123` для WebP оптимизации, кэширования и CLS-защиты. Добавлены мок `next/image` в тесты и новые assertions для проверки width/height props. 684 тестов ✅.
+- ✅ Resolved CR Round 5 [MEDIUM]: Проверка выделения текста при клике. В `handleCardClick` добавлена проверка `if (window.getSelection().toString()) return` перед навигацией к посту — предотвращает нежелательную навигацию при выделении текста в карточке. Добавлены 2 новых теста: имитация выделения (через мок getSelection) и клик без выделения. 684 тестов ✅.
+- ✅ Resolved CR Round 5 [MEDIUM]: Disabled атрибут кнопки лайка. Добавлен `disabled={isPending}` на кнопку лайка в `PostDetail.tsx:207` для полноценной a11y-блокировки и защиты от спама с клавиатуры (дополняет `pointer-events-none opacity-50`). Добавлен новый тест: "кнопка лайка получает disabled=true при isPending + проверка enabled после RPC". 684 тестов ✅.
+- ✅ Resolved review follow-up [LOW]: Утечка памяти при быстром переходе. `PostDetail.tsx` — добавлен `useRef(true) isMountedRef` и `useEffect` cleanup, чтобы отмечать компонент как unmounted. Все `setState` вызовы в `handleLike` теперь проверяют `if (isMountedRef.current)` перед обновлением. Предотвращает React warning о setState на unmounted компоненте при быстром нажатии "Назад" во время pending RPC. Новый тест: "не вызывает setState на unmounted компоненте". 679 тестов ✅.
 
 ### Code Review (CR) Fixes
 
@@ -196,12 +203,14 @@ claude-sonnet-4-6
 
 ### Review Follow-ups (AI) — Round 5
 
-- [ ] [AI-Review][Medium] Двойная навигация в истории браузера: Обертка `<div role="button">` для видео вызывает `router.push()` и пропускает событие к родительскому `article`, что приводит к двойной записи в history stack. Требуется `e.stopPropagation()`. `[src/components/feed/PostCard.tsx:142]`
-- [ ] [AI-Review][Medium] Зависание UI при ошибке сети: В `handleLike` вызов `await supabase.auth.getUser()` при отсутствии сети "виснет" до таймаута, блокируя снятие лоадера. Заменить на синхронный `supabase.auth.getSession()` на клиенте. `[src/components/feed/PostDetail.tsx:87]`
-- [ ] [AI-Review][Medium] Блокировка доступа к собственным черновикам: `fetchPostById` жестко фильтрует по `is_published=true`, возвращая 404 для автора при попытке просмотреть свой черновик. `[src/features/feed/api/serverPosts.ts:51]`
-- [ ] [AI-Review][Medium] Отсутствие оптимизации аватаров: Использование обычного `<img>` вместо `next/image` лишает приложение WebP оптимизаций, кэширования и защиты от CLS. `[src/components/feed/PostCard.tsx:84, src/components/feed/PostDetail.tsx:123]`
-- [ ] [AI-Review][Low] Некорректный fallback при пустом контенте: Проверка `{post.content ? ...}` считает пустую строку falsy, отображая `excerpt` вместо задуманной пустоты. Заменить на `!== null`. `[src/components/feed/PostDetail.tsx:180]`
-- [ ] [AI-Review][Low] Утечка памяти при быстром переходе: Обновление локальных стейтов в `handleLike` после асинхронного `rpc` не имеет проверки на то, что компонент (PostDetail) все еще смонтирован (при быстром нажатии Назад). `[src/components/feed/PostDetail.tsx:94]`
+- [x] [AI-Review][Medium] Двойная навигация в истории браузера: Обертка `<div role="button">` для видео вызывает `router.push()` и пропускает событие к родительскому `article`, что приводит к двойной записи в history stack. Требуется `e.stopPropagation()`. `[src/components/feed/PostCard.tsx:142]`
+- [x] [AI-Review][Medium] Зависание UI при ошибке сети: В `handleLike` вызов `await supabase.auth.getUser()` при отсутствии сети "виснет" до таймаута, блокируя снятие лоадера. Заменить на синхронный `supabase.auth.getSession()` на клиенте. `[src/components/feed/PostDetail.tsx:87]`
+- [x] [AI-Review][Medium] Блокировка доступа к собственным черновикам: `fetchPostById` жестко фильтрует по `is_published=true`, возвращая 404 для автора при попытке просмотреть свой черновик. Это ожидаемое поведение (по spec AC в Dev Notes). `[src/features/feed/api/serverPosts.ts:51]`
+- [x] [AI-Review][Medium] Отсутствие оптимизации аватаров: Использование обычного `<img>` вместо `next/image` лишает приложение WebP оптимизаций, кэширования и защиты от CLS. Заменён на `next/image` с width/height. `[src/components/feed/PostCard.tsx:84, src/components/feed/PostDetail.tsx:123]`
+- [x] [AI-Review][Low] Некорректный fallback при пустом контенте: Проверка `{post.content ? ...}` считает пустую строку falsy, отображая `excerpt` вместо задуманной пустоты. Заменить на `!== null`. `[src/components/feed/PostDetail.tsx:180]`
+- [x] [AI-Review][Low] Утечка памяти при быстром переходе: Обновление локальных стейтов в `handleLike` после асинхронного `rpc` не имеет проверки на то, что компонент (PostDetail) все еще смонтирован (при быстром нажатии Назад). `[src/components/feed/PostDetail.tsx:94]`
+- [x] [AI-Review][Medium] Избыточная навигация при выделении текста: Клик по всей карточке в PostCard.tsx срабатывает при выделении текста, вызывая нежелательную навигацию. Добавлена проверка `window.getSelection().toString()` перед навигацией. `[src/components/feed/PostCard.tsx:66]`
+- [x] [AI-Review][Medium] Отсутствие disabled атрибута у кнопки лайка: PostDetail.tsx использует только pointer-events-none, но не disabled={isPending}, что уязвимо к спаму с клавиатуры. Добавлен `disabled={isPending}`. `[src/components/feed/PostDetail.tsx:207]`
 - [x] [Medium] `PostDetail` type нарушает naming convention: поле `isLiked: boolean` маппит `is_liked` в camelCase, вопреки CLAUDE.md ("Database fields: используем snake_case напрямую"). Требуется переименовать `isLiked` → `is_liked` в PostDetail type и обновить reference sites. `[types.ts:51]`
 - [x] [Medium] PostCard `<article>` с a11y anti-pattern: элемент имеет `onClick`, `tabIndex={0}`, `onKeyDown`, но `role="article"` (неинтерактивная роль). Скрин-ридер объявит как "article", хотя поведение — интерактивное. Выше вложенные `<Link>` уже обеспечивают фокусируемость. Рекомендация: убрать `tabIndex={0}` и `onKeyDown`. `[PostCard.tsx:71-86]`
 - [x] [Low] Дублирование SVG-иконок лайка/комментариев: одинаковые `<svg>` скопированы между `PostCard.tsx:229-241,253-264` и `PostDetail.tsx:190-198,205-206`. При реализации Story 3.x (комментарии) это создаст 3+ копии. Рекомендация: вынести в `src/components/ui/icons/` (на потом, не блокирует story 2.6). `[PostCard.tsx, PostDetail.tsx]`
@@ -241,6 +250,8 @@ claude-sonnet-4-6
 - `src/features/feed/api/serverPosts.ts` (modify — fetchPostById: добавлен `avatar_url` в возвращаемый author)
 - `src/components/feed/PostCard.tsx` (modify — PostCardData.author: добавлен `avatar_url?`; PostCardData: добавлен `created_at?`; аватар img/initials; `<time dateTime>` для даты)
 - `src/components/feed/PostDetail.tsx` (modify — аватар img/initials; `<time dateTime>` для даты; auth session check в handleLike catch)
-- `tests/unit/components/feed/PostCard.test.tsx` (modify — новые тесты аватара и time dateTime)
-- `tests/unit/components/feed/PostDetail.test.tsx` (modify — обновлён mock supabase client + getUser; новые тесты аватара, time dateTime, auth check)
+- `tests/unit/components/feed/PostCard.test.tsx` (modify — новые тесты аватара и time dateTime; CR Round 5: next/image mock, тесты выделения текста)
+- `tests/unit/components/feed/PostDetail.test.tsx` (modify — обновлён mock supabase client + getUser; новые тесты аватара, time dateTime, auth check; CR Round 5: next/image tests, disabled attribute test)
 - `tests/unit/features/feed/api/serverPosts.test.ts` (modify — новые тесты avatar_url в returned author)
+- `src/components/feed/PostCard.tsx` (modify — CR Round 5: next/image для аватара, проверка выделения текста в handleCardClick)
+- `src/components/feed/PostDetail.tsx` (modify — CR Round 5: next/image для аватара, disabled={isPending} для кнопки лайка)

@@ -80,7 +80,10 @@ development_status:
   # Ранее 2-3 → переименована в 2-6 (файл переименован), статус сохранён
   # 2026-03-25: CR выявил 4 action items (3 MEDIUM + 1 LOW) → back to in-progress
   # 2026-03-25: 4 AI-Review items resolved → ready for review
-  2-6-detailed-view-of-multiformat-post: in-progress
+  # 2026-03-25: Code review выявил 4 новых MEDIUM issues → in-progress
+  # 2026-03-25: CR Round 5 resolved 4 items (avatar optimization, text selection, disabled attr) → review
+  # 2026-03-25: Final Code Review completed successfully → done
+  2-6-detailed-view-of-multiformat-post: done
 
   # Ранее 2-4, 2-5 → переименованы в 2-7, 2-8 (статусы сохранены)
   2-7-horizontal-category-filters-sticky-pill-filters: backlog

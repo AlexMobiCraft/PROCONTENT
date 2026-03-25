@@ -2,6 +2,12 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
+vi.mock('next/image', () => ({
+  default: ({ src, alt, width, height, className }: { src: string; alt: string; width: number; height: number; className?: string }) => (
+    <img src={src} alt={alt} data-width={width} data-height={height} className={className} data-testid="next-image" />
+  ),
+}))
+
 const mockRouterPush = vi.hoisted(() => vi.fn())
 
 vi.mock('next/navigation', () => ({
@@ -201,6 +207,55 @@ describe('PostCard', () => {
       expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
     })
   })
+
+  describe('Аватар (next/image оптимизация [CR Round 5])', () => {
+    it('использует next/image для аватара автора (WebP оптимизация)', () => {
+      render(<PostCard post={makeCardData({ author: { name: 'Avtorica', initials: 'A', avatar_url: 'https://example.com/avatar.jpg' } })} />)
+      expect(screen.getByTestId('next-image')).toHaveAttribute('src', 'https://example.com/avatar.jpg')
+      expect(screen.getByTestId('next-image')).toHaveAttribute('data-width', '36')
+      expect(screen.getByTestId('next-image')).toHaveAttribute('data-height', '36')
+    })
+
+    it('показывает инициалы если avatar_url отсутствует', () => {
+      render(<PostCard post={makeCardData({ author: { name: 'Avtorica', initials: 'AV', avatar_url: null } })} />)
+      expect(screen.queryByTestId('next-image')).not.toBeInTheDocument()
+      expect(screen.getByText('AV')).toBeInTheDocument()
+    })
+  })
+
+  describe('Выделение текста (исчезает навигация [CR Round 5])', () => {
+    it('не навигирует при выделении текста в карточке', async () => {
+      const { container } = render(<PostCard post={makeCardData({ id: 'p-select', title: 'Selected Text' })} />)
+
+      // Мокируем window.getSelection для возврата выделённого текста
+      const mockSelection: Partial<Selection> = {
+        toString: vi.fn(() => 'Selected Text'),
+      }
+      vi.spyOn(window, 'getSelection').mockReturnValue(mockSelection as Selection)
+
+      const article = container.querySelector('article')!
+      fireEvent.click(article)
+
+      expect(mockRouterPush).not.toHaveBeenCalled()
+      vi.restoreAllMocks()
+    })
+
+    it('навигирует при клике без выделенного текста', async () => {
+      const { container } = render(<PostCard post={makeCardData({ id: 'p-noselect' })} />)
+
+      // Мокируем window.getSelection для возврата пустого выделения
+      const mockSelection: Partial<Selection> = {
+        toString: vi.fn(() => ''),
+      }
+      vi.spyOn(window, 'getSelection').mockReturnValue(mockSelection as Selection)
+
+      const article = container.querySelector('article')!
+      fireEvent.click(article)
+
+      expect(mockRouterPush).toHaveBeenCalledWith('/feed/p-noselect?from=feed')
+      vi.restoreAllMocks()
+    })
+  })
 })
 
 describe('PostCard — одиночное видео с mediaItem [AI-Review High]', () => {
@@ -323,6 +378,25 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
     // fireEvent.click сохраняет корректный e.target при bubbling — userEvent может отклоняться
     fireEvent.click(innerBtn)
     expect(mockRouterPush).not.toHaveBeenCalled()
+  })
+
+  it('stopPropagation предотвращает двойную навигацию при клике на video-card-container', () => {
+    render(
+      <PostCard
+        post={makeCardData({
+          id: 'post-vid-propagation',
+          type: 'video',
+          mediaItem: makeVideoMediaItem(),
+          imageUrl: undefined,
+        })}
+      />
+    )
+    const videoContainer = screen.getByTestId('video-card-container')
+    fireEvent.click(videoContainer)
+    // Должен быть только один вызов router.push (из video container)
+    // Если stopPropagation не работает, article's onClick вызовет второй push
+    expect(mockRouterPush).toHaveBeenCalledTimes(1)
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed/post-vid-propagation?from=feed')
   })
 
   it('использует fallback-video-${post.id} как videoId когда нет media[] (без коллизий с UUID медиафайлов)', () => {

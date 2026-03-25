@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -69,6 +70,11 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
     if (target.closest('button') || target.closest('a') || target.tagName === 'VIDEO') {
       return
     }
+    // Предотвращает навигацию при выделении текста (текст не должен быть интерактивным)
+    const selection = window.getSelection()?.toString()
+    if (selection) {
+      return
+    }
     router.push(`/feed/${post.id}?from=feed`)
   }
 
@@ -82,7 +88,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
       <header className="mb-3 flex items-center gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary overflow-hidden">
           {post.author.avatar_url ? (
-            <img src={post.author.avatar_url} alt={post.author.name} className="size-full object-cover" />
+            <Image src={post.author.avatar_url} alt={post.author.name} width={36} height={36} className="size-full object-cover" />
           ) : (
             post.author.initials
           )}
@@ -142,6 +148,7 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
           onClick={(e) => {
             const target = e.target as HTMLElement
             if (target.closest('button') || target.tagName === 'VIDEO') return
+            e.stopPropagation()
             router.push(`/feed/${post.id}?from=feed`)
           }}
           onKeyDown={(e) => {

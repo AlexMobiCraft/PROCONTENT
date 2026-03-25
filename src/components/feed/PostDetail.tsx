@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import Image from 'next/image'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
@@ -33,6 +34,14 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
   const [liked, setLiked] = useState(post.is_liked)
   const [likesCount, setLikesCount] = useState(post.likes)
   const [isPending, setIsPending] = useState(false)
+  // Предотвращает утечку памяти: не вызываем setState на unmounted компоненте
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // Дата: если formattedDate не передан (тесты/storybook), форматируем синхронно.
   // В production всегда передаётся из RSC page.tsx — исключает layout shift.
@@ -75,23 +84,31 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
       if (error) throw error
       if (!isToggleLikeResponse(data)) throw new Error('Unexpected toggle_like response')
       // Синхронизируем с ответом сервера — source of truth
-      setLiked(data.is_liked)
-      setLikesCount(data.likes_count)
-      updatePost(post.id, { likes_count: data.likes_count, is_liked: data.is_liked })
+      // Проверяем isMountedRef перед setState чтобы не вызывать setState на unmounted компоненте
+      if (isMountedRef.current) {
+        setLiked(data.is_liked)
+        setLikesCount(data.likes_count)
+        updatePost(post.id, { likes_count: data.likes_count, is_liked: data.is_liked })
+      }
     } catch {
       // Откат UI + store при ошибке
-      setLiked(prevLiked)
-      setLikesCount(prevCount)
-      updatePost(post.id, { likes_count: prevCount, is_liked: prevLiked })
+      if (isMountedRef.current) {
+        setLiked(prevLiked)
+        setLikesCount(prevCount)
+        updatePost(post.id, { likes_count: prevCount, is_liked: prevLiked })
+      }
       // Проверяем актуальность сессии: разные сообщения для истёкшей сессии vs сетевой ошибки
-      const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
-      if (!user) {
+      // getSession() не выполняет запрос к серверу (работает локально), поэтому не зависает при отсутствии сети
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
         toast.error('Vaša seja je potekla. Prijavite se znova.')
       } else {
         toast.error('Napaka pri všečkanju')
       }
     } finally {
-      setIsPending(false)
+      if (isMountedRef.current) {
+        setIsPending(false)
+      }
     }
   }
 
@@ -121,7 +138,7 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
       <header className="mb-6 flex items-center gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary overflow-hidden">
           {post.author.avatar_url ? (
-            <img src={post.author.avatar_url} alt={post.author.name} className="size-full object-cover" />
+            <Image src={post.author.avatar_url} alt={post.author.name} width={40} height={40} className="size-full object-cover" />
           ) : (
             post.author.initials
           )}
@@ -178,7 +195,7 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
 
       {/* Content */}
       <div className="prose prose-sm max-w-none text-foreground mt-4">
-        {post.content ? (
+        {post.content !== null ? (
           <p className="whitespace-pre-wrap leading-relaxed">{post.content}</p>
         ) : (
           <p className="leading-relaxed text-muted-foreground">{post.excerpt}</p>
@@ -191,6 +208,7 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
         <button
           type="button"
           onClick={handleLike}
+          disabled={isPending}
           aria-label={liked ? 'Odstrani všeček' : 'Všečkaj'}
           aria-pressed={liked}
           className={cn(
