@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import { dbPostToCardData } from '@/features/feed/types'
@@ -126,13 +126,12 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const [inputValue, setInputValue] = useState(initialQuery)
+  const [inputValue, setInputValue] = useState(() => searchParams.get('q') ?? initialQuery)
   const [results, setResults] = useState<Post[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const debouncedQuery = useDebounce(inputValue, 400)
-  const abortRef = useRef<AbortController | null>(null)
 
   const currentUser = useAuthStore((s) => s.user)
   const currentUserId = currentUser?.id ?? null
@@ -143,29 +142,29 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
     currentUser,
   })
 
-  // Синхронизация inputValue → URL ?q=
+  // Синхронизация URL ?q= → inputValue (навигация Назад/Вперёд)
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    if (debouncedQuery.trim()) {
-      params.set('q', debouncedQuery)
-    } else {
-      params.delete('q')
-    }
-    router.replace(`/search?${params.toString()}`, { scroll: false })
-  }, [debouncedQuery, router, searchParams])
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: syncing external state (URL params) into React state
+    setInputValue(searchParams.get('q') ?? '')
+  }, [searchParams])
+
+  // Синхронизация inputValue → URL ?q= (при изменении поискового запроса)
+  useEffect(() => {
+    const q = debouncedQuery.trim()
+    router.replace(q ? `/search?q=${encodeURIComponent(q)}` : '/search', { scroll: false })
+  }, [debouncedQuery, router])
 
   // Выполняем поиск при изменении debouncedQuery
   useEffect(() => {
     if (debouncedQuery.trim().length < MIN_QUERY_LENGTH) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: clear results when query is too short
       setResults([])
       setError(null)
       setIsLoading(false)
       return
     }
 
-    abortRef.current?.abort()
     const controller = new AbortController()
-    abortRef.current = controller
 
     setIsLoading(true)
     setError(null)
@@ -193,12 +192,18 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
 
   const showEmpty = !isLoading && !error && results.length === 0
   const hasQuery = debouncedQuery.trim().length >= MIN_QUERY_LENGTH
+  const showHint = inputValue.trim().length > 0 && inputValue.trim().length < MIN_QUERY_LENGTH
 
   return (
     <div className="flex flex-col">
       {/* Search input */}
       <div className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
         <SearchInput value={inputValue} onChange={setInputValue} />
+        {showHint && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Vpišite vsaj {MIN_QUERY_LENGTH} znake za iskanje
+          </p>
+        )}
       </div>
 
       {/* Content */}

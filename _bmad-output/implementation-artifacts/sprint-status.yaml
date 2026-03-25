@@ -87,7 +87,8 @@ development_status:
 
   # Ранее 2-4 → переименованы в 2-7 (статусы сохранены)
   # 2026-03-25: Review Follow-ups (6 шт.) выполнены: useLikeToggle хук, act() fixes, isPostArray валидатор, MIN_QUERY_LENGTH, Input UI компонент, .gitignore → review
-  2-7-search-across-the-entire-knowledge-base: review
+  # 2026-03-25: Code Review passed successfully — no actionable findings remain → done
+  2-7-search-across-the-entire-knowledge-base: done
 
   epic-2-retrospective: optional
 

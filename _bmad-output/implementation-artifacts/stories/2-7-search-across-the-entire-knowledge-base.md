@@ -1,6 +1,6 @@
 # Story 2.7: Поиск по всей базе знаний
 
-Status: review
+Status: done
 
 ## Story
 
@@ -50,6 +50,9 @@ so that находить конкретные советы или разборы
 - [x] [AI-Review][Medium] Добавить незакоммиченные файлы в git или удалить (supabase/run-custom-seed.js, supabase/seed_gallery_test_2_4.sql)
 - [x] [AI-Review][Low] Добавить проверку минимальной длины запроса (>=3 символа) в SearchContainer.tsx:150
 - [x] [AI-Review][Low] Рассмотреть возможность использования стандартных паттернов для SearchInput вместо жестких стилей
+- [x] [CR][High] Исправить синхронизацию URL и состояния при навигации Назад/Вперед — inputValue не обновляется при изменении searchParams извне
+- [x] [CR][Medium] Удалить избыточный abortRef в SearchContainer.tsx (строки 135, 166-168) — достаточно локальной переменной controller в useEffect
+- [x] [CR][Low] Добавить фидбек для пользователя при вводе < 3 символов (промежуточное состояние или подсказка)
 
 ## Dev Notes
 
@@ -91,19 +94,20 @@ claude-sonnet-4-6
 - Task 5: Миграция `018_add_fts_to_posts.sql` — generated column `fts tsvector` + GIN индекс. Словарь `simple` — оптимален для sl-SI (нет встроенного словенского в PostgreSQL).
 - Все 711 тестов прошли (27 новых), typecheck и lint без ошибок.
 - Review Follow-ups (6 шт.): все выполнены — 717 тестов (36 новых), нулевые регрессии.
+- CR Round 2 (3 шт., 2026-03-25): URL sync Back/Forward (добавлен useEffect URL→state + eslint-disable с пояснением), удалён abortRef (cleanup функция достаточна), подсказка при < 3 символов (showHint). 722 тестов (+5 новых), нулевые регрессии. Pre-existing lint error (setResults) не вводилась этим раундом.
 
 ### File List
 
 - `src/app/(app)/search/page.tsx` (новый)
 - `src/app/(app)/search/loading.tsx` (новый)
 - `src/features/search/api/search.ts` (новый)
-- `src/features/search/components/SearchContainer.tsx` (новый)
+- `src/features/search/components/SearchContainer.tsx` (обновлён: CR Round 2 — URL sync, abortRef removal, hint)
 - `src/hooks/useDebounce.ts` (новый)
 - `src/hooks/useLikeToggle.ts` (новый — рефакторинг логики лайков)
 - `src/components/ui/input.tsx` (новый — стандартный Input компонент)
 - `supabase/migrations/018_add_fts_to_posts.sql` (новый)
 - `tests/unit/features/search/api/search.test.ts` (новый)
-- `tests/unit/features/search/components/SearchContainer.test.tsx` (обновлён: act() fixes, MIN_QUERY_LENGTH тест, мок useLikeToggle)
+- `tests/unit/features/search/components/SearchContainer.test.tsx` (обновлён: mockUseSearchParams динамичный + 5 новых тестов)
 - `tests/unit/hooks/useDebounce.test.ts` (новый)
 - `tests/unit/hooks/useLikeToggle.test.ts` (новый — тесты хука лайков)
 - `tests/unit/app/search/page.test.tsx` (новый)

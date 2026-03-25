@@ -13,6 +13,7 @@ const mockSearchPosts = vi.fn()
 const mockHandleLikeToggle = vi.fn()
 const mockRouterReplace = vi.fn()
 const mockRouterPush = vi.fn()
+const mockUseSearchParams = vi.fn()
 
 vi.mock('@/features/search/api/search', () => ({
   searchPosts: (...args: unknown[]) => mockSearchPosts(...args),
@@ -30,7 +31,7 @@ vi.mock('next/navigation', () => ({
     replace: mockRouterReplace,
     push: mockRouterPush,
   }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockUseSearchParams(),
 }))
 
 vi.mock('@/features/auth/store', () => ({
@@ -89,6 +90,7 @@ function typeInInput(input: HTMLElement, value: string) {
 describe('SearchContainer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseSearchParams.mockReturnValue(new URLSearchParams())
   })
 
   it('рендерит поисковый ввод', () => {
@@ -171,6 +173,8 @@ describe('SearchContainer', () => {
   })
 
   it('передаёт initialQuery в поле ввода', async () => {
+    // initialQuery всегда совпадает с ?q= из URL (page.tsx передаёт q из searchParams)
+    mockUseSearchParams.mockReturnValue(new URLSearchParams('q=vsebina'))
     mockSearchPosts.mockResolvedValue([])
     render(<SearchContainer initialQuery="vsebina" />)
     expect(screen.getByRole('searchbox')).toHaveValue('vsebina')
@@ -230,5 +234,43 @@ describe('SearchContainer', () => {
     // Достаточно убедиться что компонент монтируется без ошибок
     render(<SearchContainer />)
     expect(screen.getByRole('searchbox')).toBeInTheDocument()
+  })
+
+  // ── CR-фиксы ────────────────────────────────────────────────────────────────
+
+  it('инициализирует inputValue из URL ?q= (прямой переход по ссылке)', () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams('q=proba'))
+    render(<SearchContainer />)
+    expect(screen.getByRole('searchbox')).toHaveValue('proba')
+  })
+
+  it('обновляет inputValue при изменении URL извне (навигация Назад/Вперёд)', async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams())
+    const { rerender } = render(<SearchContainer />)
+    expect(screen.getByRole('searchbox')).toHaveValue('')
+
+    mockUseSearchParams.mockReturnValue(new URLSearchParams('q=proba'))
+    rerender(<SearchContainer />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('searchbox')).toHaveValue('proba')
+    })
+  })
+
+  it('показывает подсказку при вводе менее 3 символов', () => {
+    render(<SearchContainer />)
+    typeInInput(screen.getByRole('searchbox'), 'ab')
+    expect(screen.getByText(/Vpišite vsaj/)).toBeInTheDocument()
+  })
+
+  it('не показывает подсказку при пустом поле ввода', () => {
+    render(<SearchContainer />)
+    expect(screen.queryByText(/Vpišite vsaj/)).not.toBeInTheDocument()
+  })
+
+  it('скрывает подсказку при вводе 3 и более символов', () => {
+    render(<SearchContainer />)
+    typeInInput(screen.getByRole('searchbox'), 'abc')
+    expect(screen.queryByText(/Vpišite vsaj/)).not.toBeInTheDocument()
   })
 })
