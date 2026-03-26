@@ -17,3 +17,15 @@ export type CommentWithProfile = CommentRow & {
 export interface Comment extends CommentWithProfile {
   replies: CommentWithProfile[]
 }
+
+// UI-only статус для оптимистичных комментариев (не хранится в БД)
+export type CommentStatus = 'pending' | 'error'
+
+// CommentWithProfile + опциональный UI-статус (используется в DiscussionNode)
+export type CommentWithStatus = CommentWithProfile & { _status?: CommentStatus }
+
+// Оптимистичный комментарий: корневой с replies, поддерживающими статус
+export interface OptimisticComment extends CommentWithProfile {
+  replies: CommentWithStatus[]
+  _status?: CommentStatus
+}

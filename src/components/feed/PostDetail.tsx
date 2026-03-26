@@ -12,6 +12,8 @@ import { CommentIcon } from '@/components/ui/icons/CommentIcon'
 import { createClient } from '@/lib/supabase/client'
 import { useFeedStore } from '@/features/feed/store'
 import { CommentsList } from '@/features/comments/components/CommentsList'
+import { CommentForm } from '@/features/comments/components/CommentForm'
+import { useComments } from '@/features/comments/hooks/useComments'
 import { cn } from '@/lib/utils'
 import type { PostDetail as PostDetailData, ToggleLikeResponse } from '@/features/feed/types'
 import type { Comment } from '@/features/comments/types'
@@ -20,9 +22,17 @@ function isToggleLikeResponse(v: unknown): v is ToggleLikeResponse {
   return typeof v === 'object' && v !== null && 'is_liked' in v && 'likes_count' in v
 }
 
+type UserProfile = {
+  id: string
+  display_name: string | null
+  avatar_url: string | null
+  role: string | null
+} | null
+
 interface PostDetailProps {
   post: PostDetailData
   currentUserId?: string | null
+  currentUserProfile?: UserProfile
   /** 'feed' = SPA-переход из ленты → router.back() сохраняет скролл (AC 3).
    * undefined = прямая ссылка / внешний переход → router.push('/feed'). */
   from?: string
@@ -32,7 +42,14 @@ interface PostDetailProps {
   initialComments?: Comment[]
 }
 
-export function PostDetail({ post, currentUserId, from, formattedDate, initialComments = [] }: PostDetailProps) {
+export function PostDetail({
+  post,
+  currentUserId,
+  currentUserProfile,
+  from,
+  formattedDate,
+  initialComments = [],
+}: PostDetailProps) {
   const router = useRouter()
   const updatePost = useFeedStore((s) => s.updatePost)
   const [liked, setLiked] = useState(post.is_liked)
@@ -40,6 +57,12 @@ export function PostDetail({ post, currentUserId, from, formattedDate, initialCo
   const [isPending, setIsPending] = useState(false)
   // Предотвращает утечку памяти: не вызываем setState на unmounted компоненте
   const isMountedRef = useRef(true)
+
+  const { comments, addComment, retryComment } = useComments({
+    postId: post.id,
+    initialComments,
+    currentUserProfile,
+  })
 
   useEffect(() => {
     return () => {
@@ -232,12 +255,22 @@ export function PostDetail({ post, currentUserId, from, formattedDate, initialCo
         </span>
       </footer>
 
-      {/* Discussion section (Story 3.1) */}
+      {/* Discussion section (Story 3.1 + 3.2) */}
       <section className="mt-8" aria-label="Komentarji">
         <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">
           Komentarji
         </h2>
-        <CommentsList comments={initialComments} postAuthorId={post.author_id} />
+        <CommentsList
+          comments={comments}
+          postAuthorId={post.author_id}
+          onRetry={retryComment}
+          onReply={(content, parentId) => addComment(content, parentId)}
+        />
+        {currentUserId && (
+          <div className="mt-4 border-t border-border pt-4">
+            <CommentForm onSubmit={(content) => addComment(content)} />
+          </div>
+        )}
       </section>
     </article>
   )

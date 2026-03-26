@@ -1,14 +1,21 @@
 'use client'
 
 import Image from 'next/image'
-import type { CommentWithProfile } from '../types'
+import { useState } from 'react'
+import type { CommentWithStatus } from '../types'
+import { CommentForm } from './CommentForm'
+import { cn } from '@/lib/utils'
 
 interface DiscussionNodeProps {
-  comment: CommentWithProfile
+  comment: CommentWithStatus
   /** Отступ для ответов (1 уровень вложенности) */
   isReply?: boolean
   /** user_id автора поста — для бейджа "Avtor" */
   postAuthorId?: string | null
+  /** Callback повтора отправки провального комментария */
+  onRetry?: (comment: CommentWithStatus) => void
+  /** Callback добавления ответа: (content, parentId) */
+  onReply?: (content: string, parentId: string) => void
 }
 
 function getInitials(name: string | null): string {
@@ -30,7 +37,15 @@ function formatDate(dateStr: string): string {
   })
 }
 
-export function DiscussionNode({ comment, isReply = false, postAuthorId }: DiscussionNodeProps) {
+export function DiscussionNode({
+  comment,
+  isReply = false,
+  postAuthorId,
+  onRetry,
+  onReply,
+}: DiscussionNodeProps) {
+  const [showReplyForm, setShowReplyForm] = useState(false)
+
   const profile = comment.profiles
   const name = profile?.display_name ?? 'Uporabnik'
   const initials = getInitials(profile?.display_name ?? null)
@@ -38,9 +53,23 @@ export function DiscussionNode({ comment, isReply = false, postAuthorId }: Discu
   const isAdmin = profile?.role === 'admin'
   const showBadge = isAuthor || isAdmin
 
+  const isPending = comment._status === 'pending'
+  const isError = comment._status === 'error'
+
+  function handleReplySubmit(content: string) {
+    onReply?.(content, comment.id)
+    setShowReplyForm(false)
+  }
+
   return (
     <article className={isReply ? 'pl-10' : undefined}>
-      <div className="flex gap-3 py-4">
+      <div
+        className={cn(
+          'flex gap-3 py-4',
+          isPending && 'opacity-60',
+          isError && 'border-l-2 border-destructive/60 pl-3'
+        )}
+      >
         {/* Avatar */}
         <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary overflow-hidden">
           {profile?.avatar_url ? (
@@ -57,7 +86,7 @@ export function DiscussionNode({ comment, isReply = false, postAuthorId }: Discu
         </div>
 
         {/* Body */}
-        <div className="flex flex-col gap-1 min-w-0">
+        <div className="flex flex-col gap-1 min-w-0 w-full">
           {/* Author row */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-sm font-medium text-foreground">{name}</span>
@@ -66,19 +95,61 @@ export function DiscussionNode({ comment, isReply = false, postAuthorId }: Discu
                 {isAuthor ? 'Avtor' : 'Admin'}
               </span>
             )}
-            <time
-              dateTime={comment.created_at}
-              className="text-xs text-muted-foreground"
-              suppressHydrationWarning
-            >
-              {formatDate(comment.created_at)}
-            </time>
+            {!isPending && !isError && (
+              <time
+                dateTime={comment.created_at}
+                className="text-xs text-muted-foreground"
+                suppressHydrationWarning
+              >
+                {formatDate(comment.created_at)}
+              </time>
+            )}
+            {isPending && (
+              <span className="text-xs text-muted-foreground">Pošiljanje...</span>
+            )}
+            {isError && (
+              <span className="text-xs text-destructive">Napaka pri pošiljanju</span>
+            )}
           </div>
 
           {/* Content */}
           <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
             {comment.content}
           </p>
+
+          {/* Action row: retry or reply */}
+          <div className="flex gap-2 mt-0.5">
+            {isError && onRetry && (
+              <button
+                type="button"
+                onClick={() => onRetry(comment)}
+                className="text-xs text-destructive hover:text-destructive/80 transition-colors min-h-[32px]"
+              >
+                Poskusi znova
+              </button>
+            )}
+            {!isPending && !isError && onReply && (
+              <button
+                type="button"
+                onClick={() => setShowReplyForm((v) => !v)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors min-h-[32px]"
+              >
+                {showReplyForm ? 'Prekliči' : 'Odgovori'}
+              </button>
+            )}
+          </div>
+
+          {/* Inline reply form */}
+          {showReplyForm && (
+            <div className="mt-2">
+              <CommentForm
+                onSubmit={handleReplySubmit}
+                parentId={comment.id}
+                placeholder="Napišite odgovor..."
+                autoFocus
+              />
+            </div>
+          )}
         </div>
       </div>
     </article>

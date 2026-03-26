@@ -64,8 +64,18 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
     notFound()
   }
 
-  // Загружаем комментарии после того как убедились, что пост существует
-  const comments = await fetchPostComments(id).catch(() => [])
+  // Загружаем комментарии и профиль текущего пользователя параллельно
+  const [comments, profileResult] = await Promise.all([
+    fetchPostComments(id).catch(() => []),
+    user
+      ? supabase
+          .from('profiles')
+          .select('id, display_name, avatar_url, role')
+          .eq('id', user.id)
+          .single()
+      : Promise.resolve({ data: null }),
+  ])
+  const currentUserProfile = (profileResult as { data: { id: string; display_name: string | null; avatar_url: string | null; role: string | null } | null })?.data ?? null
 
   // Форматируем дату в RSC — исключает useState+useEffect и layout shift на клиенте (Fix #3)
   const formattedDate = new Date(post.created_at).toLocaleDateString('sl-SI', {
@@ -78,6 +88,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
     <PostDetail
       post={post}
       currentUserId={user?.id ?? null}
+      currentUserProfile={currentUserProfile}
       from={from}
       formattedDate={formattedDate}
       initialComments={comments}
