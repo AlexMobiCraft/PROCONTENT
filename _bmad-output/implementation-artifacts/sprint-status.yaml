@@ -94,7 +94,7 @@ development_status:
 
   # ─── EPIC 3: Community Engagement ──────────────────────────────────────────
   epic-3: in-progress
-  3-1-viewing-discussions-under-a-post: review
+  3-1-viewing-discussions-under-a-post: done
   3-2-writing-a-comment-with-instant-response-optimistic-ui: backlog
   3-3-moderation-and-replies-to-comments-admin-functions: backlog
   3-4-automatic-email-notifications-about-new-posts: backlog

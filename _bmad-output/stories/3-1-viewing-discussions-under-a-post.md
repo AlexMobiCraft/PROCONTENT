@@ -1,6 +1,6 @@
 # Story 3.1: Просмотр обсуждений под постом
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
