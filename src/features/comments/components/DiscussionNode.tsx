@@ -83,8 +83,8 @@ export function DiscussionNode({
   return (
     <article
       className={cn(
-        showBadge && 'rounded-lg border border-primary/20 bg-primary/5 p-2',
-        isReply && 'pl-10'
+        isReply && 'ml-10',
+        showBadge && 'rounded-lg border border-primary/20 bg-primary/5 p-2'
       )}
     >
       <div

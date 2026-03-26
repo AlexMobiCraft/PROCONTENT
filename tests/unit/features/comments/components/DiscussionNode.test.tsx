@@ -91,12 +91,12 @@ describe('DiscussionNode', () => {
 
   it('добавляет отступ для ответа (isReply=true)', () => {
     const { container } = render(<DiscussionNode comment={makeComment()} isReply />)
-    expect(container.querySelector('article')?.className).toContain('pl-10')
+    expect(container.querySelector('article')?.className).toContain('ml-10')
   })
 
   it('нет отступа для корневого комментария (isReply=false)', () => {
     const { container } = render(<DiscussionNode comment={makeComment()} />)
-    expect(container.querySelector('article')?.className ?? '').not.toContain('pl-10')
+    expect(container.querySelector('article')?.className ?? '').not.toContain('ml-10')
   })
 
   it('отображает дату в формате sl-SI', () => {

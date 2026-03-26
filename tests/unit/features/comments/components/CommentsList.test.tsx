@@ -50,9 +50,9 @@ describe('CommentsList', () => {
     parent.replies = [reply]
     const { container } = render(<CommentsList comments={[parent]} />)
     const articles = container.querySelectorAll('article')
-    // Первый article — родительский (без pl-10), второй — ответ (с pl-10)
-    expect(articles[0].className).not.toContain('pl-10')
-    expect(articles[1].className).toContain('pl-10')
+    // Первый article — родительский (без ml-10), второй — ответ (с ml-10)
+    expect(articles[0].className).not.toContain('ml-10')
+    expect(articles[1].className).toContain('ml-10')
   })
 
   it('не рендерит empty state если есть комментарии', () => {
