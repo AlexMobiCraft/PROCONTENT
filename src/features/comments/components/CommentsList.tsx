@@ -35,9 +35,9 @@ export function CommentsList({
   }
 
   return (
-    <div className="divide-y divide-border">
+    <div className="flex flex-col gap-3">
       {comments.map((comment) => (
-        <div key={comment.id}>
+        <div key={comment.id} className="border-b border-border pb-3 last:border-b-0 last:pb-0">
           <DiscussionNode
             comment={comment}
             postAuthorId={postAuthorId}

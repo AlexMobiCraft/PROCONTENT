@@ -349,7 +349,6 @@ describe('DiscussionNode', () => {
       />
     )
     const article = container.querySelector('article')
-    expect(article?.className).toContain('bg-primary')
     expect(article?.className).toContain('border-primary')
   })
 
@@ -358,7 +357,6 @@ describe('DiscussionNode', () => {
       <DiscussionNode comment={makeComment({ user_id: 'u-1' })} postAuthorId="u-1" />
     )
     const article = container.querySelector('article')
-    expect(article?.className).toContain('bg-primary')
     expect(article?.className).toContain('border-primary')
   })
 
@@ -367,7 +365,6 @@ describe('DiscussionNode', () => {
       <DiscussionNode comment={makeComment()} postAuthorId="other-user" />
     )
     const article = container.querySelector('article')
-    expect(article?.className ?? '').not.toContain('bg-primary')
     expect(article?.className ?? '').not.toContain('border-primary')
   })
 })
