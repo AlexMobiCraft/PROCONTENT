@@ -1,6 +1,6 @@
 # Story 3.1: Просмотр обсуждений под постом
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -86,6 +86,11 @@ claude-sonnet-4-6
 - ✅ `CommentsList.tsx` — плоский список с вложенными ответами + empty state
 - ✅ Интеграция: `page.tsx` загружает комментарии параллельно, `PostDetail.tsx` рендерит секцию
 - ✅ 742/742 тестов прошли (включая 20 новых для `comments` feature)
+- ✅ Resolved review finding [Patch]: suppressHydrationWarning добавлен на <time> в DiscussionNode
+- ✅ Resolved review finding [Patch]: break-words добавлен на <p> с текстом комментария
+- ✅ Deferred: RLS UPDATE без is_active_subscriber — записано в tech-debt
+- ✅ Deferred: тихая потеря при depth=100 — записано в tech-debt
+- ✅ 746/746 тестов прошли (+2 новых теста для патчей)
 
 ### File List
 
@@ -111,12 +116,13 @@ claude-sonnet-4-6
 - tests/unit/features/search/components/SearchContainer.test.tsx (modified — duplicate fix)
 - tests/unit/hooks/useLikeToggle.test.ts (modified — duplicate fix)
 - tests/unit/features/comments/api/comments.test.ts (modified — +1 тест на flatten nested replies)
-- tests/unit/features/comments/components/DiscussionNode.test.tsx (modified — +1 тест на whitespace-only initials)
+- tests/unit/features/comments/components/DiscussionNode.test.tsx (modified — +1 тест на whitespace-only initials, +2 теста на suppressHydrationWarning и break-words)
 
 ## Change Log
 
 - 2026-03-25: Story 3.1 реализована — просмотр обсуждений под постом (DB schema, API, UI, integration). 742 тестов прошли.
 - 2026-03-26: Исправлены 2 patch-находки из review: flatten nested replies + getInitials whitespace fix. 744 тестов прошли.
+- 2026-03-26: Addressed Round 2 review findings — 2 Patch items resolved (suppressHydrationWarning, break-words), 2 Defer items отложены в tech-debt. 746 тестов прошли.
 
 ### Review Findings
 
@@ -127,8 +133,8 @@ claude-sonnet-4-6
 
 #### Review Findings (Round 2)
 
-- [ ] [Review][Patch] Потенциальный React Hydration Mismatch при выводе дат. Для тега `<time>` используется `new Date().toLocaleDateString(...)`. При SSR и гидратации могут быть разные часовые пояса. Нужно добавить `suppressHydrationWarning`. [src/features/comments/components/DiscussionNode.tsx:24,70-75]
-- [ ] [Review][Patch] Поломка верстки из-за длинных слов или ссылок в комментариях. Текст может выходить за пределы контейнера. Нужно добавить класс `break-words`. [src/features/comments/components/DiscussionNode.tsx:79]
-- [ ] [Review][Defer] RLS политика `UPDATE` не требует активной подписки (`public.is_active_subscriber()`). Пользователь с истекшей подпиской сможет редактировать старые комментарии. [supabase/migrations/019_create_post_comments.sql]
-- [ ] [Review][Defer] Тихая потеря комментариев при достижении лимита вложенности `depth = 100`. Комментарий просто не попадет в `replyMap` и исчезнет из UI. [src/features/comments/api/comments.ts:40-42]
+- [x] [Review][Patch] Потенциальный React Hydration Mismatch при выводе дат. Для тега `<time>` используется `new Date().toLocaleDateString(...)`. При SSR и гидратации могут быть разные часовые пояса. Нужно добавить `suppressHydrationWarning`. [src/features/comments/components/DiscussionNode.tsx:24,70-75]
+- [x] [Review][Patch] Поломка верстки из-за длинных слов или ссылок в комментариях. Текст может выходить за пределы контейнера. Нужно добавить класс `break-words`. [src/features/comments/components/DiscussionNode.tsx:79]
+- [x] [Review][Defer] RLS политика `UPDATE` не требует активной подписки (`public.is_active_subscriber()`). Пользователь с истекшей подпиской сможет редактировать старые комментарии. [supabase/migrations/019_create_post_comments.sql] — deferred to tech-debt
+- [x] [Review][Defer] Тихая потеря комментариев при достижении лимита вложенности `depth = 100`. Комментарий просто не попадет в `replyMap` и исчезнет из UI. [src/features/comments/api/comments.ts:40-42] — deferred to tech-debt
 

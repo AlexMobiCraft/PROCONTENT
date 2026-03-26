@@ -1,0 +1,1196 @@
+diff --git a/src/app/(app)/feed/[id]/page.tsx b/src/app/(app)/feed/[id]/page.tsx
+index 83ac7c7..9a4e33a 100644
+--- a/src/app/(app)/feed/[id]/page.tsx
++++ b/src/app/(app)/feed/[id]/page.tsx
+@@ -1,6 +1,7 @@
+ import { notFound } from 'next/navigation'
+ import type { Metadata } from 'next'
+ import { fetchPostById } from '@/features/feed/api/serverPosts'
++import { fetchPostComments } from '@/features/comments/api/comments'
+ import { createClient } from '@/lib/supabase/server'
+ import { PostDetail } from '@/components/feed/PostDetail'
+ 
+@@ -63,6 +64,9 @@ export default async function PostPage({ params, searchParams }: PostPageProps)
+     notFound()
+   }
+ 
++  // Загружаем комментарии после того как убедились, что пост существует
++  const comments = await fetchPostComments(id).catch(() => [])
++
+   // Форматируем дату в RSC — исключает useState+useEffect и layout shift на клиенте (Fix #3)
+   const formattedDate = new Date(post.created_at).toLocaleDateString('sl-SI', {
+     day: 'numeric',
+@@ -76,6 +80,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps)
+       currentUserId={user?.id ?? null}
+       from={from}
+       formattedDate={formattedDate}
++      initialComments={comments}
+     />
+   )
+ }
+diff --git a/src/components/feed/PostDetail.tsx b/src/components/feed/PostDetail.tsx
+index 2cd848f..84fc0fa 100644
+--- a/src/components/feed/PostDetail.tsx
++++ b/src/components/feed/PostDetail.tsx
+@@ -11,8 +11,10 @@ import { HeartIcon } from '@/components/ui/icons/HeartIcon'
+ import { CommentIcon } from '@/components/ui/icons/CommentIcon'
+ import { createClient } from '@/lib/supabase/client'
+ import { useFeedStore } from '@/features/feed/store'
++import { CommentsList } from '@/features/comments/components/CommentsList'
+ import { cn } from '@/lib/utils'
+ import type { PostDetail as PostDetailData, ToggleLikeResponse } from '@/features/feed/types'
++import type { Comment } from '@/features/comments/types'
+ 
+ function isToggleLikeResponse(v: unknown): v is ToggleLikeResponse {
+   return typeof v === 'object' && v !== null && 'is_liked' in v && 'likes_count' in v
+@@ -26,9 +28,11 @@ interface PostDetailProps {
+   from?: string
+   /** Дата, форматированная в RSC — исключает layout shift (нет useEffect/useState). */
+   formattedDate?: string
++  /** Комментарии, загруженные в RSC (Story 3.1) */
++  initialComments?: Comment[]
+ }
+ 
+-export function PostDetail({ post, currentUserId, from, formattedDate }: PostDetailProps) {
++export function PostDetail({ post, currentUserId, from, formattedDate, initialComments = [] }: PostDetailProps) {
+   const router = useRouter()
+   const updatePost = useFeedStore((s) => s.updatePost)
+   const [liked, setLiked] = useState(post.is_liked)
+@@ -227,6 +231,14 @@ export function PostDetail({ post, currentUserId, from, formattedDate }: PostDet
+           <span>{post.comments}</span>
+         </span>
+       </footer>
++
++      {/* Discussion section (Story 3.1) */}
++      <section className="mt-8" aria-label="Komentarji">
++        <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">
++          Komentarji
++        </h2>
++        <CommentsList comments={initialComments} postAuthorId={post.author_id} />
++      </section>
+     </article>
+   )
+ }
+diff --git a/src/features/comments/api/comments.ts b/src/features/comments/api/comments.ts
+new file mode 100644
+index 0000000..11f0847
+--- /dev/null
++++ b/src/features/comments/api/comments.ts
+@@ -0,0 +1,66 @@
++import { createClient } from '@/lib/supabase/server'
++import type { Comment, CommentWithProfile } from '../types'
++
++/**
++ * Загружает все комментарии поста с профилями авторов.
++ * Возвращает дерево 1 уровня: корневые комментарии + их прямые ответы.
++ */
++export async function fetchPostComments(postId: string): Promise<Comment[]> {
++  const supabase = await createClient()
++
++  const { data, error } = await supabase
++    .from('post_comments')
++    .select('*, profiles(id, display_name, avatar_url, role)')
++    .eq('post_id', postId)
++    .order('created_at', { ascending: true })
++
++  if (error) throw error
++
++  const rows = (data ?? []) as CommentWithProfile[]
++
++  // Группируем в дерево (1 уровень): корневые + их ответы.
++  // Вложенные ответы (reply to reply) флаттенятся к корневому предку.
++  const roots: Comment[] = []
++  const rootIdSet = new Set<string>()
++  const parentOf = new Map<string, string>()
++  const replyMap = new Map<string, CommentWithProfile[]>()
++
++  for (const row of rows) {
++    if (row.parent_id) {
++      parentOf.set(row.id, row.parent_id)
++    } else {
++      roots.push({ ...row, replies: [] })
++      rootIdSet.add(row.id)
++    }
++  }
++
++  // Находим корневого предка для любого комментария
++  function getRootId(id: string): string {
++    let current = id
++    let depth = 0
++    while (!rootIdSet.has(current) && depth < 100) {
++      const parent = parentOf.get(current)
++      if (!parent) return current
++      current = parent
++      depth++
++    }
++    return current
++  }
++
++  for (const row of rows) {
++    if (row.parent_id) {
++      const rootId = getRootId(row.id)
++      if (rootIdSet.has(rootId)) {
++        const list = replyMap.get(rootId) ?? []
++        list.push(row)
++        replyMap.set(rootId, list)
++      }
++    }
++  }
++
++  for (const root of roots) {
++    root.replies = replyMap.get(root.id) ?? []
++  }
++
++  return roots
++}
+diff --git a/src/features/comments/components/CommentsList.tsx b/src/features/comments/components/CommentsList.tsx
+new file mode 100644
+index 0000000..35ba7c4
+--- /dev/null
++++ b/src/features/comments/components/CommentsList.tsx
+@@ -0,0 +1,33 @@
++'use client'
++
++import type { Comment } from '../types'
++import { DiscussionNode } from './DiscussionNode'
++
++interface CommentsListProps {
++  comments: Comment[]
++  /** user_id автора поста — для бейджа "Avtor" */
++  postAuthorId?: string | null
++}
++
++export function CommentsList({ comments, postAuthorId }: CommentsListProps) {
++  if (comments.length === 0) {
++    return (
++      <p className="py-8 text-center text-sm text-muted-foreground">
++        Še ni komentarjev. Bodite prvi!
++      </p>
++    )
++  }
++
++  return (
++    <div className="divide-y divide-border">
++      {comments.map((comment) => (
++        <div key={comment.id}>
++          <DiscussionNode comment={comment} postAuthorId={postAuthorId} />
++          {comment.replies.map((reply) => (
++            <DiscussionNode key={reply.id} comment={reply} isReply postAuthorId={postAuthorId} />
++          ))}
++        </div>
++      ))}
++    </div>
++  )
++}
+diff --git a/src/features/comments/components/DiscussionNode.tsx b/src/features/comments/components/DiscussionNode.tsx
+new file mode 100644
+index 0000000..10e727e
+--- /dev/null
++++ b/src/features/comments/components/DiscussionNode.tsx
+@@ -0,0 +1,85 @@
++'use client'
++
++import Image from 'next/image'
++import type { CommentWithProfile } from '../types'
++
++interface DiscussionNodeProps {
++  comment: CommentWithProfile
++  /** Отступ для ответов (1 уровень вложенности) */
++  isReply?: boolean
++  /** user_id автора поста — для бейджа "Avtor" */
++  postAuthorId?: string | null
++}
++
++function getInitials(name: string | null): string {
++  if (!name) return '?'
++  const parts = name.split(/\s+/).filter(Boolean)
++  if (parts.length === 0) return '?'
++  return parts
++    .map((w) => w[0])
++    .join('')
++    .slice(0, 2)
++    .toUpperCase()
++}
++
++function formatDate(dateStr: string): string {
++  return new Date(dateStr).toLocaleDateString('sl-SI', {
++    day: 'numeric',
++    month: 'long',
++    year: 'numeric',
++  })
++}
++
++export function DiscussionNode({ comment, isReply = false, postAuthorId }: DiscussionNodeProps) {
++  const profile = comment.profiles
++  const name = profile?.display_name ?? 'Uporabnik'
++  const initials = getInitials(profile?.display_name ?? null)
++  const isAuthor = comment.user_id === postAuthorId
++  const isAdmin = profile?.role === 'admin'
++  const showBadge = isAuthor || isAdmin
++
++  return (
++    <article className={isReply ? 'pl-10' : undefined}>
++      <div className="flex gap-3 py-4">
++        {/* Avatar */}
++        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary overflow-hidden">
++          {profile?.avatar_url ? (
++            <Image
++              src={profile.avatar_url}
++              alt={name}
++              width={32}
++              height={32}
++              className="size-full object-cover"
++            />
++          ) : (
++            initials
++          )}
++        </div>
++
++        {/* Body */}
++        <div className="flex flex-col gap-1 min-w-0">
++          {/* Author row */}
++          <div className="flex flex-wrap items-center gap-1.5">
++            <span className="text-sm font-medium text-foreground">{name}</span>
++            {showBadge && (
++              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
++                {isAuthor ? 'Avtor' : 'Admin'}
++              </span>
++            )}
++            <time
++              dateTime={comment.created_at}
++              className="text-xs text-muted-foreground"
++            >
++              {formatDate(comment.created_at)}
++            </time>
++          </div>
++
++          {/* Content */}
++          <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
++            {comment.content}
++          </p>
++        </div>
++      </div>
++    </article>
++  )
++}
+diff --git a/src/features/comments/types.ts b/src/features/comments/types.ts
+new file mode 100644
+index 0000000..a901b66
+--- /dev/null
++++ b/src/features/comments/types.ts
+@@ -0,0 +1,19 @@
++import type { Tables } from '@/types/supabase'
++
++// Тип строки из БД без join-профиля
++export type CommentRow = Tables<'post_comments'>
++
++// Тип комментария с join профиля автора
++export type CommentWithProfile = CommentRow & {
++  profiles: {
++    id: string
++    display_name: string | null
++    avatar_url: string | null
++    role: string | null
++  } | null
++}
++
++// Клиентский тип комментария — дерево (1 уровень вложенности)
++export interface Comment extends CommentWithProfile {
++  replies: CommentWithProfile[]
++}
+diff --git a/src/features/feed/api/serverPosts.ts b/src/features/feed/api/serverPosts.ts
+index 3120b37..1ad1c2a 100644
+--- a/src/features/feed/api/serverPosts.ts
++++ b/src/features/feed/api/serverPosts.ts
+@@ -77,6 +77,7 @@ export const fetchPostById = cache(async (id: string): Promise<PostDetail | null
+ 
+     return {
+       id: post.id,
++      author_id: post.author_id,
+       title: post.title,
+       content: post.content ?? null,
+       excerpt: post.excerpt ?? '',
+diff --git a/src/features/feed/types.ts b/src/features/feed/types.ts
+index 6f83992..24da593 100644
+--- a/src/features/feed/types.ts
++++ b/src/features/feed/types.ts
+@@ -3,10 +3,15 @@ import type { PostCardData } from '@/components/feed/PostCard'
+ 
+ // Тип медиафайла поста (соответствует таблице post_media в БД)
+ // snake_case — прямые поля из Supabase, без маппинга в camelCase
+-export type PostMedia = Tables<'post_media'>
++// media_type переопределён как union: Supabase gen types возвращает string для CHECK-колонок
++export type PostMedia = Omit<Tables<'post_media'>, 'media_type'> & {
++  media_type: 'image' | 'video'
++}
+ 
+ // Тип строки из БД с join профиля автора + join post_media + computed column is_liked
+-export type PostRow = Tables<'posts'> & {
++// fts переопределён как optional — тестовые моки не включают tsvector-колонку
++export type PostRow = Omit<Tables<'posts'>, 'fts'> & {
++  fts?: unknown
+   profiles: {
+     display_name: string | null
+     avatar_url: string | null
+@@ -36,6 +41,7 @@ export interface ToggleLikeResponse {
+ // Тип для детальной страницы поста
+ export interface PostDetail {
+   id: string
++  author_id: string
+   title: string
+   content: string | null
+   excerpt: string
+diff --git a/src/types/supabase.ts b/src/types/supabase.ts
+index bfc0654..998f026 100644
+--- a/src/types/supabase.ts
++++ b/src/types/supabase.ts
+@@ -10,142 +10,214 @@ export type Database = {
+   // Allows to automatically instantiate createClient with right options
+   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+   __InternalSupabase: {
+-    PostgrestVersion: "14.1"
++    PostgrestVersion: "14.4"
++  }
++  graphql_public: {
++    Tables: {
++      [_ in never]: never
++    }
++    Views: {
++      [_ in never]: never
++    }
++    Functions: {
++      graphql: {
++        Args: {
++          extensions?: Json
++          operationName?: string
++          query?: string
++          variables?: Json
++        }
++        Returns: Json
++      }
++    }
++    Enums: {
++      [_ in never]: never
++    }
++    CompositeTypes: {
++      [_ in never]: never
++    }
+   }
+   public: {
+     Tables: {
+-      posts: {
++      post_comments: {
+         Row: {
+-          id: string
+-          author_id: string
+-          title: string
+-          excerpt: string | null
+-          content: string | null
+-          category: string
+-          type: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
+-          image_url: string | null
+-          likes_count: number
+-          comments_count: number
+-          is_published: boolean
+-          is_landing_preview: boolean
+-          is_onboarding: boolean
++          content: string
+           created_at: string
++          id: string
++          parent_id: string | null
++          post_id: string
+           updated_at: string
+-          posts_is_liked: boolean
++          user_id: string
+         }
+         Insert: {
+-          id?: string
+-          author_id: string
+-          title: string
+-          excerpt?: string | null
+-          content?: string | null
+-          category?: string
+-          type?: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
+-          image_url?: string | null
+-          likes_count?: number
+-          comments_count?: number
+-          is_published?: boolean
+-          is_landing_preview?: boolean
+-          is_onboarding?: boolean
++          content: string
+           created_at?: string
++          id?: string
++          parent_id?: string | null
++          post_id: string
+           updated_at?: string
++          user_id: string
+         }
+         Update: {
+-          id?: string
+-          author_id?: string
+-          title?: string
+-          excerpt?: string | null
+-          content?: string | null
+-          category?: string
+-          type?: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
+-          image_url?: string | null
+-          likes_count?: number
+-          comments_count?: number
+-          is_published?: boolean
+-          is_landing_preview?: boolean
+-          is_onboarding?: boolean
++          content?: string
+           created_at?: string
++          id?: string
++          parent_id?: string | null
++          post_id?: string
+           updated_at?: string
++          user_id?: string
+         }
+         Relationships: [
+           {
+-            foreignKeyName: 'posts_author_id_fkey'
+-            columns: ['author_id']
++            foreignKeyName: "post_comments_parent_id_fkey"
++            columns: ["parent_id"]
+             isOneToOne: false
+-            referencedRelation: 'profiles'
+-            referencedColumns: ['id']
+-          }
++            referencedRelation: "post_comments"
++            referencedColumns: ["id"]
++          },
++          {
++            foreignKeyName: "post_comments_post_id_fkey"
++            columns: ["post_id"]
++            isOneToOne: false
++            referencedRelation: "posts"
++            referencedColumns: ["id"]
++          },
++          {
++            foreignKeyName: "post_comments_user_id_fkey"
++            columns: ["user_id"]
++            isOneToOne: false
++            referencedRelation: "profiles"
++            referencedColumns: ["id"]
++          },
++        ]
++      }
++      post_likes: {
++        Row: {
++          created_at: string
++          post_id: string
++          user_id: string
++        }
++        Insert: {
++          created_at?: string
++          post_id: string
++          user_id: string
++        }
++        Update: {
++          created_at?: string
++          post_id?: string
++          user_id?: string
++        }
++        Relationships: [
++          {
++            foreignKeyName: "post_likes_post_id_fkey"
++            columns: ["post_id"]
++            isOneToOne: false
++            referencedRelation: "posts"
++            referencedColumns: ["id"]
++          },
+         ]
+       }
+       post_media: {
+         Row: {
+           id: string
++          is_cover: boolean
++          media_type: string
++          order_index: number
+           post_id: string
+-          media_type: 'image' | 'video'
+-          url: string
+           thumbnail_url: string | null
+-          order_index: number
+-          is_cover: boolean
++          url: string
+         }
+         Insert: {
+           id?: string
++          is_cover?: boolean
++          media_type: string
++          order_index?: number
+           post_id: string
+-          media_type: 'image' | 'video'
+-          url: string
+           thumbnail_url?: string | null
+-          order_index?: number
+-          is_cover?: boolean
++          url: string
+         }
+         Update: {
+           id?: string
++          is_cover?: boolean
++          media_type?: string
++          order_index?: number
+           post_id?: string
+-          media_type?: 'image' | 'video'
+-          url?: string
+           thumbnail_url?: string | null
+-          order_index?: number
+-          is_cover?: boolean
++          url?: string
+         }
+         Relationships: [
+           {
+-            foreignKeyName: 'post_media_post_id_fkey'
+-            columns: ['post_id']
++            foreignKeyName: "post_media_post_id_fkey"
++            columns: ["post_id"]
+             isOneToOne: false
+-            referencedRelation: 'posts'
+-            referencedColumns: ['id']
+-          }
++            referencedRelation: "posts"
++            referencedColumns: ["id"]
++          },
+         ]
+       }
+-      post_likes: {
++      posts: {
+         Row: {
+-          post_id: string
+-          user_id: string
++          author_id: string
++          category: string
++          comments_count: number
++          content: string | null
+           created_at: string
++          excerpt: string | null
++          fts: unknown
++          id: string
++          image_url: string | null
++          is_landing_preview: boolean
++          is_onboarding: boolean
++          is_published: boolean
++          likes_count: number
++          title: string
++          type: string
++          updated_at: string
+         }
+         Insert: {
+-          post_id: string
+-          user_id: string
++          author_id: string
++          category?: string
++          comments_count?: number
++          content?: string | null
+           created_at?: string
++          excerpt?: string | null
++          fts?: unknown
++          id?: string
++          image_url?: string | null
++          is_landing_preview?: boolean
++          is_onboarding?: boolean
++          is_published?: boolean
++          likes_count?: number
++          title: string
++          type?: string
++          updated_at?: string
+         }
+         Update: {
+-          post_id?: string
+-          user_id?: string
++          author_id?: string
++          category?: string
++          comments_count?: number
++          content?: string | null
+           created_at?: string
++          excerpt?: string | null
++          fts?: unknown
++          id?: string
++          image_url?: string | null
++          is_landing_preview?: boolean
++          is_onboarding?: boolean
++          is_published?: boolean
++          likes_count?: number
++          title?: string
++          type?: string
++          updated_at?: string
+         }
+         Relationships: [
+           {
+-            foreignKeyName: 'post_likes_post_id_fkey'
+-            columns: ['post_id']
++            foreignKeyName: "posts_author_id_fkey"
++            columns: ["author_id"]
+             isOneToOne: false
+-            referencedRelation: 'posts'
+-            referencedColumns: ['id']
++            referencedRelation: "profiles"
++            referencedColumns: ["id"]
+           },
+-          {
+-            foreignKeyName: 'post_likes_user_id_fkey'
+-            columns: ['user_id']
+-            isOneToOne: false
+-            referencedRelation: 'users'
+-            referencedColumns: ['id']
+-          }
+         ]
+       }
+       profiles: {
+@@ -156,7 +228,7 @@ export type Database = {
+           display_name: string | null
+           email: string
+           id: string
+-          role: 'member' | 'admin'
++          role: string
+           stripe_customer_id: string | null
+           stripe_subscription_id: string | null
+           subscription_status: string | null
+@@ -168,7 +240,7 @@ export type Database = {
+           display_name?: string | null
+           email: string
+           id: string
+-          role?: 'member' | 'admin'
++          role?: string
+           stripe_customer_id?: string | null
+           stripe_subscription_id?: string | null
+           subscription_status?: string | null
+@@ -180,7 +252,7 @@ export type Database = {
+           display_name?: string | null
+           email?: string
+           id?: string
+-          role?: 'member' | 'admin'
++          role?: string
+           stripe_customer_id?: string | null
+           stripe_subscription_id?: string | null
+           subscription_status?: string | null
+@@ -192,24 +264,13 @@ export type Database = {
+       [_ in never]: never
+     }
+     Functions: {
+-      get_auth_user_id_by_email: {
+-        Args: {
+-          p_email: string
+-        }
+-        Returns: string | null
+-      }
+-      toggle_like: {
+-        Args: {
+-          p_post_id: string
+-        }
+-        Returns: Json
+-      }
++      get_auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
++      is_active_subscriber: { Args: never; Returns: boolean }
+       posts_is_liked: {
+-        Args: {
+-          post_row: Database["public"]["Tables"]["posts"]["Row"]
+-        }
++        Args: { post_row: Database["public"]["Tables"]["posts"]["Row"] }
+         Returns: boolean
+       }
++      toggle_like: { Args: { p_post_id: string }; Returns: Json }
+     }
+     Enums: {
+       [_ in never]: never
+@@ -338,6 +399,9 @@ export type CompositeTypes<
+     : never
+ 
+ export const Constants = {
++  graphql_public: {
++    Enums: {},
++  },
+   public: {
+     Enums: {},
+   },
+diff --git a/supabase/migrations/019_create_post_comments.sql b/supabase/migrations/019_create_post_comments.sql
+new file mode 100644
+index 0000000..772e5ec
+--- /dev/null
++++ b/supabase/migrations/019_create_post_comments.sql
+@@ -0,0 +1,95 @@
++-- Migration: 019_create_post_comments.sql
++-- Story 3.1: Таблица post_comments для просмотра обсуждений под постом
++
++-- ── 1.1 Создать таблицу post_comments ────────────────────────────────────────
++CREATE TABLE IF NOT EXISTS public.post_comments (
++  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
++  post_id    UUID        NOT NULL,
++  user_id    UUID        NOT NULL,
++  parent_id  UUID,                                   -- NULL = корневой комментарий, UUID = ответ
++  content    TEXT        NOT NULL CHECK (char_length(content) > 0 AND char_length(content) <= 5000),
++  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
++  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
++);
++
++-- ── 1.2 Foreign keys ─────────────────────────────────────────────────────────
++ALTER TABLE public.post_comments
++  ADD CONSTRAINT post_comments_post_id_fkey
++  FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
++
++ALTER TABLE public.post_comments
++  ADD CONSTRAINT post_comments_user_id_fkey
++  FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
++
++ALTER TABLE public.post_comments
++  ADD CONSTRAINT post_comments_parent_id_fkey
++  FOREIGN KEY (parent_id) REFERENCES public.post_comments(id) ON DELETE CASCADE;
++
++-- ── 1.3 Индексы для post_id и parent_id ──────────────────────────────────────
++CREATE INDEX IF NOT EXISTS idx_post_comments_post_id
++  ON public.post_comments(post_id);
++
++CREATE INDEX IF NOT EXISTS idx_post_comments_parent_id
++  ON public.post_comments(parent_id);
++
++-- Составной индекс для загрузки корневых комментариев поста в хронологическом порядке
++CREATE INDEX IF NOT EXISTS idx_post_comments_post_id_created_at
++  ON public.post_comments(post_id, created_at);
++
++-- ── 1.4 RLS политики ──────────────────────────────────────────────────────────
++ALTER TABLE public.post_comments ENABLE ROW LEVEL SECURITY;
++
++-- SELECT: только активные подписчики (аналогично posts и post_media)
++-- Переиспользуем is_active_subscriber() из 009_add_role_fix_admin_rls.sql
++DROP POLICY IF EXISTS "post_comments_select_subscribers" ON public.post_comments;
++
++CREATE POLICY "post_comments_select_subscribers"
++  ON public.post_comments FOR SELECT
++  TO authenticated
++  USING (
++    public.is_active_subscriber()
++  );
++
++-- INSERT: пользователь может добавлять комментарии от своего имени
++DROP POLICY IF EXISTS "post_comments_insert_own" ON public.post_comments;
++
++CREATE POLICY "post_comments_insert_own"
++  ON public.post_comments FOR INSERT
++  TO authenticated
++  WITH CHECK (
++    auth.uid() = user_id
++    AND public.is_active_subscriber()
++  );
++
++-- UPDATE: пользователь может редактировать только свои комментарии
++DROP POLICY IF EXISTS "post_comments_update_own" ON public.post_comments;
++
++CREATE POLICY "post_comments_update_own"
++  ON public.post_comments FOR UPDATE
++  TO authenticated
++  USING (auth.uid() = user_id)
++  WITH CHECK (auth.uid() = user_id);
++
++-- DELETE: пользователь может удалять свои комментарии; admin — любые
++DROP POLICY IF EXISTS "post_comments_delete_own_or_admin" ON public.post_comments;
++
++CREATE POLICY "post_comments_delete_own_or_admin"
++  ON public.post_comments FOR DELETE
++  TO authenticated
++  USING (
++    auth.uid() = user_id
++    OR EXISTS (
++      SELECT 1 FROM public.profiles
++      WHERE profiles.id = auth.uid()
++        AND profiles.role = 'admin'
++    )
++  );
++
++-- ── 1.5 Триггер updated_at ────────────────────────────────────────────────────
++-- Переиспользуем функцию set_updated_at() из 011_add_updated_at_trigger.sql
++DROP TRIGGER IF EXISTS trigger_post_comments_updated_at ON public.post_comments;
++
++CREATE TRIGGER trigger_post_comments_updated_at
++  BEFORE UPDATE ON public.post_comments
++  FOR EACH ROW
++  EXECUTE FUNCTION public.set_updated_at();
+diff --git a/tests/unit/app/feed/page.test.tsx b/tests/unit/app/feed/page.test.tsx
+index c2be14e..34d98ad 100644
+--- a/tests/unit/app/feed/page.test.tsx
++++ b/tests/unit/app/feed/page.test.tsx
+@@ -86,7 +86,7 @@ describe('FeedPage (FeedPageClient)', () => {
+           is_onboarding: false,
+           created_at: '2026-03-15T10:00:00Z',
+           updated_at: '2026-03-15T10:00:00Z',
+-          posts_is_liked: false,
++          is_liked: false,
+           profiles: { display_name: 'A', avatar_url: null },
+         },
+       ],
+diff --git a/tests/unit/components/feed/PostDetail.test.tsx b/tests/unit/components/feed/PostDetail.test.tsx
+index c21dc7f..0fc42ae 100644
+--- a/tests/unit/components/feed/PostDetail.test.tsx
++++ b/tests/unit/components/feed/PostDetail.test.tsx
+@@ -96,6 +96,7 @@ import type { PostDetail as PostDetailData, PostMedia } from '@/features/feed/ty
+ function makePost(overrides: Partial<PostDetailData> = {}): PostDetailData {
+   return {
+     id: 'post-1',
++    author_id: 'author-1',
+     title: 'Testna objava',
+     excerpt: 'Kratek opis',
+     content: 'Celotno besedilo',
+@@ -205,9 +206,10 @@ describe('PostDetail', () => {
+     render(<PostDetail post={makePost({ type: 'text', content: '', excerpt: 'Kratek opis' })} />)
+     // Пустая строка — валидный контент, не должна быть заменена на excerpt
+     expect(screen.queryByText('Kratek opis')).not.toBeInTheDocument()
+-    // Проверяем что рендерится пустой абзац контента
+-    const contentParagraph = screen.getByRole('paragraph')
+-    expect(contentParagraph.textContent).toBe('')
++    // Проверяем что рендерится пустой абзац контента (первый <p> в .prose секции)
++    const proseSection = document.querySelector('.prose')
++    const contentParagraph = proseSection?.querySelector('p')
++    expect(contentParagraph?.textContent).toBe('')
+   })
+ 
+   it('photo: рендерит LazyMediaWrapper с aspectRatio 4/5', () => {
+diff --git a/tests/unit/features/comments/api/comments.test.ts b/tests/unit/features/comments/api/comments.test.ts
+new file mode 100644
+index 0000000..fc046a6
+--- /dev/null
++++ b/tests/unit/features/comments/api/comments.test.ts
+@@ -0,0 +1,94 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { fetchPostComments } from '@/features/comments/api/comments'
++import type { CommentWithProfile } from '@/features/comments/types'
++
++// Мок серверного Supabase клиента
++vi.mock('@/lib/supabase/server', () => ({
++  createClient: vi.fn(),
++}))
++
++function makeRow(id: string, parentId: string | null = null): CommentWithProfile {
++  return {
++    id,
++    post_id: 'p-1',
++    user_id: `u-${id}`,
++    parent_id: parentId,
++    content: `Komentar ${id}`,
++    created_at: '2026-03-25T10:00:00Z',
++    updated_at: '2026-03-25T10:00:00Z',
++    profiles: {
++      id: `u-${id}`,
++      display_name: `Avtor ${id}`,
++      avatar_url: null,
++      role: 'member',
++    },
++  }
++}
++
++describe('fetchPostComments', () => {
++  let mockSelect: ReturnType<typeof vi.fn>
++  let mockEq: ReturnType<typeof vi.fn>
++  let mockOrder: ReturnType<typeof vi.fn>
++
++  beforeEach(async () => {
++    vi.clearAllMocks()
++
++    const { createClient } = await import('@/lib/supabase/server')
++    mockOrder = vi.fn()
++    mockEq = vi.fn().mockReturnValue({ order: mockOrder })
++    mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
++
++    ;(createClient as ReturnType<typeof vi.fn>).mockResolvedValue({
++      from: vi.fn().mockReturnValue({ select: mockSelect }),
++    })
++  })
++
++  it('возвращает пустой массив если нет комментариев', async () => {
++    mockOrder.mockResolvedValue({ data: [], error: null })
++    const result = await fetchPostComments('p-1')
++    expect(result).toEqual([])
++  })
++
++  it('группирует ответы под родительским комментарием', async () => {
++    const root = makeRow('c1')
++    const reply = makeRow('c2', 'c1')
++    mockOrder.mockResolvedValue({ data: [root, reply], error: null })
++
++    const result = await fetchPostComments('p-1')
++    expect(result).toHaveLength(1)
++    expect(result[0].id).toBe('c1')
++    expect(result[0].replies).toHaveLength(1)
++    expect(result[0].replies[0].id).toBe('c2')
++  })
++
++  it('корневые комментарии имеют пустой массив replies если нет ответов', async () => {
++    mockOrder.mockResolvedValue({ data: [makeRow('c1')], error: null })
++    const result = await fetchPostComments('p-1')
++    expect(result[0].replies).toEqual([])
++  })
++
++  it('бросает ошибку если Supabase возвращает error', async () => {
++    mockOrder.mockResolvedValue({ data: null, error: { message: 'DB error' } })
++    await expect(fetchPostComments('p-1')).rejects.toMatchObject({ message: 'DB error' })
++  })
++
++  it('запрашивает комментарии по post_id', async () => {
++    mockOrder.mockResolvedValue({ data: [], error: null })
++    await fetchPostComments('my-post-id')
++    expect(mockEq).toHaveBeenCalledWith('post_id', 'my-post-id')
++  })
++
++  it('флаттенит вложенные ответы (reply to reply) к корневому комментарию', async () => {
++    const root = makeRow('c1')
++    const reply = makeRow('c2', 'c1')
++    const nestedReply = makeRow('c3', 'c2') // ответ на ответ
++    mockOrder.mockResolvedValue({ data: [root, reply, nestedReply], error: null })
++
++    const result = await fetchPostComments('p-1')
++    expect(result).toHaveLength(1)
++    expect(result[0].replies).toHaveLength(2)
++    const replyIds = result[0].replies.map((r) => r.id)
++    expect(replyIds).toContain('c2')
++    expect(replyIds).toContain('c3')
++  })
++})
+diff --git a/tests/unit/features/comments/components/CommentsList.test.tsx b/tests/unit/features/comments/components/CommentsList.test.tsx
+new file mode 100644
+index 0000000..968f55a
+--- /dev/null
++++ b/tests/unit/features/comments/components/CommentsList.test.tsx
+@@ -0,0 +1,62 @@
++import { describe, it, expect } from 'vitest'
++import { render, screen } from '@testing-library/react'
++import { CommentsList } from '@/features/comments/components/CommentsList'
++import type { Comment } from '@/features/comments/types'
++
++function makeComment(id: string, parentId: string | null = null): Comment {
++  return {
++    id,
++    post_id: 'p-1',
++    user_id: `u-${id}`,
++    parent_id: parentId,
++    content: `Komentar ${id}`,
++    created_at: '2026-03-25T10:00:00Z',
++    updated_at: '2026-03-25T10:00:00Z',
++    profiles: {
++      id: `u-${id}`,
++      display_name: `Avtor ${id}`,
++      avatar_url: null,
++      role: 'member',
++    },
++    replies: [],
++  }
++}
++
++describe('CommentsList', () => {
++  it('рендерит сообщение если нет комментариев', () => {
++    render(<CommentsList comments={[]} />)
++    expect(screen.getByText('Še ni komentarjev. Bodite prvi!')).toBeInTheDocument()
++  })
++
++  it('рендерит корневые комментарии', () => {
++    const comments = [makeComment('1'), makeComment('2')]
++    render(<CommentsList comments={comments} />)
++    expect(screen.getByText('Komentar 1')).toBeInTheDocument()
++    expect(screen.getByText('Komentar 2')).toBeInTheDocument()
++  })
++
++  it('рендерит ответы под родительским комментарием', () => {
++    const parent = makeComment('1')
++    const reply = { ...makeComment('r1', '1'), content: 'Odgovor 1' }
++    parent.replies = [reply]
++    render(<CommentsList comments={[parent]} />)
++    expect(screen.getByText('Komentar 1')).toBeInTheDocument()
++    expect(screen.getByText('Odgovor 1')).toBeInTheDocument()
++  })
++
++  it('ответ рендерится с отступом (isReply=true)', () => {
++    const parent = makeComment('1')
++    const reply = { ...makeComment('r1', '1'), content: 'Odgovor 1' }
++    parent.replies = [reply]
++    const { container } = render(<CommentsList comments={[parent]} />)
++    const articles = container.querySelectorAll('article')
++    // Первый article — родительский (без pl-10), второй — ответ (с pl-10)
++    expect(articles[0].className).not.toContain('pl-10')
++    expect(articles[1].className).toContain('pl-10')
++  })
++
++  it('не рендерит empty state если есть комментарии', () => {
++    render(<CommentsList comments={[makeComment('1')]} />)
++    expect(screen.queryByText('Še ni komentarjev. Bodite prvi!')).not.toBeInTheDocument()
++  })
++})
+diff --git a/tests/unit/features/comments/components/DiscussionNode.test.tsx b/tests/unit/features/comments/components/DiscussionNode.test.tsx
+new file mode 100644
+index 0000000..6a5d07c
+--- /dev/null
++++ b/tests/unit/features/comments/components/DiscussionNode.test.tsx
+@@ -0,0 +1,98 @@
++import { describe, it, expect } from 'vitest'
++import { render, screen } from '@testing-library/react'
++import { DiscussionNode } from '@/features/comments/components/DiscussionNode'
++import type { CommentWithProfile } from '@/features/comments/types'
++
++function makeComment(overrides: Partial<CommentWithProfile> = {}): CommentWithProfile {
++  return {
++    id: 'c-1',
++    post_id: 'p-1',
++    user_id: 'u-1',
++    parent_id: null,
++    content: 'To je komentar.',
++    created_at: '2026-03-25T10:00:00Z',
++    updated_at: '2026-03-25T10:00:00Z',
++    profiles: {
++      id: 'u-1',
++      display_name: 'Ana Novak',
++      avatar_url: null,
++      role: 'member',
++    },
++    ...overrides,
++  }
++}
++
++describe('DiscussionNode', () => {
++  it('рендерит текст комментария', () => {
++    render(<DiscussionNode comment={makeComment()} />)
++    expect(screen.getByText('To je komentar.')).toBeInTheDocument()
++  })
++
++  it('рендерит имя автора', () => {
++    render(<DiscussionNode comment={makeComment()} />)
++    expect(screen.getByText('Ana Novak')).toBeInTheDocument()
++  })
++
++  it('рендерит initials если нет avatar_url', () => {
++    render(<DiscussionNode comment={makeComment()} />)
++    expect(screen.getByText('AN')).toBeInTheDocument()
++  })
++
++  it('рендерит бейдж "Avtor" если user_id === postAuthorId', () => {
++    render(<DiscussionNode comment={makeComment()} postAuthorId="u-1" />)
++    expect(screen.getByText('Avtor')).toBeInTheDocument()
++  })
++
++  it('рендерит бейдж "Admin" если role === admin', () => {
++    render(
++      <DiscussionNode
++        comment={makeComment({ profiles: { id: 'u-1', display_name: 'Ana', avatar_url: null, role: 'admin' } })}
++        postAuthorId="other-user"
++      />
++    )
++    expect(screen.getByText('Admin')).toBeInTheDocument()
++  })
++
++  it('не рендерит бейдж для обычного участника', () => {
++    render(<DiscussionNode comment={makeComment()} postAuthorId="other-user" />)
++    expect(screen.queryByText('Avtor')).not.toBeInTheDocument()
++    expect(screen.queryByText('Admin')).not.toBeInTheDocument()
++  })
++
++  it('добавляет отступ для ответа (isReply=true)', () => {
++    const { container } = render(<DiscussionNode comment={makeComment()} isReply />)
++    expect(container.querySelector('article')?.className).toContain('pl-10')
++  })
++
++  it('нет отступа для корневого комментария (isReply=false)', () => {
++    const { container } = render(<DiscussionNode comment={makeComment()} />)
++    expect(container.querySelector('article')?.className ?? '').not.toContain('pl-10')
++  })
++
++  it('отображает дату в формате sl-SI', () => {
++    render(<DiscussionNode comment={makeComment({ created_at: '2026-03-25T10:00:00Z' })} />)
++    // sl-SI формат: "25. marca 2026" или подобное
++    const timeEl = document.querySelector('time')
++    expect(timeEl?.getAttribute('dateTime')).toBe('2026-03-25T10:00:00Z')
++  })
++
++  it('показывает "?" (initials) если display_name состоит только из пробелов', () => {
++    render(
++      <DiscussionNode
++        comment={makeComment({
++          profiles: { id: 'u-1', display_name: '   ', avatar_url: null, role: 'member' },
++        })}
++      />
++    )
++    expect(screen.getByText('?')).toBeInTheDocument()
++  })
++
++  it('показывает "Uporabnik" если display_name = null', () => {
++    render(
++      <DiscussionNode
++        comment={makeComment({ profiles: { id: 'u-1', display_name: null, avatar_url: null, role: 'member' } })}
++      />
++    )
++    expect(screen.getByText('Uporabnik')).toBeInTheDocument()
++  })
++})
+diff --git a/tests/unit/features/feed/components/FeedContainer.test.tsx b/tests/unit/features/feed/components/FeedContainer.test.tsx
+index 71d6515..7fd3d1c 100644
+--- a/tests/unit/features/feed/components/FeedContainer.test.tsx
++++ b/tests/unit/features/feed/components/FeedContainer.test.tsx
+@@ -72,7 +72,6 @@ function makePost(id: string, category = 'insight'): Post {
+     is_landing_preview: false,
+     is_onboarding: false,
+     is_liked: false,
+-    posts_is_liked: false,
+     created_at: '2026-03-15T10:00:00Z',
+     updated_at: '2026-03-15T10:00:00Z',
+     profiles: { display_name: 'Avtorica', avatar_url: null },
+diff --git a/tests/unit/features/feed/components/FeedPageClient.test.tsx b/tests/unit/features/feed/components/FeedPageClient.test.tsx
+index 2f9d9d1..41d07b1 100644
+--- a/tests/unit/features/feed/components/FeedPageClient.test.tsx
++++ b/tests/unit/features/feed/components/FeedPageClient.test.tsx
+@@ -37,7 +37,7 @@ function makePost(id: string): Post {
+     is_onboarding: false,
+     created_at: '2026-03-20T10:00:00Z',
+     updated_at: '2026-03-20T10:00:00Z',
+-    posts_is_liked: false,
++    is_liked: false,
+     profiles: { display_name: 'Author', avatar_url: null },
+   }
+ }
+diff --git a/tests/unit/features/feed/store.test.ts b/tests/unit/features/feed/store.test.ts
+index 35215d7..10b1ca8 100644
+--- a/tests/unit/features/feed/store.test.ts
++++ b/tests/unit/features/feed/store.test.ts
+@@ -19,7 +19,7 @@ function makePost(id: string, category = 'insight'): Post {
+     is_onboarding: false,
+     created_at: '2026-03-15T10:00:00Z',
+     updated_at: '2026-03-15T10:00:00Z',
+-    posts_is_liked: false,
++    is_liked: false,
+     profiles: { display_name: 'Avtor', avatar_url: null },
+   }
+ }
+diff --git a/tests/unit/features/feed/types.test.ts b/tests/unit/features/feed/types.test.ts
+index f9e21b3..94b9ddb 100644
+--- a/tests/unit/features/feed/types.test.ts
++++ b/tests/unit/features/feed/types.test.ts
+@@ -19,7 +19,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
+     is_onboarding: false,
+     created_at: '2026-03-15T10:00:00Z',
+     updated_at: '2026-03-15T10:00:00Z',
+-    posts_is_liked: false,
++    is_liked: false,
+     profiles: {
+       display_name: 'Ana Ivanova',
+       avatar_url: null,
+diff --git a/tests/unit/features/search/components/SearchContainer.test.tsx b/tests/unit/features/search/components/SearchContainer.test.tsx
+index 008cf33..388bf5c 100644
+--- a/tests/unit/features/search/components/SearchContainer.test.tsx
++++ b/tests/unit/features/search/components/SearchContainer.test.tsx
+@@ -77,7 +77,6 @@ function makePost(id: string): Post {
+     created_at: '2026-01-01T00:00:00Z',
+     updated_at: '2026-01-01T00:00:00Z',
+     is_liked: false,
+-    posts_is_liked: false,
+     profiles: { display_name: 'Author', avatar_url: null },
+     post_media: [],
+   }
+diff --git a/tests/unit/hooks/useLikeToggle.test.ts b/tests/unit/hooks/useLikeToggle.test.ts
+index 98c9276..27a26f0 100644
+--- a/tests/unit/hooks/useLikeToggle.test.ts
++++ b/tests/unit/hooks/useLikeToggle.test.ts
+@@ -37,7 +37,6 @@ function makePost(id: string, overrides: Partial<Post> = {}): Post {
+     created_at: '2026-01-01T00:00:00Z',
+     updated_at: '2026-01-01T00:00:00Z',
+     is_liked: false,
+-    posts_is_liked: false,
+     profiles: { display_name: 'Author', avatar_url: null },
+     post_media: [],
+     ...overrides,

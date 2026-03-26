@@ -69,13 +69,14 @@ export function DiscussionNode({ comment, isReply = false, postAuthorId }: Discu
             <time
               dateTime={comment.created_at}
               className="text-xs text-muted-foreground"
+              suppressHydrationWarning
             >
               {formatDate(comment.created_at)}
             </time>
           </div>
 
           {/* Content */}
-          <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+          <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
             {comment.content}
           </p>
         </div>

@@ -40,7 +40,7 @@
 #   - Story 4.1 обновлена: мультимедиа загрузка (до 10 файлов, обложка, порядок)
 #   - Story 5.1 обновлена: группировка медиагрупп, Exponential Backoff, post_media
 
-generated: 2026-03-26T05:06:00+01:00
+generated: 2026-03-26T08:21:00+01:00
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
