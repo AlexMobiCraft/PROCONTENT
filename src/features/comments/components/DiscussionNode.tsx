@@ -13,9 +13,9 @@ interface DiscussionNodeProps {
 
 function getInitials(name: string | null): string {
   if (!name) return '?'
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
+  const parts = name.split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  return parts
     .map((w) => w[0])
     .join('')
     .slice(0, 2)

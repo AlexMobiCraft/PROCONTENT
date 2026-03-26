@@ -76,6 +76,17 @@ describe('DiscussionNode', () => {
     expect(timeEl?.getAttribute('dateTime')).toBe('2026-03-25T10:00:00Z')
   })
 
+  it('показывает "?" (initials) если display_name состоит только из пробелов', () => {
+    render(
+      <DiscussionNode
+        comment={makeComment({
+          profiles: { id: 'u-1', display_name: '   ', avatar_url: null, role: 'member' },
+        })}
+      />
+    )
+    expect(screen.getByText('?')).toBeInTheDocument()
+  })
+
   it('показывает "Uporabnik" если display_name = null', () => {
     render(
       <DiscussionNode

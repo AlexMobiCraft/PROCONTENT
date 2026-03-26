@@ -77,4 +77,18 @@ describe('fetchPostComments', () => {
     await fetchPostComments('my-post-id')
     expect(mockEq).toHaveBeenCalledWith('post_id', 'my-post-id')
   })
+
+  it('флаттенит вложенные ответы (reply to reply) к корневому комментарию', async () => {
+    const root = makeRow('c1')
+    const reply = makeRow('c2', 'c1')
+    const nestedReply = makeRow('c3', 'c2') // ответ на ответ
+    mockOrder.mockResolvedValue({ data: [root, reply, nestedReply], error: null })
+
+    const result = await fetchPostComments('p-1')
+    expect(result).toHaveLength(1)
+    expect(result[0].replies).toHaveLength(2)
+    const replyIds = result[0].replies.map((r) => r.id)
+    expect(replyIds).toContain('c2')
+    expect(replyIds).toContain('c3')
+  })
 })

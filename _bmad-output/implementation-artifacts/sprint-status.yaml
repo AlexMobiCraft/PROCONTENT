@@ -1,4 +1,4 @@
-﻿# generated: 2026-03-25T22:29:29+01:00
+﻿# generated: 2026-03-26T05:06:00+01:00
 # project: PROCONTENT
 # project_key: NOKEY
 # tracking_system: file-system
@@ -40,7 +40,7 @@
 #   - Story 4.1 обновлена: мультимедиа загрузка (до 10 файлов, обложка, порядок)
 #   - Story 5.1 обновлена: группировка медиагрупп, Exponential Backoff, post_media
 
-generated: 2026-03-25T22:29:29+01:00
+generated: 2026-03-26T05:06:00+01:00
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -94,7 +94,7 @@ development_status:
 
   # ─── EPIC 3: Community Engagement ──────────────────────────────────────────
   epic-3: in-progress
-  3-1-viewing-discussions-under-a-post: in-progress
+  3-1-viewing-discussions-under-a-post: review
   3-2-writing-a-comment-with-instant-response-optimistic-ui: backlog
   3-3-moderation-and-replies-to-comments-admin-functions: backlog
   3-4-automatic-email-notifications-about-new-posts: backlog

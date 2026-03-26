@@ -18,17 +18,41 @@ export async function fetchPostComments(postId: string): Promise<Comment[]> {
 
   const rows = (data ?? []) as CommentWithProfile[]
 
-  // Группируем в дерево (1 уровень): корневые + их ответы
+  // Группируем в дерево (1 уровень): корневые + их ответы.
+  // Вложенные ответы (reply to reply) флаттенятся к корневому предку.
   const roots: Comment[] = []
+  const rootIdSet = new Set<string>()
+  const parentOf = new Map<string, string>()
   const replyMap = new Map<string, CommentWithProfile[]>()
 
   for (const row of rows) {
     if (row.parent_id) {
-      const list = replyMap.get(row.parent_id) ?? []
-      list.push(row)
-      replyMap.set(row.parent_id, list)
+      parentOf.set(row.id, row.parent_id)
     } else {
       roots.push({ ...row, replies: [] })
+      rootIdSet.add(row.id)
+    }
+  }
+
+  // Находим корневого предка для любого комментария
+  function getRootId(id: string): string {
+    let current = id
+    while (!rootIdSet.has(current)) {
+      const parent = parentOf.get(current)
+      if (!parent) return current
+      current = parent
+    }
+    return current
+  }
+
+  for (const row of rows) {
+    if (row.parent_id) {
+      const rootId = getRootId(row.id)
+      if (rootIdSet.has(rootId)) {
+        const list = replyMap.get(rootId) ?? []
+        list.push(row)
+        replyMap.set(rootId, list)
+      }
     }
   }
 

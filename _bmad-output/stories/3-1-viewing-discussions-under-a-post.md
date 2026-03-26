@@ -1,6 +1,6 @@
 # Story 3.1: Просмотр обсуждений под постом
 
-Status: in-progress
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -72,6 +72,9 @@ claude-sonnet-4-6
 
 ### Completion Notes List
 
+- ✅ [Patch] Исправлена группировка вложенных ответов в `comments.ts`: nested replies (reply to reply) теперь флаттенятся к корневому предку через `getRootId()` + `parentOf` map
+- ✅ [Patch] Исправлена `getInitials` в `DiscussionNode.tsx`: имена из одних пробелов теперь возвращают "?" (проверка `parts.length === 0`)
+- ✅ 744/744 тестов прошли (+2 новых регрессионных теста)
 - ✅ Миграция `019_create_post_comments.sql` создана и применена через `supabase db push`
 - ✅ TypeScript типы `src/types/supabase.ts` регенерированы с `post_comments`
 - ✅ `PostMedia.media_type` — восстановлен union тип через Omit
@@ -107,15 +110,18 @@ claude-sonnet-4-6
 - tests/unit/features/feed/types.test.ts (modified)
 - tests/unit/features/search/components/SearchContainer.test.tsx (modified — duplicate fix)
 - tests/unit/hooks/useLikeToggle.test.ts (modified — duplicate fix)
+- tests/unit/features/comments/api/comments.test.ts (modified — +1 тест на flatten nested replies)
+- tests/unit/features/comments/components/DiscussionNode.test.tsx (modified — +1 тест на whitespace-only initials)
 
 ## Change Log
 
 - 2026-03-25: Story 3.1 реализована — просмотр обсуждений под постом (DB schema, API, UI, integration). 742 тестов прошли.
+- 2026-03-26: Исправлены 2 patch-находки из review: flatten nested replies + getInitials whitespace fix. 744 тестов прошли.
 
 ### Review Findings
 
-- [ ] [Review][Patch] Вложенные ответы (replies to replies) теряются при группировке [src/features/comments/api/comments.ts:24-34]
-- [ ] [Review][Patch] Функция getInitials возвращает пустую строку для имен, состоящих только из пробелов [src/features/comments/components/DiscussionNode.tsx:11-20]
+- [x] [Review][Patch] Вложенные ответы (replies to replies) теряются при группировке [src/features/comments/api/comments.ts:24-34]
+- [x] [Review][Patch] Функция getInitials возвращает пустую строку для имен, состоящих только из пробелов [src/features/comments/components/DiscussionNode.tsx:11-20]
 - [x] [Review][Defer] Нет пагинации или лимитов при загрузке комментариев [src/features/comments/api/comments.ts] — deferred, pre-existing
 - [x] [Review][Defer] Ошибки при загрузке комментариев в SSR скрываются без логирования (.catch(() => [])) [src/app/(app)/feed/[id]/page.tsx:68] — deferred, pre-existing
 
