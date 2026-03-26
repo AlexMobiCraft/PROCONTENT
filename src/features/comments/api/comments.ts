@@ -37,10 +37,12 @@ export async function fetchPostComments(postId: string): Promise<Comment[]> {
   // Находим корневого предка для любого комментария
   function getRootId(id: string): string {
     let current = id
-    while (!rootIdSet.has(current)) {
+    let depth = 0
+    while (!rootIdSet.has(current) && depth < 100) {
       const parent = parentOf.get(current)
       if (!parent) return current
       current = parent
+      depth++
     }
     return current
   }
