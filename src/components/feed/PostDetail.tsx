@@ -65,7 +65,6 @@ export function PostDetail({
   })
 
   const currentUserIsAdmin = currentUserProfile?.role === 'admin'
-  const canModerate = currentUserIsAdmin || currentUserId === post.author_id
 
   async function handleDelete(commentId: string) {
     try {
@@ -279,7 +278,7 @@ export function PostDetail({
           currentUserIsAdmin={currentUserIsAdmin}
           onRetry={retryComment}
           onReply={(content, parentId) => addComment(content, parentId)}
-          onDelete={canModerate ? handleDelete : undefined}
+          onDelete={currentUserId ? handleDelete : undefined}
         />
         {currentUserId && (
           <div className="mt-4 border-t border-border pt-4">

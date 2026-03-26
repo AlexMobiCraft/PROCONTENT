@@ -1,6 +1,6 @@
 # Story 3.3: Модерация и ответы на комментарии (Админ-функции)
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -67,10 +67,13 @@ So that поддерживать здоровую и полезную атмос
 ### Completion Notes
 
 - Все 5 AC выполнены
-- 794 тестов прошли (регрессий нет)
-- Новые тесты: 11 в `DiscussionNode.test.tsx` + 4 в `useComments.test.ts`
+- 796 тестов прошли (регрессий нет)
+- Новые тесты: 11+3=14 в `DiscussionNode.test.tsx` + 4 в `useComments.test.ts`
 - Lint: предсуществующая ошибка в `PostDetail.test.tsx:570` (не в scope данной истории)
 - TypeScript: typecheck пройден без ошибок
+- ✅ Resolved review finding [HIGH]: убран `canModerate` в PostDetail, `onDelete` передаётся всем залогиненным пользователям; логика видимости Trash перенесена в DiscussionNode
+- ✅ Resolved review finding [MEDIUM]: класс `pl-10` перемещён после `p-2` в cn() — tailwind-merge сохраняет `pl-10` для ответов
+- ✅ Resolved review finding [LOW]: условие `canDelete` изменено на `comment.user_id === currentUserId || !!currentUserIsAdmin`; пользователи видят Trash под своими комментариями
 
 ## File List
 
@@ -78,16 +81,17 @@ So that поддерживать здоровую и полезную атмос
 - `src/features/comments/hooks/useComments.ts` (изменён — `removeFromTree`, `deleteComment`)
 - `src/features/comments/components/DiscussionNode.tsx` (изменён — Trash кнопка, visual highlight, новые пропсы)
 - `src/features/comments/components/CommentsList.tsx` (изменён — новые пропсы)
-- `src/components/feed/PostDetail.tsx` (изменён — `handleDelete`, `canModerate`)
-- `tests/unit/features/comments/components/DiscussionNode.test.tsx` (изменён — 11 новых тестов)
+- `src/components/feed/PostDetail.tsx` (изменён — `handleDelete`, убран `canModerate`, `onDelete` для всех залогиненных)
+- `tests/unit/features/comments/components/DiscussionNode.test.tsx` (изменён — 14 новых/обновлённых тестов)
 - `tests/unit/features/comments/hooks/useComments.test.ts` (изменён — 4 новых теста)
 
 ## Change Log
 
 - 2026-03-26: Story 3.3 реализована (модерация комментариев, Trash кнопка, визуальное выделение, оптимистичное удаление, тесты)
+- 2026-03-26: Исправлены замечания code review — HIGH (RLS/UI mismatch), MEDIUM (indent loss), LOW (удаление своих комментариев)
 
 ## Review Findings (2026-03-26)
 
-1. **HIGH:** Несоответствие прав в UI и RLS-политики базы данных. В `PostDetail.tsx` автору поста разрешается удалять чужие комментарии (`canModerate = currentUserIsAdmin || currentUserId === post.author_id`), но RLS-политика в БД разрешает удаление только владельцу комментария или администратору. Нужно либо обновить логику `canModerate` в UI (убрав права автора), либо выпустить новую SQL-миграцию.
-2. **MEDIUM:** Потеря иерархического отступа у ответов админов/авторов. В `DiscussionNode.tsx` функция `cn()` объединяет классы `pl-10` и `p-2`. Класс `p-2` переопределяет левый отступ, из-за чего ответы админов/авторов теряют визуальную иерархию (съезжают влево).
-3. **LOW:** Невозможность удалить собственные комментарии. В `DiscussionNode.tsx` условие `canDelete` строго проверяет `comment.user_id !== currentUserId`. Пользователи не видят кнопку Trash под своими комментариями, хотя RLS позволяет их удалять (и это ожидаемое поведение для пользователей).
+[x] **HIGH:** Несоответствие прав в UI и RLS-политики базы данных. В `PostDetail.tsx` автору поста разрешается удалять чужие комментарии (`canModerate = currentUserIsAdmin || currentUserId === post.author_id`), но RLS-политика в БД разрешает удаление только владельцу комментария или администратору. Нужно либо обновить логику `canModerate` в UI (убрав права автора), либо выпустить новую SQL-миграцию.
+[x] **MEDIUM:** Потеря иерархического отступа у ответов админов/авторов. В `DiscussionNode.tsx` функция `cn()` объединяет классы `pl-10` и `p-2`. Класс `p-2` переопределяет левый отступ, из-за чего ответы админов/авторов теряют визуальную иерархию (съезжают влево).
+[x] **LOW:** Невозможность удалить собственные комментарии. В `DiscussionNode.tsx` условие `canDelete` строго проверяет `comment.user_id !== currentUserId`. Пользователи не видят кнопку Trash под своими комментариями, хотя RLS позволяет их удалять (и это ожидаемое поведение для пользователей).

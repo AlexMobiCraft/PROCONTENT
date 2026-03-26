@@ -255,12 +255,35 @@ describe('DiscussionNode', () => {
     expect(screen.getByRole('button', { name: 'Izbriši komentar' })).toBeInTheDocument()
   })
 
-  it('не показывает кнопку Trash если комментарий принадлежит текущему пользователю', () => {
+  it('показывает кнопку Trash если комментарий принадлежит текущему пользователю (удаление своего)', () => {
     render(
       <DiscussionNode
         comment={makeComment({ user_id: 'u-1' })}
         currentUserId="u-1"
-        currentUserIsAdmin
+        onDelete={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Izbriši komentar' })).toBeInTheDocument()
+  })
+
+  it('показывает кнопку Trash для своего комментария обычного пользователя (не admin)', () => {
+    render(
+      <DiscussionNode
+        comment={makeComment({ user_id: 'u-1' })}
+        currentUserId="u-1"
+        currentUserIsAdmin={false}
+        onDelete={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Izbriši komentar' })).toBeInTheDocument()
+  })
+
+  it('не показывает кнопку Trash для чужого комментария обычного пользователя (не admin)', () => {
+    render(
+      <DiscussionNode
+        comment={makeComment({ user_id: 'u-other' })}
+        currentUserId="u-1"
+        currentUserIsAdmin={false}
         onDelete={vi.fn()}
       />
     )

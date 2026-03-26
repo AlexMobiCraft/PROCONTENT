@@ -66,8 +66,9 @@ export function DiscussionNode({
   const isPending = comment._status === 'pending'
   const isError = comment._status === 'error'
 
-  // Trash показывается если: есть onDelete, комментарий не свой и не в pending-состоянии
-  const canDelete = Boolean(onDelete) && comment.user_id !== currentUserId && !isPending
+  // Trash показывается если: есть onDelete, не pending, и (свой комментарий ИЛИ текущий пользователь — admin)
+  const canDelete =
+    Boolean(onDelete) && !isPending && (comment.user_id === currentUserId || !!currentUserIsAdmin)
 
   function handleReplySubmit(content: string) {
     onReply?.(content, comment.id)
@@ -82,8 +83,8 @@ export function DiscussionNode({
   return (
     <article
       className={cn(
-        isReply && 'pl-10',
-        showBadge && 'rounded-lg border border-primary/20 bg-primary/5 p-2'
+        showBadge && 'rounded-lg border border-primary/20 bg-primary/5 p-2',
+        isReply && 'pl-10'
       )}
     >
       <div
