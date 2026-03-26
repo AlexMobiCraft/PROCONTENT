@@ -235,4 +235,116 @@ describe('DiscussionNode', () => {
     expect(screen.queryByPlaceholderText('Napišite odgovor...')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Odgovori' })).toBeInTheDocument()
   })
+
+  // --- Кнопка "Удалить" (Trash) ---
+
+  it('не показывает кнопку Trash без onDelete', () => {
+    render(<DiscussionNode comment={makeComment()} currentUserId="other" currentUserIsAdmin />)
+    expect(screen.queryByRole('button', { name: 'Izbriši komentar' })).not.toBeInTheDocument()
+  })
+
+  it('показывает кнопку Trash если onDelete передан и комментарий не свой', () => {
+    render(
+      <DiscussionNode
+        comment={makeComment({ user_id: 'u-1' })}
+        currentUserId="other-user"
+        currentUserIsAdmin
+        onDelete={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Izbriši komentar' })).toBeInTheDocument()
+  })
+
+  it('не показывает кнопку Trash если комментарий принадлежит текущему пользователю', () => {
+    render(
+      <DiscussionNode
+        comment={makeComment({ user_id: 'u-1' })}
+        currentUserId="u-1"
+        currentUserIsAdmin
+        onDelete={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: 'Izbriši komentar' })).not.toBeInTheDocument()
+  })
+
+  it('не показывает кнопку Trash в pending состоянии', () => {
+    render(
+      <DiscussionNode
+        comment={makeComment({ _status: 'pending' })}
+        currentUserId="other"
+        currentUserIsAdmin
+        onDelete={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: 'Izbriši komentar' })).not.toBeInTheDocument()
+  })
+
+  it('нажатие Trash: вызывает window.confirm перед onDelete', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <DiscussionNode
+        comment={makeComment({ user_id: 'u-other' })}
+        currentUserId="u-admin"
+        currentUserIsAdmin
+        onDelete={onDelete}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'Izbriši komentar' }))
+    expect(confirmSpy).toHaveBeenCalledOnce()
+    expect(onDelete).toHaveBeenCalledWith('c-1')
+    confirmSpy.mockRestore()
+  })
+
+  it('нажатие Trash: если confirm=false, onDelete не вызывается', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <DiscussionNode
+        comment={makeComment({ user_id: 'u-other' })}
+        currentUserId="u-admin"
+        currentUserIsAdmin
+        onDelete={onDelete}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'Izbriši komentar' }))
+    expect(onDelete).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
+  })
+
+  // --- Визуальное выделение admin/author комментариев ---
+
+  it('применяет акцентное выделение к комментарию admin (comment author)', () => {
+    const { container } = render(
+      <DiscussionNode
+        comment={makeComment({
+          profiles: { id: 'u-1', display_name: 'Admin', avatar_url: null, role: 'admin' },
+        })}
+        postAuthorId="other"
+      />
+    )
+    const article = container.querySelector('article')
+    expect(article?.className).toContain('bg-primary')
+    expect(article?.className).toContain('border-primary')
+  })
+
+  it('применяет акцентное выделение к комментарию автора поста', () => {
+    const { container } = render(
+      <DiscussionNode comment={makeComment({ user_id: 'u-1' })} postAuthorId="u-1" />
+    )
+    const article = container.querySelector('article')
+    expect(article?.className).toContain('bg-primary')
+    expect(article?.className).toContain('border-primary')
+  })
+
+  it('не применяет акцентное выделение к комментарию обычного участника', () => {
+    const { container } = render(
+      <DiscussionNode comment={makeComment()} postAuthorId="other-user" />
+    )
+    const article = container.querySelector('article')
+    expect(article?.className ?? '').not.toContain('bg-primary')
+    expect(article?.className ?? '').not.toContain('border-primary')
+  })
 })

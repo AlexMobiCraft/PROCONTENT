@@ -34,3 +34,16 @@ export async function insertPostComment(
   if (error) throw error
   return data as CommentWithProfile
 }
+
+/**
+ * Удаляет комментарий по ID.
+ * RLS политика "post_comments_delete_own_or_admin" обеспечивает доступ только владельцу или admin.
+ */
+export async function deletePostComment(commentId: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('post_comments')
+    .delete()
+    .eq('id', commentId)
+  if (error) throw error
+}

@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { CommentWithStatus } from '../types'
 import { CommentForm } from './CommentForm'
 import { cn } from '@/lib/utils'
@@ -12,10 +13,16 @@ interface DiscussionNodeProps {
   isReply?: boolean
   /** user_id автора поста — для бейджа "Avtor" */
   postAuthorId?: string | null
+  /** ID текущего авторизованного пользователя — для проверки прав на удаление */
+  currentUserId?: string | null
+  /** true если текущий пользователь является администратором */
+  currentUserIsAdmin?: boolean
   /** Callback повтора отправки провального комментария */
   onRetry?: (comment: CommentWithStatus) => void
   /** Callback добавления ответа: (content, parentId) */
   onReply?: (content: string, parentId: string) => void
+  /** Callback удаления комментария (передаётся только при наличии прав модерации) */
+  onDelete?: (commentId: string) => void
 }
 
 function getInitials(name: string | null): string {
@@ -41,8 +48,11 @@ export function DiscussionNode({
   comment,
   isReply = false,
   postAuthorId,
+  currentUserId,
+  currentUserIsAdmin,
   onRetry,
   onReply,
+  onDelete,
 }: DiscussionNodeProps) {
   const [showReplyForm, setShowReplyForm] = useState(false)
 
@@ -56,13 +66,26 @@ export function DiscussionNode({
   const isPending = comment._status === 'pending'
   const isError = comment._status === 'error'
 
+  // Trash показывается если: есть onDelete, комментарий не свой и не в pending-состоянии
+  const canDelete = Boolean(onDelete) && comment.user_id !== currentUserId && !isPending
+
   function handleReplySubmit(content: string) {
     onReply?.(content, comment.id)
     setShowReplyForm(false)
   }
 
+  function handleDeleteClick() {
+    if (!window.confirm('Ali ste prepričani, da želite izbrisati ta komentar?')) return
+    onDelete?.(comment.id)
+  }
+
   return (
-    <article className={isReply ? 'pl-10' : undefined}>
+    <article
+      className={cn(
+        isReply && 'pl-10',
+        showBadge && 'rounded-lg border border-primary/20 bg-primary/5 p-2'
+      )}
+    >
       <div
         className={cn(
           'flex gap-3 py-4',
@@ -117,8 +140,8 @@ export function DiscussionNode({
             {comment.content}
           </p>
 
-          {/* Action row: retry or reply */}
-          <div className="flex gap-2 mt-0.5">
+          {/* Action row: retry, reply, delete */}
+          <div className="flex items-center gap-2 mt-0.5">
             {isError && onRetry && (
               <button
                 type="button"
@@ -135,6 +158,16 @@ export function DiscussionNode({
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors min-h-[32px]"
               >
                 {showReplyForm ? 'Prekliči' : 'Odgovori'}
+              </button>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                aria-label="Izbriši komentar"
+                className="ml-auto flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors min-h-[32px] min-w-[32px]"
+              >
+                <Trash2 className="size-3.5" />
               </button>
             )}
           </div>

@@ -4,6 +4,7 @@ import type { Comment, CommentWithStatus } from '@/features/comments/types'
 
 vi.mock('@/features/comments/api/clientComments', () => ({
   insertPostComment: vi.fn(),
+  deletePostComment: vi.fn(),
 }))
 
 function makeComment(id: string, parentId: string | null = null): Comment {
@@ -22,11 +23,13 @@ function makeComment(id: string, parentId: string | null = null): Comment {
 
 describe('useComments', () => {
   let mockInsert: ReturnType<typeof vi.fn>
+  let mockDelete: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     vi.clearAllMocks()
     const mod = await import('@/features/comments/api/clientComments')
     mockInsert = mod.insertPostComment as ReturnType<typeof vi.fn>
+    mockDelete = mod.deletePostComment as ReturnType<typeof vi.fn>
   })
 
   it('инициализируется с initialComments', async () => {
@@ -189,5 +192,70 @@ describe('useComments', () => {
     })
 
     expect(result.current.comments[0]._status).toBe('error')
+  })
+
+  // --- deleteComment ---
+
+  it('deleteComment: оптимистично удаляет корневой комментарий', async () => {
+    mockDelete.mockResolvedValue(undefined)
+    const { useComments } = await import('@/features/comments/hooks/useComments')
+    const { result } = renderHook(() =>
+      useComments({ postId: 'p-1', initialComments: [makeComment('c1'), makeComment('c2')] })
+    )
+
+    await act(async () => {
+      await result.current.deleteComment('c1')
+    })
+
+    expect(result.current.comments).toHaveLength(1)
+    expect(result.current.comments[0].id).toBe('c2')
+  })
+
+  it('deleteComment: удаляет ответ из replies родительского комментария', async () => {
+    mockDelete.mockResolvedValue(undefined)
+    const root = makeComment('root-1')
+    const reply = makeComment('reply-1', 'root-1')
+    const rootWithReply = { ...root, replies: [reply] }
+    const { useComments } = await import('@/features/comments/hooks/useComments')
+    const { result } = renderHook(() =>
+      useComments({ postId: 'p-1', initialComments: [rootWithReply] })
+    )
+
+    await act(async () => {
+      await result.current.deleteComment('reply-1')
+    })
+
+    expect(result.current.comments).toHaveLength(1)
+    expect(result.current.comments[0].replies).toHaveLength(0)
+  })
+
+  it('deleteComment: вызывает deletePostComment с правильным commentId', async () => {
+    mockDelete.mockResolvedValue(undefined)
+    const { useComments } = await import('@/features/comments/hooks/useComments')
+    const { result } = renderHook(() =>
+      useComments({ postId: 'p-1', initialComments: [makeComment('c1')] })
+    )
+
+    await act(async () => {
+      await result.current.deleteComment('c1')
+    })
+
+    expect(mockDelete).toHaveBeenCalledWith('c1')
+  })
+
+  it('deleteComment: при ошибке восстанавливает исходные комментарии и перебрасывает ошибку', async () => {
+    mockDelete.mockRejectedValue(new Error('delete failed'))
+    const { useComments } = await import('@/features/comments/hooks/useComments')
+    const { result } = renderHook(() =>
+      useComments({ postId: 'p-1', initialComments: [makeComment('c1'), makeComment('c2')] })
+    )
+
+    await act(async () => {
+      await expect(result.current.deleteComment('c1')).rejects.toThrow('delete failed')
+    })
+
+    // Восстановлены после ошибки
+    expect(result.current.comments).toHaveLength(2)
+    expect(result.current.comments[0].id).toBe('c1')
   })
 })

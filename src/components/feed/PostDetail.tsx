@@ -58,11 +58,23 @@ export function PostDetail({
   // Предотвращает утечку памяти: не вызываем setState на unmounted компоненте
   const isMountedRef = useRef(true)
 
-  const { comments, addComment, retryComment } = useComments({
+  const { comments, addComment, retryComment, deleteComment } = useComments({
     postId: post.id,
     initialComments,
     currentUserProfile,
   })
+
+  const currentUserIsAdmin = currentUserProfile?.role === 'admin'
+  const canModerate = currentUserIsAdmin || currentUserId === post.author_id
+
+  async function handleDelete(commentId: string) {
+    try {
+      await deleteComment(commentId)
+      toast.success('Komentar je bil izbrisan')
+    } catch {
+      toast.error('Napaka pri brisanju komentarja')
+    }
+  }
 
   useEffect(() => {
     return () => {
@@ -263,8 +275,11 @@ export function PostDetail({
         <CommentsList
           comments={comments}
           postAuthorId={post.author_id}
+          currentUserId={currentUserId ?? null}
+          currentUserIsAdmin={currentUserIsAdmin}
           onRetry={retryComment}
           onReply={(content, parentId) => addComment(content, parentId)}
+          onDelete={canModerate ? handleDelete : undefined}
         />
         {currentUserId && (
           <div className="mt-4 border-t border-border pt-4">

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { insertPostComment } from '../api/clientComments'
+import { insertPostComment, deletePostComment } from '../api/clientComments'
 import type {
   Comment,
   CommentWithStatus,
@@ -59,6 +59,19 @@ function replaceInTree(
     newReplies[replyIdx] = saved
     return { ...root, replies: newReplies }
   })
+}
+
+/** Удаляет комментарий из дерева по ID (корневой или ответ). */
+function removeFromTree(
+  comments: OptimisticComment[],
+  commentId: string
+): OptimisticComment[] {
+  const filtered = comments.filter((c) => c.id !== commentId)
+  if (filtered.length < comments.length) return filtered
+  return comments.map((root) => ({
+    ...root,
+    replies: root.replies.filter((r) => r.id !== commentId),
+  }))
 }
 
 /** Обновляет _status комментария в дереве. */
@@ -146,5 +159,22 @@ export function useComments({
     [postId]
   )
 
-  return { comments, addComment, retryComment }
+  /** Оптимистично удаляет комментарий, затем подтверждает в Supabase. При ошибке откатывает. */
+  const deleteComment = useCallback(async (commentId: string) => {
+    let prevComments: OptimisticComment[] | null = null
+    setComments((prev) => {
+      prevComments = prev
+      return removeFromTree(prev, commentId)
+    })
+    try {
+      await deletePostComment(commentId)
+    } catch (err) {
+      if (prevComments !== null) {
+        setComments(prevComments)
+      }
+      throw err
+    }
+  }, [])
+
+  return { comments, addComment, retryComment, deleteComment }
 }

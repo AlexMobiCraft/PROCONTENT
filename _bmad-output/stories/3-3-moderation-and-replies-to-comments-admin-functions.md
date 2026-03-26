@@ -1,6 +1,6 @@
 # Story 3.3: Модерация и ответы на комментарии (Админ-функции)
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -18,20 +18,20 @@ So that поддерживать здоровую и полезную атмос
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: UI Component: Delete Button & Admin Mode (AC: 1, 2, 3)
-  - [ ] Subtask 1.1: Прокинуть проп `isAdmin` или данные о правах текущего пользователя в `DiscussionNode`.
-  - [ ] Subtask 1.2: Если пользователь `admin` (или автор поста), добавить иконку "Удалить" (Trash) для чужих комментариев (или возможность удалять любые).
-  - [ ] Subtask 1.3: Убедиться, что кнопка "Ответить" (Odgovori) доступна под чужими комментариями для автора/админа. *(Примечание: базовая логика onReply уже есть, нужна лишь проверка условий показа)*.
-- [ ] Task 2: Data Access & State Management (AC: 4)
-  - [ ] Subtask 2.1: Добавить функцию `deletePostComment(commentId: string)` в `src/features/comments/api/clientComments.ts`.
-  - [ ] Subtask 2.2: Обновить хук `useComments` для поддержки функции удаления (оптимистичное удаление из дерева или показ состояния загрузки перед удалением).
-  - [ ] Subtask 2.3: При успешном удалении показывать Toast уведомление и окончательно убирать комментарий из UI.
-- [ ] Task 3: UI Component: Visual Highlight (AC: 5)
-  - [ ] Subtask 3.1: В `DiscussionNode` добавить акцентную рамку или специальный фон (например, `bg-primary/5` или левый border) для комментариев, где `role === 'admin'` или `isAuthor === true`. *(Бейджи уже реализованы, требуется дополнительное визуальное выделение)*.
-- [ ] Task 4: Integration & Security (AC: 4)
-  - [ ] Subtask 4.1: Интегрировать вызов `deletePostComment` в обработчик клика по кнопке "Удалить" (с подтверждением `window.confirm`).
-  - [ ] Subtask 4.2: Убедиться, что RLS `DELETE` политика работает корректно (согласно миграции 019: `auth.uid() = user_id OR admin`). Миграцию БД создавать не нужно.
-  - [ ] Subtask 4.3: Обновить модульные тесты для `DiscussionNode.test.tsx` (проверка кнопки Trash и выделения) и `useComments.test.ts` (проверка удаления).
+- [x] Task 1: UI Component: Delete Button & Admin Mode (AC: 1, 2, 3)
+  - [x] Subtask 1.1: Прокинуть проп `isAdmin` или данные о правах текущего пользователя в `DiscussionNode`.
+  - [x] Subtask 1.2: Если пользователь `admin` (или автор поста), добавить иконку "Удалить" (Trash) для чужих комментариев (или возможность удалять любые).
+  - [x] Subtask 1.3: Убедиться, что кнопка "Ответить" (Odgovori) доступна под чужими комментариями для автора/админа. *(Примечание: базовая логика onReply уже есть, нужна лишь проверка условий показа)*.
+- [x] Task 2: Data Access & State Management (AC: 4)
+  - [x] Subtask 2.1: Добавить функцию `deletePostComment(commentId: string)` в `src/features/comments/api/clientComments.ts`.
+  - [x] Subtask 2.2: Обновить хук `useComments` для поддержки функции удаления (оптимистичное удаление из дерева или показ состояния загрузки перед удалением).
+  - [x] Subtask 2.3: При успешном удалении показывать Toast уведомление и окончательно убирать комментарий из UI.
+- [x] Task 3: UI Component: Visual Highlight (AC: 5)
+  - [x] Subtask 3.1: В `DiscussionNode` добавить акцентную рамку или специальный фон (например, `bg-primary/5` или левый border) для комментариев, где `role === 'admin'` или `isAuthor === true`. *(Бейджи уже реализованы, требуется дополнительное визуальное выделение)*.
+- [x] Task 4: Integration & Security (AC: 4)
+  - [x] Subtask 4.1: Интегрировать вызов `deletePostComment` в обработчик клика по кнопке "Удалить" (с подтверждением `window.confirm`).
+  - [x] Subtask 4.2: Убедиться, что RLS `DELETE` политика работает корректно (согласно миграции 019: `auth.uid() = user_id OR admin`). Миграцию БД создавать не нужно.
+  - [x] Subtask 4.3: Обновить модульные тесты для `DiscussionNode.test.tsx` (проверка кнопки Trash и выделения) и `useComments.test.ts` (проверка удаления).
 
 ## Dev Notes
 
@@ -53,3 +53,35 @@ So that поддерживать здоровую и полезную атмос
 - `src/features/comments/api/clientComments.ts`
 - `supabase/migrations/019_create_post_comments.sql`
 - `_bmad-output/planning-artifacts/epics.md#Epic 3: Community Engagement`
+
+## Dev Agent Record
+
+### Implementation Plan
+
+1. `clientComments.ts` — добавлена `deletePostComment(commentId)`: удаляет через Supabase `.delete().eq('id', commentId)`, опирается на RLS политику из миграции 019.
+2. `useComments.ts` — добавлены: helper `removeFromTree`, функция `deleteComment` с оптимистичным удалением и rollback при ошибке. Паттерн snapshot через `setComments` callback.
+3. `DiscussionNode.tsx` — добавлены пропсы `currentUserId`, `currentUserIsAdmin`, `onDelete`. Trash кнопка (Trash2 из lucide-react) показывается когда `onDelete` передан и `comment.user_id !== currentUserId && !isPending`. `window.confirm` в click handler. Визуальное выделение (`rounded-lg border border-primary/20 bg-primary/5 p-2`) на article когда `showBadge` (admin/author).
+4. `CommentsList.tsx` — прокинуты `currentUserId`, `currentUserIsAdmin`, `onDelete` в `DiscussionNode`.
+5. `PostDetail.tsx` — вычислен `currentUserIsAdmin`, `canModerate`; добавлена `handleDelete` с try/catch + toast.success/error; `onDelete={canModerate ? handleDelete : undefined}`.
+
+### Completion Notes
+
+- Все 5 AC выполнены
+- 794 тестов прошли (регрессий нет)
+- Новые тесты: 11 в `DiscussionNode.test.tsx` + 4 в `useComments.test.ts`
+- Lint: предсуществующая ошибка в `PostDetail.test.tsx:570` (не в scope данной истории)
+- TypeScript: typecheck пройден без ошибок
+
+## File List
+
+- `src/features/comments/api/clientComments.ts` (изменён — добавлена `deletePostComment`)
+- `src/features/comments/hooks/useComments.ts` (изменён — `removeFromTree`, `deleteComment`)
+- `src/features/comments/components/DiscussionNode.tsx` (изменён — Trash кнопка, visual highlight, новые пропсы)
+- `src/features/comments/components/CommentsList.tsx` (изменён — новые пропсы)
+- `src/components/feed/PostDetail.tsx` (изменён — `handleDelete`, `canModerate`)
+- `tests/unit/features/comments/components/DiscussionNode.test.tsx` (изменён — 11 новых тестов)
+- `tests/unit/features/comments/hooks/useComments.test.ts` (изменён — 4 новых теста)
+
+## Change Log
+
+- 2026-03-26: Story 3.3 реализована (модерация комментариев, Trash кнопка, визуальное выделение, оптимистичное удаление, тесты)
