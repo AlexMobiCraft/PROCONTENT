@@ -96,7 +96,8 @@ development_status:
   epic-3: in-progress
   3-1-viewing-discussions-under-a-post: done
   3-2-writing-a-comment-with-instant-response-optimistic-ui: review
-  3-3-moderation-and-replies-to-comments-admin-functions: review
+  # 2026-03-26: CR выявил 3 проблемы (RLS несоответствие, отступы ответов, удаление своих комментов) -> in-progress
+  3-3-moderation-and-replies-to-comments-admin-functions: in-progress
   3-4-automatic-email-notifications-about-new-posts: backlog
   3-5-managing-email-preferences: backlog
   epic-3-retrospective: optional
