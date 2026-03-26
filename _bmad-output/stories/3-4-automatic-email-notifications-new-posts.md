@@ -1,6 +1,6 @@
 # Story 3.4: Автоматические Email-уведомления о новых постах
 
-Status: review
+Status: done
 
 ## Story
 
@@ -86,3 +86,9 @@ So that не пропустить важный контент, даже если
 ## Change Log
 
 - 2026-03-26: Story 3.4 реализована (email-рассылки, Resend batch API, HTML-шаблон, Route Handler с авторизацией, тесты)
+
+
+### Review Findings
+
+- [x] [Review][Defer] Последовательная отправка батчей await resend.batch.send в цикле for может привести к превышению таймаута Vercel (10 секунд) при большом количестве подписчиков. [src/lib/email/index.ts:215] — deferred, pre-existing
+- [x] [Review][Defer] Отсутствие логирования конкретных email при ошибке батча. Логируется только ошибка, что затруднит повторную отправку. [src/lib/email/index.ts:225] — deferred, pre-existing
