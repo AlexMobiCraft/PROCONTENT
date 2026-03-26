@@ -1,6 +1,6 @@
 # Story 3.1: Просмотр обсуждений под постом
 
-Status: done
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -124,4 +124,11 @@ claude-sonnet-4-6
 - [x] [Review][Patch] Функция getInitials возвращает пустую строку для имен, состоящих только из пробелов [src/features/comments/components/DiscussionNode.tsx:11-20]
 - [x] [Review][Defer] Нет пагинации или лимитов при загрузке комментариев [src/features/comments/api/comments.ts] — deferred, pre-existing
 - [x] [Review][Defer] Ошибки при загрузке комментариев в SSR скрываются без логирования (.catch(() => [])) [src/app/(app)/feed/[id]/page.tsx:68] — deferred, pre-existing
+
+#### Review Findings (Round 2)
+
+- [ ] [Review][Patch] Потенциальный React Hydration Mismatch при выводе дат. Для тега `<time>` используется `new Date().toLocaleDateString(...)`. При SSR и гидратации могут быть разные часовые пояса. Нужно добавить `suppressHydrationWarning`. [src/features/comments/components/DiscussionNode.tsx:24,70-75]
+- [ ] [Review][Patch] Поломка верстки из-за длинных слов или ссылок в комментариях. Текст может выходить за пределы контейнера. Нужно добавить класс `break-words`. [src/features/comments/components/DiscussionNode.tsx:79]
+- [ ] [Review][Defer] RLS политика `UPDATE` не требует активной подписки (`public.is_active_subscriber()`). Пользователь с истекшей подпиской сможет редактировать старые комментарии. [supabase/migrations/019_create_post_comments.sql]
+- [ ] [Review][Defer] Тихая потеря комментариев при достижении лимита вложенности `depth = 100`. Комментарий просто не попадет в `replyMap` и исчезнет из UI. [src/features/comments/api/comments.ts:40-42]
 
