@@ -102,6 +102,7 @@ development_status:
   # 2026-03-27: Code Review Round 2 (6 patches) → in-progress
   # 2026-03-27: Round 2 Review Findings resolved (6 patches) → review
   # 2026-03-27: Code Review Round 3 (1 patch: Supabase row limit pagination) → review
+  # 2026-03-27: Round 4 Review Findings resolved (6 patches: stable sort, no extra DB request, DB email filter, type, PAGE_SIZE export, dedup) → review
   3-4-automatic-email-notifications-about-new-posts: review
   3-5-managing-email-preferences: backlog
   epic-3-retrospective: optional

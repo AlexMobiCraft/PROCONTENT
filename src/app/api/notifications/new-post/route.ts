@@ -29,14 +29,22 @@ function createAdminClient() {
   return createSupabaseAdminClient<Database>(url, key)
 }
 
-const PAGE_SIZE = 1000
+export const PAGE_SIZE = 1000
+
+type SubscriberQueryError = {
+  message: string
+  details: string
+  hint: string
+  code: string
+}
 
 /**
  * Загружает всех активных подписчиков постранично, обходя лимит Supabase (1000 строк по умолчанию).
+ * Запрашивает PAGE_SIZE+1 строк для обнаружения следующей страницы без лишнего запроса к БД.
  */
 async function fetchAllSubscribers(supabase: ReturnType<typeof createAdminClient>): Promise<{
   data: Array<{ email: string | null; display_name: string | null }> | null
-  error: { message: string } | null
+  error: SubscriberQueryError | null
 }> {
   const all: Array<{ email: string | null; display_name: string | null }> = []
   let offset = 0
@@ -46,13 +54,16 @@ async function fetchAllSubscribers(supabase: ReturnType<typeof createAdminClient
       .from('profiles')
       .select('email, display_name')
       .eq('subscription_status', 'active')
-      .range(offset, offset + PAGE_SIZE - 1)
+      .not('email', 'is', null)
+      .order('id')
+      .range(offset, offset + PAGE_SIZE)
 
     if (error) return { data: null, error }
     if (!data || data.length === 0) break
 
-    all.push(...data)
-    if (data.length < PAGE_SIZE) break
+    const hasMore = data.length > PAGE_SIZE
+    all.push(...(hasMore ? data.slice(0, PAGE_SIZE) : data))
+    if (!hasMore) break
 
     offset += PAGE_SIZE
   }

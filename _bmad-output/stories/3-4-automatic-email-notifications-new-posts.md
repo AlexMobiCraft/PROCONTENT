@@ -71,8 +71,10 @@ So that не пропустить важный контент, даже если
 - TypeScript: typecheck пройден без ошибок
 - ESLint: новые файлы без ошибок (ошибки только в `everything-claude-code/` — не в scope)
 - Task 4.1 (триггер): реализуется через Supabase Dashboard → Database Webhooks → INSERT on `posts` → URL: `{SITE_URL}/api/notifications/new-post`, Header: `Authorization: Bearer {NOTIFICATION_API_SECRET}`
-- Review Findings: все patch/decision resolved (Round 1: 9, Round 2: 6, Round 3: 1), 4 deferred оставлены
+- Review Findings: все patch/decision resolved (Round 1: 9, Round 2: 6, Round 3: 1, Round 4: 6), 4 deferred оставлены
 - ✅ Resolved review finding [Patch]: Supabase row limit — `fetchAllSubscribers` с пагинацией `.range()`, тесты multi-page и DB error on page 2
+- ✅ Round 4 resolved: стабильная сортировка `.order('id')`, PAGE_SIZE+1 без лишнего запроса, `.not('email', 'is', null)` на уровне БД, тип `SubscriberQueryError`, `PAGE_SIZE` экспортирован, дублирование в story-файле устранено
+- 851 тестов прошли (регрессий нет); Round 4: +3 новых теста (PAGE_SIZE exact boundary, PAGE_SIZE+1 pagination, no duplicate request)
 
 ## File List
 
@@ -83,7 +85,7 @@ So that не пропустить важный контент, даже если
 - `src/lib/email/templates/new-post.ts` (изменён — добавлена `sanitizeHref` для href-атрибутов)
 - `src/app/api/notifications/new-post/route.ts` (изменён — UUID-валидация, SITE_URL-валидация, фильтр null-email, `timingSafeEqual`, предупреждение об отсутствии секрета, логирование в isAuthorized, исправлен URL `/feed/`, пагинация `fetchAllSubscribers`)
 - `tests/unit/lib/email/new-post-template.test.ts` (изменён — добавлены 2 теста на javascript: URL)
-- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2: +4 теста — double slashes, excerpt, timingSafeEqual length; Round 3: +2 теста пагинации, обновлён мок-chain с `.range()`)
+- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2: +4 теста — double slashes, excerpt, timingSafeEqual length; Round 3: +2 теста пагинации, обновлён мок-chain с `.range()`; Round 4: мок-chain расширен `.not`/`.order`, PAGE_SIZE импортируется, +3 теста — exact boundary, PAGE_SIZE+1 pagination)
 - `tests/unit/lib/email/email-service.test.ts` (создан — 6 unit-тестов для sendEmailBatch: partial batch, data=null, empty array)
 
 ## Change Log
@@ -92,29 +94,21 @@ So that не пропустить важный контент, даже если
 - 2026-03-27: Addressed code review findings — 9 items resolved (1 decision + 8 patch)
 - 2026-03-27: Addressed Round 2 review findings — 6 items resolved (6 patch)
 - 2026-03-27: Addressed Round 3 review findings — 1 item resolved (Supabase row limit pagination)
+- 2026-03-27: Addressed Round 4 review findings — 6 items resolved (stable sort, no extra DB request at PAGE_SIZE boundary, DB-level email filter, SubscriberQueryError type, PAGE_SIZE exported, story deduplication)
 
 
 ### Review Findings
 
 - [x] [Review][Decision] Partial send failure возвращает HTTP 200 — Supabase webhook не повторит запрос при частичном сбое (`failed > 0`). Нужно ли возвращать non-2xx? → Resolved: HTTP 200 оставлен намеренно. Non-2xx вызвал бы retry от Supabase webhook и дублирование писем уже отправленным подписчикам. Поведение задокументировано в JSDoc Route Handler.
-
 - [x] [Review][Patch] `'use server'` на утилитарном модуле экспортирует `sendEmailBatch` как публичный Server Action endpoint [src/lib/email/index.ts:1] → Resolved: директива удалена
 - [x] [Review][Patch] Неверный URL поста: `/post/{id}` — реальный роут `/feed/{id}` — все ссылки в письмах ведут на 404 [src/app/api/notifications/new-post/route.ts:70] → Resolved: исправлено на `/feed/${post.id}`
 - [x] [Review][Patch] `NEXT_PUBLIC_SITE_URL` пустая строка даёт относительные URL во всех письмах без ошибки [src/app/api/notifications/new-post/route.ts:56] → Resolved: добавлена валидация — возвращает 500 при пустом/отсутствующем SITE_URL
 - [x] [Review][Patch] Нет фильтрации `email = null/''` перед отправкой в Resend — невалидный адрес может сломать весь батч [src/app/api/notifications/new-post/route.ts:64] → Resolved: добавлен фильтр `validSubscribers` с type guard
 - [x] [Review][Patch] Сравнение API secret через `===` уязвимо к timing attack — нужен `crypto.timingSafeEqual` [src/app/api/notifications/new-post/route.ts:105] → Resolved: используется `crypto.timingSafeEqual` с проверкой длины
 - [x] [Review][Patch] Отсутствие env var `NOTIFICATION_API_SECRET` переключает режим auth без предупреждения в логах [src/app/api/notifications/new-post/route.ts:101] → Resolved: добавлен `console.warn` при отсутствии переменной
--   [x] [Review][Decision] Partial send failure возвращает HTTP 200 — Supabase webhook не повторит запрос при частичном сбое (`failed > 0`). Нужно ли возвращать non-2xx? → Resolved: HTTP 200 оставлен намеренно. Non-2xx вызвал бы retry от Supabase webhook и дублирование писем уже отправленным подписчикам. Поведение задокументировано в JSDoc Route Handler.
-
--   [x] [Review][Patch] `'use server'` на утилитарном модуле экспортирует `sendEmailBatch` как публичный Server Action endpoint [src/lib/email/index.ts:1] → Resolved: директива удалена
--   [x] [Review][Patch] Неверный URL поста: `/post/{id}` — реальный роут `/feed/{id}` — все ссылки в письмах ведут на 404 [src/app/api/notifications/new-post/route.ts:70] → Resolved: исправлено на `/feed/${post.id}`
--   [x] [Review][Patch] `NEXT_PUBLIC_SITE_URL` пустая строка даёт относительные URL во всех письмах без ошибки [src/app/api/notifications/new-post/route.ts:56] → Resolved: добавлена валидация — возвращает 500 при пустом/отсутствующем SITE_URL
--   [x] [Review][Patch] Нет фильтрации `email = null/''` перед отправкой в Resend — невалидный адрес может сломать весь батч [src/app/api/notifications/new-post/route.ts:64] → Resolved: добавлен фильтр `validSubscribers` с type guard
--   [x] [Review][Patch] Сравнение API secret через `===` уязвимо к timing attack — нужен `crypto.timingSafeEqual` [src/app/api/notifications/new-post/route.ts:105] → Resolved: используется `crypto.timingSafeEqual` с проверкой длины
--   [x] [Review][Patch] Отсутствие env var `NOTIFICATION_API_SECRET` переключает режим auth без предупреждения в логах [src/app/api/notifications/new-post/route.ts:101] → Resolved: добавлен `console.warn` при отсутствии переменной
--   [x] [Review][Patch] `post.id` не валидируется как UUID — произвольная строка формирует некорректный URL в письме [src/app/api/notifications/new-post/route.ts:44] → Resolved: добавлена валидация `UUID_REGEX`, возвращает 400 при невалидном id
--   [x] [Review][Patch] `isAuthorized` поглощает все исключения без логирования — ошибки инфраструктуры неотличимы от "не admin" [src/app/api/notifications/new-post/route.ts:107] → Resolved: добавлен `console.error` в catch с деталями ошибки
--   [x] [Review][Patch] `escapeHtml` не блокирует `javascript:` схему в href — неполная защита от open redirect в email [src/lib/email/templates/new-post.ts:50] → Resolved: добавлена функция `sanitizeHref`, разрешает только `http:`/`https:` схемы
+- [x] [Review][Patch] `post.id` не валидируется как UUID — произвольная строка формирует некорректный URL в письме [src/app/api/notifications/new-post/route.ts:44] → Resolved: добавлена валидация `UUID_REGEX`, возвращает 400 при невалидном id
+- [x] [Review][Patch] `isAuthorized` поглощает все исключения без логирования — ошибки инфраструктуры неотличимы от "не admin" [src/app/api/notifications/new-post/route.ts:107] → Resolved: добавлен `console.error` в catch с деталями ошибки
+- [x] [Review][Patch] `escapeHtml` не блокирует `javascript:` схему в href — неполная защита от open redirect в email [src/lib/email/templates/new-post.ts:50] → Resolved: добавлена функция `sanitizeHref`, разрешает только `http:`/`https:` схемы
 
 - [x] [Review][Defer] Нет rate limiting / идемпотентности — at-least-once Supabase webhook может разослать письма дважды по одному посту [src/app/api/notifications/new-post/route.ts:39] — deferred, pre-existing
 - [x] [Review][Defer] Admin auth полагается на user-writable колонку `role` — при некорректном RLS возможна privilege escalation [src/app/api/notifications/new-post/route.ts:113] — deferred, pre-existing
@@ -124,10 +118,10 @@ So that не пропустить важный контент, даже если
 
 #### Round 4 (2026-03-27) - Final Triage
 
-- [ ] [Review][Patch] Отсутствие стабильной сортировки при пагинации [src/app/api/notifications/new-post/route.ts:117]
-- [ ] [Review][Patch] Дублирование секции "Review Findings" в стори-файле [_bmad-output/stories/3-4-automatic-email-notifications-new-posts.md]
-- [ ] [Review][Patch] Лишний запрос к БД при количестве записей кратном PAGE_SIZE [src/app/api/notifications/new-post/route.ts:125]
-- [ ] [Review][Patch] Отсутствие фильтрации email на уровне БД [.not('email', 'is', 'null')] [src/app/api/notifications/new-post/route.ts:118]
-- [ ] [Review][Patch] Деградация типизации ошибок в fetchAllSubscribers [src/app/api/notifications/new-post/route.ts:109]
-- [ ] [Review][Patch] Хардкод PAGE_SIZE=1000 в тестах [tests/unit/app/api/notifications/new-post/route.test.ts]
+- [x] [Review][Patch] Отсутствие стабильной сортировки при пагинации [src/app/api/notifications/new-post/route.ts:117] → Resolved: добавлен `.order('id')` в запрос fetchAllSubscribers
+- [x] [Review][Patch] Дублирование секции "Review Findings" в стори-файле [_bmad-output/stories/3-4-automatic-email-notifications-new-posts.md] → Resolved: дублированный блок с `-   [x]` удалён, секция приведена к единому виду
+- [x] [Review][Patch] Лишний запрос к БД при количестве записей кратном PAGE_SIZE [src/app/api/notifications/new-post/route.ts:125] → Resolved: запрашиваем PAGE_SIZE+1 строк; если вернулось ≤PAGE_SIZE — следующей страницы нет
+- [x] [Review][Patch] Отсутствие фильтрации email на уровне БД [.not('email', 'is', 'null')] [src/app/api/notifications/new-post/route.ts:118] → Resolved: добавлен `.not('email', 'is', null)` в Supabase-запрос
+- [x] [Review][Patch] Деградация типизации ошибок в fetchAllSubscribers [src/app/api/notifications/new-post/route.ts:109] → Resolved: введён тип `SubscriberQueryError` с полями message/details/hint/code
+- [x] [Review][Patch] Хардкод PAGE_SIZE=1000 в тестах [tests/unit/app/api/notifications/new-post/route.test.ts] → Resolved: PAGE_SIZE экспортируется из route.ts и импортируется в тестах
 
