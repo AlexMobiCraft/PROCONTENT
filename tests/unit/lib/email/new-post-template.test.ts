@@ -84,6 +84,46 @@ describe('generateNewPostEmailHtml', () => {
     })
     expect(html).not.toContain('javascript:')
   })
+
+  it('содержит превью текста (excerpt) когда передан', () => {
+    const html = generateNewPostEmailHtml({
+      ...BASE_DATA,
+      postExcerpt: 'Краткий анонс поста для предпросмотра.',
+    })
+    expect(html).toContain('Краткий анонс поста для предпросмотра.')
+  })
+
+  it('не содержит пустого блока excerpt когда не передан', () => {
+    const html = generateNewPostEmailHtml({ ...BASE_DATA, postExcerpt: null })
+    expect(html).not.toContain('font-size:14px;color:#6b5e52')
+  })
+
+  it('экранирует HTML в excerpt', () => {
+    const html = generateNewPostEmailHtml({
+      ...BASE_DATA,
+      postExcerpt: '<b>опасный</b> текст',
+    })
+    expect(html).not.toContain('<b>')
+    expect(html).toContain('&lt;b&gt;')
+  })
+
+  it('разрешает корневые относительные пути /path в href отписки', () => {
+    const html = generateNewPostEmailHtml({
+      ...BASE_DATA,
+      unsubscribeUrl: '/profile',
+    })
+    expect(html).toContain('href="/profile"')
+    expect(html).not.toContain('href="#"')
+  })
+
+  it('блокирует protocol-relative URL // в href', () => {
+    const html = generateNewPostEmailHtml({
+      ...BASE_DATA,
+      postUrl: '//evil.com/steal',
+    })
+    expect(html).not.toContain('//evil.com')
+    expect(html).toContain('href="#"')
+  })
 })
 
 describe('generateNewPostEmailText', () => {
@@ -110,5 +150,22 @@ describe('generateNewPostEmailText', () => {
   it('содержит ссылку на отписку', () => {
     const text = generateNewPostEmailText(BASE_DATA)
     expect(text).toContain('https://procontent.si/profile')
+  })
+
+  it('содержит excerpt в тексте когда передан', () => {
+    const text = generateNewPostEmailText({
+      ...BASE_DATA,
+      postExcerpt: 'Краткий анонс для текстовой версии.',
+    })
+    expect(text).toContain('Краткий анонс для текстовой версии.')
+  })
+
+  it('не добавляет лишней строки когда excerpt отсутствует', () => {
+    const textWithout = generateNewPostEmailText({ ...BASE_DATA, postExcerpt: undefined })
+    const textWith = generateNewPostEmailText({
+      ...BASE_DATA,
+      postExcerpt: 'Текст анонса',
+    })
+    expect(textWith.length).toBeGreaterThan(textWithout.length)
   })
 })

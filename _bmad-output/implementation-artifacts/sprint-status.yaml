@@ -1,4 +1,4 @@
-﻿# generated: 2026-03-26T05:06:00+01:00
+# generated: 2026-03-26T05:06:00+01:00
 # project: PROCONTENT
 # project_key: NOKEY
 # tracking_system: file-system
@@ -40,7 +40,7 @@
 #   - Story 4.1 обновлена: мультимедиа загрузка (до 10 файлов, обложка, порядок)
 #   - Story 5.1 обновлена: группировка медиагрупп, Exponential Backoff, post_media
 
-generated: 2026-03-26T08:21:00+01:00
+generated: 2026-03-27T10:10:00+01:00
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -99,6 +99,8 @@ development_status:
   # 2026-03-26: CR выявил 3 проблемы (RLS несоответствие, отступы ответов, удаление своих комментов) -> in-progress
   3-3-moderation-and-replies-to-comments-admin-functions: done
   # 2026-03-27: Review Findings resolved (9 items: 1 decision + 8 patch) → review
+  # 2026-03-27: Code Review Round 2 (6 patches) → in-progress
+  # 2026-03-27: Round 2 Review Findings resolved (6 patches) → review
   3-4-automatic-email-notifications-about-new-posts: review
   3-5-managing-email-preferences: backlog
   epic-3-retrospective: optional

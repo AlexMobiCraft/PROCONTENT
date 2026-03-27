@@ -1,13 +1,18 @@
 export interface NewPostEmailData {
   postTitle: string
   postUrl: string
+  postExcerpt?: string | null
   recipientName?: string | null
   unsubscribeUrl: string
 }
 
 export function generateNewPostEmailHtml(data: NewPostEmailData): string {
-  const { postTitle, postUrl, recipientName, unsubscribeUrl } = data
+  const { postTitle, postUrl, postExcerpt, recipientName, unsubscribeUrl } = data
   const greeting = recipientName ? `Pozdravljeni, ${recipientName}!` : 'Pozdravljeni!'
+  const excerptBlock =
+    postExcerpt
+      ? `<p style="margin:0 0 24px;font-size:14px;color:#6b5e52;line-height:1.6;">${escapeHtml(postExcerpt)}</p>`
+      : ''
 
   return `<!DOCTYPE html>
 <html lang="sl">
@@ -39,13 +44,16 @@ export function generateNewPostEmailHtml(data: NewPostEmailData): string {
               </p>
 
               <!-- Post title block -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:${postExcerpt ? '16px' : '28px'};">
                 <tr>
                   <td style="background-color:#faf8f5;border-left:4px solid #c97d5b;border-radius:4px;padding:16px 20px;">
                     <p style="margin:0;font-size:18px;font-weight:600;color:#3d2e22;line-height:1.4;">${escapeHtml(postTitle)}</p>
                   </td>
                 </tr>
               </table>
+
+              <!-- Excerpt / preview text -->
+              ${excerptBlock}
 
               <!-- CTA button -->
               <table cellpadding="0" cellspacing="0">
@@ -81,15 +89,16 @@ export function generateNewPostEmailHtml(data: NewPostEmailData): string {
 }
 
 export function generateNewPostEmailText(data: NewPostEmailData): string {
-  const { postTitle, postUrl, recipientName, unsubscribeUrl } = data
+  const { postTitle, postUrl, postExcerpt, recipientName, unsubscribeUrl } = data
   const greeting = recipientName ? `Pozdravljeni, ${recipientName}!` : 'Pozdravljeni!'
+  const excerptSection = postExcerpt ? `\n${postExcerpt}\n` : ''
 
   return `${greeting}
 
 Objavili smo novo vsebino:
 
 ${postTitle}
-
+${excerptSection}
 Preberite objavo: ${postUrl}
 
 ---
@@ -108,12 +117,18 @@ function escapeHtml(str: string): string {
 
 /**
  * Sanitizes a URL for use in href attributes.
- * Only allows http: and https: schemes to prevent javascript: injection.
+ * Allows http:, https:, and root-relative paths (/path).
+ * Blocks javascript: and protocol-relative (//host) URLs.
  */
 function sanitizeHref(url: string): string {
-  const lower = url.trim().toLowerCase()
-  if (!lower.startsWith('http://') && !lower.startsWith('https://')) {
-    return '#'
+  const trimmed = url.trim()
+  const lower = trimmed.toLowerCase()
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    return escapeHtml(trimmed)
   }
-  return escapeHtml(url)
+  // Allow root-relative paths (/path) but not protocol-relative (//host)
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    return escapeHtml(trimmed)
+  }
+  return '#'
 }

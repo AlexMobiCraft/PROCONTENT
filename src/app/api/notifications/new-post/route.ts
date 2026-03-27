@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { timingSafeEqual } from 'crypto'
+import { timingSafeEqual, createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { sendEmailBatch } from '@/lib/email'
@@ -13,6 +13,7 @@ import type { Database } from '@/types/supabase'
 interface PostPayload {
   id: string
   title: string
+  excerpt?: string
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -96,8 +97,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // --- Формирование писем ---
-  const postUrl = `${siteUrl}/feed/${post.id}`
-  const unsubscribeUrl = `${siteUrl}/profile`
+  const normalizedSiteUrl = siteUrl.replace(/\/$/, '')
+  const postUrl = `${normalizedSiteUrl}/feed/${post.id}`
+  const unsubscribeUrl = `${normalizedSiteUrl}/profile`
 
   const messages = validSubscribers.map((s) => ({
     to: s.email,
@@ -105,12 +107,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     html: generateNewPostEmailHtml({
       postTitle: post.title,
       postUrl,
+      postExcerpt: post.excerpt,
       recipientName: s.display_name,
       unsubscribeUrl,
     }),
     text: generateNewPostEmailText({
       postTitle: post.title,
       postUrl,
+      postExcerpt: post.excerpt,
       recipientName: s.display_name,
       unsubscribeUrl,
     }),
@@ -134,9 +138,10 @@ async function isAuthorized(request: NextRequest): Promise<boolean> {
   if (apiSecret) {
     const authHeader = request.headers.get('Authorization') ?? ''
     const expected = `Bearer ${apiSecret}`
-    const a = Buffer.from(authHeader)
-    const b = Buffer.from(expected)
-    if (a.length === b.length && timingSafeEqual(a, b)) {
+    // Hash both values to avoid leaking the secret length via timing
+    const a = createHash('sha256').update(authHeader).digest()
+    const b = createHash('sha256').update(expected).digest()
+    if (timingSafeEqual(a, b)) {
       return true
     }
   } else {

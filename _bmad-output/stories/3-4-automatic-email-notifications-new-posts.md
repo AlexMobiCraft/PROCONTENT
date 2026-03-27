@@ -66,8 +66,8 @@ So that не пропустить важный контент, даже если
 ### Completion Notes
 
 - Все 5 AC выполнены: (1) фильтрация по `subscription_status = 'active'`, (2) триггер через Supabase DB Webhook или admin-вызов, (3) отправка через Resend, (4) письмо содержит заголовок + ссылку, (5) batch API — доставка в пределах Vercel timeout
-- 831 тест прошли (регрессий нет), +6 новых тестов после исправления review findings
-- Итого тестов: 16 в `new-post-template.test.ts` + 19 в `route.test.ts` = 35
+- 848 тестов прошли (регрессий нет); Round 2: +17 новых тестов
+- Итого тестов: 23 в `new-post-template.test.ts` + 23 в `route.test.ts` + 6 в `email-service.test.ts` = 52 в scope Story 3.4
 - TypeScript: typecheck пройден без ошибок
 - ESLint: новые файлы без ошибок (ошибки только в `everything-claude-code/` — не в scope)
 - Task 4.1 (триггер): реализуется через Supabase Dashboard → Database Webhooks → INSERT on `posts` → URL: `{SITE_URL}/api/notifications/new-post`, Header: `Authorization: Bearer {NOTIFICATION_API_SECRET}`
@@ -82,12 +82,14 @@ So that не пропустить важный контент, даже если
 - `src/lib/email/templates/new-post.ts` (изменён — добавлена `sanitizeHref` для href-атрибутов)
 - `src/app/api/notifications/new-post/route.ts` (изменён — UUID-валидация, SITE_URL-валидация, фильтр null-email, `timingSafeEqual`, предупреждение об отсутствии секрета, логирование в isAuthorized, исправлен URL `/feed/`)
 - `tests/unit/lib/email/new-post-template.test.ts` (изменён — добавлены 2 теста на javascript: URL)
-- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста)
+- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2: +4 теста — double slashes, excerpt, timingSafeEqual length)
+- `tests/unit/lib/email/email-service.test.ts` (создан — 6 unit-тестов для sendEmailBatch: partial batch, data=null, empty array)
 
 ## Change Log
 
 - 2026-03-26: Story 3.4 реализована (email-рассылки, Resend batch API, HTML-шаблон, Route Handler с авторизацией, тесты)
 - 2026-03-27: Addressed code review findings — 9 items resolved (1 decision + 8 patch)
+- 2026-03-27: Addressed Round 2 review findings — 6 items resolved (6 patch)
 
 
 ### Review Findings
@@ -100,10 +102,31 @@ So that не пропустить важный контент, даже если
 - [x] [Review][Patch] Нет фильтрации `email = null/''` перед отправкой в Resend — невалидный адрес может сломать весь батч [src/app/api/notifications/new-post/route.ts:64] → Resolved: добавлен фильтр `validSubscribers` с type guard
 - [x] [Review][Patch] Сравнение API secret через `===` уязвимо к timing attack — нужен `crypto.timingSafeEqual` [src/app/api/notifications/new-post/route.ts:105] → Resolved: используется `crypto.timingSafeEqual` с проверкой длины
 - [x] [Review][Patch] Отсутствие env var `NOTIFICATION_API_SECRET` переключает режим auth без предупреждения в логах [src/app/api/notifications/new-post/route.ts:101] → Resolved: добавлен `console.warn` при отсутствии переменной
-- [x] [Review][Patch] `post.id` не валидируется как UUID — произвольная строка формирует некорректный URL в письме [src/app/api/notifications/new-post/route.ts:44] → Resolved: добавлена валидация `UUID_REGEX`, возвращает 400 при невалидном id
-- [x] [Review][Patch] `isAuthorized` поглощает все исключения без логирования — ошибки инфраструктуры неотличимы от "не admin" [src/app/api/notifications/new-post/route.ts:107] → Resolved: добавлен `console.error` в catch с деталями ошибки
-- [x] [Review][Patch] `escapeHtml` не блокирует `javascript:` схему в href — неполная защита от open redirect в email [src/lib/email/templates/new-post.ts:50] → Resolved: добавлена функция `sanitizeHref`, разрешает только `http:`/`https:` схемы
+-   [x] [Review][Decision] Partial send failure возвращает HTTP 200 — Supabase webhook не повторит запрос при частичном сбое (`failed > 0`). Нужно ли возвращать non-2xx? → Resolved: HTTP 200 оставлен намеренно. Non-2xx вызвал бы retry от Supabase webhook и дублирование писем уже отправленным подписчикам. Поведение задокументировано в JSDoc Route Handler.
 
-- [x] [Review][Defer] Нет rate limiting / идемпотентности — at-least-once Supabase webhook может разослать письма дважды по одному посту [src/app/api/notifications/new-post/route.ts:39] — deferred
-- [x] [Review][Defer] Admin auth полагается на user-writable колонку `role` — при некорректном RLS возможна privilege escalation [src/app/api/notifications/new-post/route.ts:113] — deferred
-- [x] [Review][Defer] Последовательные batch sends могут превысить таймаут Vercel при >100 подписчиках [src/lib/email/index.ts:48] — deferred, pre-existing
+-   [x] [Review][Patch] `'use server'` на утилитарном модуле экспортирует `sendEmailBatch` как публичный Server Action endpoint [src/lib/email/index.ts:1] → Resolved: директива удалена
+-   [x] [Review][Patch] Неверный URL поста: `/post/{id}` — реальный роут `/feed/{id}` — все ссылки в письмах ведут на 404 [src/app/api/notifications/new-post/route.ts:70] → Resolved: исправлено на `/feed/${post.id}`
+-   [x] [Review][Patch] `NEXT_PUBLIC_SITE_URL` пустая строка даёт относительные URL во всех письмах без ошибки [src/app/api/notifications/new-post/route.ts:56] → Resolved: добавлена валидация — возвращает 500 при пустом/отсутствующем SITE_URL
+-   [x] [Review][Patch] Нет фильтрации `email = null/''` перед отправкой в Resend — невалидный адрес может сломать весь батч [src/app/api/notifications/new-post/route.ts:64] → Resolved: добавлен фильтр `validSubscribers` с type guard
+-   [x] [Review][Patch] Сравнение API secret через `===` уязвимо к timing attack — нужен `crypto.timingSafeEqual` [src/app/api/notifications/new-post/route.ts:105] → Resolved: используется `crypto.timingSafeEqual` с проверкой длины
+-   [x] [Review][Patch] Отсутствие env var `NOTIFICATION_API_SECRET` переключает режим auth без предупреждения в логах [src/app/api/notifications/new-post/route.ts:101] → Resolved: добавлен `console.warn` при отсутствии переменной
+-   [x] [Review][Patch] `post.id` не валидируется как UUID — произвольная строка формирует некорректный URL в письме [src/app/api/notifications/new-post/route.ts:44] → Resolved: добавлена валидация `UUID_REGEX`, возвращает 400 при невалидном id
+-   [x] [Review][Patch] `isAuthorized` поглощает все исключения без логирования — ошибки инфраструктуры неотличимы от "не admin" [src/app/api/notifications/new-post/route.ts:107] → Resolved: добавлен `console.error` в catch с деталями ошибки
+-   [x] [Review][Patch] `escapeHtml` не блокирует `javascript:` схему в href — неполная защита от open redirect в email [src/lib/email/templates/new-post.ts:50] → Resolved: добавлена функция `sanitizeHref`, разрешает только `http:`/`https:` схемы
+
+-   [x] [Review][Defer] Нет rate limiting / идемпотентности — at-least-once Supabase webhook может разослать письма дважды по одному посту [src/app/api/notifications/new-post/route.ts:39] — deferred
+-   [x] [Review][Defer] Admin auth полагается на user-writable колонку `role` — при некорректном RLS возможна privilege escalation [src/app/api/notifications/new-post/route.ts:113] — deferred
+-   [x] [Review][Defer] Последовательные batch sends могут превысить таймаут Vercel при >100 подписчиках [src/lib/email/index.ts:48] — deferred, pre-existing
+
+#### Round 2 (2026-03-27)
+
+-   [x] [Review][Decision] Хардкод словенского языка в шаблонах — Resolved: Словенский язык выбран намеренно (ориентация на рынок Словении при русскоязычной коммуникации команды).
+
+-   [x] [Review][Patch] `timingSafeEqual` length leak [src/app/api/notifications/new-post/route.ts:171] → Resolved: заменено на `createHash('sha256')` для обоих значений — хэши всегда 32 байта, длина секрета не утекает
+-   [x] [Review][Patch] Missing "Excerpt" (превью текста) in email [src/app/api/notifications/new-post/route.ts:45] → Resolved: добавлено поле `excerpt?: string` в `PostPayload`, `postExcerpt?: string` в `NewPostEmailData`, блок превью в HTML и текстовую версию
+-   [x] [Review][Patch] Potential double slashes in `postUrl` [src/app/api/notifications/new-post/route.ts:131] → Resolved: добавлен `siteUrl.replace(/\/$/, '')` перед формированием URL
+-   [x] [Review][Patch] `sanitizeHref` blocks `/` relative paths [src/lib/email/templates/new-post.ts:394] → Resolved: `sanitizeHref` теперь разрешает корневые `/path` пути, блокирует только `//host` (protocol-relative)
+-   [x] [Review][Patch] Partial Batch Send success vs failure [src/lib/email/index.ts:255] → Resolved: `failed += chunk.length - succeededCount` при частичном успехе батча
+-   [x] [Review][Patch] Accuracy of `sent` count when `data` is missing [src/lib/email/index.ts:269] → Resolved: `sent += data?.data?.length ?? 0` (не `chunk.length` как fallback)
+
+-   [x] [Review][Defer] Unsubscribe link is not "one-click" [src/app/api/notifications/new-post/route.ts:132] — deferred, Story 3.5

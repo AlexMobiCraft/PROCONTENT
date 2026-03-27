@@ -59,7 +59,9 @@ export async function sendEmailBatch(messages: EmailMessage[]): Promise<BatchSen
       console.error('[email] Batch send error:', error)
       failed += chunk.length
     } else {
-      sent += data?.data?.length ?? chunk.length
+      const succeededCount = data?.data?.length ?? 0
+      sent += succeededCount
+      failed += chunk.length - succeededCount
     }
   }
 

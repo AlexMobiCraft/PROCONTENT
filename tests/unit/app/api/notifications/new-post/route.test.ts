@@ -282,5 +282,50 @@ describe('POST /api/notifications/new-post', () => {
 
       expect(res.status).toBe(500)
     })
+
+    it('не создаёт двойной слэш когда SITE_URL заканчивается на /', async () => {
+      vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://procontent.si/')
+
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ html: string }>]
+      expect(messages[0].html).not.toContain('//feed/')
+      expect(messages[0].html).toContain('/feed/')
+    })
+
+    it('передаёт excerpt в сгенерированное письмо', async () => {
+      const postWithExcerpt = { ...VALID_POST, excerpt: 'Краткий анонс поста.' }
+      const req = makeRequest(postWithExcerpt, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ html: string; text: string }>]
+      expect(messages[0].html).toContain('Краткий анонс поста.')
+      expect(messages[0].text).toContain('Краткий анонс поста.')
+    })
+  })
+
+  describe('Authorization security', () => {
+    it('отклоняет secret той же длины, но другого значения', async () => {
+      // Проверяем что hash-based timingSafeEqual правильно отклоняет matching-length secrets
+      const sameLength = 'x'.repeat(API_SECRET.length)
+      mockCreateServerClient.mockResolvedValue({
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+      })
+
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${sameLength}` })
+      const res = await POST(req)
+      expect(res.status).toBe(401)
+    })
+
+    it('отклоняет secret неверной длины', async () => {
+      mockCreateServerClient.mockResolvedValue({
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+      })
+
+      const req = makeRequest(VALID_POST, { Authorization: 'Bearer short' })
+      const res = await POST(req)
+      expect(res.status).toBe(401)
+    })
   })
 })
