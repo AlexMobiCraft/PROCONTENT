@@ -51,7 +51,7 @@ export function generateNewPostEmailHtml(data: NewPostEmailData): string {
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="background-color:#c97d5b;border-radius:8px;">
-                    <a href="${escapeHtml(postUrl)}"
+                    <a href="${sanitizeHref(postUrl)}"
                        style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
                       Preberi objavo →
                     </a>
@@ -67,7 +67,7 @@ export function generateNewPostEmailHtml(data: NewPostEmailData): string {
               <p style="margin:0;font-size:12px;color:#9b8e83;line-height:1.6;">
                 Prejemate to sporočilo, ker ste aktivni član skupnosti PROCONTENT.<br />
                 Če ne želite prejemati teh obvestil, obiščite
-                <a href="${escapeHtml(unsubscribeUrl)}" style="color:#c97d5b;text-decoration:underline;">nastavitve e-pošte</a>.
+                <a href="${sanitizeHref(unsubscribeUrl)}" style="color:#c97d5b;text-decoration:underline;">nastavitve e-pošte</a>.
               </p>
             </td>
           </tr>
@@ -104,4 +104,16 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+/**
+ * Sanitizes a URL for use in href attributes.
+ * Only allows http: and https: schemes to prevent javascript: injection.
+ */
+function sanitizeHref(url: string): string {
+  const lower = url.trim().toLowerCase()
+  if (!lower.startsWith('http://') && !lower.startsWith('https://')) {
+    return '#'
+  }
+  return escapeHtml(url)
 }

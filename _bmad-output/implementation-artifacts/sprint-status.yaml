@@ -95,10 +95,11 @@ development_status:
   # ─── EPIC 3: Community Engagement ──────────────────────────────────────────
   epic-3: in-progress
   3-1-viewing-discussions-under-a-post: done
-  3-2-writing-a-comment-with-instant-response-optimistic-ui: review
+  3-2-writing-a-comment-with-instant-response-optimistic-ui: done
   # 2026-03-26: CR выявил 3 проблемы (RLS несоответствие, отступы ответов, удаление своих комментов) -> in-progress
-  3-3-moderation-and-replies-to-comments-admin-functions: in-progress
-  3-4-automatic-email-notifications-about-new-posts: in-progress
+  3-3-moderation-and-replies-to-comments-admin-functions: done
+  # 2026-03-27: Review Findings resolved (9 items: 1 decision + 8 patch) → review
+  3-4-automatic-email-notifications-about-new-posts: review
   3-5-managing-email-preferences: backlog
   epic-3-retrospective: optional
 

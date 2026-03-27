@@ -67,6 +67,23 @@ describe('generateNewPostEmailHtml', () => {
     const html = generateNewPostEmailHtml(BASE_DATA)
     expect(html).toContain('Preberi objavo')
   })
+
+  it('блокирует javascript: URL в href кнопки поста', () => {
+    const html = generateNewPostEmailHtml({
+      ...BASE_DATA,
+      postUrl: 'javascript:alert("xss")',
+    })
+    expect(html).not.toContain('javascript:')
+    expect(html).toContain('href="#"')
+  })
+
+  it('блокирует javascript: URL в href ссылки отписки', () => {
+    const html = generateNewPostEmailHtml({
+      ...BASE_DATA,
+      unsubscribeUrl: 'javascript:void(0)',
+    })
+    expect(html).not.toContain('javascript:')
+  })
 })
 
 describe('generateNewPostEmailText', () => {

@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { sendEmailBatch } from '@/lib/email'
@@ -13,6 +14,8 @@ interface PostPayload {
   id: string
   title: string
 }
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -36,6 +39,10 @@ function createAdminClient() {
  *
  * Body (JSON):
  *   { "id": "post-uuid", "title": "Заголовок поста" }
+ *
+ * Note: partial send failures intentionally return HTTP 200.
+ * Returning non-2xx would cause Supabase webhook retries and duplicate emails
+ * to subscribers who were already successfully notified.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // --- Авторизация ---
@@ -56,6 +63,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Missing required fields: id, title' }, { status: 400 })
   }
 
+  if (!UUID_REGEX.test(post.id)) {
+    return NextResponse.json({ error: 'Invalid post id: must be a valid UUID' }, { status: 400 })
+  }
+
+  // --- Валидация SITE_URL ---
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  if (!siteUrl) {
+    console.error('[notifications] NEXT_PUBLIC_SITE_URL is not configured')
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+  }
+
   // --- Получение активных подписчиков ---
   const supabase = createAdminClient()
   const { data: subscribers, error: dbError } = await supabase
@@ -68,16 +86,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Failed to fetch subscribers' }, { status: 500 })
   }
 
-  if (!subscribers || subscribers.length === 0) {
+  // Фильтруем подписчиков без валидного email
+  const validSubscribers = (subscribers ?? []).filter(
+    (s): s is typeof s & { email: string } => Boolean(s.email && s.email.trim() !== '')
+  )
+
+  if (validSubscribers.length === 0) {
     return NextResponse.json({ sent: 0, message: 'No active subscribers' })
   }
 
   // --- Формирование писем ---
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? ''
-  const postUrl = `${siteUrl}/post/${post.id}`
+  const postUrl = `${siteUrl}/feed/${post.id}`
   const unsubscribeUrl = `${siteUrl}/profile`
 
-  const messages = subscribers.map((s) => ({
+  const messages = validSubscribers.map((s) => ({
     to: s.email,
     subject: `Nova objava: ${post.title}`,
     html: generateNewPostEmailHtml({
@@ -110,10 +132,17 @@ async function isAuthorized(request: NextRequest): Promise<boolean> {
   // 1. Проверка секретного ключа (для Supabase Database Webhook)
   const apiSecret = process.env.NOTIFICATION_API_SECRET
   if (apiSecret) {
-    const authHeader = request.headers.get('Authorization')
-    if (authHeader === `Bearer ${apiSecret}`) {
+    const authHeader = request.headers.get('Authorization') ?? ''
+    const expected = `Bearer ${apiSecret}`
+    const a = Buffer.from(authHeader)
+    const b = Buffer.from(expected)
+    if (a.length === b.length && timingSafeEqual(a, b)) {
       return true
     }
+  } else {
+    console.warn(
+      '[notifications] NOTIFICATION_API_SECRET is not set — only admin session auth is available'
+    )
   }
 
   // 2. Проверка сессии admin
@@ -133,7 +162,8 @@ async function isAuthorized(request: NextRequest): Promise<boolean> {
       .single()
 
     return profile?.role === 'admin'
-  } catch {
+  } catch (err) {
+    console.error('[notifications] isAuthorized error:', err instanceof Error ? err.message : err)
     return false
   }
 }

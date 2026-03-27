@@ -1,5 +1,3 @@
-'use server'
-
 import { Resend } from 'resend'
 
 let _resend: Resend | null = null

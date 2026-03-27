@@ -47,7 +47,8 @@ function makeRequest(body: unknown, headers: Record<string, string> = {}): NextR
   })
 }
 
-const VALID_POST = { id: 'post-123', title: 'Test Post Title' }
+const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000'
+const VALID_POST = { id: VALID_UUID, title: 'Test Post Title' }
 const API_SECRET = 'test-secret-key'
 
 const ACTIVE_SUBSCRIBERS = [
@@ -165,9 +166,27 @@ describe('POST /api/notifications/new-post', () => {
     })
 
     it('возвращает 400 при отсутствии title', async () => {
-      const req = makeRequest({ id: 'post-123' }, { Authorization: `Bearer ${API_SECRET}` })
+      const req = makeRequest({ id: VALID_UUID }, { Authorization: `Bearer ${API_SECRET}` })
       const res = await POST(req)
       expect(res.status).toBe(400)
+    })
+
+    it('возвращает 400 при невалидном UUID в id', async () => {
+      const req = makeRequest(
+        { id: 'not-a-uuid', title: 'Test' },
+        { Authorization: `Bearer ${API_SECRET}` }
+      )
+      const res = await POST(req)
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toContain('UUID')
+    })
+
+    it('возвращает 500 при отсутствии NEXT_PUBLIC_SITE_URL', async () => {
+      vi.stubEnv('NEXT_PUBLIC_SITE_URL', '')
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      const res = await POST(req)
+      expect(res.status).toBe(500)
     })
   })
 
@@ -207,6 +226,15 @@ describe('POST /api/notifications/new-post', () => {
       expect(messages[0].html).toContain('Ana')
     })
 
+    it('формирует URL поста через /feed/', async () => {
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ html: string }>]
+      expect(messages[0].html).toContain(`/feed/${VALID_UUID}`)
+      expect(messages[0].html).not.toContain(`/post/${VALID_UUID}`)
+    })
+
     it('возвращает { sent: 0 } при отсутствии активных подписчиков', async () => {
       mockAdminEq.mockResolvedValue({ data: [], error: null })
 
@@ -217,6 +245,24 @@ describe('POST /api/notifications/new-post', () => {
       expect(res.status).toBe(200)
       expect(body.sent).toBe(0)
       expect(mockSendEmailBatch).not.toHaveBeenCalled()
+    })
+
+    it('фильтрует подписчиков с null/пустым email', async () => {
+      mockAdminEq.mockResolvedValue({
+        data: [
+          { email: 'valid@example.com', display_name: 'Valid' },
+          { email: null, display_name: 'No Email' },
+          { email: '', display_name: 'Empty Email' },
+        ],
+        error: null,
+      })
+      mockSendEmailBatch.mockResolvedValue({ sent: 1, failed: 0 })
+
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [unknown[]]
+      expect(messages).toHaveLength(1)
     })
 
     it('возвращает 500 при ошибке запроса к БД', async () => {
