@@ -53,7 +53,7 @@ async function fetchAllSubscribers(supabase: ReturnType<typeof createAdminClient
     const { data, error } = await supabase
       .from('profiles')
       .select('email, display_name')
-      .eq('subscription_status', 'active')
+      .in('subscription_status', ['active', 'trialing'])
       .not('email', 'is', null)
       .order('id')
       .range(offset, offset + PAGE_SIZE)
@@ -95,9 +95,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // --- Парсинг тела ---
+  // Поддерживаем два формата:
+  //   1. Прямой: { id, title, excerpt? }  (ручной вызов / Server Action)
+  //   2. Supabase DB Webhook: { type: "INSERT", table: "posts", record: { id, title, ... } }
   let post: PostPayload
   try {
-    post = await request.json()
+    const rawBody = await request.json()
+    post = rawBody?.record ?? rawBody
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
@@ -126,9 +130,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Failed to fetch subscribers' }, { status: 500 })
   }
 
-  // Фильтруем подписчиков без валидного email
+  // Фильтруем подписчиков без валидного email (null, пустой, без символа @)
   const validSubscribers = (subscribers ?? []).filter(
-    (s): s is typeof s & { email: string } => Boolean(s.email && s.email.trim() !== '')
+    (s): s is typeof s & { email: string } =>
+      Boolean(s.email && s.email.trim() !== '' && s.email.includes('@'))
   )
 
   if (validSubscribers.length === 0) {

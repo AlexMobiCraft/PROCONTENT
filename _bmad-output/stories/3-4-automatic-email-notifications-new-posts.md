@@ -1,6 +1,6 @@
 # Story 3.4: Автоматические Email-уведомления о новых постах
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -71,10 +71,11 @@ So that не пропустить важный контент, даже если
 - TypeScript: typecheck пройден без ошибок
 - ESLint: новые файлы без ошибок (ошибки только в `everything-claude-code/` — не в scope)
 - Task 4.1 (триггер): реализуется через Supabase Dashboard → Database Webhooks → INSERT on `posts` → URL: `{SITE_URL}/api/notifications/new-post`, Header: `Authorization: Bearer {NOTIFICATION_API_SECRET}`
-- Review Findings: все patch/decision resolved (Round 1: 9, Round 2: 6, Round 3: 1, Round 4: 6), 4 deferred оставлены
+- Review Findings: все patch/decision resolved (Round 1: 9, Round 2: 6, Round 3: 1, Round 4: 6, Round 5: 3), 4 deferred оставлены
 - ✅ Resolved review finding [Patch]: Supabase row limit — `fetchAllSubscribers` с пагинацией `.range()`, тесты multi-page и DB error on page 2
 - ✅ Round 4 resolved: стабильная сортировка `.order('id')`, PAGE_SIZE+1 без лишнего запроса, `.not('email', 'is', null)` на уровне БД, тип `SubscriberQueryError`, `PAGE_SIZE` экспортирован, дублирование в story-файле устранено
-- 851 тестов прошли (регрессий нет); Round 4: +3 новых теста (PAGE_SIZE exact boundary, PAGE_SIZE+1 pagination, no duplicate request)
+- ✅ Round 5 resolved: trialing включены в рассылку (`.in()`), Supabase Webhook payload `record` wrapper, email-валидация `@`
+- 855 тестов прошли (регрессий нет); Round 5: +4 новых теста (webhook format ×2, trialing, email без @)
 
 ## File List
 
@@ -85,7 +86,7 @@ So that не пропустить важный контент, даже если
 - `src/lib/email/templates/new-post.ts` (изменён — добавлена `sanitizeHref` для href-атрибутов)
 - `src/app/api/notifications/new-post/route.ts` (изменён — UUID-валидация, SITE_URL-валидация, фильтр null-email, `timingSafeEqual`, предупреждение об отсутствии секрета, логирование в isAuthorized, исправлен URL `/feed/`, пагинация `fetchAllSubscribers`)
 - `tests/unit/lib/email/new-post-template.test.ts` (изменён — добавлены 2 теста на javascript: URL)
-- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2: +4 теста — double slashes, excerpt, timingSafeEqual length; Round 3: +2 теста пагинации, обновлён мок-chain с `.range()`; Round 4: мок-chain расширен `.not`/`.order`, PAGE_SIZE импортируется, +3 теста — exact boundary, PAGE_SIZE+1 pagination)
+- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2: +4 теста — double slashes, excerpt, timingSafeEqual length; Round 3: +2 теста пагинации, обновлён мок-chain с `.range()`; Round 4: мок-chain расширен `.not`/`.order`, PAGE_SIZE импортируется, +3 теста — exact boundary, PAGE_SIZE+1 pagination; Round 5: мок `eq` → `in`, +4 теста — webhook format ×2, trialing, email @)
 - `tests/unit/lib/email/email-service.test.ts` (создан — 6 unit-тестов для sendEmailBatch: partial batch, data=null, empty array)
 
 ## Change Log
@@ -95,6 +96,7 @@ So that не пропустить важный контент, даже если
 - 2026-03-27: Addressed Round 2 review findings — 6 items resolved (6 patch)
 - 2026-03-27: Addressed Round 3 review findings — 1 item resolved (Supabase row limit pagination)
 - 2026-03-27: Addressed Round 4 review findings — 6 items resolved (stable sort, no extra DB request at PAGE_SIZE boundary, DB-level email filter, SubscriberQueryError type, PAGE_SIZE exported, story deduplication)
+- 2026-03-27: Addressed Round 5 review findings — 3 items resolved (trialing subscribers included, Supabase Webhook record wrapper, email @ validation)
 
 
 ### Review Findings
@@ -127,7 +129,7 @@ So that не пропустить важный контент, даже если
 
 #### Round 5 (2026-03-27) - Full 3-Layer Review
 
-- [ ] [Review][Patch] `trialing` подписчики исключены из рассылки — заменить `.eq('subscription_status', 'active')` на `.in('subscription_status', ['active', 'trialing'])`. Решение: включить trialing, т.к. trial-пользователи имеют полный доступ к контенту (auth-middleware.ts). [src/app/api/notifications/new-post/route.ts:56]
-- [ ] [Review][Patch] Supabase Webhook payload не парсится — Supabase DB Webhook отправляет `{ type: "INSERT", table: "posts", record: { id, title, ... } }`, но route handler ожидает `{ id, title }` в корне body. Реальный webhook не будет работать. [src/app/api/notifications/new-post/route.ts:100]
-- [ ] [Review][Patch] Отсутствие минимальной email-валидации перед батчем — невалидный формат email (без `@`) пройдёт фильтр `Boolean(s.email)` и может сломать весь Resend-батч из 100 писем [src/app/api/notifications/new-post/route.ts:130-131]
+- [x] [Review][Patch] `trialing` подписчики исключены из рассылки — заменить `.eq('subscription_status', 'active')` на `.in('subscription_status', ['active', 'trialing'])`. Решение: включить trialing, т.к. trial-пользователи имеют полный доступ к контенту (auth-middleware.ts). [src/app/api/notifications/new-post/route.ts:56] → Resolved: `.in('subscription_status', ['active', 'trialing'])`
+- [x] [Review][Patch] Supabase Webhook payload не парсится — Supabase DB Webhook отправляет `{ type: "INSERT", table: "posts", record: { id, title, ... } }`, но route handler ожидает `{ id, title }` в корне body. Реальный webhook не будет работать. [src/app/api/notifications/new-post/route.ts:100] → Resolved: `post = rawBody?.record ?? rawBody` — поддержка обоих форматов
+- [x] [Review][Patch] Отсутствие минимальной email-валидации перед батчем — невалидный формат email (без `@`) пройдёт фильтр `Boolean(s.email)` и может сломать весь Resend-батч из 100 писем [src/app/api/notifications/new-post/route.ts:130-131] → Resolved: добавлена проверка `s.email.includes('@')` в фильтр validSubscribers
 - [x] [Review][Defer] `excerpt` поле зависит от реализации Story 4.1 — `post.excerpt` принимается и используется, но таблица `posts` может не иметь этого поля до Story 4.1 [src/app/api/notifications/new-post/route.ts:16] — deferred, Story 4.1 scope

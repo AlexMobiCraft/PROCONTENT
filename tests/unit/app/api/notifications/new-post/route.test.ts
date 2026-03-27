@@ -18,7 +18,7 @@ const {
   mockAdminRange,
   mockAdminOrder,
   mockAdminNot,
-  mockAdminEq,
+  mockAdminIn,
   mockAdminSelect,
   mockAdminFrom,
   mockCreateAdminClient,
@@ -26,15 +26,15 @@ const {
   const mockAdminRange = vi.fn()
   const mockAdminOrder = vi.fn(() => ({ range: mockAdminRange }))
   const mockAdminNot = vi.fn(() => ({ order: mockAdminOrder }))
-  const mockAdminEq = vi.fn(() => ({ not: mockAdminNot }))
-  const mockAdminSelect = vi.fn(() => ({ eq: mockAdminEq }))
+  const mockAdminIn = vi.fn(() => ({ not: mockAdminNot }))
+  const mockAdminSelect = vi.fn(() => ({ in: mockAdminIn }))
   const mockAdminFrom = vi.fn(() => ({ select: mockAdminSelect }))
   const mockCreateAdminClient = vi.fn(() => ({ from: mockAdminFrom }))
   return {
     mockAdminRange,
     mockAdminOrder,
     mockAdminNot,
-    mockAdminEq,
+    mockAdminIn,
     mockAdminSelect,
     mockAdminFrom,
     mockCreateAdminClient,
@@ -86,10 +86,10 @@ describe('POST /api/notifications/new-post', () => {
     vi.stubEnv('RESEND_FROM_EMAIL', 'noreply@procontent.si')
 
     // Дефолтный мок: admin client возвращает активных подписчиков
-    // Цепочка: from → select → eq → not → order → range
+    // Цепочка: from → select → in → not → order → range
     mockAdminFrom.mockReturnValue({ select: mockAdminSelect })
-    mockAdminSelect.mockReturnValue({ eq: mockAdminEq })
-    mockAdminEq.mockReturnValue({ not: mockAdminNot })
+    mockAdminSelect.mockReturnValue({ in: mockAdminIn })
+    mockAdminIn.mockReturnValue({ not: mockAdminNot })
     mockAdminNot.mockReturnValue({ order: mockAdminOrder })
     mockAdminOrder.mockReturnValue({ range: mockAdminRange })
     mockAdminRange.mockResolvedValue({ data: ACTIVE_SUBSCRIBERS, error: null })
@@ -381,6 +381,72 @@ describe('POST /api/notifications/new-post', () => {
       const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ html: string; text: string }>]
       expect(messages[0].html).toContain('Краткий анонс поста.')
       expect(messages[0].text).toContain('Краткий анонс поста.')
+    })
+  })
+
+  describe('Supabase Webhook payload format', () => {
+    it('принимает Supabase DB Webhook формат {type, table, record}', async () => {
+      const webhookBody = {
+        type: 'INSERT',
+        table: 'posts',
+        schema: 'public',
+        record: VALID_POST,
+        old_record: null,
+      }
+      const req = makeRequest(webhookBody, { Authorization: `Bearer ${API_SECRET}` })
+      const res = await POST(req)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.sent).toBe(2)
+    })
+
+    it('корректно передаёт title из record в тему письма', async () => {
+      const webhookBody = {
+        type: 'INSERT',
+        table: 'posts',
+        record: { id: VALID_UUID, title: 'Webhook Post Title' },
+      }
+      const req = makeRequest(webhookBody, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ subject: string }>]
+      expect(messages[0].subject).toBe('Nova objava: Webhook Post Title')
+    })
+  })
+
+  describe('Subscriber filtering', () => {
+    it('отправляет письма подписчикам со статусом trialing', async () => {
+      const trialingSubscribers = [{ email: 'trial@example.com', display_name: 'Trial User' }]
+      mockAdminRange.mockResolvedValue({ data: trialingSubscribers, error: null })
+      mockSendEmailBatch.mockResolvedValue({ sent: 1, failed: 0 })
+
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      const res = await POST(req)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.sent).toBe(1)
+      // Проверяем что запрос включает оба статуса
+      expect(mockAdminIn).toHaveBeenCalledWith('subscription_status', ['active', 'trialing'])
+    })
+
+    it('фильтрует email без символа @', async () => {
+      mockAdminRange.mockResolvedValue({
+        data: [
+          { email: 'valid@example.com', display_name: 'Valid' },
+          { email: 'notanemail', display_name: 'No At Sign' },
+          { email: 'also-invalid', display_name: 'Another' },
+        ],
+        error: null,
+      })
+      mockSendEmailBatch.mockResolvedValue({ sent: 1, failed: 0 })
+
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [unknown[]]
+      expect(messages).toHaveLength(1)
     })
   })
 
