@@ -79,7 +79,8 @@ So that не пропустить важный контент, даже если
 - ✅ Resolved review finding [Patch]: Supabase row limit — `fetchAllSubscribers` с пагинацией `.range()`, тесты multi-page и DB error on page 2
 - ✅ Round 4-5 resolved: пагинация, стабильная сортировка, поддержка payload webhook, trialing подписчики, email validation
 - ✅ Round 6 resolved: trailing slashes, excerpt type/whitespace validation, test fixtures fix
-- 862 теста прошли (регрессий нет); Round 6: +7 новых тестов (double slashes, non-string excerpt, blank excerpt, fixed fixtures)
+- ✅ Round 7 resolved: rawBody=null → 400, createAdminClient() в try/catch → JSON 500, SMTP header injection sanitized
+- 861 тестов прошли (регрессий нет); Round 7: +3 новых теста (rawBody=null, missing Supabase env vars, CRLF injection)
 
 ## File List
 
@@ -88,9 +89,9 @@ So that не пропустить важный контент, даже если
 - `.env.example` (изменён — добавлены `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NOTIFICATION_API_SECRET`)
 - `src/lib/email/index.ts` (изменён — удалён `'use server'`)
 - `src/lib/email/templates/new-post.ts` (изменён — добавлена `sanitizeHref` для href-атрибутов)
-- `src/app/api/notifications/new-post/route.ts` (изменён — UUID-валидация, SITE_URL-валидация, фильтр null-email, `timingSafeEqual`, предупреждение об отсутствии секрета, логирование в isAuthorized, исправлен URL `/feed/`, пагинация `fetchAllSubscribers`)
+- `src/app/api/notifications/new-post/route.ts` (изменён — UUID-валидация, SITE_URL-валидация, фильтр null-email, `timingSafeEqual`, предупреждение об отсутствии секрета, логирование в isAuthorized, исправлен URL `/feed/`, пагинация `fetchAllSubscribers`; Round 7: null rawBody → 400, createAdminClient в try/catch, safeTitle CRLF sanitization)
 - `tests/unit/lib/email/new-post-template.test.ts` (изменён — добавлены 2 теста на javascript: URL)
-- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2-5: +13 тестов; Round 6: +3 теста — double slashes, non-string excerpt, blank excerpt)
+- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2-5: +13 тестов; Round 6: +3 теста; Round 7: +3 теста — rawBody=null, missing Supabase env vars, CRLF injection)
 - `tests/unit/lib/email/email-service.test.ts` (создан — 6 unit-тестов для sendEmailBatch: partial batch, data=null, empty array)
 
 ## Change Log
@@ -102,7 +103,7 @@ So that не пропустить важный контент, даже если
 - 2026-03-27: Addressed Round 4 review findings — 6 items resolved (stable sort, no extra DB request at PAGE_SIZE boundary, DB-level email filter, SubscriberQueryError type, PAGE_SIZE exported, story deduplication)
 - 2026-03-27: Addressed Round 5 review findings — 3 items resolved (trialing subscribers included, Supabase Webhook record wrapper, email @ validation)
 - 2026-03-27: Addressed Round 6 review findings — 4 items resolved (trailing slashes, excerpt validation, test fixtures)
-
+- 2026-03-27: Addressed Round 7 review findings — 3 items resolved (rawBody null check, createAdminClient try/catch, SMTP header injection)
 
 ### Review Findings
 
@@ -148,9 +149,14 @@ So that не пропустить важный контент, даже если
 
 #### Round 7 (2026-03-27) - Full 3-Layer Review
 
-- [ ] [Review][Patch] `rawBody = null` (валидный JSON) вызывает TypeError вместо 400 — `post = rawBody?.record ?? rawBody` присваивает `null`, затем `post.id` бросает TypeError, который не поймать в try/catch (он снаружи) → необработанный 500 [src/app/api/notifications/new-post/route.ts:103-109]
-- [ ] [Review][Patch] `createAdminClient()` бросает синхронно вне try/catch — если `NEXT_PUBLIC_SUPABASE_URL` или `SUPABASE_SERVICE_ROLE_KEY` отсутствуют на строке 132, Next.js возвращает 500 без JSON-тела, разрывая единый формат ответов [src/app/api/notifications/new-post/route.ts:132]
-- [ ] [Review][Patch] Инъекция SMTP-заголовка через `post.title` в теме письма — `\r\n` в заголовке поста не фильтруется перед подстановкой в `subject: \`Nova objava: ${post.title}\``, что позволяет добавлять произвольные SMTP-заголовки [src/app/api/notifications/new-post/route.ts:158]
+- [x] [Review][Patch] `rawBody = null` (валидный JSON) вызывает TypeError вместо 400 — `post = rawBody?.record ?? rawBody` присваивает `null`, затем `post.id` бросает TypeError, который не поймать в try/catch (он снаружи) → необработанный 500 [src/app/api/notifications/new-post/route.ts:103-109] → Resolved: добавлена проверка `rawBody === null || typeof rawBody !== 'object'` внутри try/catch, возвращает 400
+- [x] [Review][Patch] `createAdminClient()` бросает синхронно вне try/catch — если `NEXT_PUBLIC_SUPABASE_URL` или `SUPABASE_SERVICE_ROLE_KEY` отсутствуют на строке 132, Next.js возвращает 500 без JSON-тела, разрывая единый формат ответов [src/app/api/notifications/new-post/route.ts:132] → Resolved: `createAdminClient()` обёрнут в try/catch, возвращает JSON 500 при исключении
+- [x] [Review][Patch] Инъекция SMTP-заголовка через `post.title` в теме письма — `\r\n` в заголовке поста не фильтруется перед подстановкой в `subject: \`Nova objava: ${post.title}\``, что позволяет добавлять произвольные SMTP-заголовки [src/app/api/notifications/new-post/route.ts:158] → Resolved: `safeTitle = post.title.replace(/[\r\n]/g, '')` перед подстановкой в subject
 - [x] [Review][Defer] `_resend` singleton не сбрасывается при ротации `RESEND_API_KEY` — устаревший клиент продолжает использоваться до cold start [src/lib/email/index.ts:3] — deferred, pre-existing
 - [x] [Review][Defer] `fetchAllSubscribers` накапливает всех подписчиков в памяти без ограничения — при 50 000+ записей растёт латентность и расход памяти [src/app/api/notifications/new-post/route.ts:49] — deferred, pre-existing
 - [x] [Review][Defer] `sendEmailBatch` не имеет таймаута на чанк — зависание Resend API → Vercel kill → retry вебхука дублирует письма уже успешным подписчикам [src/lib/email/index.ts:46] — deferred, pre-existing
+
+#### Round 8 (2026-03-27) - Code Review
+
+- [ ] [Review][Patch] Plain text email body не санитизируется от CRLF — SMTP header injection защищён в subject (safeTitle), но post.title с CRLF передаётся в generateNewPostEmailText без очистки [src/app/api/notifications/new-post/route.ts:175,182]
+- [x] [Review][Defer] AC5 "доставка в течение 5 минут" не верифицируется в коде — инфраструктурное требование, pre-existing

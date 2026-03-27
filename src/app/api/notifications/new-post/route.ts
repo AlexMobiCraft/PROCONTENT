@@ -101,7 +101,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let post: PostPayload
   try {
     const rawBody = await request.json()
-    post = rawBody?.record ?? rawBody
+    if (rawBody === null || typeof rawBody !== 'object' || Array.isArray(rawBody)) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    }
+    post = (rawBody as Record<string, unknown>).record ?? rawBody
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
@@ -129,7 +132,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // --- Получение активных подписчиков ---
-  const supabase = createAdminClient()
+  let supabase: ReturnType<typeof createAdminClient>
+  try {
+    supabase = createAdminClient()
+  } catch (err) {
+    console.error(
+      '[notifications] Admin client initialization failed:',
+      err instanceof Error ? err.message : err
+    )
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+  }
   const { data: subscribers, error: dbError } = await fetchAllSubscribers(supabase)
 
   if (dbError) {
@@ -153,9 +165,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const postUrl = `${normalizedSiteUrl}/feed/${post.id}`
   const unsubscribeUrl = `${normalizedSiteUrl}/profile`
 
+  // Санитизируем заголовок: удаляем CR/LF для защиты от SMTP header injection
+  const safeTitle = post.title.replace(/[\r\n]/g, '')
+
   const messages = validSubscribers.map((s) => ({
     to: s.email,
-    subject: `Nova objava: ${post.title}`,
+    subject: `Nova objava: ${safeTitle}`,
     html: generateNewPostEmailHtml({
       postTitle: post.title,
       postUrl,

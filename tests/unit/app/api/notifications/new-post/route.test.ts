@@ -481,6 +481,44 @@ describe('POST /api/notifications/new-post', () => {
     })
   })
 
+  describe('Round 7 security patches', () => {
+    it('возвращает 400 при rawBody = null (валидный JSON — не бросает TypeError)', async () => {
+      const req = new NextRequest('http://localhost/api/notifications/new-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_SECRET}` },
+        body: 'null',
+      })
+      const res = await POST(req)
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.error).toBeTruthy()
+    })
+
+    it('возвращает 500 при отсутствующих Supabase env vars (не бросает неперехваченную ошибку)', async () => {
+      vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', '')
+      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '')
+
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      const res = await POST(req)
+
+      expect(res.status).toBe(500)
+      const body = await res.json()
+      expect(body.error).toBeTruthy()
+    })
+
+    it('удаляет CRLF из заголовка поста для защиты от SMTP-инъекции', async () => {
+      const maliciousPost = { id: VALID_UUID, title: 'Title\r\nBcc: attacker@evil.com' }
+      const req = makeRequest(maliciousPost, { Authorization: `Bearer ${API_SECRET}` })
+      const res = await POST(req)
+
+      expect(res.status).toBe(200)
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ subject: string }>]
+      expect(messages[0].subject).not.toContain('\r')
+      expect(messages[0].subject).not.toContain('\n')
+      expect(messages[0].subject).toBe('Nova objava: TitleBcc: attacker@evil.com')
+    })
+  })
+
   describe('Authorization security', () => {
     it('отклоняет secret той же длины, но другого значения', async () => {
       // Проверяем что hash-based timingSafeEqual правильно отклоняет matching-length secrets
