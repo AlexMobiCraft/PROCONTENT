@@ -1,6 +1,6 @@
 # Story 3.4: Автоматические Email-уведомления о новых постах
 
-Status: done
+Status: in-progress
 
 ## Story
 
@@ -90,5 +90,18 @@ So that не пропустить важный контент, даже если
 
 ### Review Findings
 
-- [x] [Review][Defer] Последовательная отправка батчей await resend.batch.send в цикле for может привести к превышению таймаута Vercel (10 секунд) при большом количестве подписчиков. [src/lib/email/index.ts:215] — deferred, pre-existing
-- [x] [Review][Defer] Отсутствие логирования конкретных email при ошибке батча. Логируется только ошибка, что затруднит повторную отправку. [src/lib/email/index.ts:225] — deferred, pre-existing
+- [ ] [Review][Decision] Partial send failure возвращает HTTP 200 — Supabase webhook не повторит запрос при частичном сбое (`failed > 0`). Нужно ли возвращать non-2xx?
+
+- [ ] [Review][Patch] `'use server'` на утилитарном модуле экспортирует `sendEmailBatch` как публичный Server Action endpoint [src/lib/email/index.ts:1]
+- [ ] [Review][Patch] Неверный URL поста: `/post/{id}` — реальный роут `/feed/{id}` — все ссылки в письмах ведут на 404 [src/app/api/notifications/new-post/route.ts:70]
+- [ ] [Review][Patch] `NEXT_PUBLIC_SITE_URL` пустая строка даёт относительные URL во всех письмах без ошибки [src/app/api/notifications/new-post/route.ts:56]
+- [ ] [Review][Patch] Нет фильтрации `email = null/''` перед отправкой в Resend — невалидный адрес может сломать весь батч [src/app/api/notifications/new-post/route.ts:64]
+- [ ] [Review][Patch] Сравнение API secret через `===` уязвимо к timing attack — нужен `crypto.timingSafeEqual` [src/app/api/notifications/new-post/route.ts:105]
+- [ ] [Review][Patch] Отсутствие env var `NOTIFICATION_API_SECRET` переключает режим auth без предупреждения в логах [src/app/api/notifications/new-post/route.ts:101]
+- [ ] [Review][Patch] `post.id` не валидируется как UUID — произвольная строка формирует некорректный URL в письме [src/app/api/notifications/new-post/route.ts:44]
+- [ ] [Review][Patch] `isAuthorized` поглощает все исключения без логирования — ошибки инфраструктуры неотличимы от "не admin" [src/app/api/notifications/new-post/route.ts:107]
+- [ ] [Review][Patch] `escapeHtml` не блокирует `javascript:` схему в href — неполная защита от open redirect в email [src/lib/email/templates/new-post.ts:50]
+
+- [x] [Review][Defer] Нет rate limiting / идемпотентности — at-least-once Supabase webhook может разослать письма дважды по одному посту [src/app/api/notifications/new-post/route.ts:39] — deferred
+- [x] [Review][Defer] Admin auth полагается на user-writable колонку `role` — при некорректном RLS возможна privilege escalation [src/app/api/notifications/new-post/route.ts:113] — deferred
+- [x] [Review][Defer] Последовательные batch sends могут превысить таймаут Vercel при >100 подписчиках [src/lib/email/index.ts:48] — deferred, pre-existing
