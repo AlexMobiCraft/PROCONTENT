@@ -6,7 +6,7 @@ import {
 
 const BASE_DATA = {
   postTitle: 'Kako ustvariti viralno vsebino',
-  postUrl: 'https://procontent.si/post/123',
+  postUrl: 'https://procontent.si/feed/123',
   recipientName: 'Ana',
   unsubscribeUrl: 'https://procontent.si/profile',
 }
@@ -19,7 +19,7 @@ describe('generateNewPostEmailHtml', () => {
 
   it('содержит ссылку на пост', () => {
     const html = generateNewPostEmailHtml(BASE_DATA)
-    expect(html).toContain('https://procontent.si/post/123')
+    expect(html).toContain('https://procontent.si/feed/123')
   })
 
   it('содержит приветствие с именем', () => {
@@ -134,7 +134,7 @@ describe('generateNewPostEmailText', () => {
 
   it('содержит ссылку на пост', () => {
     const text = generateNewPostEmailText(BASE_DATA)
-    expect(text).toContain('https://procontent.si/post/123')
+    expect(text).toContain('https://procontent.si/feed/123')
   })
 
   it('содержит приветствие с именем', () => {

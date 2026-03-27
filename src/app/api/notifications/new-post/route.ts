@@ -110,6 +110,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Missing required fields: id, title' }, { status: 400 })
   }
 
+  // Нормализуем excerpt: принимаем только строку, убираем whitespace-only
+  const rawExcerpt = post.excerpt
+  const normalizedExcerpt: string | undefined =
+    typeof rawExcerpt === 'string' && rawExcerpt.trim() !== ''
+      ? rawExcerpt
+      : undefined
+
   if (!UUID_REGEX.test(post.id)) {
     return NextResponse.json({ error: 'Invalid post id: must be a valid UUID' }, { status: 400 })
   }
@@ -141,7 +148,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // --- Формирование писем ---
-  const normalizedSiteUrl = siteUrl.replace(/\/$/, '')
+  // Удаляем все trailing slashes (в т.ч. https://example.com//)
+  const normalizedSiteUrl = siteUrl.replace(/\/+$/, '')
   const postUrl = `${normalizedSiteUrl}/feed/${post.id}`
   const unsubscribeUrl = `${normalizedSiteUrl}/profile`
 
@@ -151,14 +159,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     html: generateNewPostEmailHtml({
       postTitle: post.title,
       postUrl,
-      postExcerpt: post.excerpt,
+      postExcerpt: normalizedExcerpt,
       recipientName: s.display_name,
       unsubscribeUrl,
     }),
     text: generateNewPostEmailText({
       postTitle: post.title,
       postUrl,
-      postExcerpt: post.excerpt,
+      postExcerpt: normalizedExcerpt,
       recipientName: s.display_name,
       unsubscribeUrl,
     }),

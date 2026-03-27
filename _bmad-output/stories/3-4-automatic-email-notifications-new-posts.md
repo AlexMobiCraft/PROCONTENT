@@ -1,6 +1,6 @@
 # Story 3.4: Автоматические Email-уведомления о новых постах
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -68,14 +68,18 @@ So that не пропустить важный контент, даже если
 - Все 5 AC выполнены: (1) фильтрация по `subscription_status = 'active'`, (2) триггер через Supabase DB Webhook или admin-вызов, (3) отправка через Resend, (4) письмо содержит заголовок + ссылку, (5) batch API — доставка в пределах Vercel timeout
 - 848 тестов прошли (регрессий нет); Round 2: +17 новых тестов
 - Итого тестов: 23 в `new-post-template.test.ts` + 23 в `route.test.ts` + 6 в `email-service.test.ts` = 52 в scope Story 3.4
+- 862 теста прошли (регрессий нет); Round 6: +7 новых тестов (всего 62 в scope Story 3.4)
 - TypeScript: typecheck пройден без ошибок
-- ESLint: новые файлы без ошибок (ошибки только в `everything-claude-code/` — не в scope)
+- ESLint: новые файлы без ошибок
 - Task 4.1 (триггер): реализуется через Supabase Dashboard → Database Webhooks → INSERT on `posts` → URL: `{SITE_URL}/api/notifications/new-post`, Header: `Authorization: Bearer {NOTIFICATION_API_SECRET}`
-- Review Findings: все patch/decision resolved (Round 1: 9, Round 2: 6, Round 3: 1, Round 4: 6, Round 5: 3), 4 deferred оставлены
+- Review Findings: все patch/decision resolved (Round 1: 9, Round 2: 6, Round 3: 1, Round 4: 6, Round 5: 3, Round 6: 4), 4 deferred оставлены
+- ✅ Resolved review finding [Patch]: `replace(/\/+$/, '')` для корректной нормализации SITE_URL
+- ✅ Resolved review finding [Patch]: валидация `excerpt` как строки и trim пустых строк (не рендерятся)
+- ✅ Resolved review finding [Patch]: фикстуры тестов обновлены на `/feed/123`
 - ✅ Resolved review finding [Patch]: Supabase row limit — `fetchAllSubscribers` с пагинацией `.range()`, тесты multi-page и DB error on page 2
-- ✅ Round 4 resolved: стабильная сортировка `.order('id')`, PAGE_SIZE+1 без лишнего запроса, `.not('email', 'is', null)` на уровне БД, тип `SubscriberQueryError`, `PAGE_SIZE` экспортирован, дублирование в story-файле устранено
-- ✅ Round 5 resolved: trialing включены в рассылку (`.in()`), Supabase Webhook payload `record` wrapper, email-валидация `@`
-- 855 тестов прошли (регрессий нет); Round 5: +4 новых теста (webhook format ×2, trialing, email без @)
+- ✅ Round 4-5 resolved: пагинация, стабильная сортировка, поддержка payload webhook, trialing подписчики, email validation
+- ✅ Round 6 resolved: trailing slashes, excerpt type/whitespace validation, test fixtures fix
+- 862 теста прошли (регрессий нет); Round 6: +7 новых тестов (double slashes, non-string excerpt, blank excerpt, fixed fixtures)
 
 ## File List
 
@@ -86,7 +90,7 @@ So that не пропустить важный контент, даже если
 - `src/lib/email/templates/new-post.ts` (изменён — добавлена `sanitizeHref` для href-атрибутов)
 - `src/app/api/notifications/new-post/route.ts` (изменён — UUID-валидация, SITE_URL-валидация, фильтр null-email, `timingSafeEqual`, предупреждение об отсутствии секрета, логирование в isAuthorized, исправлен URL `/feed/`, пагинация `fetchAllSubscribers`)
 - `tests/unit/lib/email/new-post-template.test.ts` (изменён — добавлены 2 теста на javascript: URL)
-- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2: +4 теста — double slashes, excerpt, timingSafeEqual length; Round 3: +2 теста пагинации, обновлён мок-chain с `.range()`; Round 4: мок-chain расширен `.not`/`.order`, PAGE_SIZE импортируется, +3 теста — exact boundary, PAGE_SIZE+1 pagination; Round 5: мок `eq` → `in`, +4 теста — webhook format ×2, trialing, email @)
+- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2-5: +13 тестов; Round 6: +3 теста — double slashes, non-string excerpt, blank excerpt)
 - `tests/unit/lib/email/email-service.test.ts` (создан — 6 unit-тестов для sendEmailBatch: partial batch, data=null, empty array)
 
 ## Change Log
@@ -97,6 +101,7 @@ So that не пропустить важный контент, даже если
 - 2026-03-27: Addressed Round 3 review findings — 1 item resolved (Supabase row limit pagination)
 - 2026-03-27: Addressed Round 4 review findings — 6 items resolved (stable sort, no extra DB request at PAGE_SIZE boundary, DB-level email filter, SubscriberQueryError type, PAGE_SIZE exported, story deduplication)
 - 2026-03-27: Addressed Round 5 review findings — 3 items resolved (trialing subscribers included, Supabase Webhook record wrapper, email @ validation)
+- 2026-03-27: Addressed Round 6 review findings — 4 items resolved (trailing slashes, excerpt validation, test fixtures)
 
 
 ### Review Findings
@@ -136,7 +141,7 @@ So that не пропустить важный контент, даже если
 
 #### Round 6 (2026-03-27) - Full 3-Layer Review
 
-- [ ] [Review][Patch] `NEXT_PUBLIC_SITE_URL` с несколькими trailing slashes даёт двойной слэш в URL писем — `replace(/\/$/, '')` удаляет только один `/`, поэтому `https://example.com//` → `https://example.com/` → postUrl `https://example.com//feed/...` [src/app/api/notifications/new-post/route.ts:144]
-- [ ] [Review][Patch] `post.excerpt` не валидируется как строка — если в JSON-теле `excerpt: 123` (число), `escapeHtml(postExcerpt)` бросает `TypeError` (нет метода `.replace` у числа), что даёт необработанный 500 без описательного сообщения [src/app/api/notifications/new-post/route.ts:109-114]
-- [ ] [Review][Patch] `postExcerpt` whitespace-only (`"   "`) проходит truthiness-проверку в шаблоне — рендерится пустой блок `<p>` в HTML и пустые строки в plain-text версии [src/lib/email/templates/new-post.ts:12-15]
-- [ ] [Review][Patch] Тестовый BASE_DATA использует `/post/123` вместо `/feed/123` — вводит в заблуждение будущих разработчиков, ссылаясь на заведомо неверный (404) путь в фикстуре шаблонного теста [tests/unit/lib/email/new-post-template.test.ts:9]
+- [x] [Review][Patch] `NEXT_PUBLIC_SITE_URL` с несколькими trailing slashes даёт двойной слэш в URL писем → Resolved: `replace(/\/+$/, '')` удаляет все завершающие слэши. [src/app/api/notifications/new-post/route.ts:152]
+- [x] [Review][Patch] `post.excerpt` не валидируется как строка → Resolved: добавлена проверка `typeof rawExcerpt === 'string'`, некорректные типы игнорируются. [src/app/api/notifications/new-post/route.ts:113-118]
+- [x] [Review][Patch] `postExcerpt` whitespace-only (`"   "`) проходит truthiness-проверку → Resolved: добавлен `.trim() !== ''`, пустые строки не рендерятся. [src/app/api/notifications/new-post/route.ts:116]
+- [x] [Review][Patch] Тестовый BASE_DATA использует `/post/123` вместо `/feed/123` → Resolved: фикстура и ассерты исправлены. [tests/unit/lib/email/new-post-template.test.ts:9]

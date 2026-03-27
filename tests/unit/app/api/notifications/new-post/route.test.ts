@@ -373,6 +373,37 @@ describe('POST /api/notifications/new-post', () => {
       expect(messages[0].html).toContain('/feed/')
     })
 
+    it('не создаёт двойной слэш когда SITE_URL заканчивается на //', async () => {
+      vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://procontent.si//')
+
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ html: string }>]
+      expect(messages[0].html).not.toContain('//feed/')
+      expect(messages[0].html).toContain('/feed/')
+    })
+
+    it('не падает при excerpt числом (non-string) — обрабатывает как absent', async () => {
+      // excerpt: 123 — не строка, normalizedExcerpt должен стать undefined, без TypeError
+      const postWithNumericExcerpt = { id: VALID_UUID, title: 'Test Post', excerpt: 123 }
+      const req = makeRequest(postWithNumericExcerpt, { Authorization: `Bearer ${API_SECRET}` })
+      const res = await POST(req)
+
+      // Не должно быть 500 (TypeError)
+      expect(res.status).toBe(200)
+    })
+
+    it('whitespace-only excerpt не рендерится в письме', async () => {
+      const postWithBlankExcerpt = { ...VALID_POST, excerpt: '   ' }
+      const req = makeRequest(postWithBlankExcerpt, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ html: string }>]
+      // Блок excerpt не должен появляться (используется CSS-стиль font-size:14px)
+      expect(messages[0].html).not.toContain('font-size:14px;color:#6b5e52')
+    })
+
     it('передаёт excerpt в сгенерированное письмо', async () => {
       const postWithExcerpt = { ...VALID_POST, excerpt: 'Краткий анонс поста.' }
       const req = makeRequest(postWithExcerpt, { Authorization: `Bearer ${API_SECRET}` })
