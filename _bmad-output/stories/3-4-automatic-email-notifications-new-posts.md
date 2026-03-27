@@ -1,6 +1,6 @@
 # Story 3.4: Автоматические Email-уведомления о новых постах
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -133,3 +133,10 @@ So that не пропустить важный контент, даже если
 - [x] [Review][Patch] Supabase Webhook payload не парсится — Supabase DB Webhook отправляет `{ type: "INSERT", table: "posts", record: { id, title, ... } }`, но route handler ожидает `{ id, title }` в корне body. Реальный webhook не будет работать. [src/app/api/notifications/new-post/route.ts:100] → Resolved: `post = rawBody?.record ?? rawBody` — поддержка обоих форматов
 - [x] [Review][Patch] Отсутствие минимальной email-валидации перед батчем — невалидный формат email (без `@`) пройдёт фильтр `Boolean(s.email)` и может сломать весь Resend-батч из 100 писем [src/app/api/notifications/new-post/route.ts:130-131] → Resolved: добавлена проверка `s.email.includes('@')` в фильтр validSubscribers
 - [x] [Review][Defer] `excerpt` поле зависит от реализации Story 4.1 — `post.excerpt` принимается и используется, но таблица `posts` может не иметь этого поля до Story 4.1 [src/app/api/notifications/new-post/route.ts:16] — deferred, Story 4.1 scope
+
+#### Round 6 (2026-03-27) - Full 3-Layer Review
+
+- [ ] [Review][Patch] `NEXT_PUBLIC_SITE_URL` с несколькими trailing slashes даёт двойной слэш в URL писем — `replace(/\/$/, '')` удаляет только один `/`, поэтому `https://example.com//` → `https://example.com/` → postUrl `https://example.com//feed/...` [src/app/api/notifications/new-post/route.ts:144]
+- [ ] [Review][Patch] `post.excerpt` не валидируется как строка — если в JSON-теле `excerpt: 123` (число), `escapeHtml(postExcerpt)` бросает `TypeError` (нет метода `.replace` у числа), что даёт необработанный 500 без описательного сообщения [src/app/api/notifications/new-post/route.ts:109-114]
+- [ ] [Review][Patch] `postExcerpt` whitespace-only (`"   "`) проходит truthiness-проверку в шаблоне — рендерится пустой блок `<p>` в HTML и пустые строки в plain-text версии [src/lib/email/templates/new-post.ts:12-15]
+- [ ] [Review][Patch] Тестовый BASE_DATA использует `/post/123` вместо `/feed/123` — вводит в заблуждение будущих разработчиков, ссылаясь на заведомо неверный (404) путь в фикстуре шаблонного теста [tests/unit/lib/email/new-post-template.test.ts:9]
