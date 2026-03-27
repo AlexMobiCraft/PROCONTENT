@@ -13,5 +13,10 @@
 - **Ограниченная конкурентность**: Последовательная отправка батчей по 100 писем рискует превысить таймаут Vercel при большом количестве подписчиков. [src/lib/email/index.ts:48]
 - **Отсутствие Retry-логики**: Сбой одного батча из-за сети помечает его как failed навсегда без попыток переотправки. [src/lib/email/index.ts]
 
+## Deferred from: code review of 3-4-automatic-email-notifications-new-posts.md (2026-03-27) - Round 7
+- **`_resend` singleton не сбрасывается при ротации ключа**: Если `RESEND_API_KEY` меняется в runtime, устаревший клиент используется до следующего cold start — все письма будут падать с 401 от Resend без явного сигнала. [src/lib/email/index.ts:3]
+- **`fetchAllSubscribers` без верхнего предела**: Все подписчики накапливаются в один массив в памяти. При 50 000+ записях растёт задержка до первой отправки и расход памяти serverless-функции.  [src/app/api/notifications/new-post/route.ts:49]
+- **`sendEmailBatch` без таймаута на чанк**: Зависание Resend API блокирует функцию до Vercel timeout (504); retry вебхука Supabase дублирует письма подписчикам из уже успешных чанков. [src/lib/email/index.ts:46]
+
 ## Deferred from: code review of 3-4-automatic-email-notifications-new-posts.md (2026-03-27) - Round 5
 - **`excerpt` поле зависит от Story 4.1**: `post.excerpt` принимается route handler'ом и передаётся в шаблон, но таблица `posts` может не содержать этого поля до реализации Story 4.1. Пока excerpt приходит как `undefined` — шаблон отображает без excerpta. [src/app/api/notifications/new-post/route.ts:16]

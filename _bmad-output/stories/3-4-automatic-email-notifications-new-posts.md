@@ -1,6 +1,6 @@
 # Story 3.4: Автоматические Email-уведомления о новых постах
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -145,3 +145,12 @@ So that не пропустить важный контент, даже если
 - [x] [Review][Patch] `post.excerpt` не валидируется как строка → Resolved: добавлена проверка `typeof rawExcerpt === 'string'`, некорректные типы игнорируются. [src/app/api/notifications/new-post/route.ts:113-118]
 - [x] [Review][Patch] `postExcerpt` whitespace-only (`"   "`) проходит truthiness-проверку → Resolved: добавлен `.trim() !== ''`, пустые строки не рендерятся. [src/app/api/notifications/new-post/route.ts:116]
 - [x] [Review][Patch] Тестовый BASE_DATA использует `/post/123` вместо `/feed/123` → Resolved: фикстура и ассерты исправлены. [tests/unit/lib/email/new-post-template.test.ts:9]
+
+#### Round 7 (2026-03-27) - Full 3-Layer Review
+
+- [ ] [Review][Patch] `rawBody = null` (валидный JSON) вызывает TypeError вместо 400 — `post = rawBody?.record ?? rawBody` присваивает `null`, затем `post.id` бросает TypeError, который не поймать в try/catch (он снаружи) → необработанный 500 [src/app/api/notifications/new-post/route.ts:103-109]
+- [ ] [Review][Patch] `createAdminClient()` бросает синхронно вне try/catch — если `NEXT_PUBLIC_SUPABASE_URL` или `SUPABASE_SERVICE_ROLE_KEY` отсутствуют на строке 132, Next.js возвращает 500 без JSON-тела, разрывая единый формат ответов [src/app/api/notifications/new-post/route.ts:132]
+- [ ] [Review][Patch] Инъекция SMTP-заголовка через `post.title` в теме письма — `\r\n` в заголовке поста не фильтруется перед подстановкой в `subject: \`Nova objava: ${post.title}\``, что позволяет добавлять произвольные SMTP-заголовки [src/app/api/notifications/new-post/route.ts:158]
+- [x] [Review][Defer] `_resend` singleton не сбрасывается при ротации `RESEND_API_KEY` — устаревший клиент продолжает использоваться до cold start [src/lib/email/index.ts:3] — deferred, pre-existing
+- [x] [Review][Defer] `fetchAllSubscribers` накапливает всех подписчиков в памяти без ограничения — при 50 000+ записей растёт латентность и расход памяти [src/app/api/notifications/new-post/route.ts:49] — deferred, pre-existing
+- [x] [Review][Defer] `sendEmailBatch` не имеет таймаута на чанк — зависание Resend API → Vercel kill → retry вебхука дублирует письма уже успешным подписчикам [src/lib/email/index.ts:46] — deferred, pre-existing

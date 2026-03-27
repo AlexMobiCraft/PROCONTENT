@@ -105,7 +105,8 @@ development_status:
   # 2026-03-27: Round 4 Review Findings resolved (6 patches: stable sort, no extra DB request, DB email filter, type, PAGE_SIZE export, dedup) → review
   # 2026-03-27: Round 5 patch items resolved (trialing, webhook payload, email @) → review
   # 2026-03-27: Round 6 findings resolved (trailing slashes, excerpt validation, test fixtures) → review
-  3-4-automatic-email-notifications-about-new-posts: review
+  # 2026-03-27: Round 7 CR: 3 patch items (null body TypeError, sync throw uncaught, SMTP header injection) → in-progress
+  3-4-automatic-email-notifications-about-new-posts: in-progress
   3-5-managing-email-preferences: backlog
   epic-3-retrospective: optional
 
