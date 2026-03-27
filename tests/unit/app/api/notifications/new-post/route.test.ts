@@ -14,13 +14,15 @@ vi.mock('@/lib/email', () => ({
 
 // Мок admin Supabase-клиента (createClient из @supabase/supabase-js)
 // Используется для запроса активных подписчиков
-const { mockAdminEq, mockAdminSelect, mockAdminFrom, mockCreateAdminClient } = vi.hoisted(() => {
-  const mockAdminEq = vi.fn()
-  const mockAdminSelect = vi.fn(() => ({ eq: mockAdminEq }))
-  const mockAdminFrom = vi.fn(() => ({ select: mockAdminSelect }))
-  const mockCreateAdminClient = vi.fn(() => ({ from: mockAdminFrom }))
-  return { mockAdminEq, mockAdminSelect, mockAdminFrom, mockCreateAdminClient }
-})
+const { mockAdminRange, mockAdminEq, mockAdminSelect, mockAdminFrom, mockCreateAdminClient } =
+  vi.hoisted(() => {
+    const mockAdminRange = vi.fn()
+    const mockAdminEq = vi.fn()
+    const mockAdminSelect = vi.fn(() => ({ eq: mockAdminEq }))
+    const mockAdminFrom = vi.fn(() => ({ select: mockAdminSelect }))
+    const mockCreateAdminClient = vi.fn(() => ({ from: mockAdminFrom }))
+    return { mockAdminRange, mockAdminEq, mockAdminSelect, mockAdminFrom, mockCreateAdminClient }
+  })
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mockCreateAdminClient,
@@ -69,7 +71,8 @@ describe('POST /api/notifications/new-post', () => {
     // Дефолтный мок: admin client возвращает активных подписчиков
     mockAdminFrom.mockReturnValue({ select: mockAdminSelect })
     mockAdminSelect.mockReturnValue({ eq: mockAdminEq })
-    mockAdminEq.mockResolvedValue({ data: ACTIVE_SUBSCRIBERS, error: null })
+    mockAdminEq.mockReturnValue({ range: mockAdminRange })
+    mockAdminRange.mockResolvedValue({ data: ACTIVE_SUBSCRIBERS, error: null })
 
     mockSendEmailBatch.mockResolvedValue({ sent: 2, failed: 0 })
   })
@@ -236,7 +239,7 @@ describe('POST /api/notifications/new-post', () => {
     })
 
     it('возвращает { sent: 0 } при отсутствии активных подписчиков', async () => {
-      mockAdminEq.mockResolvedValue({ data: [], error: null })
+      mockAdminRange.mockResolvedValue({ data: [], error: null })
 
       const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
       const res = await POST(req)
@@ -248,7 +251,7 @@ describe('POST /api/notifications/new-post', () => {
     })
 
     it('фильтрует подписчиков с null/пустым email', async () => {
-      mockAdminEq.mockResolvedValue({
+      mockAdminRange.mockResolvedValue({
         data: [
           { email: 'valid@example.com', display_name: 'Valid' },
           { email: null, display_name: 'No Email' },
@@ -266,7 +269,7 @@ describe('POST /api/notifications/new-post', () => {
     })
 
     it('возвращает 500 при ошибке запроса к БД', async () => {
-      mockAdminEq.mockResolvedValue({ data: null, error: { message: 'DB error' } })
+      mockAdminRange.mockResolvedValue({ data: null, error: { message: 'DB error' } })
 
       const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
       const res = await POST(req)
@@ -276,6 +279,44 @@ describe('POST /api/notifications/new-post', () => {
 
     it('возвращает 500 при ошибке sendEmailBatch', async () => {
       mockSendEmailBatch.mockRejectedValue(new Error('RESEND_API_KEY is not configured'))
+
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      const res = await POST(req)
+
+      expect(res.status).toBe(500)
+    })
+
+    it('запрашивает вторую страницу, когда первая вернула ровно 1000 строк', async () => {
+      const page1 = Array.from({ length: 1000 }, (_, i) => ({
+        email: `user${i}@example.com`,
+        display_name: null,
+      }))
+      const page2 = [{ email: 'last@example.com', display_name: 'Last' }]
+
+      mockAdminRange
+        .mockResolvedValueOnce({ data: page1, error: null })
+        .mockResolvedValueOnce({ data: page2, error: null })
+      mockSendEmailBatch.mockResolvedValue({ sent: 1001, failed: 0 })
+
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      const res = await POST(req)
+      const body = await res.json()
+
+      expect(mockAdminRange).toHaveBeenCalledTimes(2)
+      expect(mockAdminRange).toHaveBeenNthCalledWith(1, 0, 999)
+      expect(mockAdminRange).toHaveBeenNthCalledWith(2, 1000, 1999)
+      expect(body.sent).toBe(1001)
+    })
+
+    it('возвращает 500 при ошибке БД на второй странице', async () => {
+      const page1 = Array.from({ length: 1000 }, (_, i) => ({
+        email: `user${i}@example.com`,
+        display_name: null,
+      }))
+
+      mockAdminRange
+        .mockResolvedValueOnce({ data: page1, error: null })
+        .mockResolvedValueOnce({ data: null, error: { message: 'DB error on page 2' } })
 
       const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
       const res = await POST(req)

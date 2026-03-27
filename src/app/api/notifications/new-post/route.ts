@@ -29,6 +29,37 @@ function createAdminClient() {
   return createSupabaseAdminClient<Database>(url, key)
 }
 
+const PAGE_SIZE = 1000
+
+/**
+ * Загружает всех активных подписчиков постранично, обходя лимит Supabase (1000 строк по умолчанию).
+ */
+async function fetchAllSubscribers(supabase: ReturnType<typeof createAdminClient>): Promise<{
+  data: Array<{ email: string | null; display_name: string | null }> | null
+  error: { message: string } | null
+}> {
+  const all: Array<{ email: string | null; display_name: string | null }> = []
+  let offset = 0
+
+  for (;;) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('email, display_name')
+      .eq('subscription_status', 'active')
+      .range(offset, offset + PAGE_SIZE - 1)
+
+    if (error) return { data: null, error }
+    if (!data || data.length === 0) break
+
+    all.push(...data)
+    if (data.length < PAGE_SIZE) break
+
+    offset += PAGE_SIZE
+  }
+
+  return { data: all, error: null }
+}
+
 /**
  * POST /api/notifications/new-post
  *
@@ -77,10 +108,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // --- Получение активных подписчиков ---
   const supabase = createAdminClient()
-  const { data: subscribers, error: dbError } = await supabase
-    .from('profiles')
-    .select('email, display_name')
-    .eq('subscription_status', 'active')
+  const { data: subscribers, error: dbError } = await fetchAllSubscribers(supabase)
 
   if (dbError) {
     console.error('[notifications] Failed to fetch subscribers:', dbError.message)

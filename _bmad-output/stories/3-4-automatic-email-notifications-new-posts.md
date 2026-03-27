@@ -71,7 +71,8 @@ So that не пропустить важный контент, даже если
 - TypeScript: typecheck пройден без ошибок
 - ESLint: новые файлы без ошибок (ошибки только в `everything-claude-code/` — не в scope)
 - Task 4.1 (триггер): реализуется через Supabase Dashboard → Database Webhooks → INSERT on `posts` → URL: `{SITE_URL}/api/notifications/new-post`, Header: `Authorization: Bearer {NOTIFICATION_API_SECRET}`
-- Review Findings: все 9 patch/decision resolved, 3 deferred оставлены
+- Review Findings: все patch/decision resolved (Round 1: 9, Round 2: 6, Round 3: 1), 4 deferred оставлены
+- ✅ Resolved review finding [Patch]: Supabase row limit — `fetchAllSubscribers` с пагинацией `.range()`, тесты multi-page и DB error on page 2
 
 ## File List
 
@@ -80,9 +81,9 @@ So that не пропустить важный контент, даже если
 - `.env.example` (изменён — добавлены `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NOTIFICATION_API_SECRET`)
 - `src/lib/email/index.ts` (изменён — удалён `'use server'`)
 - `src/lib/email/templates/new-post.ts` (изменён — добавлена `sanitizeHref` для href-атрибутов)
-- `src/app/api/notifications/new-post/route.ts` (изменён — UUID-валидация, SITE_URL-валидация, фильтр null-email, `timingSafeEqual`, предупреждение об отсутствии секрета, логирование в isAuthorized, исправлен URL `/feed/`)
+- `src/app/api/notifications/new-post/route.ts` (изменён — UUID-валидация, SITE_URL-валидация, фильтр null-email, `timingSafeEqual`, предупреждение об отсутствии секрета, логирование в isAuthorized, исправлен URL `/feed/`, пагинация `fetchAllSubscribers`)
 - `tests/unit/lib/email/new-post-template.test.ts` (изменён — добавлены 2 теста на javascript: URL)
-- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2: +4 теста — double slashes, excerpt, timingSafeEqual length)
+- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2: +4 теста — double slashes, excerpt, timingSafeEqual length; Round 3: +2 теста пагинации, обновлён мок-chain с `.range()`)
 - `tests/unit/lib/email/email-service.test.ts` (создан — 6 unit-тестов для sendEmailBatch: partial batch, data=null, empty array)
 
 ## Change Log
@@ -90,6 +91,7 @@ So that не пропустить важный контент, даже если
 - 2026-03-26: Story 3.4 реализована (email-рассылки, Resend batch API, HTML-шаблон, Route Handler с авторизацией, тесты)
 - 2026-03-27: Addressed code review findings — 9 items resolved (1 decision + 8 patch)
 - 2026-03-27: Addressed Round 2 review findings — 6 items resolved (6 patch)
+- 2026-03-27: Addressed Round 3 review findings — 1 item resolved (Supabase row limit pagination)
 
 
 ### Review Findings
@@ -114,19 +116,18 @@ So that не пропустить важный контент, даже если
 -   [x] [Review][Patch] `isAuthorized` поглощает все исключения без логирования — ошибки инфраструктуры неотличимы от "не admin" [src/app/api/notifications/new-post/route.ts:107] → Resolved: добавлен `console.error` в catch с деталями ошибки
 -   [x] [Review][Patch] `escapeHtml` не блокирует `javascript:` схему в href — неполная защита от open redirect в email [src/lib/email/templates/new-post.ts:50] → Resolved: добавлена функция `sanitizeHref`, разрешает только `http:`/`https:` схемы
 
--   [x] [Review][Defer] Нет rate limiting / идемпотентности — at-least-once Supabase webhook может разослать письма дважды по одному посту [src/app/api/notifications/new-post/route.ts:39] — deferred
--   [x] [Review][Defer] Admin auth полагается на user-writable колонку `role` — при некорректном RLS возможна privilege escalation [src/app/api/notifications/new-post/route.ts:113] — deferred
--   [x] [Review][Defer] Последовательные batch sends могут превысить таймаут Vercel при >100 подписчиках [src/lib/email/index.ts:48] — deferred, pre-existing
+- [x] [Review][Defer] Нет rate limiting / идемпотентности — at-least-once Supabase webhook может разослать письма дважды по одному посту [src/app/api/notifications/new-post/route.ts:39] — deferred, pre-existing
+- [x] [Review][Defer] Admin auth полагается на user-writable колонку `role` — при некорректном RLS возможна privilege escalation [src/app/api/notifications/new-post/route.ts:113] — deferred, pre-existing
+- [x] [Review][Defer] Последовательные batch sends могут превысить таймаут Vercel при >100 подписчиках [src/lib/email/index.ts:48] — deferred, pre-existing
+- [x] [Review][Defer] Unsubscribe link is not "one-click" [src/app/api/notifications/new-post/route.ts:132] — deferred, Story 3.5, pre-existing
+- [x] [Review][Defer] Лимит Supabase на количество строк (1000 по умолчанию) — реализована пагинация, но риск OOM остается при накоплении в массив [src/app/api/notifications/new-post/route.ts:81] — deferred, pre-existing
 
-#### Round 2 (2026-03-27)
+#### Round 4 (2026-03-27) - Final Triage
 
--   [x] [Review][Decision] Хардкод словенского языка в шаблонах — Resolved: Словенский язык выбран намеренно (ориентация на рынок Словении при русскоязычной коммуникации команды).
+- [ ] [Review][Patch] Отсутствие стабильной сортировки при пагинации [src/app/api/notifications/new-post/route.ts:117]
+- [ ] [Review][Patch] Дублирование секции "Review Findings" в стори-файле [_bmad-output/stories/3-4-automatic-email-notifications-new-posts.md]
+- [ ] [Review][Patch] Лишний запрос к БД при количестве записей кратном PAGE_SIZE [src/app/api/notifications/new-post/route.ts:125]
+- [ ] [Review][Patch] Отсутствие фильтрации email на уровне БД [.not('email', 'is', 'null')] [src/app/api/notifications/new-post/route.ts:118]
+- [ ] [Review][Patch] Деградация типизации ошибок в fetchAllSubscribers [src/app/api/notifications/new-post/route.ts:109]
+- [ ] [Review][Patch] Хардкод PAGE_SIZE=1000 в тестах [tests/unit/app/api/notifications/new-post/route.test.ts]
 
--   [x] [Review][Patch] `timingSafeEqual` length leak [src/app/api/notifications/new-post/route.ts:171] → Resolved: заменено на `createHash('sha256')` для обоих значений — хэши всегда 32 байта, длина секрета не утекает
--   [x] [Review][Patch] Missing "Excerpt" (превью текста) in email [src/app/api/notifications/new-post/route.ts:45] → Resolved: добавлено поле `excerpt?: string` в `PostPayload`, `postExcerpt?: string` в `NewPostEmailData`, блок превью в HTML и текстовую версию
--   [x] [Review][Patch] Potential double slashes in `postUrl` [src/app/api/notifications/new-post/route.ts:131] → Resolved: добавлен `siteUrl.replace(/\/$/, '')` перед формированием URL
--   [x] [Review][Patch] `sanitizeHref` blocks `/` relative paths [src/lib/email/templates/new-post.ts:394] → Resolved: `sanitizeHref` теперь разрешает корневые `/path` пути, блокирует только `//host` (protocol-relative)
--   [x] [Review][Patch] Partial Batch Send success vs failure [src/lib/email/index.ts:255] → Resolved: `failed += chunk.length - succeededCount` при частичном успехе батча
--   [x] [Review][Patch] Accuracy of `sent` count when `data` is missing [src/lib/email/index.ts:269] → Resolved: `sent += data?.data?.length ?? 0` (не `chunk.length` как fallback)
-
--   [x] [Review][Defer] Unsubscribe link is not "one-click" [src/app/api/notifications/new-post/route.ts:132] — deferred, Story 3.5
