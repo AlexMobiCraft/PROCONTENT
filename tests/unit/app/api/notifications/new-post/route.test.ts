@@ -512,10 +512,26 @@ describe('POST /api/notifications/new-post', () => {
       const res = await POST(req)
 
       expect(res.status).toBe(200)
-      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ subject: string }>]
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [
+        Array<{ subject: string; html: string; text: string }>,
+      ]
       expect(messages[0].subject).not.toContain('\r')
       expect(messages[0].subject).not.toContain('\n')
       expect(messages[0].subject).toBe('Nova objava: TitleBcc: attacker@evil.com')
+    })
+
+    it('удаляет CRLF из тела письма (html и text) при вредоносном заголовке', async () => {
+      const maliciousPost = { id: VALID_UUID, title: 'Title\r\nInjected: header' }
+      const req = makeRequest(maliciousPost, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [
+        Array<{ html: string; text: string }>,
+      ]
+      expect(messages[0].html).not.toContain('\r\n' + 'Injected: header')
+      expect(messages[0].text).not.toContain('\r\n' + 'Injected: header')
+      expect(messages[0].html).toContain('TitleInjected: header')
+      expect(messages[0].text).toContain('TitleInjected: header')
     })
   })
 

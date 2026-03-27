@@ -172,14 +172,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     to: s.email,
     subject: `Nova objava: ${safeTitle}`,
     html: generateNewPostEmailHtml({
-      postTitle: post.title,
+      postTitle: safeTitle,
       postUrl,
       postExcerpt: normalizedExcerpt,
       recipientName: s.display_name,
       unsubscribeUrl,
     }),
     text: generateNewPostEmailText({
-      postTitle: post.title,
+      postTitle: safeTitle,
       postUrl,
       postExcerpt: normalizedExcerpt,
       recipientName: s.display_name,

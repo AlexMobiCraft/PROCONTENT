@@ -1,6 +1,6 @@
 # Story 3.4: Автоматические Email-уведомления о новых постах
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -81,6 +81,8 @@ So that не пропустить важный контент, даже если
 - ✅ Round 6 resolved: trailing slashes, excerpt type/whitespace validation, test fixtures fix
 - ✅ Round 7 resolved: rawBody=null → 400, createAdminClient() в try/catch → JSON 500, SMTP header injection sanitized
 - 861 тестов прошли (регрессий нет); Round 7: +3 новых теста (rawBody=null, missing Supabase env vars, CRLF injection)
+- ✅ Round 8 resolved: safeTitle используется в html/text body генераторах (не только в subject) — CRLF из title не проникает в тело письма
+- 862 тестов прошли (регрессий нет); Round 8: +1 новый тест (CRLF in html/text body)
 
 ## File List
 
@@ -91,7 +93,7 @@ So that не пропустить важный контент, даже если
 - `src/lib/email/templates/new-post.ts` (изменён — добавлена `sanitizeHref` для href-атрибутов)
 - `src/app/api/notifications/new-post/route.ts` (изменён — UUID-валидация, SITE_URL-валидация, фильтр null-email, `timingSafeEqual`, предупреждение об отсутствии секрета, логирование в isAuthorized, исправлен URL `/feed/`, пагинация `fetchAllSubscribers`; Round 7: null rawBody → 400, createAdminClient в try/catch, safeTitle CRLF sanitization)
 - `tests/unit/lib/email/new-post-template.test.ts` (изменён — добавлены 2 теста на javascript: URL)
-- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2-5: +13 тестов; Round 6: +3 теста; Round 7: +3 теста — rawBody=null, missing Supabase env vars, CRLF injection)
+- `tests/unit/app/api/notifications/new-post/route.test.ts` (изменён — VALID_POST использует UUID, добавлены 4 новых теста; Round 2-5: +13 тестов; Round 6: +3 теста; Round 7: +3 теста — rawBody=null, missing Supabase env vars, CRLF injection; Round 8: +1 тест — CRLF in html/text body)
 - `tests/unit/lib/email/email-service.test.ts` (создан — 6 unit-тестов для sendEmailBatch: partial batch, data=null, empty array)
 
 ## Change Log
@@ -104,6 +106,7 @@ So that не пропустить важный контент, даже если
 - 2026-03-27: Addressed Round 5 review findings — 3 items resolved (trialing subscribers included, Supabase Webhook record wrapper, email @ validation)
 - 2026-03-27: Addressed Round 6 review findings — 4 items resolved (trailing slashes, excerpt validation, test fixtures)
 - 2026-03-27: Addressed Round 7 review findings — 3 items resolved (rawBody null check, createAdminClient try/catch, SMTP header injection)
+- 2026-03-27: Addressed Round 8 review findings — 1 item resolved (safeTitle in html/text body generators)
 
 ### Review Findings
 
@@ -158,5 +161,5 @@ So that не пропустить важный контент, даже если
 
 #### Round 8 (2026-03-27) - Code Review
 
-- [ ] [Review][Patch] Plain text email body не санитизируется от CRLF — SMTP header injection защищён в subject (safeTitle), но post.title с CRLF передаётся в generateNewPostEmailText без очистки [src/app/api/notifications/new-post/route.ts:175,182]
+- [x] [Review][Patch] Plain text email body не санитизируется от CRLF — SMTP header injection защищён в subject (safeTitle), но post.title с CRLF передаётся в generateNewPostEmailText без очистки [src/app/api/notifications/new-post/route.ts:175,182] → Resolved: postTitle передаётся как safeTitle (с удалёнными CRLF) в оба генератора html и text
 - [x] [Review][Defer] AC5 "доставка в течение 5 минут" не верифицируется в коде — инфраструктурное требование, pre-existing
