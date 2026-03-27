@@ -1,6 +1,6 @@
 # Story 3.4: Автоматические Email-уведомления о новых постах
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -125,3 +125,9 @@ So that не пропустить важный контент, даже если
 - [x] [Review][Patch] Деградация типизации ошибок в fetchAllSubscribers [src/app/api/notifications/new-post/route.ts:109] → Resolved: введён тип `SubscriberQueryError` с полями message/details/hint/code
 - [x] [Review][Patch] Хардкод PAGE_SIZE=1000 в тестах [tests/unit/app/api/notifications/new-post/route.test.ts] → Resolved: PAGE_SIZE экспортируется из route.ts и импортируется в тестах
 
+#### Round 5 (2026-03-27) - Full 3-Layer Review
+
+- [ ] [Review][Patch] `trialing` подписчики исключены из рассылки — заменить `.eq('subscription_status', 'active')` на `.in('subscription_status', ['active', 'trialing'])`. Решение: включить trialing, т.к. trial-пользователи имеют полный доступ к контенту (auth-middleware.ts). [src/app/api/notifications/new-post/route.ts:56]
+- [ ] [Review][Patch] Supabase Webhook payload не парсится — Supabase DB Webhook отправляет `{ type: "INSERT", table: "posts", record: { id, title, ... } }`, но route handler ожидает `{ id, title }` в корне body. Реальный webhook не будет работать. [src/app/api/notifications/new-post/route.ts:100]
+- [ ] [Review][Patch] Отсутствие минимальной email-валидации перед батчем — невалидный формат email (без `@`) пройдёт фильтр `Boolean(s.email)` и может сломать весь Resend-батч из 100 писем [src/app/api/notifications/new-post/route.ts:130-131]
+- [x] [Review][Defer] `excerpt` поле зависит от реализации Story 4.1 — `post.excerpt` принимается и используется, но таблица `posts` может не иметь этого поля до Story 4.1 [src/app/api/notifications/new-post/route.ts:16] — deferred, Story 4.1 scope

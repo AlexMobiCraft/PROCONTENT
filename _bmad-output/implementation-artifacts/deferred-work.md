@@ -12,3 +12,6 @@
 - **Риск переполнения памяти (OOM)**: Функция fetchAllSubscribers собирает всех активных подписчиков в один массив. При росте базы это приведет к падению серверной функции. [src/app/api/notifications/new-post/route.ts:111]
 - **Ограниченная конкурентность**: Последовательная отправка батчей по 100 писем рискует превысить таймаут Vercel при большом количестве подписчиков. [src/lib/email/index.ts:48]
 - **Отсутствие Retry-логики**: Сбой одного батча из-за сети помечает его как failed навсегда без попыток переотправки. [src/lib/email/index.ts]
+
+## Deferred from: code review of 3-4-automatic-email-notifications-new-posts.md (2026-03-27) - Round 5
+- **`excerpt` поле зависит от Story 4.1**: `post.excerpt` принимается route handler'ом и передаётся в шаблон, но таблица `posts` может не содержать этого поля до реализации Story 4.1. Пока excerpt приходит как `undefined` — шаблон отображает без excerpta. [src/app/api/notifications/new-post/route.ts:16]
