@@ -40,7 +40,7 @@
 #   - Story 4.1 обновлена: мультимедиа загрузка (до 10 файлов, обложка, порядок)
 #   - Story 5.1 обновлена: группировка медиагрупп, Exponential Backoff, post_media
 
-generated: 2026-03-27T10:36:00+01:00
+generated: 2026-03-28T12:00:00+01:00
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -107,7 +107,7 @@ development_status:
   # 2026-03-27: Round 7 patch items resolved (rawBody null → 400, createAdminClient try/catch, SMTP header sanitized) → review
   # 2026-03-27: Round 8 patch resolved (safeTitle in html/text body generators) → review
   3-4-automatic-email-notifications-about-new-posts: done
-  3-5-managing-email-preferences: backlog
+  3-5-managing-email-preferences: ready-for-dev
   epic-3-retrospective: optional
 
   # ─── EPIC 4: Creator Operations (Admin Dashboard) ──────────────────────────
