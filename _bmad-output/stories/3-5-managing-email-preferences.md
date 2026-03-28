@@ -1,6 +1,6 @@
 # Story 3.5: Управление email-предпочтениями
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -40,51 +40,51 @@ So that контролировать входящий поток писем.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Миграция БД — добавить поле `email_notifications_enabled` (AC: #1)
-  - [ ] 1.1: Создать SQL-миграцию: `ALTER TABLE profiles ADD COLUMN email_notifications_enabled boolean DEFAULT true NOT NULL`
-  - [ ] 1.2: Обновить типы в `src/types/supabase.ts` (добавить поле в `profiles` Row/Insert/Update)
+- [x] Task 1: Миграция БД — добавить поле `email_notifications_enabled` (AC: #1)
+  - [x] 1.1: Создать SQL-миграцию: `ALTER TABLE profiles ADD COLUMN email_notifications_enabled boolean DEFAULT true NOT NULL`
+  - [x] 1.2: Обновить типы в `src/types/supabase.ts` (добавить поле в `profiles` Row/Insert/Update)
 
-- [ ] Task 2: Компонент `EmailPreferencesCard` (AC: #1)
-  - [ ] 2.1: Создать `src/features/profile/components/EmailPreferencesCard.tsx` — Dumb UI, `'use client'`
-  - [ ] 2.2: Реализовать контролируемый toggle (Switch из @base-ui/react или стилизованный checkbox) с `checked`, `disabled`, `isLoading` props и `id="email-preferences"`
-  - [ ] 2.3: Добавить тексты, accessibility-атрибуты и визуальные состояния для enabled / disabled / loading
-  - [ ] 2.4: Добавить `EmailPreferencesCard` в `ProfileScreen.tsx` (между SubscriptionCard и PasswordResetCard)
+- [x] Task 2: Компонент `EmailPreferencesCard` (AC: #1)
+  - [x] 2.1: Создать `src/features/profile/components/EmailPreferencesCard.tsx` — Dumb UI, `'use client'`
+  - [x] 2.2: Реализовать контролируемый toggle (Switch из @base-ui/react или стилизованный checkbox) с `checked`, `disabled`, `isLoading` props и `id="email-preferences"`
+  - [x] 2.3: Добавить тексты, accessibility-атрибуты и визуальные состояния для enabled / disabled / loading
+  - [x] 2.4: Добавить `EmailPreferencesCard` в `ProfileScreen.tsx` (между SubscriptionCard и PasswordResetCard)
 
-- [ ] Task 3: Обновить серверную страницу профиля (AC: #1)
-  - [ ] 3.1: В `src/app/(app)/profile/page.tsx` добавить `email_notifications_enabled` в select-запрос
-  - [ ] 3.2: Передать в `ProfileScreen` значение `email_notifications_enabled`, `user.id` и флаг `can_manage_email_preferences`
-  - [ ] 3.3: В `ProfileScreen.tsx` реализовать optimistic update, rollback, success/error toast и мутацию `profiles.email_notifications_enabled` через client Supabase
-  - [ ] 3.4: Если профиль отсутствует (`PGRST116`), не рендерить интерактивный `EmailPreferencesCard` и не выполнять мутацию
+- [x] Task 3: Обновить серверную страницу профиля (AC: #1)
+  - [x] 3.1: В `src/app/(app)/profile/page.tsx` добавить `email_notifications_enabled` в select-запрос
+  - [x] 3.2: Передать в `ProfileScreen` значение `emailNotificationsEnabled`, `userId` и флаг `canManageEmailPreferences`
+  - [x] 3.3: В `ProfileScreen.tsx` реализовать optimistic update, rollback, success/error toast и мутацию `profiles.email_notifications_enabled` через client Supabase
+  - [x] 3.4: Если профиль отсутствует (`PGRST116`), не рендерить интерактивный `EmailPreferencesCard` и не выполнять мутацию
 
-- [ ] Task 4: Фильтрация при рассылке (AC: #2)
-  - [ ] 4.1: В `src/app/api/notifications/new-post/route.ts` → `fetchAllSubscribers()` добавить `.eq('email_notifications_enabled', true)` в Supabase-запрос
-  - [ ] 4.2: Обновить тесты route.test.ts — добавить тест-кейс "пользователь с отключенными уведомлениями исключён из рассылки"
+- [x] Task 4: Фильтрация при рассылке (AC: #2)
+  - [x] 4.1: В `src/app/api/notifications/new-post/route.ts` → `fetchAllSubscribers()` добавить `.eq('email_notifications_enabled', true)` в Supabase-запрос
+  - [x] 4.2: Обновить тесты route.test.ts — добавить тест-кейс "пользователь с отключенными уведомлениями исключён из рассылки"
 
-- [ ] Task 5: Unsubscribe API (AC: #3, #4, #5, #6)
-  - [ ] 5.1: Создать `src/app/api/email/unsubscribe/route.ts` — endpoint с обработкой `GET` и `POST`
-  - [ ] 5.2: Авторизация через signed token (`uid`, `ts`, `sig`), НЕ через сессию; canonical string: `${uid}:${ts}`
-  - [ ] 5.3: Валидировать HMAC-SHA256 подпись (`NOTIFICATION_API_SECRET`), `uid` как UUID, `ts` как Unix seconds integer, TTL = 30 дней; сравнение `sig` выполнять constant-time, timestamp из будущего считать невалидным
-  - [ ] 5.4: При валидном токене — обновить `email_notifications_enabled = false` через admin client; операция должна быть идемпотентной; отсутствие профиля трактовать как invalid unsubscribe request
-  - [ ] 5.5: `GET` при успехе — redirect на `/email-preferences?status=unsubscribed`, при невалидном/истекшем токене — redirect на `/email-preferences?status=invalid_or_expired`
-  - [ ] 5.6: `POST` при успехе — вернуть `200 text/plain; charset=utf-8`, body = `OK`, при невалидном/истекшем токене — `400 text/plain; charset=utf-8`
+- [x] Task 5: Unsubscribe API (AC: #3, #4, #5, #6)
+  - [x] 5.1: Создать `src/app/api/email/unsubscribe/route.ts` — endpoint с обработкой `GET` и `POST`
+  - [x] 5.2: Авторизация через signed token (`uid`, `ts`, `sig`), НЕ через сессию; canonical string: `${uid}:${ts}`
+  - [x] 5.3: Валидировать HMAC-SHA256 подпись (`NOTIFICATION_API_SECRET`), `uid` как UUID, `ts` как Unix seconds integer, TTL = 30 дней; сравнение `sig` выполнять constant-time, timestamp из будущего считать невалидным
+  - [x] 5.4: При валидном токене — обновить `email_notifications_enabled = false` через admin client; операция должна быть идемпотентной; отсутствие профиля трактовать как invalid unsubscribe request
+  - [x] 5.5: `GET` при успехе — redirect на `/email-preferences?status=unsubscribed`, при невалидном/истекшем токене — redirect на `/email-preferences?status=invalid_or_expired`
+  - [x] 5.6: `POST` при успехе — вернуть `200 text/plain; charset=utf-8`, body = `OK`, при невалидном/истекшем токене — `400 text/plain; charset=utf-8`
 
-- [ ] Task 6: Публичная страница результата unsubscribe (AC: #3, #5)
-  - [ ] 6.1: Создать `src/app/(public)/email-preferences/page.tsx` — публичную страницу без требования активной сессии
-  - [ ] 6.2: Читать `searchParams.status` и отображать success/error state для `unsubscribed` и `invalid_or_expired`
-  - [ ] 6.3: Добавить fallback UI для неизвестного `status` без раскрытия чувствительных деталей
+- [x] Task 6: Публичная страница результата unsubscribe (AC: #3, #5)
+  - [x] 6.1: Создать `src/app/(public)/email-preferences/page.tsx` — публичную страницу без требования активной сессии
+  - [x] 6.2: Читать `searchParams.status` и отображать success/error state для `unsubscribed` и `invalid_or_expired`
+  - [x] 6.3: Добавить fallback UI для неизвестного `status` без раскрытия чувствительных деталей
 
-- [ ] Task 7: Обновить email-шаблоны и заголовки (AC: #3, #4)
-  - [ ] 7.1: В `src/app/api/notifications/new-post/route.ts` добавить email-заголовки `List-Unsubscribe` и `List-Unsubscribe-Post` (RFC 8058) с индивидуальным signed URL для каждого подписчика в формате `/api/email/unsubscribe?uid=...&ts=...&sig=...`
-  - [ ] 7.2: Обновить footer в `new-post.ts` — ссылка "Отписаться" ведёт на тот же signed URL (GET → unsubscribe + redirect на `/email-preferences?status=unsubscribed`)
-  - [ ] 7.3: Обновить `EmailMessage` интерфейс в `src/lib/email/index.ts` — добавить опциональное поле `headers`
-  - [ ] 7.4: Обновить `sendEmailBatch()` — прокидывать `headers` в каждый item `resend.batch.send(...)`
+- [x] Task 7: Обновить email-шаблоны и заголовки (AC: #3, #4)
+  - [x] 7.1: В `src/app/api/notifications/new-post/route.ts` добавить email-заголовки `List-Unsubscribe` и `List-Unsubscribe-Post` (RFC 8058) с индивидуальным signed URL для каждого подписчика в формате `/api/email/unsubscribe?uid=...&ts=...&sig=...`
+  - [x] 7.2: Обновить footer в `new-post.ts` — ссылка "Отписаться" ведёт на тот же signed URL (GET → unsubscribe + redirect на `/email-preferences?status=unsubscribed`)
+  - [x] 7.3: Обновить `EmailMessage` интерфейс в `src/lib/email/index.ts` — добавить опциональное поле `headers`
+  - [x] 7.4: Обновить `sendEmailBatch()` — прокидывать `headers` в каждый item `resend.batch.send(...)`
 
-- [ ] Task 8: Тестирование
-  - [ ] 8.1: Unit-тесты для `EmailPreferencesCard` и `ProfileScreen` (рендер, controlled toggle, optimistic update, success/error toast, rollback)
-  - [ ] 8.2: Unit-тесты для unsubscribe route (валидный токен, невалидный, истекший, timestamp из будущего, malformed params, отсутствующий профиль, идемпотентный повторный запрос)
-  - [ ] 8.3: Unit-тесты для `src/app/(public)/email-preferences/page.tsx` — `status=unsubscribed`, `status=invalid_or_expired`, unknown status fallback
-  - [ ] 8.4: Обновить тесты email-шаблонов — проверить наличие signed unsubscribe URL и заголовков `List-Unsubscribe` / `List-Unsubscribe-Post`
-  - [ ] 8.5: Обновить тесты route handler — фильтрация по `email_notifications_enabled` и уникальный unsubscribe URL на каждого получателя
+- [x] Task 8: Тестирование
+  - [x] 8.1: Unit-тесты для `EmailPreferencesCard` и `ProfileScreen` (рендер, controlled toggle, optimistic update, success/error toast, rollback)
+  - [x] 8.2: Unit-тесты для unsubscribe route (валидный токен, невалидный, истекший, timestamp из будущего, malformed params, отсутствующий профиль, идемпотентный повторный запрос)
+  - [x] 8.3: Unit-тесты для `src/app/(public)/email-preferences/page.tsx` — `status=unsubscribed`, `status=invalid_or_expired`, unknown status fallback
+  - [x] 8.4: Обновить тесты email-шаблонов — проверить наличие signed unsubscribe URL и заголовков `List-Unsubscribe` / `List-Unsubscribe-Post`
+  - [x] 8.5: Обновить тесты route handler — фильтрация по `email_notifications_enabled` и уникальный unsubscribe URL на каждого получателя
 
 ## Dev Notes
 
@@ -163,7 +163,7 @@ resend.emails.send({
 ```typescript
 interface EmailPreferencesCardProps {
   id?: string
-  email_notifications_enabled: boolean
+  emailNotificationsEnabled: boolean  // camelCase для component props
   onToggle: (enabled: boolean) => void
   isLoading?: boolean
   isDisabled?: boolean
@@ -223,7 +223,7 @@ async function handleEmailToggle(enabled: boolean) {
 // ТЕКУЩЕЕ:
 .select('email, display_name, subscription_status, current_period_end, stripe_customer_id')
 
-// НУЖНО ДОБАВИТЬ email_notifications_enabled и передать user.id / can_manage_email_preferences:
+// НУЖНО ДОБАВИТЬ email_notifications_enabled и передать user.id / canManageEmailPreferences:
 .select('email, display_name, subscription_status, current_period_end, stripe_customer_id, email_notifications_enabled')
 ```
 
@@ -233,7 +233,7 @@ async function handleEmailToggle(enabled: boolean) {
 {canManageEmailPreferences && (
   <EmailPreferencesCard
     id="email-preferences"
-    email_notifications_enabled={emailEnabled}
+    emailNotificationsEnabled={emailEnabled}
     onToggle={handleEmailToggle}
     isLoading={isEmailSaving}
   />
@@ -308,10 +308,46 @@ interface EmailPreferencesPageProps {
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-sonnet-4-6
 
 ### Debug Log References
 
+- Переименованы props `email_notifications_enabled` → `emailNotificationsEnabled` и `can_manage_email_preferences` → `canManageEmailPreferences` в компонентах (camelCase convention для React props, snake_case только для прямого доступа к полям БД в запросах).
+- В route.test.ts добавлен `mockAdminEq` в цепочку моков: `.not → .eq → .order` вместо `.not → .order` (из-за добавления `.eq('email_notifications_enabled', true)`).
+- ACTIVE_SUBSCRIBERS в тестах обновлены с добавлением поля `id` (subscribers теперь содержат id для генерации signed URL).
+
 ### Completion Notes List
 
+- Task 1: SQL-миграция `020_add_email_preferences.sql` + типы Supabase обновлены
+- Task 2: `EmailPreferencesCard` — Dumb UI с `role="switch"`, controlled toggle, ARIA, loading state, touch target ≥44px
+- Task 3: `ProfileScreen` — optimistic update, rollback, toast. `profile/page.tsx` — `email_notifications_enabled` в select, `canManageEmailPreferences` prop, PGRST116 guard
+- Task 4: `fetchAllSubscribers()` — фильтр `.eq('email_notifications_enabled', true)`, select расширен полем `id`
+- Task 5: `GET/POST /api/email/unsubscribe` — HMAC-SHA256 signed token, constant-time сравнение, TTL 30 дней, future-ts защита, UUID валидация, идемпотентность, admin client
+- Task 6: Публичная `/email-preferences` — `unsubscribed` / `invalid_or_expired` / fallback без раскрытия деталей
+- Task 7: `generateUnsubscribeUrl()` генерирует индивидуальный signed URL на подписчика. `EmailMessage.headers` + `sendEmailBatch()` прокидывает `List-Unsubscribe` / `List-Unsubscribe-Post`
+- Task 8: 913 тестов (56 файлов) — все прошли. Новые тесты: EmailPreferencesCard (14), ProfileScreen (9 обновлённых), unsubscribe route (15), email-preferences page (7). Обновлены: route.test.ts (mock chain + id + 4 новых теста), new-post-template.test.ts (2 новых теста)
+
 ### File List
+
+**Новые файлы:**
+- supabase/migrations/020_add_email_preferences.sql
+- src/features/profile/components/EmailPreferencesCard.tsx
+- src/app/api/email/unsubscribe/route.ts
+- src/app/(public)/email-preferences/page.tsx
+- tests/unit/features/profile/components/EmailPreferencesCard.test.tsx
+- tests/unit/app/api/email/unsubscribe/route.test.ts
+- tests/unit/app/email-preferences/page.test.tsx
+
+**Изменённые файлы:**
+- src/types/supabase.ts
+- src/features/profile/components/ProfileScreen.tsx
+- src/app/(app)/profile/page.tsx
+- src/app/api/notifications/new-post/route.ts
+- src/lib/email/index.ts
+- tests/unit/features/profile/components/ProfileScreen.test.tsx
+- tests/unit/app/api/notifications/new-post/route.test.ts
+- tests/unit/lib/email/new-post-template.test.ts
+
+## Change Log
+
+- 2026-03-28: Story 3.5 реализована — управление email-предпочтениями. Добавлены: SQL-миграция (email_notifications_enabled), EmailPreferencesCard (toggle с optimistic update), GET/POST /api/email/unsubscribe (HMAC-SHA256 signed tokens, RFC 8058 List-Unsubscribe), публичная /email-preferences страница, фильтрация подписчиков при рассылке, индивидуальные signed URL в письмах. 913 тестов пройдено.
