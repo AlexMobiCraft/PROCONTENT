@@ -91,6 +91,20 @@ describe('PostForm (create mode)', () => {
     expect(mockCreatePost).not.toHaveBeenCalled()
   })
 
+  it('shows media required error when no media items on submit', async () => {
+    const user = userEvent.setup()
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'My Post')
+    await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByRole('button', { name: /objavi/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('media-required-error')).toBeInTheDocument()
+    })
+    expect(mockCreatePost).not.toHaveBeenCalled()
+  })
+
   it('calls createPost with form values on valid submit', async () => {
     const user = userEvent.setup()
     mockCreatePost.mockResolvedValue('new-post-id')
@@ -98,6 +112,8 @@ describe('PostForm (create mode)', () => {
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
     await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    // Add a media item via mock button
+    await user.click(screen.getByTestId('add-media-btn'))
     await user.click(screen.getByRole('button', { name: /objavi/i }))
 
     await waitFor(() => {
@@ -117,6 +133,8 @@ describe('PostForm (create mode)', () => {
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
     await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    // Add a media item
+    await user.click(screen.getByTestId('add-media-btn'))
 
     const submitBtn = screen.getByRole('button', { name: /objavi/i })
     await user.click(submitBtn)
@@ -134,6 +152,7 @@ describe('PostForm (create mode)', () => {
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
     await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
     await user.click(screen.getByRole('button', { name: /objavi/i }))
 
     await waitFor(() => {
@@ -148,6 +167,7 @@ describe('PostForm (create mode)', () => {
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
     await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
     await user.click(screen.getByRole('button', { name: /objavi/i }))
 
     await waitFor(() => {

@@ -11,12 +11,23 @@ export interface UploadedMedia {
   is_cover: boolean
 }
 
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  // Fallback for non-secure contexts (e.g., HTTP dev servers)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
 /**
  * Generates a unique storage path for a file.
  * Format: posts/{postId}/{randomUUID}/{safeFileName}
  */
 function generateStoragePath(postId: string, fileName: string): string {
-  const uuid = crypto.randomUUID()
+  const uuid = generateUUID()
   const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
   return `posts/${postId}/${uuid}/${safeFileName}`
 }

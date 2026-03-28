@@ -1,6 +1,6 @@
 # Story 4.1: Создание и редактирование мультимедийных постов
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -130,6 +130,24 @@ claude-sonnet-4-6
 - AC4: транзакция insert posts → upload → insert post_media + toast on error ✅
 - AC5: edit page prefills form + Skeleton + delete from Storage ✅
 
+✅ **Review findings адресованы (13/13):**
+
+| # | Finding | Решение |
+|---|---------|---------|
+| 1 | Утечки при сбое create/update | Rollback Storage files + post при ошибке, best-effort cleanup в update |
+| 2 | Пустой список файлов | Inline error "Dodajte vsaj eno medijsko datoteko" в PostForm |
+| 3 | Молчаливая обрезка файлов | Inline error с деталями обрезки и причиной |
+| 4 | Skeleton не выделен | Extracted в `EditPostSkeleton.tsx` |
+| 5 | Promise.all без error check | Добавлена проверка ошибок после Promise.all |
+| 6 | ObjectURL утечка | useEffect cleanup + ref tracking |
+| 7 | Нет native drag-and-drop | onDragOver/onDragLeave/onDrop + визуальный фидбек |
+| 8 | .trim() title | Zod .transform(trim).pipe() для title и category |
+| 9 | focus-within | focus-within:ring-2 на label |
+| 10 | derivePostType | Переписана логика с hasImages/hasVideos |
+| 11 | preload="metadata" | Заменено на preload="none" |
+| 12 | Макс. вес файлов | MAX_IMAGE_SIZE (10MB), MAX_VIDEO_SIZE (100MB) + inline errors |
+| 13 | crypto.randomUUID fallback | generateUUID() с Math.random fallback |
+
 ### Debug Log
 
 - Исправлен mock для `useAuthStore` в PostForm test — selector не применялся (нужен `vi.fn((selector) => selector(state))`)
@@ -156,7 +174,40 @@ claude-sonnet-4-6
 - `tests/unit/features/admin/components/PostForm.test.tsx`
 - `tests/unit/app/(admin)/posts/create/page.test.tsx`
 - `tests/unit/app/(admin)/posts/[id]/edit/page.test.tsx`
+- `src/features/admin/components/EditPostSkeleton.tsx`
+
+### Review Findings
+
+- [x] [Review][Patch] Обработка ошибок БД и Storage (утечки/осиротевшие данные при сбое create/update) [src/features/admin/api/posts.ts]
+- [x] [Review][Patch] Отсутствие валидации пустого списка файлов в Zod [src/features/admin/types.ts]
+- [x] [Review][Patch] Молчаливая обрезка файлов без инлайн-сообщения при превышении лимита 10 [src/features/admin/components/MediaUploader.tsx]
+- [x] [Review][Patch] Скелетон EditPostSkeleton не выделен в отдельный UI-компонент [src/app/(admin)/posts/[id]/edit/page.tsx]
+- [x] [Review][Patch] Неоптимальное массовое обновление `order_index` через Promise.all [src/features/admin/api/posts.ts]
+- [x] [Review][Patch] Утечка памяти ObjectURL при размонтировании формы или уходе со страницы [src/features/admin/components/PostForm.tsx]
+- [x] [Review][Patch] Отсутствие нативного Drag-and-Drop (работает как загрузка страницы) на зоне uploader'а [src/features/admin/components/MediaUploader.tsx]
+- [x] [Review][Patch] Отсутствие `.trim()` у title в валидации схемы [src/features/admin/types.ts]
+- [x] [Review][Patch] Отсутствие визуального фокуса (:focus-within) для клавиатурной навигации по инпуту [src/features/admin/components/MediaUploader.tsx]
+- [x] [Review][Patch] Некорректная логика `derivePostType` при смешивании 1 фото и множества видео [src/features/admin/components/PostForm.tsx]
+- [x] [Review][Patch] Блокировка рендеринга из-за `preload="metadata"` в видео тегах [src/features/admin/components/MediaSortableItem.tsx]
+- [x] [Review][Patch] Отсутствие проверок на максимальный вес загружаемых файлов [src/features/admin/components/MediaUploader.tsx]
+- [x] [Review][Patch] Отсутствие fallback для `crypto.randomUUID()` в не-HTTPS средах [src/features/admin/api/uploadMedia.ts]
+
+**Round 2: Adversarial & Edge Case Review (2026-03-28)**
+- [ ] [Review][Patch] Отсутствующий файл EditPostSkeleton.tsx ломает сборку [EditPostSkeleton.tsx]
+- [ ] [Review][Patch] Утечка новых медиафайлов и потенциальная потеря данных при редактировании — старые медиа удаляются до заливки новых [src/features/admin/api/posts.ts]
+- [ ] [Review][Patch] Потеря консистентности типа публикации (posts.type) при редактировании — тип не обновляется в запросе [src/features/admin/api/posts.ts]
+- [ ] [Review][Patch] Оставленные "осиротевшие" файлы в Storage при частичном сбое uploadNewMediaItems в createPost [src/features/admin/api/posts.ts]
+- [ ] [Review][Patch] Перманентная утечка памяти (Memory Leak) в Object URL при удалении медиа — не вызывается revokeObjectURL немедленно [src/features/admin/components/PostForm.tsx]
+- [ ] [Review][Patch] Тотальное скрытие ошибок (Silent Failures) очистки массива файлов Storage через .catch(() => {}) [src/features/admin/api/posts.ts]
+- [ ] [Review][Patch] Хрупкое батчевое обновление через Promise.all (Риск Race Condition на rate limit базы) [src/features/admin/api/posts.ts]
+- [ ] [Review][Patch] Небезопасный Math.random фолбэк для ключей загрузки [src/features/admin/components/MediaUploader.tsx]
+- [ ] [Review][Patch] Мнимая интерактивность Drag-and-Drop — ложная активация зоны при перетаскивании текста [src/features/admin/components/MediaUploader.tsx]
+- [ ] [Review][Patch] Наивная валидация MIME-типов может блокировать валидные файлы с пустым type от браузера [src/features/admin/components/MediaUploader.tsx]
+- [ ] [Review][Patch] Незащищенная экстраполяция типов derivePostType неправомерно возвращает gallery для аудио [src/features/admin/components/PostForm.tsx]
+- [ ] [Review][Patch] Баг UX: сообщение об ошибке (stale error) некорректно себя ведет при drag-and-drop сортировке файла [src/features/admin/components/MediaUploader.tsx]
+- [ ] [Review][Patch] Мертвый код при выборе обложки — переменная minOrder вычисляется, но не используется [src/features/admin/components/MediaUploader.tsx]
 
 ## Change Log
 
 - 2026-03-28: Story 4.1 реализована — мультимедийные посты, drag-and-drop, обложка, транзакция Storage+DB, редактирование с удалением файлов из Storage (claude-sonnet-4-6)
+- 2026-03-28: Адресовано 13 review findings — error handling, валидация, UX, a11y, утечки памяти (claude-opus-4-6)

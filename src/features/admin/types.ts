@@ -37,16 +37,28 @@ export function getMediaItemId(item: MediaItem): string {
 
 /** Post form field values — validated by Zod */
 export const PostFormSchema = z.object({
-  title: z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)'),
+  title: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)')),
   content: z.string().optional(),
   excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),
-  category: z.string().min(1, 'Kategorija je obvezna').max(100),
+  category: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),
 })
 
 export type PostFormValues = z.infer<typeof PostFormSchema>
 
 /** Maximum number of media files allowed per post */
 export const MAX_MEDIA_FILES = 10
+
+/** Maximum file size for images (10 MB) */
+export const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+
+/** Maximum file size for videos (100 MB) */
+export const MAX_VIDEO_SIZE = 100 * 1024 * 1024
 
 /** Allowed MIME types for image uploads */
 export const ALLOWED_IMAGE_TYPES = [

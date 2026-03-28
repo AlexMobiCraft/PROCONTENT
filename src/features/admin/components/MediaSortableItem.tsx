@@ -64,7 +64,7 @@ export function MediaSortableItem({
             src={previewUrl}
             className="size-full object-cover"
             muted
-            preload="metadata"
+            preload="none"
           />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element

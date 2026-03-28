@@ -40,7 +40,7 @@
 #   - Story 4.1 обновлена: мультимедиа загрузка (до 10 файлов, обложка, порядок)
 #   - Story 5.1 обновлена: группировка медиагрупп, Exponential Backoff, post_media
 
-generated: 2026-03-28T13:12:00+01:00
+generated: 2026-03-28T21:51:23+01:00
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -114,7 +114,9 @@ development_status:
   # ─── EPIC 4: Creator Operations (Admin Dashboard) ──────────────────────────
   # Story 4-1 обновлена 2026-03-22: мультимедиа до 10 файлов, выбор обложки, drag-and-drop порядок
   epic-4: in-progress
-  4-1-creating-and-editing-multimedia-posts: review
+  # 2026-03-28: 13 review findings resolved (error handling, validation, UX, a11y, memory leaks) → review
+  # 2026-03-28: Round 2 Review generated 13 action items for edge cases & security. Story returned to in-progress.
+  4-1-creating-and-editing-multimedia-posts: in-progress
   4-2-managing-categories-and-post-rubrics: backlog
   4-3-managing-content-for-onboarding-and-landing: backlog
   4-4-monitoring-members-and-manual-access-control: backlog

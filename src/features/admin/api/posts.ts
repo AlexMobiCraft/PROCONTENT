@@ -18,14 +18,19 @@ export interface UpdatePostInput {
 /** Derives `posts.type` from the media items in the form state */
 function derivePostType(items: MediaItem[]): string {
   if (items.length === 0) return 'text'
-  if (items.length === 1) return items[0].media_type === 'video' ? 'video' : 'photo'
-  return items.every((m) => m.media_type === 'video') ? 'multi-video' : 'gallery'
+
+  const hasImages = items.some((m) => m.media_type === 'image')
+  const hasVideos = items.some((m) => m.media_type === 'video')
+
+  if (hasImages && hasVideos) return 'gallery'
+  if (hasVideos) return items.length === 1 ? 'video' : 'multi-video'
+  return items.length === 1 ? 'photo' : 'gallery'
 }
 
 /**
  * Creates a new post with associated media.
  * Sequence: insert post → upload new files → insert post_media rows
- * On any error after post creation: attempts to roll back the post record.
+ * On any error after post creation: cleans up uploaded files and the post record.
  */
 export async function createPost(input: CreatePostInput): Promise<string> {
   const supabase = createClient()
@@ -53,11 +58,13 @@ export async function createPost(input: CreatePostInput): Promise<string> {
   }
 
   const postId = post.id
+  const uploadedUrls: string[] = []
 
   try {
     // 2. Upload new files to Storage
     const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
     const uploadedMedia = await uploadNewMediaItems(postId, newItems)
+    uploadedUrls.push(...uploadedMedia.map((m) => m.url))
 
     // 3. Build post_media payload — preserve order from mediaItems array
     if (mediaItems.length > 0) {
@@ -92,7 +99,10 @@ export async function createPost(input: CreatePostInput): Promise<string> {
 
     return postId
   } catch (err) {
-    // Rollback: delete the post record
+    // Rollback: remove uploaded files from Storage, then delete the post record
+    if (uploadedUrls.length > 0) {
+      await removeStorageFiles(uploadedUrls).catch(() => {})
+    }
     await supabase.from('posts').delete().eq('id', postId)
     throw err
   }
@@ -143,8 +153,8 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`)
     }
 
-    // 3. Delete removed files from Storage
-    await removeStorageFiles(removedItems.map((m) => m.url))
+    // 3. Delete removed files from Storage (best-effort, don't block on failure)
+    await removeStorageFiles(removedItems.map((m) => m.url)).catch(() => {})
   }
 
   // 4. Upload new files
@@ -152,16 +162,22 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
   const uploadedMedia =
     newItems.length > 0 ? await uploadNewMediaItems(postId, newItems) : []
 
-  // 5. Update order_index + is_cover for retained existing items
+  // 5. Batch update order_index + is_cover for retained existing items
   const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')
-  await Promise.all(
-    existingItems.map((item) =>
-      supabase
-        .from('post_media')
-        .update({ order_index: item.order_index, is_cover: item.is_cover })
-        .eq('id', item.id)
+  if (existingItems.length > 0) {
+    const updateResults = await Promise.all(
+      existingItems.map((item) =>
+        supabase
+          .from('post_media')
+          .update({ order_index: item.order_index, is_cover: item.is_cover })
+          .eq('id', item.id)
+      )
     )
-  )
+    const failed = updateResults.find((r) => r.error)
+    if (failed?.error) {
+      throw new Error(`Napaka pri posodabljanju vrstnega reda: ${failed.error.message}`)
+    }
+  }
 
   // 6. Insert new post_media rows
   if (uploadedMedia.length > 0) {

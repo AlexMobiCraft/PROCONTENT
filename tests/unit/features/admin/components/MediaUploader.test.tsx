@@ -73,7 +73,7 @@ describe('MediaUploader', () => {
     expect(screen.getAllByTestId(/^media-item-/)).toHaveLength(2)
   })
 
-  it('shows inline error when more than MAX_MEDIA_FILES selected', async () => {
+  it('shows inline error when at MAX_MEDIA_FILES limit', () => {
     const existingItems: MediaItem[] = Array.from({ length: MAX_MEDIA_FILES }, (_, i) =>
       makeExistingItem(`item${i}`, i)
     )
@@ -96,6 +96,46 @@ describe('MediaUploader', () => {
     expect(newItems).toHaveLength(1)
     expect(newItems[0].kind).toBe('new')
     expect((newItems[0] as NewMediaItem).media_type).toBe('image')
+  })
+
+  it('shows inline error when files exceed limit and trims excess', async () => {
+    const user = userEvent.setup()
+    // Start with 9 items
+    const existingItems: MediaItem[] = Array.from({ length: 9 }, (_, i) =>
+      makeExistingItem(`item${i}`, i)
+    )
+    render(<MediaUploader items={existingItems} onChange={onChange} />)
+
+    // Try to add 3 files — only 1 should be added
+    const files = [
+      new File(['a'], 'a.jpg', { type: 'image/jpeg' }),
+      new File(['b'], 'b.jpg', { type: 'image/jpeg' }),
+      new File(['c'], 'c.jpg', { type: 'image/jpeg' }),
+    ]
+    const input = screen.getByTestId('media-input')
+    await user.upload(input, files)
+
+    expect(onChange).toHaveBeenCalledOnce()
+    const newItems: MediaItem[] = onChange.mock.calls[0][0]
+    // 9 existing + 1 new = 10
+    expect(newItems).toHaveLength(10)
+    // Error message should appear
+    expect(screen.getByTestId('media-file-error')).toBeInTheDocument()
+  })
+
+  it('shows error for oversized image file', async () => {
+    const user = userEvent.setup()
+    render(<MediaUploader items={[]} onChange={onChange} />)
+
+    // Create a file object > 10 MB
+    const largeContent = new Uint8Array(11 * 1024 * 1024)
+    const file = new File([largeContent], 'huge.jpg', { type: 'image/jpeg' })
+    const input = screen.getByTestId('media-input')
+    await user.upload(input, file)
+
+    // Should not add the file
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByTestId('media-file-error')).toBeInTheDocument()
   })
 
   it('marks item as cover when cover button is clicked', () => {

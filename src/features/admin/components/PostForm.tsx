@@ -1,7 +1,7 @@
 'use client'
 
 import { useForm } from 'react-hook-form'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
@@ -76,6 +76,31 @@ export function PostForm(props: PostFormProps) {
     }))
   })
 
+  // Track ObjectURLs for cleanup on unmount
+  const objectUrlsRef = useRef<Set<string>>(new Set())
+
+  const handleMediaChange = (items: MediaItem[]) => {
+    // Track new ObjectURLs
+    for (const item of items) {
+      if (item.kind === 'new') {
+        objectUrlsRef.current.add(item.preview_url)
+      }
+    }
+    setMediaItems(items)
+  }
+
+  // Cleanup ObjectURLs on unmount
+  useEffect(() => {
+    const urls = objectUrlsRef.current
+    return () => {
+      for (const url of urls) {
+        URL.revokeObjectURL(url)
+      }
+    }
+  }, [])
+
+  const [mediaError, setMediaError] = useState<string | null>(null)
+
   const {
     register,
     handleSubmit,
@@ -93,6 +118,13 @@ export function PostForm(props: PostFormProps) {
     // Validate with Zod (react-hook-form handles required/max, but Zod is authoritative)
     const parsed = PostFormSchema.safeParse(values)
     if (!parsed.success) return
+
+    // Validate media: at least 1 file required
+    if (mediaItems.length === 0) {
+      setMediaError('Dodajte vsaj eno medijsko datoteko')
+      return
+    }
+    setMediaError(null)
 
     if (!user) {
       toast.error('Niste prijavljeni')
@@ -205,7 +237,12 @@ export function PostForm(props: PostFormProps) {
       {/* Media uploader */}
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">Mediji</span>
-        <MediaUploader items={mediaItems} onChange={setMediaItems} isSubmitting={isSubmitting} />
+        <MediaUploader items={mediaItems} onChange={handleMediaChange} isSubmitting={isSubmitting} />
+        {mediaError && (
+          <p className="text-xs text-destructive" role="alert" data-testid="media-required-error">
+            {mediaError}
+          </p>
+        )}
       </div>
 
       {/* Submit */}

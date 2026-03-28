@@ -16,11 +16,13 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { ImagePlus } from 'lucide-react'
-import { useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { MediaItem, MediaType, NewMediaItem } from '@/features/admin/types'
 import {
   getMediaItemId,
   MAX_MEDIA_FILES,
+  MAX_IMAGE_SIZE,
+  MAX_VIDEO_SIZE,
   ALLOWED_IMAGE_TYPES,
   ALLOWED_MEDIA_TYPES,
 } from '@/features/admin/types'
@@ -32,9 +34,17 @@ interface MediaUploaderProps {
   isSubmitting?: boolean
 }
 
+function formatSize(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(0)} MB`
+    : `${(bytes / 1024).toFixed(0)} KB`
+}
+
 export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const isAtLimit = items.length >= MAX_MEDIA_FILES
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -56,35 +66,84 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
     onChange(reordered)
   }
 
-  function handleFilesSelected(files: FileList | null) {
-    if (!files || files.length === 0) return
+  const processFiles = useCallback(
+    (fileList: File[]) => {
+      if (fileList.length === 0) return
 
-    const remaining = MAX_MEDIA_FILES - items.length
-    const toAdd = Array.from(files).slice(0, remaining)
+      setFileError(null)
+      const errors: string[] = []
 
-    const newItems: NewMediaItem[] = toAdd.map((file, i) => {
-      const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(file.type) ? 'image' : 'video'
-      return {
-        kind: 'new',
-        key: crypto.randomUUID(),
-        file,
-        preview_url: URL.createObjectURL(file),
-        media_type: mediaType,
-        is_cover: false,
-        order_index: items.length + i,
+      // Filter by allowed MIME type
+      const validTypeFiles = fileList.filter((f) => {
+        if (!ALLOWED_MEDIA_TYPES.includes(f.type)) {
+          errors.push(`"${f.name}" — nepodprt format`)
+          return false
+        }
+        return true
+      })
+
+      // Filter by file size
+      const validFiles = validTypeFiles.filter((f) => {
+        const isImage = ALLOWED_IMAGE_TYPES.includes(f.type)
+        const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE
+        if (f.size > maxSize) {
+          errors.push(
+            `"${f.name}" presega omejitev ${formatSize(maxSize)}`
+          )
+          return false
+        }
+        return true
+      })
+
+      const remaining = MAX_MEDIA_FILES - items.length
+      if (remaining <= 0) {
+        setFileError(`Dosežena je omejitev ${MAX_MEDIA_FILES} datotek`)
+        return
       }
-    })
 
-    // Auto-assign first item as cover if none set
-    const combined: MediaItem[] = [...items, ...newItems]
-    const hasCover = combined.some((m) => m.is_cover)
-    if (!hasCover && combined.length > 0) {
-      combined[0] = { ...combined[0], is_cover: true }
-    }
+      const toAdd = validFiles.slice(0, remaining)
+      if (validFiles.length > remaining) {
+        errors.push(
+          `${validFiles.length - remaining} datotek ni bilo dodanih — omejitev ${MAX_MEDIA_FILES}`
+        )
+      }
 
-    onChange(combined)
-    // Reset input so same file can be re-selected
-    if (inputRef.current) inputRef.current.value = ''
+      if (errors.length > 0) {
+        setFileError(errors.join('. '))
+      }
+
+      if (toAdd.length === 0) return
+
+      const newItems: NewMediaItem[] = toAdd.map((file, i) => {
+        const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(file.type) ? 'image' : 'video'
+        return {
+          kind: 'new',
+          key: crypto.randomUUID(),
+          file,
+          preview_url: URL.createObjectURL(file),
+          media_type: mediaType,
+          is_cover: false,
+          order_index: items.length + i,
+        }
+      })
+
+      // Auto-assign first item as cover if none set
+      const combined: MediaItem[] = [...items, ...newItems]
+      const hasCover = combined.some((m) => m.is_cover)
+      if (!hasCover && combined.length > 0) {
+        combined[0] = { ...combined[0], is_cover: true }
+      }
+
+      onChange(combined)
+      // Reset input so same file can be re-selected
+      if (inputRef.current) inputRef.current.value = ''
+    },
+    [items, onChange]
+  )
+
+  function handleFilesSelected(files: FileList | null) {
+    if (!files) return
+    processFiles(Array.from(files))
   }
 
   function handleSetCover(targetId: string) {
@@ -110,6 +169,31 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
     }
 
     onChange(filtered)
+    setFileError(null)
+  }
+
+  // Native drag-and-drop handlers for file upload zone
+  function handleNativeDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isAtLimit && !isSubmitting) setIsDragOver(true)
+  }
+
+  function handleNativeDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  function handleNativeDrop(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    if (isAtLimit || isSubmitting) return
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+      processFiles(Array.from(files))
+    }
   }
 
   const sortableIds = items.map(getMediaItemId)
@@ -142,9 +226,12 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
       {/* Upload button / drop zone */}
       <div className="flex flex-col gap-1">
         <label
-          className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted ${
-            isAtLimit || isSubmitting ? 'cursor-not-allowed opacity-50' : ''
-          }`}
+          onDragOver={handleNativeDragOver}
+          onDragLeave={handleNativeDragLeave}
+          onDrop={handleNativeDrop}
+          className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors focus-within:ring-2 focus-within:ring-ring hover:bg-muted ${
+            isDragOver ? 'border-primary bg-primary/5' : ''
+          } ${isAtLimit || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
         >
           <ImagePlus className="size-4" />
           <span>Dodaj medij ({items.length}/{MAX_MEDIA_FILES})</span>
@@ -160,9 +247,15 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
           />
         </label>
 
-        {isAtLimit && (
+        {isAtLimit && !fileError && (
           <p className="text-xs text-destructive" data-testid="media-limit-message">
             Dosežena je omejitev {MAX_MEDIA_FILES} datotek
+          </p>
+        )}
+
+        {fileError && (
+          <p className="text-xs text-destructive" data-testid="media-file-error">
+            {fileError}
           </p>
         )}
       </div>
