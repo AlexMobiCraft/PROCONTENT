@@ -132,161 +132,172 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     },
   })
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const { pathname } = request.nextUrl
-  const publicPath = isPublicPath(pathname)
-
-  if (user && pathname === LOGIN_PATH) {
-    const url = request.nextUrl.clone()
-    url.pathname = getAuthSuccessRedirectPath()
-    return redirectWithCookies(url, supabaseResponse)
-  }
-
-  if (!user && !publicPath) {
-    const url = request.nextUrl.clone()
-    url.pathname = LOGIN_PATH
-    return redirectWithCookies(url, supabaseResponse)
-  }
-
-  // FALLBACK CHECK (Story 1.7): Если попали на /inactive, проверяем Stripe
-  if (user && pathname === INACTIVE_PATH) {
-    console.log('[middleware] Checking /inactive for user:', user.email)
+  try {
+    const { data, error: userError } = await supabase.auth.getUser()
+    const user = data?.user
     
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('subscription_status')
-      .eq('id', user.id)
-      .maybeSingle()
-    
-    let status = profile?.subscription_status
-
-    if (status !== 'active' && status !== 'trialing' && user.email) {
-      console.log('[middleware] Status is not active, checking Stripe for email:', user.email)
-      try {
-        const customers = await stripe.customers.list({
-          email: user.email.toLowerCase(), // Robustness: use lowercase
-          limit: 1
-        })
-        
-        console.log('[middleware] Stripe customers found:', customers.data.length)
-
-        if (customers.data.length > 0) {
-          const customerId = customers.data[0].id
-          let activeSubs = await stripe.subscriptions.list({
-            customer: customerId,
-            status: 'active',
-            limit: 1
-          })
-          if (activeSubs.data.length === 0) {
-            activeSubs = await stripe.subscriptions.list({
-              customer: customerId,
-              status: 'trialing',
-              limit: 1
-            })
-          }
-
-          console.log('[middleware] Stripe active/trialing subs found:', activeSubs.data.length)
-
-          if (activeSubs.data.length > 0) {
-            const sub = activeSubs.data[0]
-            console.log('[middleware] Found active sub in Stripe, updating Supabase...')
-            const rawPeriodEnd = (sub as unknown as { current_period_end?: number }).current_period_end
-            const currentPeriodEnd = rawPeriodEnd ? new Date(rawPeriodEnd * 1000).toISOString() : null
-
-            const { error: updateError } = await supabase
-              .from('profiles')
-              .update({
-                subscription_status: sub.status as 'active' | 'trialing',
-                stripe_customer_id: customerId,
-                stripe_subscription_id: sub.id,
-                current_period_end: currentPeriodEnd,
-              })
-              .eq('id', user.id)
-            
-            if (updateError) {
-              console.error('[middleware] Update error:', updateError.message)
-            } else {
-              console.log('[middleware] Successfully updated profile to active!')
-              status = 'active'
-            }
-          }
-        }
-      } catch (e: unknown) {
-        console.error('[middleware] Fallback check FAILED:', e instanceof Error ? e.message : String(e))
-      }
+    if (userError) {
+      console.error('[middleware] User check error:', userError.message)
     }
 
-    if (status === 'active' || status === 'trialing') {
-      console.log('[middleware] Status is now active, redirecting to feed')
+    const { pathname } = request.nextUrl
+    const publicPath = isPublicPath(pathname)
+
+    if (user && pathname === LOGIN_PATH) {
       const url = request.nextUrl.clone()
       url.pathname = getAuthSuccessRedirectPath()
-      const redirectResponse = redirectWithCookies(url, supabaseResponse)
-      
-      // Force clear the cache cookie to ensure it's re-evaluated with 'active'
-      const token = await createCacheToken(user.id, status)
-      if (token) {
-        redirectResponse.cookies.set(
-          SUBSCRIPTION_CACHE_COOKIE,
-          token,
-          getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
-        )
-      }
-      return redirectResponse
-    }
-  }
-
-  // PROTECTED ROUTES CHECK
-  if (user && !publicPath) {
-    const cachedValue = request.cookies.get(SUBSCRIPTION_CACHE_COOKIE)?.value
-    if (cachedValue !== undefined) {
-      const cached = await parseCacheToken(cachedValue)
-      if (cached && cached.userId === user.id) {
-        if (cached.status !== 'active' && cached.status !== 'trialing') {
-          const url = request.nextUrl.clone()
-          url.pathname = INACTIVE_PATH
-          return redirectWithCookies(url, supabaseResponse)
-        }
-        return supabaseResponse
-      }
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('subscription_status')
-      .eq('id', user.id)
-      .maybeSingle()
-    
-    if (profileError) {
-      const url = request.nextUrl.clone()
-      url.pathname = ROOT_PATH
       return redirectWithCookies(url, supabaseResponse)
     }
 
-    const status = profile?.subscription_status
-    if (status !== 'active' && status !== 'trialing') {
+    if (!user && !publicPath) {
       const url = request.nextUrl.clone()
-      url.pathname = INACTIVE_PATH
-      const redirectResponse = redirectWithCookies(url, supabaseResponse)
-      const token = await createCacheToken(user.id, status ?? 'none')
+      url.pathname = LOGIN_PATH
+      return redirectWithCookies(url, supabaseResponse)
+    }
+
+    // FALLBACK CHECK (Story 1.7): Если попали на /inactive, проверяем Stripe
+    if (user && pathname === INACTIVE_PATH) {
+      console.log('[middleware] Checking /inactive for user:', user.email)
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status')
+        .eq('id', user.id)
+        .maybeSingle()
+      
+      let status = profile?.subscription_status
+
+      if (status !== 'active' && status !== 'trialing' && user.email) {
+        console.log('[middleware] Status is not active, checking Stripe for email:', user.email)
+        try {
+          const customers = await stripe.customers.list({
+            email: user.email.toLowerCase(), // Robustness: use lowercase
+            limit: 1
+          })
+          
+          console.log('[middleware] Stripe customers found:', customers.data.length)
+
+          if (customers.data.length > 0) {
+            const customerId = customers.data[0].id
+            let activeSubs = await stripe.subscriptions.list({
+              customer: customerId,
+              status: 'active',
+              limit: 1
+            })
+            if (activeSubs.data.length === 0) {
+              activeSubs = await stripe.subscriptions.list({
+                customer: customerId,
+                status: 'trialing',
+                limit: 1
+              })
+            }
+
+            console.log('[middleware] Stripe active/trialing subs found:', activeSubs.data.length)
+
+            if (activeSubs.data.length > 0) {
+              const sub = activeSubs.data[0]
+              console.log('[middleware] Found active sub in Stripe, updating Supabase...')
+              const rawPeriodEnd = (sub as unknown as { current_period_end?: number }).current_period_end
+              const currentPeriodEnd = rawPeriodEnd ? new Date(rawPeriodEnd * 1000).toISOString() : null
+
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({
+                  subscription_status: sub.status as 'active' | 'trialing',
+                  stripe_customer_id: customerId,
+                  stripe_subscription_id: sub.id,
+                  current_period_end: currentPeriodEnd,
+                })
+                .eq('id', user.id)
+              
+              if (updateError) {
+                console.error('[middleware] Update error:', updateError.message)
+              } else {
+                console.log('[middleware] Successfully updated profile to active!')
+                status = 'active'
+              }
+            }
+          }
+        } catch (e: unknown) {
+          console.error('[middleware] Fallback check FAILED:', e instanceof Error ? e.message : String(e))
+        }
+      }
+
+      if (status === 'active' || status === 'trialing') {
+        console.log('[middleware] Status is now active, redirecting to feed')
+        const url = request.nextUrl.clone()
+        url.pathname = getAuthSuccessRedirectPath()
+        const redirectResponse = redirectWithCookies(url, supabaseResponse)
+        
+        // Force clear the cache cookie to ensure it's re-evaluated with 'active'
+        const token = await createCacheToken(user.id, status)
+        if (token) {
+          redirectResponse.cookies.set(
+            SUBSCRIPTION_CACHE_COOKIE,
+            token,
+            getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
+          )
+        }
+        return redirectResponse
+      }
+    }
+
+    // PROTECTED ROUTES CHECK
+    if (user && !publicPath) {
+      const cachedValue = request.cookies.get(SUBSCRIPTION_CACHE_COOKIE)?.value
+      if (cachedValue !== undefined) {
+        const cached = await parseCacheToken(cachedValue)
+        if (cached && cached.userId === user.id) {
+          if (cached.status !== 'active' && cached.status !== 'trialing') {
+            const url = request.nextUrl.clone()
+            url.pathname = INACTIVE_PATH
+            return redirectWithCookies(url, supabaseResponse)
+          }
+          return supabaseResponse
+        }
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('subscription_status')
+        .eq('id', user.id)
+        .maybeSingle()
+      
+      if (profileError) {
+        const url = request.nextUrl.clone()
+        url.pathname = ROOT_PATH
+        return redirectWithCookies(url, supabaseResponse)
+      }
+
+      const status = profile?.subscription_status
+      if (status !== 'active' && status !== 'trialing') {
+        const url = request.nextUrl.clone()
+        url.pathname = INACTIVE_PATH
+        const redirectResponse = redirectWithCookies(url, supabaseResponse)
+        const token = await createCacheToken(user.id, status ?? 'none')
+        if (token) {
+          redirectResponse.cookies.set(
+            SUBSCRIPTION_CACHE_COOKIE,
+            token,
+            getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
+          )
+        }
+        return redirectResponse
+      }
+
+      const token = await createCacheToken(user.id, status ?? 'active')
       if (token) {
-        redirectResponse.cookies.set(
+        supabaseResponse.cookies.set(
           SUBSCRIPTION_CACHE_COOKIE,
           token,
           getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
         )
       }
-      return redirectResponse
     }
 
-    const token = await createCacheToken(user.id, status ?? 'active')
-    if (token) {
-      supabaseResponse.cookies.set(
-        SUBSCRIPTION_CACHE_COOKIE,
-        token,
-        getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
-      )
-    }
+    return supabaseResponse
+  } catch (err) {
+    console.error('[middleware] FATAL EXCEPTION:', err)
+    return supabaseResponse
   }
-
-  return supabaseResponse
 }

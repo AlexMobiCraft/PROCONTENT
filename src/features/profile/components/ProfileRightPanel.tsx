@@ -2,16 +2,18 @@
 
 import { cn } from '@/lib/utils'
 
-function getInitials(displayName: string | null, email: string): string {
-  if (displayName) {
+function getInitials(displayName: string | null, email: string | null): string {
+  if (displayName && displayName.trim()) {
     return displayName
-      .split(' ')
+      .trim()
+      .split(/\s+/)
       .map((w) => w[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
   }
-  return email[0].toUpperCase()
+  const safeEmail = email || '?'
+  return safeEmail[0].toUpperCase()
 }
 
 function getStatusBadge(status: string | null): { label: string; active: boolean } {
