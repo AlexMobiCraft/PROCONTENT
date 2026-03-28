@@ -40,7 +40,7 @@
 #   - Story 4.1 обновлена: мультимедиа загрузка (до 10 файлов, обложка, порядок)
 #   - Story 5.1 обновлена: группировка медиагрупп, Exponential Backoff, post_media
 
-generated: 2026-03-28T12:53:01+01:00
+generated: 2026-03-28T13:12:00+01:00
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -92,7 +92,7 @@ development_status:
   epic-2-retrospective: optional
 
   # ─── EPIC 3: Community Engagement ──────────────────────────────────────────
-  epic-3: in-progress
+  epic-3: done
   3-1-viewing-discussions-under-a-post: done
   3-2-writing-a-comment-with-instant-response-optimistic-ui: done
   # 2026-03-26: CR выявил 3 проблемы (RLS несоответствие, отступы ответов, удаление своих комментов) -> in-progress
@@ -108,13 +108,13 @@ development_status:
   # 2026-03-27: Round 8 patch resolved (safeTitle in html/text body generators) → review
   3-4-automatic-email-notifications-about-new-posts: done
   # 2026-03-28: Story реализована → review
-  3-5-managing-email-preferences: in-progress
+  3-5-managing-email-preferences: done
   epic-3-retrospective: optional
 
   # ─── EPIC 4: Creator Operations (Admin Dashboard) ──────────────────────────
   # Story 4-1 обновлена 2026-03-22: мультимедиа до 10 файлов, выбор обложки, drag-and-drop порядок
-  epic-4: backlog
-  4-1-creating-and-editing-multimedia-posts: backlog
+  epic-4: in-progress
+  4-1-creating-and-editing-multimedia-posts: ready-for-dev
   4-2-managing-categories-and-post-rubrics: backlog
   4-3-managing-content-for-onboarding-and-landing: backlog
   4-4-monitoring-members-and-manual-access-control: backlog

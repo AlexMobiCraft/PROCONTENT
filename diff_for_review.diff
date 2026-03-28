@@ -1,0 +1,139 @@
+diff --git a/_bmad-output/implementation-artifacts/sprint-status.yaml b/_bmad-output/implementation-artifacts/sprint-status.yaml
+index b315a20..766a0e8 100644
+--- a/_bmad-output/implementation-artifacts/sprint-status.yaml
++++ b/_bmad-output/implementation-artifacts/sprint-status.yaml
+@@ -108,7 +108,7 @@ development_status:
+   # 2026-03-27: Round 8 patch resolved (safeTitle in html/text body generators) → review
+   3-4-automatic-email-notifications-about-new-posts: done
+   # 2026-03-28: Story реализована → review
+-  3-5-managing-email-preferences: in-progress
++  3-5-managing-email-preferences: review
+   epic-3-retrospective: optional
+ 
+   # ─── EPIC 4: Creator Operations (Admin Dashboard) ──────────────────────────
+diff --git a/_bmad-output/stories/3-5-managing-email-preferences.md b/_bmad-output/stories/3-5-managing-email-preferences.md
+index 122e1b3..d0e9007 100644
+--- a/_bmad-output/stories/3-5-managing-email-preferences.md
++++ b/_bmad-output/stories/3-5-managing-email-preferences.md
+@@ -1,6 +1,6 @@
+ # Story 3.5: Управление email-предпочтениями
+ 
+-Status: in-progress
++Status: review
+ 
+ ## Story
+ 
+@@ -329,6 +329,8 @@ claude-sonnet-4-6
+ - ✅ Resolved review finding [Critical]: /email-preferences добавлен в PUBLIC_PATHS, /api/email/ в PUBLIC_PATH_PREFIXES (app-routes.ts)
+ - ✅ Resolved review finding [Major]: NOTIFICATION_API_SECRET теперь обязателен — fail-fast 500 вместо fallback на /profile; убрана условная логика в блоке формирования писем
+ - ✅ Resolved review finding [Major]: middleware.test.ts дополнен 2 тестами для /email-preferences и /api/email/unsubscribe без авторизации. Тест "принимает сессию admin" обновлён — секрет теперь задаётся через beforeEach. 915 тестов пройдено.
++- ✅ Resolved review finding [Patch]: PUBLIC_PATH_PREFIXES сужен — убран `/api/email/`, добавлен точный `/api/email/unsubscribe` в PUBLIC_PATHS. Тест в middleware.test.ts проверяет что `/api/email/other` не является публичным.
++- ✅ Resolved review finding [Patch]: Добавлен `.trim()` в валидацию NOTIFICATION_API_SECRET (строка 139) и в check в isAuthorized (строка 235) в new-post/route.ts. Тест проверяет что whitespace-only секрет возвращает 500. 917 тестов пройдено.
+ 
+ ### File List
+ 
+@@ -357,6 +359,7 @@ claude-sonnet-4-6
+ 
+ - 2026-03-28: Story 3.5 реализована — управление email-предпочтениями. Добавлены: SQL-миграция (email_notifications_enabled), EmailPreferencesCard (toggle с optimistic update), GET/POST /api/email/unsubscribe (HMAC-SHA256 signed tokens, RFC 8058 List-Unsubscribe), публичная /email-preferences страница, фильтрация подписчиков при рассылке, индивидуальные signed URL в письмах. 913 тестов пройдено.
+ - 2026-03-28: Addressed code review findings — 3 items resolved. Исправлен middleware (PUBLIC_PATHS), убран fail-open fallback в new-post route, добавлены middleware тесты для unsubscribe маршрутов. 915 тестов пройдено.
++- 2026-03-28: Addressed code review findings Round 2 — 2 Patch items resolved. Сужен PUBLIC_PATH_PREFIXES (убран `/api/email/`, добавлен точный путь в PUBLIC_PATHS). Добавлена валидация whitespace-only NOTIFICATION_API_SECRET + trim() в isAuthorized. 917 тестов пройдено.
+ 
+ ### Review Findings (Round 1: 2026-03-28)
+ 
+@@ -366,5 +369,5 @@ claude-sonnet-4-6
+ 
+ ### Review Findings (Round 2: 2026-03-28)
+ 
+-- [ ] [Review][Patch] Чрезмерно широкие права для префикса `/api/email/` [src/lib/app-routes.ts]
+-- [ ] [Review][Patch] Валидация пробельной/пустой строки NOTIFICATION_API_SECRET (например, `" "`) [src/app/api/notifications/new-post/route.ts]
++- [x] [Review][Patch] Чрезмерно широкие права для префикса `/api/email/` [src/lib/app-routes.ts]
++- [x] [Review][Patch] Валидация пробельной/пустой строки NOTIFICATION_API_SECRET (например, `" "`) [src/app/api/notifications/new-post/route.ts]
+diff --git a/src/app/api/notifications/new-post/route.ts b/src/app/api/notifications/new-post/route.ts
+index 2a67ccf..9d27cce 100644
+--- a/src/app/api/notifications/new-post/route.ts
++++ b/src/app/api/notifications/new-post/route.ts
+@@ -136,7 +136,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
+   // Секрет обязателен для генерации signed unsubscribe URL (RFC 8058, AC #4).
+   // Без него нельзя добавить List-Unsubscribe заголовки и выполнить one-click unsubscribe.
+   const notificationSecret = process.env.NOTIFICATION_API_SECRET
+-  if (!notificationSecret) {
++  if (!notificationSecret || !notificationSecret.trim()) {
+     console.error('[notifications] NOTIFICATION_API_SECRET is not configured')
+     return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+   }
+@@ -232,7 +232,7 @@ function generateUnsubscribeUrl(baseUrl: string, uid: string, secret: string): s
+ async function isAuthorized(request: NextRequest): Promise<boolean> {
+   // 1. Проверка секретного ключа (для Supabase Database Webhook)
+   const apiSecret = process.env.NOTIFICATION_API_SECRET
+-  if (apiSecret) {
++  if (apiSecret && apiSecret.trim()) {
+     const authHeader = request.headers.get('Authorization') ?? ''
+     const expected = `Bearer ${apiSecret}`
+     // Hash both values to avoid leaking the secret length via timing
+diff --git a/src/lib/app-routes.ts b/src/lib/app-routes.ts
+index 5c284ab..fca8390 100644
+--- a/src/lib/app-routes.ts
++++ b/src/lib/app-routes.ts
+@@ -5,9 +5,9 @@ export const DEFAULT_AUTH_REDIRECT_PATH = '/feed'
+ export const ONBOARDING_PATH = '/onboarding'
+ // /update-password: в PUBLIC_PATHS чтобы middleware пропускал пользователей с неактивной подпиской
+ // (recovery-flow), дополнительная защита от неавторизованных — серверная проверка в самой странице
+-export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH, '/update-password', '/register', '/forgot-password', '/email-preferences'] as const
++export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH, '/update-password', '/register', '/forgot-password', '/email-preferences', '/api/email/unsubscribe'] as const
+ 
+-const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/', '/api/checkout', '/api/email/'] as const
++const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/', '/api/checkout'] as const
+ 
+ function normalizeInternalPath(path: string | undefined, fallback: string) {
+   if (!path || !path.startsWith('/')) {
+diff --git a/tests/unit/app/api/notifications/new-post/route.test.ts b/tests/unit/app/api/notifications/new-post/route.test.ts
+index 712d878..b2e4436 100644
+--- a/tests/unit/app/api/notifications/new-post/route.test.ts
++++ b/tests/unit/app/api/notifications/new-post/route.test.ts
+@@ -215,6 +215,25 @@ describe('POST /api/notifications/new-post', () => {
+       const res = await POST(req)
+       expect(res.status).toBe(500)
+     })
++
++    it('возвращает 500 при whitespace-only NOTIFICATION_API_SECRET (авторизован через admin сессию)', async () => {
++      vi.stubEnv('NOTIFICATION_API_SECRET', '   ')
++
++      const adminUser = { id: 'admin-user-id' }
++      mockGetUser.mockResolvedValue({ data: { user: adminUser } })
++      const mockSessionSingle = vi.fn().mockResolvedValue({ data: { role: 'admin' } })
++      const mockSessionEq = vi.fn().mockReturnValue({ single: mockSessionSingle })
++      const mockSessionSelect = vi.fn().mockReturnValue({ eq: mockSessionEq })
++      const mockSessionFrom = vi.fn().mockReturnValue({ select: mockSessionSelect })
++      mockCreateServerClient.mockResolvedValue({
++        auth: { getUser: mockGetUser },
++        from: mockSessionFrom,
++      })
++
++      const req = makeRequest(VALID_POST)
++      const res = await POST(req)
++      expect(res.status).toBe(500)
++    })
+   })
+ 
+   describe('Email sending', () => {
+diff --git a/tests/unit/middleware.test.ts b/tests/unit/middleware.test.ts
+index 8f78bc5..3120de9 100644
+--- a/tests/unit/middleware.test.ts
++++ b/tests/unit/middleware.test.ts
+@@ -155,6 +155,16 @@ describe('middleware', () => {
+ 
+       expect(response.status).not.toBe(307)
+     })
++
++    it('редиректит неавторизованного с /api/email/other на /login (не является публичным маршрутом)', async () => {
++      mockGetUser.mockResolvedValue({ data: { user: null } })
++
++      const req = new NextRequest('http://localhost:3000/api/email/other')
++      const response = await updateSession(req)
++
++      expect(response.status).toBe(307)
++      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
++    })
+   })
+ 
+   describe('потеря сессии при редиректе', () => {

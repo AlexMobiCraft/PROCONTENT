@@ -215,6 +215,25 @@ describe('POST /api/notifications/new-post', () => {
       const res = await POST(req)
       expect(res.status).toBe(500)
     })
+
+    it('возвращает 500 при whitespace-only NOTIFICATION_API_SECRET (авторизован через admin сессию)', async () => {
+      vi.stubEnv('NOTIFICATION_API_SECRET', '   ')
+
+      const adminUser = { id: 'admin-user-id' }
+      mockGetUser.mockResolvedValue({ data: { user: adminUser } })
+      const mockSessionSingle = vi.fn().mockResolvedValue({ data: { role: 'admin' } })
+      const mockSessionEq = vi.fn().mockReturnValue({ single: mockSessionSingle })
+      const mockSessionSelect = vi.fn().mockReturnValue({ eq: mockSessionEq })
+      const mockSessionFrom = vi.fn().mockReturnValue({ select: mockSessionSelect })
+      mockCreateServerClient.mockResolvedValue({
+        auth: { getUser: mockGetUser },
+        from: mockSessionFrom,
+      })
+
+      const req = makeRequest(VALID_POST)
+      const res = await POST(req)
+      expect(res.status).toBe(500)
+    })
   })
 
   describe('Email sending', () => {

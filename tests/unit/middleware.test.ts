@@ -155,6 +155,16 @@ describe('middleware', () => {
 
       expect(response.status).not.toBe(307)
     })
+
+    it('редиректит неавторизованного с /api/email/other на /login (не является публичным маршрутом)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/api/email/other')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+    })
   })
 
   describe('потеря сессии при редиректе', () => {

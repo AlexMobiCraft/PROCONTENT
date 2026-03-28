@@ -136,7 +136,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Секрет обязателен для генерации signed unsubscribe URL (RFC 8058, AC #4).
   // Без него нельзя добавить List-Unsubscribe заголовки и выполнить one-click unsubscribe.
   const notificationSecret = process.env.NOTIFICATION_API_SECRET
-  if (!notificationSecret) {
+  if (!notificationSecret || !notificationSecret.trim()) {
     console.error('[notifications] NOTIFICATION_API_SECRET is not configured')
     return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
   }
@@ -232,7 +232,7 @@ function generateUnsubscribeUrl(baseUrl: string, uid: string, secret: string): s
 async function isAuthorized(request: NextRequest): Promise<boolean> {
   // 1. Проверка секретного ключа (для Supabase Database Webhook)
   const apiSecret = process.env.NOTIFICATION_API_SECRET
-  if (apiSecret) {
+  if (apiSecret && apiSecret.trim()) {
     const authHeader = request.headers.get('Authorization') ?? ''
     const expected = `Bearer ${apiSecret}`
     // Hash both values to avoid leaking the secret length via timing

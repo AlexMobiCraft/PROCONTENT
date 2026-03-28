@@ -1,6 +1,6 @@
 # Story 3.5: Управление email-предпочтениями
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -329,6 +329,8 @@ claude-sonnet-4-6
 - ✅ Resolved review finding [Critical]: /email-preferences добавлен в PUBLIC_PATHS, /api/email/ в PUBLIC_PATH_PREFIXES (app-routes.ts)
 - ✅ Resolved review finding [Major]: NOTIFICATION_API_SECRET теперь обязателен — fail-fast 500 вместо fallback на /profile; убрана условная логика в блоке формирования писем
 - ✅ Resolved review finding [Major]: middleware.test.ts дополнен 2 тестами для /email-preferences и /api/email/unsubscribe без авторизации. Тест "принимает сессию admin" обновлён — секрет теперь задаётся через beforeEach. 915 тестов пройдено.
+- ✅ Resolved review finding [Patch]: PUBLIC_PATH_PREFIXES сужен — убран `/api/email/`, добавлен точный `/api/email/unsubscribe` в PUBLIC_PATHS. Тест в middleware.test.ts проверяет что `/api/email/other` не является публичным.
+- ✅ Resolved review finding [Patch]: Добавлен `.trim()` в валидацию NOTIFICATION_API_SECRET (строка 139) и в check в isAuthorized (строка 235) в new-post/route.ts. Тест проверяет что whitespace-only секрет возвращает 500. 917 тестов пройдено.
 
 ### File List
 
@@ -357,6 +359,7 @@ claude-sonnet-4-6
 
 - 2026-03-28: Story 3.5 реализована — управление email-предпочтениями. Добавлены: SQL-миграция (email_notifications_enabled), EmailPreferencesCard (toggle с optimistic update), GET/POST /api/email/unsubscribe (HMAC-SHA256 signed tokens, RFC 8058 List-Unsubscribe), публичная /email-preferences страница, фильтрация подписчиков при рассылке, индивидуальные signed URL в письмах. 913 тестов пройдено.
 - 2026-03-28: Addressed code review findings — 3 items resolved. Исправлен middleware (PUBLIC_PATHS), убран fail-open fallback в new-post route, добавлены middleware тесты для unsubscribe маршрутов. 915 тестов пройдено.
+- 2026-03-28: Addressed code review findings Round 2 — 2 Patch items resolved. Сужен PUBLIC_PATH_PREFIXES (убран `/api/email/`, добавлен точный путь в PUBLIC_PATHS). Добавлена валидация whitespace-only NOTIFICATION_API_SECRET + trim() в isAuthorized. 917 тестов пройдено.
 
 ### Review Findings (Round 1: 2026-03-28)
 
@@ -366,5 +369,5 @@ claude-sonnet-4-6
 
 ### Review Findings (Round 2: 2026-03-28)
 
-- [ ] [Review][Patch] Чрезмерно широкие права для префикса `/api/email/` [src/lib/app-routes.ts]
-- [ ] [Review][Patch] Валидация пробельной/пустой строки NOTIFICATION_API_SECRET (например, `" "`) [src/app/api/notifications/new-post/route.ts]
+- [x] [Review][Patch] Чрезмерно широкие права для префикса `/api/email/` [src/lib/app-routes.ts]
+- [x] [Review][Patch] Валидация пробельной/пустой строки NOTIFICATION_API_SECRET (например, `" "`) [src/app/api/notifications/new-post/route.ts]
