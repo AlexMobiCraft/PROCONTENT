@@ -227,6 +227,7 @@ export type Database = {
           current_period_end: string | null
           display_name: string | null
           email: string
+          email_notifications_enabled: boolean
           id: string
           role: string
           stripe_customer_id: string | null
@@ -239,6 +240,7 @@ export type Database = {
           current_period_end?: string | null
           display_name?: string | null
           email: string
+          email_notifications_enabled?: boolean
           id: string
           role?: string
           stripe_customer_id?: string | null
@@ -251,6 +253,7 @@ export type Database = {
           current_period_end?: string | null
           display_name?: string | null
           email?: string
+          email_notifications_enabled?: boolean
           id?: string
           role?: string
           stripe_customer_id?: string | null

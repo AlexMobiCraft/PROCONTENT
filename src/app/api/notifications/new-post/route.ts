@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { timingSafeEqual, createHash } from 'crypto'
+import { timingSafeEqual, createHash, createHmac } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { sendEmailBatch } from '@/lib/email'
@@ -43,18 +43,19 @@ type SubscriberQueryError = {
  * Запрашивает PAGE_SIZE+1 строк для обнаружения следующей страницы без лишнего запроса к БД.
  */
 async function fetchAllSubscribers(supabase: ReturnType<typeof createAdminClient>): Promise<{
-  data: Array<{ email: string | null; display_name: string | null }> | null
+  data: Array<{ id: string; email: string | null; display_name: string | null }> | null
   error: SubscriberQueryError | null
 }> {
-  const all: Array<{ email: string | null; display_name: string | null }> = []
+  const all: Array<{ id: string; email: string | null; display_name: string | null }> = []
   let offset = 0
 
   for (;;) {
     const { data, error } = await supabase
       .from('profiles')
-      .select('email, display_name')
+      .select('id, email, display_name')
       .in('subscription_status', ['active', 'trialing'])
       .not('email', 'is', null)
+      .eq('email_notifications_enabled', true)
       .order('id')
       .range(offset, offset + PAGE_SIZE)
 
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Фильтруем подписчиков без валидного email (null, пустой, без символа @)
   const validSubscribers = (subscribers ?? []).filter(
-    (s): s is typeof s & { email: string } =>
+    (s): s is typeof s & { id: string; email: string } =>
       Boolean(s.email && s.email.trim() !== '' && s.email.includes('@'))
   )
 
@@ -163,29 +164,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Удаляем все trailing slashes (в т.ч. https://example.com//)
   const normalizedSiteUrl = siteUrl.replace(/\/+$/, '')
   const postUrl = `${normalizedSiteUrl}/feed/${post.id}`
-  const unsubscribeUrl = `${normalizedSiteUrl}/profile`
 
   // Санитизируем заголовок: удаляем CR/LF для защиты от SMTP header injection
   const safeTitle = post.title.replace(/[\r\n]/g, '')
 
-  const messages = validSubscribers.map((s) => ({
-    to: s.email,
-    subject: `Nova objava: ${safeTitle}`,
-    html: generateNewPostEmailHtml({
-      postTitle: safeTitle,
-      postUrl,
-      postExcerpt: normalizedExcerpt,
-      recipientName: s.display_name,
-      unsubscribeUrl,
-    }),
-    text: generateNewPostEmailText({
-      postTitle: safeTitle,
-      postUrl,
-      postExcerpt: normalizedExcerpt,
-      recipientName: s.display_name,
-      unsubscribeUrl,
-    }),
-  }))
+  const notificationSecret = process.env.NOTIFICATION_API_SECRET
+
+  const messages = validSubscribers.map((s) => {
+    const unsubscribeUrl = notificationSecret
+      ? generateUnsubscribeUrl(normalizedSiteUrl, s.id, notificationSecret)
+      : `${normalizedSiteUrl}/profile`
+
+    const headers: Record<string, string> | undefined = notificationSecret
+      ? {
+          'List-Unsubscribe': `<${unsubscribeUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        }
+      : undefined
+
+    return {
+      to: s.email,
+      subject: `Nova objava: ${safeTitle}`,
+      html: generateNewPostEmailHtml({
+        postTitle: safeTitle,
+        postUrl,
+        postExcerpt: normalizedExcerpt,
+        recipientName: s.display_name,
+        unsubscribeUrl,
+      }),
+      text: generateNewPostEmailText({
+        postTitle: safeTitle,
+        postUrl,
+        postExcerpt: normalizedExcerpt,
+        recipientName: s.display_name,
+        unsubscribeUrl,
+      }),
+      headers,
+    }
+  })
 
   // --- Пакетная отправка ---
   try {
@@ -197,6 +213,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.error('[notifications] Batch send failed:', message)
     return NextResponse.json({ error: 'Failed to send emails' }, { status: 500 })
   }
+}
+
+/**
+ * Генерирует signed unsubscribe URL для конкретного подписчика.
+ * Canonical string: `${uid}:${ts}`, подпись HMAC-SHA256 в hex.
+ */
+function generateUnsubscribeUrl(baseUrl: string, uid: string, secret: string): string {
+  const ts = Math.floor(Date.now() / 1000)
+  const canonical = `${uid}:${ts}`
+  const sig = createHmac('sha256', secret).update(canonical).digest('hex')
+  return `${baseUrl}/api/email/unsubscribe?uid=${encodeURIComponent(uid)}&ts=${ts}&sig=${encodeURIComponent(sig)}`
 }
 
 async function isAuthorized(request: NextRequest): Promise<boolean> {

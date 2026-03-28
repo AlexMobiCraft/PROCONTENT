@@ -17,6 +17,7 @@ vi.mock('@/lib/email', () => ({
 const {
   mockAdminRange,
   mockAdminOrder,
+  mockAdminEq,
   mockAdminNot,
   mockAdminIn,
   mockAdminSelect,
@@ -25,7 +26,8 @@ const {
 } = vi.hoisted(() => {
   const mockAdminRange = vi.fn()
   const mockAdminOrder = vi.fn(() => ({ range: mockAdminRange }))
-  const mockAdminNot = vi.fn(() => ({ order: mockAdminOrder }))
+  const mockAdminEq = vi.fn(() => ({ order: mockAdminOrder }))
+  const mockAdminNot = vi.fn(() => ({ eq: mockAdminEq }))
   const mockAdminIn = vi.fn(() => ({ not: mockAdminNot }))
   const mockAdminSelect = vi.fn(() => ({ in: mockAdminIn }))
   const mockAdminFrom = vi.fn(() => ({ select: mockAdminSelect }))
@@ -33,6 +35,7 @@ const {
   return {
     mockAdminRange,
     mockAdminOrder,
+    mockAdminEq,
     mockAdminNot,
     mockAdminIn,
     mockAdminSelect,
@@ -71,8 +74,8 @@ const VALID_POST = { id: VALID_UUID, title: 'Test Post Title' }
 const API_SECRET = 'test-secret-key'
 
 const ACTIVE_SUBSCRIBERS = [
-  { email: 'user1@example.com', display_name: 'Ana' },
-  { email: 'user2@example.com', display_name: null },
+  { id: '11111111-1111-1111-1111-111111111111', email: 'user1@example.com', display_name: 'Ana' },
+  { id: '22222222-2222-2222-2222-222222222222', email: 'user2@example.com', display_name: null },
 ]
 
 describe('POST /api/notifications/new-post', () => {
@@ -86,11 +89,12 @@ describe('POST /api/notifications/new-post', () => {
     vi.stubEnv('RESEND_FROM_EMAIL', 'noreply@procontent.si')
 
     // Дефолтный мок: admin client возвращает активных подписчиков
-    // Цепочка: from → select → in → not → order → range
+    // Цепочка: from → select → in → not → eq → order → range
     mockAdminFrom.mockReturnValue({ select: mockAdminSelect })
     mockAdminSelect.mockReturnValue({ in: mockAdminIn })
     mockAdminIn.mockReturnValue({ not: mockAdminNot })
-    mockAdminNot.mockReturnValue({ order: mockAdminOrder })
+    mockAdminNot.mockReturnValue({ eq: mockAdminEq })
+    mockAdminEq.mockReturnValue({ order: mockAdminOrder })
     mockAdminOrder.mockReturnValue({ range: mockAdminRange })
     mockAdminRange.mockResolvedValue({ data: ACTIVE_SUBSCRIBERS, error: null })
 
@@ -273,9 +277,9 @@ describe('POST /api/notifications/new-post', () => {
     it('фильтрует подписчиков с null/пустым email', async () => {
       mockAdminRange.mockResolvedValue({
         data: [
-          { email: 'valid@example.com', display_name: 'Valid' },
-          { email: null, display_name: 'No Email' },
-          { email: '', display_name: 'Empty Email' },
+          { id: '11111111-1111-1111-1111-111111111111', email: 'valid@example.com', display_name: 'Valid' },
+          { id: '22222222-2222-2222-2222-222222222222', email: null, display_name: 'No Email' },
+          { id: '33333333-3333-3333-3333-333333333333', email: '', display_name: 'Empty Email' },
         ],
         error: null,
       })
@@ -308,6 +312,7 @@ describe('POST /api/notifications/new-post', () => {
 
     it('не делает лишний запрос к БД при количестве строк кратном PAGE_SIZE', async () => {
       const exactPage = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+        id: `${i.toString().padStart(8, '0')}-0000-0000-0000-000000000000`,
         email: `user${i}@example.com`,
         display_name: null,
       }))
@@ -326,10 +331,11 @@ describe('POST /api/notifications/new-post', () => {
 
     it('запрашивает вторую страницу, когда первая вернула PAGE_SIZE+1 строк', async () => {
       const page1 = Array.from({ length: PAGE_SIZE + 1 }, (_, i) => ({
+        id: `${i.toString().padStart(8, '0')}-0000-0000-0000-000000000000`,
         email: `user${i}@example.com`,
         display_name: null,
       }))
-      const page2 = [{ email: 'last@example.com', display_name: 'Last' }]
+      const page2 = [{ id: 'ffffffff-ffff-ffff-ffff-ffffffffffff', email: 'last@example.com', display_name: 'Last' }]
 
       mockAdminRange
         .mockResolvedValueOnce({ data: page1, error: null })
@@ -348,6 +354,7 @@ describe('POST /api/notifications/new-post', () => {
 
     it('возвращает 500 при ошибке БД на второй странице', async () => {
       const page1 = Array.from({ length: PAGE_SIZE + 1 }, (_, i) => ({
+        id: `${i.toString().padStart(8, '0')}-0000-0000-0000-000000000000`,
         email: `user${i}@example.com`,
         display_name: null,
       }))
@@ -448,7 +455,7 @@ describe('POST /api/notifications/new-post', () => {
 
   describe('Subscriber filtering', () => {
     it('отправляет письма подписчикам со статусом trialing', async () => {
-      const trialingSubscribers = [{ email: 'trial@example.com', display_name: 'Trial User' }]
+      const trialingSubscribers = [{ id: '11111111-1111-1111-1111-111111111111', email: 'trial@example.com', display_name: 'Trial User' }]
       mockAdminRange.mockResolvedValue({ data: trialingSubscribers, error: null })
       mockSendEmailBatch.mockResolvedValue({ sent: 1, failed: 0 })
 
@@ -465,9 +472,9 @@ describe('POST /api/notifications/new-post', () => {
     it('фильтрует email без символа @', async () => {
       mockAdminRange.mockResolvedValue({
         data: [
-          { email: 'valid@example.com', display_name: 'Valid' },
-          { email: 'notanemail', display_name: 'No At Sign' },
-          { email: 'also-invalid', display_name: 'Another' },
+          { id: '11111111-1111-1111-1111-111111111111', email: 'valid@example.com', display_name: 'Valid' },
+          { id: '22222222-2222-2222-2222-222222222222', email: 'notanemail', display_name: 'No At Sign' },
+          { id: '33333333-3333-3333-3333-333333333333', email: 'also-invalid', display_name: 'Another' },
         ],
         error: null,
       })
@@ -532,6 +539,59 @@ describe('POST /api/notifications/new-post', () => {
       expect(messages[0].text).not.toContain('\r\n' + 'Injected: header')
       expect(messages[0].html).toContain('TitleInjected: header')
       expect(messages[0].text).toContain('TitleInjected: header')
+    })
+  })
+
+  describe('Email preferences filtering (Story 3.5)', () => {
+    it('запрашивает только подписчиков с email_notifications_enabled=true', async () => {
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      expect(mockAdminEq).toHaveBeenCalledWith('email_notifications_enabled', true)
+    })
+
+    it('генерирует уникальный unsubscribe URL для каждого получателя', async () => {
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ html: string }>]
+      expect(messages).toHaveLength(2)
+
+      const url1 = new URL(
+        messages[0].html.match(/api\/email\/unsubscribe\?[^"]+/)?.[0]
+          ? `https://procontent.si/${messages[0].html.match(/api\/email\/unsubscribe\?[^"]+/)?.[0]}`
+          : 'https://invalid'
+      )
+      const url2 = new URL(
+        messages[1].html.match(/api\/email\/unsubscribe\?[^"]+/)?.[0]
+          ? `https://procontent.si/${messages[1].html.match(/api\/email\/unsubscribe\?[^"]+/)?.[0]}`
+          : 'https://invalid2'
+      )
+
+      // uid разный для каждого подписчика
+      expect(url1.searchParams.get('uid')).toBe('11111111-1111-1111-1111-111111111111')
+      expect(url2.searchParams.get('uid')).toBe('22222222-2222-2222-2222-222222222222')
+    })
+
+    it('письмо содержит /api/email/unsubscribe в footer', async () => {
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [Array<{ html: string; text: string }>]
+      expect(messages[0].html).toContain('/api/email/unsubscribe')
+      expect(messages[0].text).toContain('/api/email/unsubscribe')
+    })
+
+    it('сообщения содержат заголовки List-Unsubscribe и List-Unsubscribe-Post', async () => {
+      const req = makeRequest(VALID_POST, { Authorization: `Bearer ${API_SECRET}` })
+      await POST(req)
+
+      const [messages] = mockSendEmailBatch.mock.calls[0] as [
+        Array<{ headers?: Record<string, string> }>,
+      ]
+      expect(messages[0].headers).toBeDefined()
+      expect(messages[0].headers?.['List-Unsubscribe']).toMatch(/^<https:\/\/.*\/api\/email\/unsubscribe/)
+      expect(messages[0].headers?.['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click')
     })
   })
 

@@ -18,6 +18,7 @@ export interface EmailMessage {
   subject: string
   html: string
   text: string
+  headers?: Record<string, string>
 }
 
 export interface BatchSendResult {
@@ -52,6 +53,7 @@ export async function sendEmailBatch(messages: EmailMessage[]): Promise<BatchSen
         subject: msg.subject,
         html: msg.html,
         text: msg.text,
+        ...(msg.headers ? { headers: msg.headers } : {}),
       }))
     )
 

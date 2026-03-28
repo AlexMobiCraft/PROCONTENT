@@ -1,5 +1,10 @@
 'use client'
 
+import { useState } from 'react'
+import { toast } from 'sonner'
+
+import { createClient } from '@/lib/supabase/client'
+import { EmailPreferencesCard } from './EmailPreferencesCard'
 import { SubscriptionCard } from './SubscriptionCard'
 import { PasswordResetCard } from './PasswordResetCard'
 import { ProfileRightPanel } from './ProfileRightPanel'
@@ -10,6 +15,9 @@ interface ProfileScreenProps {
   subscriptionStatus: string | null
   currentPeriodEnd: string | null
   hasStripeCustomer: boolean
+  userId?: string
+  emailNotificationsEnabled?: boolean | null
+  canManageEmailPreferences?: boolean
 }
 
 export function ProfileScreen({
@@ -18,7 +26,35 @@ export function ProfileScreen({
   subscriptionStatus,
   currentPeriodEnd,
   hasStripeCustomer,
+  userId,
+  emailNotificationsEnabled: initialEmailEnabled,
+  canManageEmailPreferences = false,
 }: ProfileScreenProps) {
+  const [emailEnabled, setEmailEnabled] = useState(initialEmailEnabled ?? true)
+  const [isEmailSaving, setIsEmailSaving] = useState(false)
+
+  async function handleEmailToggle(enabled: boolean) {
+    if (!userId) return
+    const prev = emailEnabled
+    setEmailEnabled(enabled)
+    setIsEmailSaving(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('profiles')
+      .update({ email_notifications_enabled: enabled })
+      .eq('id', userId)
+    if (error) {
+      setEmailEnabled(prev)
+      toast.error('Napaka pri shranjevanju nastavitev')
+      setIsEmailSaving(false)
+      return
+    }
+    toast.success(
+      enabled ? 'E-poštna obvestila so vklopljena' : 'E-poštna obvestila so izklopljena'
+    )
+    setIsEmailSaving(false)
+  }
+
   return (
     <main className="flex min-h-screen flex-col pb-[60px] md:flex-row md:pb-0">
       {/* Центральная колонка: аккаунт + подписка */}
@@ -48,6 +84,15 @@ export function ProfileScreen({
             currentPeriodEnd={currentPeriodEnd}
             hasStripeCustomer={hasStripeCustomer}
           />
+
+          {canManageEmailPreferences && (
+            <EmailPreferencesCard
+              id="email-preferences"
+              emailNotificationsEnabled={emailEnabled}
+              onToggle={handleEmailToggle}
+              isLoading={isEmailSaving}
+            />
+          )}
 
           <PasswordResetCard email={email} />
         </div>

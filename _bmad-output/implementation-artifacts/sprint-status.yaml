@@ -107,7 +107,7 @@ development_status:
   # 2026-03-27: Round 7 patch items resolved (rawBody null → 400, createAdminClient try/catch, SMTP header sanitized) → review
   # 2026-03-27: Round 8 patch resolved (safeTitle in html/text body generators) → review
   3-4-automatic-email-notifications-about-new-posts: done
-  3-5-managing-email-preferences: ready-for-dev
+  3-5-managing-email-preferences: in-progress
   epic-3-retrospective: optional
 
   # ─── EPIC 4: Creator Operations (Admin Dashboard) ──────────────────────────

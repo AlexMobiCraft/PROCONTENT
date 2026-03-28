@@ -18,13 +18,16 @@ export default async function ProfilePage() {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('email, display_name, subscription_status, current_period_end, stripe_customer_id')
+    .select(
+      'email, display_name, subscription_status, current_period_end, stripe_customer_id, email_notifications_enabled'
+    )
     .eq('id', user.id)
     .single()
 
   if (profileError) {
     // PGRST116: профиль ещё не создан — нормальный сценарий (не фатальная ошибка БД).
     // Показываем страницу с email из auth.users и статусом "Нет подписки".
+    // can_manage_email_preferences = false — toggle не показывается (AC #7)
     if ((profileError as { code?: string }).code === 'PGRST116') {
       return (
         <ProfileScreen
@@ -33,6 +36,7 @@ export default async function ProfilePage() {
           subscriptionStatus={null}
           currentPeriodEnd={null}
           hasStripeCustomer={false}
+          canManageEmailPreferences={false}
         />
       )
     }
@@ -54,6 +58,9 @@ export default async function ProfilePage() {
       subscriptionStatus={profile?.subscription_status ?? null}
       currentPeriodEnd={profile?.current_period_end ?? null}
       hasStripeCustomer={!!profile?.stripe_customer_id}
+      userId={user.id}
+      emailNotificationsEnabled={profile?.email_notifications_enabled ?? true}
+      canManageEmailPreferences={true}
     />
   )
 }

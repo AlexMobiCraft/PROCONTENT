@@ -126,6 +126,30 @@ describe('generateNewPostEmailHtml', () => {
   })
 })
 
+describe('generateNewPostEmailHtml — signed unsubscribe URL (Story 3.5)', () => {
+  it('рендерит signed unsubscribe URL в API-формате', () => {
+    const signedUrl =
+      'https://procontent.si/api/email/unsubscribe?uid=550e8400-e29b-41d4-a716-446655440000&ts=1711620000&sig=abcdef1234567890'
+    const html = generateNewPostEmailHtml({
+      ...BASE_DATA,
+      unsubscribeUrl: signedUrl,
+    })
+    expect(html).toContain('/api/email/unsubscribe')
+    expect(html).toContain('uid=')
+    expect(html).toContain('sig=')
+  })
+
+  it('рендерит signed URL в text-версии', () => {
+    const signedUrl =
+      'https://procontent.si/api/email/unsubscribe?uid=550e8400-e29b-41d4-a716-446655440000&ts=1711620000&sig=abcdef1234567890'
+    const text = generateNewPostEmailText({
+      ...BASE_DATA,
+      unsubscribeUrl: signedUrl,
+    })
+    expect(text).toContain('/api/email/unsubscribe')
+  })
+})
+
 describe('generateNewPostEmailText', () => {
   it('содержит заголовок поста', () => {
     const text = generateNewPostEmailText(BASE_DATA)
