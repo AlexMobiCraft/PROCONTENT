@@ -80,11 +80,15 @@ async function main() {
       );
     }
 
-    // В конце запускаем сид
-    await applySql(
-      path.join(__dirname, 'seed_posts.sql'),
-      'Seed: тестовые посты'
-    );
+    // В конце запускаем сид (только если передан флаг --seed)
+    if (process.argv.includes('--seed')) {
+      await applySql(
+        path.join(__dirname, 'seed_posts.sql'),
+        'Seed: тестовые посты'
+      );
+    } else {
+      console.log(`\nℹ️ Сидирование пропущено (флаг --seed не передан).`);
+    }
 
     console.log(`\n🎉 Все скрипты успешно применены!`);
   } catch (error) {
