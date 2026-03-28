@@ -133,8 +133,8 @@ describe('POST /api/notifications/new-post', () => {
     })
 
     it('принимает сессию admin', async () => {
-      vi.stubEnv('NOTIFICATION_API_SECRET', '')
-
+      // NOTIFICATION_API_SECRET задан в beforeEach — обязателен для генерации unsubscribe URL.
+      // Тест проверяет авторизацию через admin сессию (без Authorization header).
       const adminUser = { id: 'admin-user-id' }
       mockGetUser.mockResolvedValue({ data: { user: adminUser } })
 

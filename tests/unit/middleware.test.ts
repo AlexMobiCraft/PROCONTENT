@@ -136,6 +136,25 @@ describe('middleware', () => {
 
       expect(response.status).not.toBe(307)
     })
+
+    // [AI-Review][Critical] Story 3.5: unsubscribe маршруты должны быть публичными
+    it('пропускает на /email-preferences без редиректа (публичная страница результата unsubscribe)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/email-preferences?status=unsubscribed')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('пропускает на /api/email/unsubscribe без редиректа (GET unsubscribe endpoint)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/api/email/unsubscribe?uid=test&ts=123&sig=abc')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
   })
 
   describe('потеря сессии при редиректе', () => {

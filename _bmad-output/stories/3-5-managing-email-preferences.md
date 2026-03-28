@@ -1,6 +1,6 @@
 # Story 3.5: Управление email-предпочтениями
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -326,6 +326,9 @@ claude-sonnet-4-6
 - Task 6: Публичная `/email-preferences` — `unsubscribed` / `invalid_or_expired` / fallback без раскрытия деталей
 - Task 7: `generateUnsubscribeUrl()` генерирует индивидуальный signed URL на подписчика. `EmailMessage.headers` + `sendEmailBatch()` прокидывает `List-Unsubscribe` / `List-Unsubscribe-Post`
 - Task 8: 913 тестов (56 файлов) — все прошли. Новые тесты: EmailPreferencesCard (14), ProfileScreen (9 обновлённых), unsubscribe route (15), email-preferences page (7). Обновлены: route.test.ts (mock chain + id + 4 новых теста), new-post-template.test.ts (2 новых теста)
+- ✅ Resolved review finding [Critical]: /email-preferences добавлен в PUBLIC_PATHS, /api/email/ в PUBLIC_PATH_PREFIXES (app-routes.ts)
+- ✅ Resolved review finding [Major]: NOTIFICATION_API_SECRET теперь обязателен — fail-fast 500 вместо fallback на /profile; убрана условная логика в блоке формирования писем
+- ✅ Resolved review finding [Major]: middleware.test.ts дополнен 2 тестами для /email-preferences и /api/email/unsubscribe без авторизации. Тест "принимает сессию admin" обновлён — секрет теперь задаётся через beforeEach. 915 тестов пройдено.
 
 ### File List
 
@@ -343,11 +346,25 @@ claude-sonnet-4-6
 - src/features/profile/components/ProfileScreen.tsx
 - src/app/(app)/profile/page.tsx
 - src/app/api/notifications/new-post/route.ts
+- src/lib/app-routes.ts
 - src/lib/email/index.ts
 - tests/unit/features/profile/components/ProfileScreen.test.tsx
 - tests/unit/app/api/notifications/new-post/route.test.ts
 - tests/unit/lib/email/new-post-template.test.ts
+- tests/unit/middleware.test.ts
 
 ## Change Log
 
 - 2026-03-28: Story 3.5 реализована — управление email-предпочтениями. Добавлены: SQL-миграция (email_notifications_enabled), EmailPreferencesCard (toggle с optimistic update), GET/POST /api/email/unsubscribe (HMAC-SHA256 signed tokens, RFC 8058 List-Unsubscribe), публичная /email-preferences страница, фильтрация подписчиков при рассылке, индивидуальные signed URL в письмах. 913 тестов пройдено.
+- 2026-03-28: Addressed code review findings — 3 items resolved. Исправлен middleware (PUBLIC_PATHS), убран fail-open fallback в new-post route, добавлены middleware тесты для unsubscribe маршрутов. 915 тестов пройдено.
+
+### Review Findings (Round 1: 2026-03-28)
+
+- [x] [Review][Critical] **Public unsubscribe flow сломан middleware** — `/email-preferences` и `/api/email/unsubscribe` не добавлены в `PUBLIC_PATHS`/`PUBLIC_PATH_PREFIXES` в `src/lib/app-routes.ts`. Неавторизованные запросы редиректятся на `/login` через `src/lib/supabase/auth-middleware.ts`. Нарушает AC #3, #4, #5, #6.
+- [x] [Review][Major] **Fail-open fallback в email route** — при отсутствии `NOTIFICATION_API_SECRET` код подставляет `unsubscribeUrl = ${normalizedSiteUrl}/profile` и убирает `List-Unsubscribe` заголовки (`src/app/api/notifications/new-post/route.ts:171-183`). Это нарушает guardrail "не редиректить unsubscribe на auth-only `/profile`" и ломает one-click unsubscribe (RFC 8058).
+- [x] [Review][Major] **Тесты не покрывают production middleware path** — `tests/unit/app/api/email/unsubscribe/route.test.ts` и `tests/unit/app/email-preferences/page.test.tsx` тестируют только handler/UI, минуя middleware. `tests/unit/middleware.test.ts` не содержит проверок для новых публичных маршрутов, что даёт ложное чувство покрытия.
+
+### Review Findings (Round 2: 2026-03-28)
+
+- [ ] [Review][Patch] Чрезмерно широкие права для префикса `/api/email/` [src/lib/app-routes.ts]
+- [ ] [Review][Patch] Валидация пробельной/пустой строки NOTIFICATION_API_SECRET (например, `" "`) [src/app/api/notifications/new-post/route.ts]

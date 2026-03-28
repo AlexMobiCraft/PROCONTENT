@@ -132,6 +132,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
   }
 
+  // --- Валидация NOTIFICATION_API_SECRET ---
+  // Секрет обязателен для генерации signed unsubscribe URL (RFC 8058, AC #4).
+  // Без него нельзя добавить List-Unsubscribe заголовки и выполнить one-click unsubscribe.
+  const notificationSecret = process.env.NOTIFICATION_API_SECRET
+  if (!notificationSecret) {
+    console.error('[notifications] NOTIFICATION_API_SECRET is not configured')
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+  }
+
   // --- Получение активных подписчиков ---
   let supabase: ReturnType<typeof createAdminClient>
   try {
@@ -168,19 +177,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Санитизируем заголовок: удаляем CR/LF для защиты от SMTP header injection
   const safeTitle = post.title.replace(/[\r\n]/g, '')
 
-  const notificationSecret = process.env.NOTIFICATION_API_SECRET
-
   const messages = validSubscribers.map((s) => {
-    const unsubscribeUrl = notificationSecret
-      ? generateUnsubscribeUrl(normalizedSiteUrl, s.id, notificationSecret)
-      : `${normalizedSiteUrl}/profile`
+    const unsubscribeUrl = generateUnsubscribeUrl(normalizedSiteUrl, s.id, notificationSecret)
 
-    const headers: Record<string, string> | undefined = notificationSecret
-      ? {
-          'List-Unsubscribe': `<${unsubscribeUrl}>`,
-          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        }
-      : undefined
+    const headers: Record<string, string> = {
+      'List-Unsubscribe': `<${unsubscribeUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    }
 
     return {
       to: s.email,
