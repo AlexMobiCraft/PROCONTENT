@@ -114,7 +114,7 @@ development_status:
   # ─── EPIC 4: Creator Operations (Admin Dashboard) ──────────────────────────
   # Story 4-1 обновлена 2026-03-22: мультимедиа до 10 файлов, выбор обложки, drag-and-drop порядок
   epic-4: in-progress
-  4-1-creating-and-editing-multimedia-posts: ready-for-dev
+  4-1-creating-and-editing-multimedia-posts: review
   4-2-managing-categories-and-post-rubrics: backlog
   4-3-managing-content-for-onboarding-and-landing: backlog
   4-4-monitoring-members-and-manual-access-control: backlog
