@@ -107,23 +107,28 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
             )}
           </div>
           <div className="flex items-center gap-2">
-            {onCategoryClick ? (
+            {post.category && onCategoryClick ? (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
                   onCategoryClick(post.category)
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation()
+                  }
+                }}
                 className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                 aria-label={`Filtriraj po kategoriji ${post.category}`}
               >
                 {post.category}
               </button>
-            ) : (
+            ) : post.category ? (
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 {post.category}
               </span>
-            )}
+            ) : null}
             <time dateTime={post.created_at} className="text-xs text-muted-foreground">{post.date}</time>
           </div>
         </div>

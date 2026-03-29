@@ -52,6 +52,7 @@ describe('getCategories', () => {
     const result = await getCategories()
     expect(result).toEqual(mockData)
     expect(mockFrom).toHaveBeenCalledWith('categories')
+    expect(supabaseChain.order).toHaveBeenCalledWith('name', { ascending: true })
   })
 
   it('возвращает пустой массив если data null', async () => {
@@ -78,6 +79,26 @@ describe('createCategory', () => {
     const result = await createCategory('Novost', 'novost')
     expect(result).toEqual(mockCat)
     expect(mockFrom).toHaveBeenCalledWith('categories')
+    expect(supabaseChain.single).toHaveBeenCalled()
+  })
+
+  it('нормализует slug в нижний регистр', async () => {
+    const mockCat = { id: '4', name: 'STORY', slug: 'story', created_at: '2026-01-01' }
+    supabaseChain = makeChain({ data: mockCat, error: null })
+
+    const result = await createCategory('STORY', 'STORY')
+    expect(result).toEqual(mockCat)
+    expect(supabaseChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: 'story' })
+    )
+  })
+
+  it('выбрасывает ошибку если data null после успешного insert', async () => {
+    supabaseChain = makeChain({ data: null, error: null })
+
+    await expect(createCategory('Novost', 'novost')).rejects.toThrow(
+      'Nepričakovana napaka'
+    )
   })
 
   it('выбрасывает понятное сообщение при дубликате (code 23505)', async () => {
@@ -98,15 +119,35 @@ describe('createCategory', () => {
 describe('deleteCategory', () => {
   it('удаляет категорию по id', async () => {
     supabaseChain = makeChain({ error: null })
-    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockResolvedValue({ error: null })
+    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockReturnThis()
+    ;(supabaseChain.select as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'cat-id-1' }],
+      error: null,
+    })
 
     await expect(deleteCategory('cat-id-1')).resolves.toBeUndefined()
     expect(mockFrom).toHaveBeenCalledWith('categories')
+    expect(supabaseChain.delete).toHaveBeenCalled()
+    expect(supabaseChain.eq).toHaveBeenCalledWith('id', 'cat-id-1')
+  })
+
+  it('выбрасывает ошибку если категория не найдена (0 строк удалено)', async () => {
+    supabaseChain = makeChain({ error: null })
+    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockReturnThis()
+    ;(supabaseChain.select as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [],
+      error: null,
+    })
+
+    await expect(deleteCategory('nonexistent-id')).rejects.toThrow(
+      'Kategorija ni bila najdena'
+    )
   })
 
   it('выбрасывает понятное сообщение при FK-нарушении (code 23503)', async () => {
     supabaseChain = makeChain({ error: null })
-    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockReturnThis()
+    ;(supabaseChain.select as ReturnType<typeof vi.fn>).mockResolvedValue({
       error: { code: '23503', message: 'fk violation' },
     })
 
@@ -115,9 +156,22 @@ describe('deleteCategory', () => {
     )
   })
 
+  it('выбрасывает понятное сообщение при FK-нарушении через message (без code)', async () => {
+    supabaseChain = makeChain({ error: null })
+    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockReturnThis()
+    ;(supabaseChain.select as ReturnType<typeof vi.fn>).mockResolvedValue({
+      error: { code: null, message: 'violates FOREIGN KEY constraint' },
+    })
+
+    await expect(deleteCategory('cat-id-fk')).rejects.toThrow(
+      'Kategorije ni mogoče izbrisati, ker jo uporabljajo objave'
+    )
+  })
+
   it('выбрасывает DB-ошибку для других кодов', async () => {
     supabaseChain = makeChain({ error: null })
-    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockReturnThis()
+    ;(supabaseChain.select as ReturnType<typeof vi.fn>).mockResolvedValue({
       error: { code: '42000', message: 'syntax error' },
     })
 

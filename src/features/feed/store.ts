@@ -73,7 +73,7 @@ export const useFeedStore = create<FeedState>((set) => ({
   // Смена категории: только обновляет activeCategory.
   // Данные ленты НЕ сбрасываются — клиентская фильтрация работает на кэшированных постах.
   // Это предотвращает разрушительную перезагрузку при переключении между категориями.
-  changeCategory: (category) => set({ activeCategory: category }),
+  changeCategory: (category) => set({ activeCategory: category, pendingLikes: [] }),
 
   // Обновление конкретного поста (для оптимистичных апдейтов и sync с RPC)
   updatePost: (postId, updates) =>

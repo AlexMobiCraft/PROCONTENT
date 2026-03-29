@@ -194,6 +194,51 @@ describe('PostForm (create mode)', () => {
   })
 })
 
+describe('PostForm (create mode) — race conditions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetCategories.mockResolvedValue(testCategories)
+  })
+
+  it('submit без выбранной категории показывает ошибку валидации', async () => {
+    const user = userEvent.setup()
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'My Post')
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.click(screen.getByTestId('add-media-btn'))
+    // Намеренно НЕ выбираем категорию — значение остаётся ''
+    await user.click(screen.getByRole('button', { name: /objavi/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/kategorija je obvezna/i)).toBeInTheDocument()
+    })
+    expect(mockCreatePost).not.toHaveBeenCalled()
+  })
+
+  it('submit пока категории загружаются (select disabled) не отправляет форму', async () => {
+    const user = userEvent.setup()
+    let resolveCategories: (cats: typeof testCategories) => void
+    const categoriesPromise = new Promise<typeof testCategories>((resolve) => {
+      resolveCategories = resolve
+    })
+    vi.clearAllMocks()
+    mockGetCategories.mockReturnValueOnce(categoriesPromise)
+
+    render(<PostForm mode="create" />)
+
+    // Пока категории грузятся — select disabled
+    expect(screen.getByLabelText(/kategorija/i)).toBeDisabled()
+
+    resolveCategories!(testCategories)
+
+    // После загрузки — select enabled
+    await waitFor(() => {
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    })
+  })
+})
+
 describe('PostForm (edit mode)', () => {
   const initialData = {
     id: 'post-1',
@@ -246,5 +291,23 @@ describe('PostForm (edit mode)', () => {
     const call = mockUpdatePost.mock.calls[0][0]
     expect(call.postId).toBe('post-1')
     expect(call.formValues.title).toBe('Existing Post')
+  })
+
+  it('устанавливает категорию из initialData после задержанной загрузки категорий', async () => {
+    let resolveCategories: (cats: typeof testCategories) => void
+    const categoriesPromise = new Promise<typeof testCategories>((resolve) => {
+      resolveCategories = resolve
+    })
+    mockGetCategories.mockReturnValue(categoriesPromise)
+
+    render(<PostForm mode="edit" initialData={initialData} />)
+
+    expect(screen.getByLabelText(/kategorija/i)).toBeDisabled()
+
+    resolveCategories!(testCategories)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/kategorija/i)).toHaveValue('stories')
+    })
   })
 })

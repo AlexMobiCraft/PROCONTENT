@@ -149,4 +149,35 @@ describe('CategoryManager', () => {
       expect(mockCreateCategory).toHaveBeenCalledWith('Estetski kadri', 'estetski-kadri')
     })
   })
+
+  it('показывает инлайн ошибку если slug пустой (только спецсимволы)', async () => {
+    const user = userEvent.setup()
+    render(<CategoryManager initialCategories={[]} />)
+
+    await user.type(screen.getByLabelText('Ime kategorije'), '---')
+    await user.click(screen.getByRole('button', { name: 'Dodaj' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('vsaj eno črko ali število')
+    })
+    expect(mockCreateCategory).not.toHaveBeenCalled()
+  })
+
+  it('предотвращает двойной клик удаления (guard через ref)', async () => {
+    const user = userEvent.setup()
+    let resolveDelete: () => void
+    const deletePromise = new Promise<void>((resolve) => { resolveDelete = resolve })
+    mockDeleteCategory.mockReturnValue(deletePromise)
+
+    render(<CategoryManager initialCategories={[...mockCategories]} />)
+
+    const deleteBtn = screen.getByRole('button', { name: 'Izbriši kategorijo Drugo' })
+    await user.click(deleteBtn)
+    await user.click(deleteBtn)
+
+    resolveDelete!()
+    await waitFor(() => {
+      expect(mockDeleteCategory).toHaveBeenCalledTimes(1)
+    })
+  })
 })

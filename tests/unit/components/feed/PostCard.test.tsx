@@ -725,6 +725,58 @@ describe('PostCard — category pill', () => {
     expect(mockRouterPush).not.toHaveBeenCalled()
     expect(onCategoryClick).toHaveBeenCalledWith('ugc')
   })
+
+  it('клавиша Enter на pill вызывает onCategoryClick (не навигацию к посту)', async () => {
+    const user = userEvent.setup()
+    const onCategoryClick = vi.fn()
+    render(
+      <PostCard
+        post={makeCardData({ category: 'snemanje', type: 'text' })}
+        onCategoryClick={onCategoryClick}
+      />
+    )
+
+    const pillBtn = screen.getByRole('button', { name: 'Filtriraj po kategoriji snemanje' })
+    pillBtn.focus()
+    await user.keyboard('{Enter}')
+
+    expect(onCategoryClick).toHaveBeenCalledWith('snemanje')
+    expect(mockRouterPush).not.toHaveBeenCalled()
+  })
+
+  it('клавиша Space на pill вызывает onCategoryClick (не навигацию к посту)', async () => {
+    const user = userEvent.setup()
+    const onCategoryClick = vi.fn()
+    render(
+      <PostCard
+        post={makeCardData({ category: 'ugc', type: 'text' })}
+        onCategoryClick={onCategoryClick}
+      />
+    )
+
+    const pillBtn = screen.getByRole('button', { name: 'Filtriraj po kategoriji ugc' })
+    pillBtn.focus()
+    await user.keyboard(' ')
+
+    expect(onCategoryClick).toHaveBeenCalledWith('ugc')
+    expect(mockRouterPush).not.toHaveBeenCalled()
+  })
+
+  it('не рендерит pill если category null (null-safety)', () => {
+    render(
+      <PostCard
+        post={makeCardData({ category: null as unknown as string })}
+        onCategoryClick={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: /Filtriraj po kategoriji/ })).not.toBeInTheDocument()
+  })
+
+  it('не рендерит pill span если category пустая строка (null-safety)', () => {
+    render(<PostCard post={makeCardData({ category: '' })} />)
+    const spans = screen.queryAllByText('')
+    expect(spans.filter((el) => el.classList.contains('rounded-full') && el.tagName === 'SPAN')).toHaveLength(0)
+  })
 })
 
 describe('PostCardSkeleton', () => {

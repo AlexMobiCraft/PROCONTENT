@@ -113,6 +113,43 @@ describe('createPost', () => {
     ).rejects.toThrow('Prekoračena omejitev')
   })
 
+  it('не выбрасывает ошибку при ровно MAX_MEDIA_FILES файлах (граница)', async () => {
+    supabaseChain = makeChain({ data: { id: 'post-boundary' }, error: null })
+    supabaseChain.insert
+      .mockReturnValueOnce(supabaseChain)
+      .mockReturnValueOnce({ error: null })
+    supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-boundary' }, error: null })
+
+    const exactMax = Array.from({ length: MAX_MEDIA_FILES }, (_, i) => makeNewItem(`k${i}`, i))
+
+    await expect(
+      createPost({ formValues: baseFormValues, mediaItems: exactMax, authorId: 'u1' })
+    ).resolves.toBe('post-boundary')
+  })
+
+  it('rollback удаляет частично загруженные файлы при ошибке в середине batch', async () => {
+    supabaseChain = makeChain({ data: { id: 'post-partial' }, error: null })
+    supabaseChain.insert.mockReturnValueOnce(supabaseChain)
+    supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-partial' }, error: null })
+
+    const uploadedUrls: string[] = []
+    mockUploadFilesWithTracking.mockImplementation(
+      async (_postId: string, _files: File[], trackedUrls: string[]) => {
+        trackedUrls.push('https://cdn.example.com/file0.jpg')
+        throw new Error('Upload failed mid-batch')
+      }
+    )
+
+    const items = [makeNewItem('k0', 0), makeNewItem('k1', 1)]
+
+    await expect(
+      createPost({ formValues: baseFormValues, mediaItems: items, authorId: 'u1' })
+    ).rejects.toThrow('Upload failed mid-batch')
+
+    expect(mockRemoveStorageFiles).toHaveBeenCalled()
+    void uploadedUrls
+  })
+
   it('uploads new media items with concurrency after post created', async () => {
     supabaseChain = makeChain({ data: { id: 'post-1' }, error: null })
     supabaseChain.insert

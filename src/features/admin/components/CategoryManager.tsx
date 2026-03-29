@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,10 @@ function toSlug(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
+function isValidSlug(slug: string): boolean {
+  return slug.length > 0
+}
+
 interface CategoryManagerProps {
   initialCategories: Category[]
 }
@@ -31,6 +35,7 @@ export function CategoryManager({ initialCategories }: CategoryManagerProps) {
   const [nameError, setNameError] = useState<string | null>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const pendingDeleteRef = useRef<Set<string>>(new Set())
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -43,6 +48,11 @@ export function CategoryManager({ initialCategories }: CategoryManagerProps) {
     setIsAdding(true)
     try {
       const slug = toSlug(trimmed)
+      if (!isValidSlug(slug)) {
+        setNameError('Ime kategorije mora vsebovati vsaj eno črko ali število')
+        setIsAdding(false)
+        return
+      }
       const created = await createCategory(trimmed, slug)
       setCategories((prev) =>
         [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
@@ -66,6 +76,8 @@ export function CategoryManager({ initialCategories }: CategoryManagerProps) {
   }
 
   async function handleDelete(id: string) {
+    if (pendingDeleteRef.current.has(id)) return
+    pendingDeleteRef.current.add(id)
     setDeletingId(id)
     try {
       await deleteCategory(id)
@@ -76,6 +88,7 @@ export function CategoryManager({ initialCategories }: CategoryManagerProps) {
         err instanceof Error ? err.message : 'Napaka pri brisanju kategorije'
       toast.error(message)
     } finally {
+      pendingDeleteRef.current.delete(id)
       setDeletingId(null)
     }
   }

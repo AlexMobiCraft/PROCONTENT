@@ -120,6 +120,7 @@ export function PostForm(props: PostFormProps) {
   const [mediaError, setMediaError] = useState<string | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(true)
+  const hasSetCategoryRef = useRef(false)
 
   useEffect(() => {
     getCategories()
@@ -128,13 +129,16 @@ export function PostForm(props: PostFormProps) {
       .finally(() => setIsCategoriesLoading(false))
   }, [])
 
-  // In edit mode, sync the category value after options are rendered
+  // In edit mode, sync the category value after options are rendered.
+  // Guard with ref to prevent double-call if categories state updates more than once.
+  const categoriesLength = categories.length
   useEffect(() => {
-    if (categories.length > 0 && isEditMode && initialData?.category) {
+    if (!hasSetCategoryRef.current && categoriesLength > 0 && isEditMode && initialData?.category) {
+      hasSetCategoryRef.current = true
       setValue('category', initialData.category)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories])
+  }, [categoriesLength])
 
   const {
     register,
