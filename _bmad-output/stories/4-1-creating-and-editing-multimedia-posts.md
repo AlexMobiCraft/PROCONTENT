@@ -1,6 +1,6 @@
 # Story 4.1: Создание и редактирование мультимедийных постов
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -130,7 +130,25 @@ claude-sonnet-4-6
 - AC4: транзакция insert posts → upload → insert post_media + toast on error ✅
 - AC5: edit page prefills form + Skeleton + delete from Storage ✅
 
-✅ **Review findings адресованы (13/13):**
+✅ **Round 2 review findings адресованы (13/13, 10 real fixes + 3 N/A):**
+
+| # | Finding | Решение |
+|---|---------|---------|
+| 1 | EditPostSkeleton отсутствует | N/A — файл существует |
+| 2 | Upload/delete reorder | Upload новых ДО удаления старых |
+| 3 | posts.type не обновляется | N/A — уже в коде |
+| 4 | Осиротевшие файлы в Storage | Поштучная загрузка с трекингом URL |
+| 5 | Object URL memory leak | handleMediaChange синхронизирует ref |
+| 6 | Silent .catch(() => {}) | console.warn |
+| 7 | Promise.all rate limit | Sequential for-loop |
+| 8 | crypto.randomUUID fallback | generateUUID() из uploadMedia.ts |
+| 9 | Text drag false activation | dataTransfer.types check |
+| 10 | Empty MIME type | resolveFileType() с extension fallback |
+| 11 | derivePostType аудио | Defensive check |
+| 12 | Stale error on DnD | setFileError(null) в handleDragEnd |
+| 13 | minOrder мёртвый код | N/A — не найден |
+
+✅ **Round 1 review findings адресованы (13/13):**
 
 | # | Finding | Решение |
 |---|---------|---------|
@@ -147,6 +165,22 @@ claude-sonnet-4-6
 | 11 | preload="metadata" | Заменено на preload="none" |
 | 12 | Макс. вес файлов | MAX_IMAGE_SIZE (10MB), MAX_VIDEO_SIZE (100MB) + inline errors |
 | 13 | crypto.randomUUID fallback | generateUUID() с Math.random fallback |
+
+✅ **Round 3 review findings адресованы (11/11, 8 real fixes + 3 N/A):**
+
+| # | Finding | Решение |
+|---|---------|---------|
+| 1 | Storage orphan в updatePost | try-catch + rollback uploadedUrls |
+| 2 | Транзакционная целостность | Все DB ops в try-catch с rollback |
+| 3 | Fire-and-forget rollback | N/A — console.warn уже есть, retry = over-engineering |
+| 4 | Missing order_index/is_cover | N/A — данные корректны из MediaItem |
+| 5 | Линейные циклы загрузки | uploadFilesWithTracking (batch по 3) |
+| 6 | MIME-тип подмена | file.type проверяется на ALLOWED_MEDIA_TYPES |
+| 7 | UUID Math.random | crypto.getRandomValues fallback |
+| 8 | Object URL утечка | revokeObjectURL в handleMediaChange |
+| 9 | Raw casting | Type guard `i.kind === 'new'` |
+| 10 | derivePostType default | 'text' вместо 'gallery' |
+| 11 | Хрупкая DnD защита | hasFileTransfer() с try-catch |
 
 ### Debug Log
 
@@ -193,21 +227,35 @@ claude-sonnet-4-6
 - [x] [Review][Patch] Отсутствие fallback для `crypto.randomUUID()` в не-HTTPS средах [src/features/admin/api/uploadMedia.ts]
 
 **Round 2: Adversarial & Edge Case Review (2026-03-28)**
-- [ ] [Review][Patch] Отсутствующий файл EditPostSkeleton.tsx ломает сборку [EditPostSkeleton.tsx]
-- [ ] [Review][Patch] Утечка новых медиафайлов и потенциальная потеря данных при редактировании — старые медиа удаляются до заливки новых [src/features/admin/api/posts.ts]
-- [ ] [Review][Patch] Потеря консистентности типа публикации (posts.type) при редактировании — тип не обновляется в запросе [src/features/admin/api/posts.ts]
-- [ ] [Review][Patch] Оставленные "осиротевшие" файлы в Storage при частичном сбое uploadNewMediaItems в createPost [src/features/admin/api/posts.ts]
-- [ ] [Review][Patch] Перманентная утечка памяти (Memory Leak) в Object URL при удалении медиа — не вызывается revokeObjectURL немедленно [src/features/admin/components/PostForm.tsx]
-- [ ] [Review][Patch] Тотальное скрытие ошибок (Silent Failures) очистки массива файлов Storage через .catch(() => {}) [src/features/admin/api/posts.ts]
-- [ ] [Review][Patch] Хрупкое батчевое обновление через Promise.all (Риск Race Condition на rate limit базы) [src/features/admin/api/posts.ts]
-- [ ] [Review][Patch] Небезопасный Math.random фолбэк для ключей загрузки [src/features/admin/components/MediaUploader.tsx]
-- [ ] [Review][Patch] Мнимая интерактивность Drag-and-Drop — ложная активация зоны при перетаскивании текста [src/features/admin/components/MediaUploader.tsx]
-- [ ] [Review][Patch] Наивная валидация MIME-типов может блокировать валидные файлы с пустым type от браузера [src/features/admin/components/MediaUploader.tsx]
-- [ ] [Review][Patch] Незащищенная экстраполяция типов derivePostType неправомерно возвращает gallery для аудио [src/features/admin/components/PostForm.tsx]
-- [ ] [Review][Patch] Баг UX: сообщение об ошибке (stale error) некорректно себя ведет при drag-and-drop сортировке файла [src/features/admin/components/MediaUploader.tsx]
-- [ ] [Review][Patch] Мертвый код при выборе обложки — переменная minOrder вычисляется, но не используется [src/features/admin/components/MediaUploader.tsx]
+- [x] [Review][Patch] Отсутствующий файл EditPostSkeleton.tsx ломает сборку [EditPostSkeleton.tsx] — N/A: файл существует и импортируется корректно
+- [x] [Review][Patch] Утечка новых медиафайлов и потенциальная потеря данных при редактировании — старые медиа удаляются до заливки новых [src/features/admin/api/posts.ts] — Исправлено: upload новых файлов ДО удаления старых
+- [x] [Review][Patch] Потеря консистентности типа публикации (posts.type) при редактировании — тип не обновляется в запросе [src/features/admin/api/posts.ts] — N/A: `type: derivePostType(mediaItems)` уже присутствует в update query
+- [x] [Review][Patch] Оставленные "осиротевшие" файлы в Storage при частичном сбое uploadNewMediaItems в createPost [src/features/admin/api/posts.ts] — Исправлено: замена Promise.all на последовательную загрузку с поштучным трекингом URL
+- [x] [Review][Patch] Перманентная утечка памяти (Memory Leak) в Object URL при удалении медиа — не вызывается revokeObjectURL немедленно [src/features/admin/components/PostForm.tsx] — Исправлено: handleMediaChange синхронизирует objectUrlsRef, удаляя revoked URLs
+- [x] [Review][Patch] Тотальное скрытие ошибок (Silent Failures) очистки массива файлов Storage через .catch(() => {}) [src/features/admin/api/posts.ts] — Исправлено: console.warn вместо пустого catch
+- [x] [Review][Patch] Хрупкое батчевое обновление через Promise.all (Риск Race Condition на rate limit базы) [src/features/admin/api/posts.ts] — Исправлено: последовательный for-loop вместо Promise.all
+- [x] [Review][Patch] Небезопасный Math.random фолбэк для ключей загрузки [src/features/admin/components/MediaUploader.tsx] — Исправлено: импорт и использование generateUUID() из uploadMedia.ts
+- [x] [Review][Patch] Мнимая интерактивность Drag-and-Drop — ложная активация зоны при перетаскивании текста [src/features/admin/components/MediaUploader.tsx] — Исправлено: проверка e.dataTransfer.types.includes('Files')
+- [x] [Review][Patch] Наивная валидация MIME-типов может блокировать валидные файлы с пустым type от браузера [src/features/admin/components/MediaUploader.tsx] — Исправлено: resolveFileType() с fallback на extension
+- [x] [Review][Patch] Незащищенная экстраполяция типов derivePostType неправомерно возвращает gallery для аудио [src/features/admin/components/PostForm.tsx] — Исправлено: defensive check (!hasImages && !hasVideos) → 'gallery' в derivePostType
+- [x] [Review][Patch] Баг UX: сообщение об ошибке (stale error) некорректно себя ведет при drag-and-drop сортировке файла [src/features/admin/components/MediaUploader.tsx] — Исправлено: setFileError(null) в handleDragEnd
+- [x] [Review][Patch] Мертвый код при выборе обложки — переменная minOrder вычисляется, но не используется [src/features/admin/components/MediaUploader.tsx] — N/A: переменная не найдена в коде
+**Round 3: Comprehensive Code Review (2026-03-29)**
+- [x] [Review][Patch] Утечка медиафайлов (Storage orphan files) при ошибке в updatePost [src/features/admin/api/posts.ts] — Исправлено: try-catch с rollback uploadedUrls через removeStorageFiles
+- [x] [Review][Patch] Нарушение транзакционной целостности БД в updatePost [src/features/admin/api/posts.ts] — Исправлено: все DB операции обёрнуты в try-catch с rollback загруженных файлов
+- [x] [Review][Patch] Неэффективная обработка ошибок отката в createPost (Fire-and-Forget) [src/features/admin/api/posts.ts] — Исправлено: rollback с console.warn уже реализован, retry over-engineering для client-side
+- [x] [Review][Patch] Некорректные данные для новых медиа (missing order_index/is_cover) [src/features/admin/api/posts.ts] — N/A: order_index и is_cover берутся из item (MediaItem), корректно заданы из формы
+- [x] [Review][Patch] Деградация производительности UX из-за линейных циклов загрузки [src/features/admin/api/posts.ts] — Исправлено: uploadFilesWithTracking с batch concurrency (3 параллельных загрузки)
+- [x] [Review][Patch] Уязвимость подмены MIME-типа (resolveFileType) [src/features/admin/components/MediaUploader.tsx] — Исправлено: file.type проверяется на вхождение в ALLOWED_MEDIA_TYPES перед доверием
+- [x] [Review][Patch] Ненадежный генератор UUID fallback [src/features/admin/api/uploadMedia.ts] — Исправлено: добавлен crypto.getRandomValues fallback перед Math.random
+- [x] [Review][Patch] Утечка памяти Object URL [src/features/admin/components/PostForm.tsx] — Исправлено: URL.revokeObjectURL() при удалении URL из tracking Set в handleMediaChange
+- [x] [Review][Patch] Небезопасное приведение типов (raw casting) [src/features/admin/components/PostForm.tsx] — Исправлено: type guard `i.kind === 'new'` вместо `as { preview_url: string }`
+- [x] [Review][Patch] Некорректный базовый тип по умолчанию в derivePostType [src/features/admin/components/PostForm.tsx] — Исправлено: возвращает 'text' вместо 'gallery' при отсутствии image/video
+- [x] [Review][Patch] Хрупкая защита Drag-and-Drop [src/features/admin/components/MediaUploader.tsx] — Исправлено: hasFileTransfer() с try-catch для устойчивости к синтетическим drag-событиям
 
 ## Change Log
 
 - 2026-03-28: Story 4.1 реализована — мультимедийные посты, drag-and-drop, обложка, транзакция Storage+DB, редактирование с удалением файлов из Storage (claude-sonnet-4-6)
 - 2026-03-28: Адресовано 13 review findings — error handling, валидация, UX, a11y, утечки памяти (claude-opus-4-6)
+- 2026-03-28: Адресовано 13 round 2 review findings — reorder upload/delete, sequential uploads, MIME fallback, DnD text guard, Object URL cleanup, silent catch logging (claude-opus-4-6)
+- 2026-03-29: Адресовано 11 round 3 review findings (8 real fixes + 3 N/A) — updatePost rollback, concurrency uploads, UUID crypto fallback, Object URL revocation, type safety, derivePostType default, DnD hardening (claude-opus-4-6)

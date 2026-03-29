@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type { ExistingMediaItem, MediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'
-import { uploadNewMediaItems, removeStorageFiles } from './uploadMedia'
+import { uploadFilesWithTracking, removeStorageFiles } from './uploadMedia'
 
 export interface CreatePostInput {
   formValues: PostFormValues
@@ -22,6 +22,9 @@ function derivePostType(items: MediaItem[]): string {
   const hasImages = items.some((m) => m.media_type === 'image')
   const hasVideos = items.some((m) => m.media_type === 'video')
 
+  // Defensive: if items exist but none are recognized image/video, treat as text
+  if (!hasImages && !hasVideos) return 'text'
+
   if (hasImages && hasVideos) return 'gallery'
   if (hasVideos) return items.length === 1 ? 'video' : 'multi-video'
   return items.length === 1 ? 'photo' : 'gallery'
@@ -29,7 +32,7 @@ function derivePostType(items: MediaItem[]): string {
 
 /**
  * Creates a new post with associated media.
- * Sequence: insert post → upload new files → insert post_media rows
+ * Sequence: insert post → upload new files one-by-one (tracking URLs) → insert post_media rows
  * On any error after post creation: cleans up uploaded files and the post record.
  */
 export async function createPost(input: CreatePostInput): Promise<string> {
@@ -61,10 +64,13 @@ export async function createPost(input: CreatePostInput): Promise<string> {
   const uploadedUrls: string[] = []
 
   try {
-    // 2. Upload new files to Storage
+    // 2. Upload new files to Storage with controlled concurrency — track URLs for rollback
     const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
-    const uploadedMedia = await uploadNewMediaItems(postId, newItems)
-    uploadedUrls.push(...uploadedMedia.map((m) => m.url))
+    const newFileUrls = await uploadFilesWithTracking(
+      postId,
+      newItems.map((item) => item.file),
+      uploadedUrls
+    )
 
     // 3. Build post_media payload — preserve order from mediaItems array
     if (mediaItems.length > 0) {
@@ -80,11 +86,10 @@ export async function createPost(input: CreatePostInput): Promise<string> {
             is_cover: item.is_cover,
           }
         }
-        const uploaded = uploadedMedia[newIdx++]
         return {
           post_id: postId,
-          url: uploaded.url,
-          thumbnail_url: uploaded.thumbnail_url,
+          url: newFileUrls[newIdx++],
+          thumbnail_url: null,
           media_type: item.media_type,
           order_index: item.order_index,
           is_cover: item.is_cover,
@@ -99,9 +104,11 @@ export async function createPost(input: CreatePostInput): Promise<string> {
 
     return postId
   } catch (err) {
-    // Rollback: remove uploaded files from Storage, then delete the post record
+    // Rollback: remove individually tracked uploaded files, then delete the post record
     if (uploadedUrls.length > 0) {
-      await removeStorageFiles(uploadedUrls).catch(() => {})
+      await removeStorageFiles(uploadedUrls).catch((e) => {
+        console.warn('Rollback: napaka pri brisanju datotek iz Storage:', e)
+      })
     }
     await supabase.from('posts').delete().eq('id', postId)
     throw err
@@ -110,8 +117,9 @@ export async function createPost(input: CreatePostInput): Promise<string> {
 
 /**
  * Updates an existing post and its media.
- * Handles: updating text fields, deleting removed media from DB + Storage,
- * uploading new files, updating order_index/is_cover for retained items.
+ * Handles: updating text fields, uploading new files FIRST,
+ * then deleting removed media from DB + Storage, updating order_index/is_cover.
+ * Tracks uploaded URLs for rollback on failure.
  */
 export async function updatePost(input: UpdatePostInput): Promise<void> {
   const supabase = createClient()
@@ -141,59 +149,73 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
     throw new Error(`Napaka pri posodabljanju objave: ${updateError.message}`)
   }
 
-  // 2. Delete removed media rows from DB
-  if (removedItems.length > 0) {
-    const removedIds = removedItems.map((m) => m.id)
-    const { error: deleteError } = await supabase
-      .from('post_media')
-      .delete()
-      .in('id', removedIds)
-
-    if (deleteError) {
-      throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`)
-    }
-
-    // 3. Delete removed files from Storage (best-effort, don't block on failure)
-    await removeStorageFiles(removedItems.map((m) => m.url)).catch(() => {})
-  }
-
-  // 4. Upload new files
+  // 2. Upload new files FIRST (before deleting old ones to prevent data loss)
+  // Track uploaded URLs for rollback on failure
   const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
-  const uploadedMedia =
-    newItems.length > 0 ? await uploadNewMediaItems(postId, newItems) : []
+  const uploadedUrls: string[] = []
 
-  // 5. Batch update order_index + is_cover for retained existing items
-  const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')
-  if (existingItems.length > 0) {
-    const updateResults = await Promise.all(
-      existingItems.map((item) =>
-        supabase
-          .from('post_media')
-          .update({ order_index: item.order_index, is_cover: item.is_cover })
-          .eq('id', item.id)
-      )
+  try {
+    await uploadFilesWithTracking(
+      postId,
+      newItems.map((item) => item.file),
+      uploadedUrls
     )
-    const failed = updateResults.find((r) => r.error)
-    if (failed?.error) {
-      throw new Error(`Napaka pri posodabljanju vrstnega reda: ${failed.error.message}`)
-    }
-  }
 
-  // 6. Insert new post_media rows
-  if (uploadedMedia.length > 0) {
-    const newMediaPayload = newItems.map((item, idx) => ({
-      post_id: postId,
-      url: uploadedMedia[idx].url,
-      thumbnail_url: null as string | null,
-      media_type: item.media_type,
-      order_index: item.order_index,
-      is_cover: item.is_cover,
-    }))
+    // 3. Delete removed media rows from DB
+    if (removedItems.length > 0) {
+      const removedIds = removedItems.map((m) => m.id)
+      const { error: deleteError } = await supabase
+        .from('post_media')
+        .delete()
+        .in('id', removedIds)
 
-    const { error: insertError } = await supabase.from('post_media').insert(newMediaPayload)
-    if (insertError) {
-      throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`)
+      if (deleteError) {
+        throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`)
+      }
+
+      // 4. Delete removed files from Storage (best-effort, log on failure)
+      await removeStorageFiles(removedItems.map((m) => m.url)).catch((e) => {
+        console.warn('Napaka pri brisanju starih datotek iz Storage:', e)
+      })
     }
+
+    // 5. Update order_index + is_cover for retained existing items — sequential to avoid rate limiting
+    const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')
+    for (const item of existingItems) {
+      const { error } = await supabase
+        .from('post_media')
+        .update({ order_index: item.order_index, is_cover: item.is_cover })
+        .eq('id', item.id)
+
+      if (error) {
+        throw new Error(`Napaka pri posodabljanju vrstnega reda: ${error.message}`)
+      }
+    }
+
+    // 6. Insert new post_media rows
+    if (newItems.length > 0) {
+      const newMediaPayload = newItems.map((item, idx) => ({
+        post_id: postId,
+        url: uploadedUrls[idx],
+        thumbnail_url: null as string | null,
+        media_type: item.media_type,
+        order_index: item.order_index,
+        is_cover: item.is_cover,
+      }))
+
+      const { error: insertError } = await supabase.from('post_media').insert(newMediaPayload)
+      if (insertError) {
+        throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`)
+      }
+    }
+  } catch (err) {
+    // Rollback: remove newly uploaded files from Storage on any failure
+    if (uploadedUrls.length > 0) {
+      await removeStorageFiles(uploadedUrls).catch((e) => {
+        console.warn('Rollback: napaka pri brisanju novih datotek iz Storage:', e)
+      })
+    }
+    throw err
   }
 }
 

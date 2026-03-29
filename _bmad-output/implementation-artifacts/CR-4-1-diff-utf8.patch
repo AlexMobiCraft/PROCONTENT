@@ -1,0 +1,486 @@
+﻿diff --git a/_bmad-output/implementation-artifacts/sprint-status.yaml b/_bmad-output/implementation-artifacts/sprint-status.yaml
+index 61015980..769a597d 100644
+--- a/_bmad-output/implementation-artifacts/sprint-status.yaml
++++ b/_bmad-output/implementation-artifacts/sprint-status.yaml
+@@ -116,7 +116,7 @@ development_status:
+   epic-4: in-progress
+   # 2026-03-28: 13 review findings resolved (error handling, validation, UX, a11y, memory leaks) Ôćĺ review
+   # 2026-03-28: Round 2 Review generated 13 action items for edge cases & security. Story returned to in-progress.
+-  4-1-creating-and-editing-multimedia-posts: in-progress
++  4-1-creating-and-editing-multimedia-posts: review
+   4-2-managing-categories-and-post-rubrics: backlog
+   4-3-managing-content-for-onboarding-and-landing: backlog
+   4-4-monitoring-members-and-manual-access-control: backlog
+diff --git a/_bmad-output/stories/4-1-creating-and-editing-multimedia-posts.md b/_bmad-output/stories/4-1-creating-and-editing-multimedia-posts.md
+index a8425589..9f7ef041 100644
+--- a/_bmad-output/stories/4-1-creating-and-editing-multimedia-posts.md
++++ b/_bmad-output/stories/4-1-creating-and-editing-multimedia-posts.md
+@@ -1,6 +1,6 @@
+ # Story 4.1: đíđżđĚđ┤đ░đŻđŞđÁ đŞ ĐÇđÁđ┤đ░đ║ĐéđŞĐÇđżđ▓đ░đŻđŞđÁ đ╝Đâđ╗ĐîĐéđŞđ╝đÁđ┤đŞđ╣đŻĐőĐů đ┐đżĐüĐéđżđ▓
+ 
+-Status: in-progress
++Status: review
+ 
+ ## Story
+ 
+@@ -130,7 +130,25 @@ claude-sonnet-4-6
+ - AC4: ĐéĐÇđ░đŻđĚđ░đ║ĐćđŞĐĆ insert posts Ôćĺ upload Ôćĺ insert post_media + toast on error Ôťů
+ - AC5: edit page prefills form + Skeleton + delete from Storage Ôťů
+ 
+-Ôťů **Review findings đ░đ┤ĐÇđÁĐüđżđ▓đ░đŻĐő (13/13):**
++Ôťů **Round 2 review findings đ░đ┤ĐÇđÁĐüđżđ▓đ░đŻĐő (13/13, 10 real fixes + 3 N/A):**
++
++| # | Finding | đáđÁĐłđÁđŻđŞđÁ |
++|---|---------|---------|
++| 1 | EditPostSkeleton đżĐéĐüĐâĐéĐüĐéđ▓ĐâđÁĐé | N/A ÔÇö Đäđ░đ╣đ╗ ĐüĐâĐëđÁĐüĐéđ▓ĐâđÁĐé |
++| 2 | Upload/delete reorder | Upload đŻđżđ▓ĐőĐů đöđ× Đâđ┤đ░đ╗đÁđŻđŞĐĆ ĐüĐéđ░ĐÇĐőĐů |
++| 3 | posts.type đŻđÁ đżđ▒đŻđżđ▓đ╗ĐĆđÁĐéĐüĐĆ | N/A ÔÇö ĐâđÂđÁ đ▓ đ║đżđ┤đÁ |
++| 4 | đ×ĐüđŞĐÇđżĐéđÁđ▓ĐłđŞđÁ Đäđ░đ╣đ╗Đő đ▓ Storage | đčđżĐłĐéĐâĐçđŻđ░ĐĆ đĚđ░đ│ĐÇĐâđĚđ║đ░ Đü ĐéĐÇđÁđ║đŞđŻđ│đżđ╝ URL |
++| 5 | Object URL memory leak | handleMediaChange ĐüđŞđŻĐůĐÇđżđŻđŞđĚđŞĐÇĐâđÁĐé ref |
++| 6 | Silent .catch(() => {}) | console.warn |
++| 7 | Promise.all rate limit | Sequential for-loop |
++| 8 | crypto.randomUUID fallback | generateUUID() đŞđĚ uploadMedia.ts |
++| 9 | Text drag false activation | dataTransfer.types check |
++| 10 | Empty MIME type | resolveFileType() Đü extension fallback |
++| 11 | derivePostType đ░Đâđ┤đŞđż | Defensive check |
++| 12 | Stale error on DnD | setFileError(null) đ▓ handleDragEnd |
++| 13 | minOrder đ╝ĐĹĐÇĐéđ▓Đőđ╣ đ║đżđ┤ | N/A ÔÇö đŻđÁ đŻđ░đ╣đ┤đÁđŻ |
++
++Ôťů **Round 1 review findings đ░đ┤ĐÇđÁĐüđżđ▓đ░đŻĐő (13/13):**
+ 
+ | # | Finding | đáđÁĐłđÁđŻđŞđÁ |
+ |---|---------|---------|
+@@ -193,21 +211,22 @@ claude-sonnet-4-6
+ - [x] [Review][Patch] đ×ĐéĐüĐâĐéĐüĐéđ▓đŞđÁ fallback đ┤đ╗ĐĆ `crypto.randomUUID()` đ▓ đŻđÁ-HTTPS ĐüĐÇđÁđ┤đ░Đů [src/features/admin/api/uploadMedia.ts]
+ 
+ **Round 2: Adversarial & Edge Case Review (2026-03-28)**
+-- [ ] [Review][Patch] đ×ĐéĐüĐâĐéĐüĐéđ▓ĐâĐÄĐëđŞđ╣ Đäđ░đ╣đ╗ EditPostSkeleton.tsx đ╗đżđ╝đ░đÁĐé Đüđ▒đżĐÇđ║Đâ [EditPostSkeleton.tsx]
+-- [ ] [Review][Patch] đúĐéđÁĐçđ║đ░ đŻđżđ▓ĐőĐů đ╝đÁđ┤đŞđ░Đäđ░đ╣đ╗đżđ▓ đŞ đ┐đżĐéđÁđŻĐćđŞđ░đ╗ĐîđŻđ░ĐĆ đ┐đżĐéđÁĐÇĐĆ đ┤đ░đŻđŻĐőĐů đ┐ĐÇđŞ ĐÇđÁđ┤đ░đ║ĐéđŞĐÇđżđ▓đ░đŻđŞđŞ ÔÇö ĐüĐéđ░ĐÇĐőđÁ đ╝đÁđ┤đŞđ░ Đâđ┤đ░đ╗ĐĆĐÄĐéĐüĐĆ đ┤đż đĚđ░đ╗đŞđ▓đ║đŞ đŻđżđ▓ĐőĐů [src/features/admin/api/posts.ts]
+-- [ ] [Review][Patch] đčđżĐéđÁĐÇĐĆ đ║đżđŻĐüđŞĐüĐéđÁđŻĐéđŻđżĐüĐéđŞ ĐéđŞđ┐đ░ đ┐Đâđ▒đ╗đŞđ║đ░ĐćđŞđŞ (posts.type) đ┐ĐÇđŞ ĐÇđÁđ┤đ░đ║ĐéđŞĐÇđżđ▓đ░đŻđŞđŞ ÔÇö ĐéđŞđ┐ đŻđÁ đżđ▒đŻđżđ▓đ╗ĐĆđÁĐéĐüĐĆ đ▓ đĚđ░đ┐ĐÇđżĐüđÁ [src/features/admin/api/posts.ts]
+-- [ ] [Review][Patch] đ×ĐüĐéđ░đ▓đ╗đÁđŻđŻĐőđÁ "đżĐüđŞĐÇđżĐéđÁđ▓ĐłđŞđÁ" Đäđ░đ╣đ╗Đő đ▓ Storage đ┐ĐÇđŞ Đçđ░ĐüĐéđŞĐçđŻđżđ╝ Đüđ▒đżđÁ uploadNewMediaItems đ▓ createPost [src/features/admin/api/posts.ts]
+-- [ ] [Review][Patch] đčđÁĐÇđ╝đ░đŻđÁđŻĐéđŻđ░ĐĆ ĐâĐéđÁĐçđ║đ░ đ┐đ░đ╝ĐĆĐéđŞ (Memory Leak) đ▓ Object URL đ┐ĐÇđŞ Đâđ┤đ░đ╗đÁđŻđŞđŞ đ╝đÁđ┤đŞđ░ ÔÇö đŻđÁ đ▓ĐőđĚĐőđ▓đ░đÁĐéĐüĐĆ revokeObjectURL đŻđÁđ╝đÁđ┤đ╗đÁđŻđŻđż [src/features/admin/components/PostForm.tsx]
+-- [ ] [Review][Patch] đóđżĐéđ░đ╗ĐîđŻđżđÁ Đüđ║ĐÇĐőĐéđŞđÁ đżĐłđŞđ▒đżđ║ (Silent Failures) đżĐçđŞĐüĐéđ║đŞ đ╝đ░ĐüĐüđŞđ▓đ░ Đäđ░đ╣đ╗đżđ▓ Storage ĐçđÁĐÇđÁđĚ .catch(() => {}) [src/features/admin/api/posts.ts]
+-- [ ] [Review][Patch] đąĐÇĐâđ┐đ║đżđÁ đ▒đ░ĐéĐçđÁđ▓đżđÁ đżđ▒đŻđżđ▓đ╗đÁđŻđŞđÁ ĐçđÁĐÇđÁđĚ Promise.all (đáđŞĐüđ║ Race Condition đŻđ░ rate limit đ▒đ░đĚĐő) [src/features/admin/api/posts.ts]
+-- [ ] [Review][Patch] đŁđÁđ▒đÁđĚđżđ┐đ░ĐüđŻĐőđ╣ Math.random Đäđżđ╗đ▒ĐŹđ║ đ┤đ╗ĐĆ đ║đ╗ĐÄĐçđÁđ╣ đĚđ░đ│ĐÇĐâđĚđ║đŞ [src/features/admin/components/MediaUploader.tsx]
+-- [ ] [Review][Patch] đťđŻđŞđ╝đ░ĐĆ đŞđŻĐéđÁĐÇđ░đ║ĐéđŞđ▓đŻđżĐüĐéĐî Drag-and-Drop ÔÇö đ╗đżđÂđŻđ░ĐĆ đ░đ║ĐéđŞđ▓đ░ĐćđŞĐĆ đĚđżđŻĐő đ┐ĐÇđŞ đ┐đÁĐÇđÁĐéđ░Đüđ║đŞđ▓đ░đŻđŞđŞ ĐéđÁđ║ĐüĐéđ░ [src/features/admin/components/MediaUploader.tsx]
+-- [ ] [Review][Patch] đŁđ░đŞđ▓đŻđ░ĐĆ đ▓đ░đ╗đŞđ┤đ░ĐćđŞĐĆ MIME-ĐéđŞđ┐đżđ▓ đ╝đżđÂđÁĐé đ▒đ╗đżđ║đŞĐÇđżđ▓đ░ĐéĐî đ▓đ░đ╗đŞđ┤đŻĐőđÁ Đäđ░đ╣đ╗Đő Đü đ┐ĐâĐüĐéĐőđ╝ type đżĐé đ▒ĐÇđ░ĐâđĚđÁĐÇđ░ [src/features/admin/components/MediaUploader.tsx]
+-- [ ] [Review][Patch] đŁđÁđĚđ░ĐëđŞĐëđÁđŻđŻđ░ĐĆ ĐŹđ║ĐüĐéĐÇđ░đ┐đżđ╗ĐĆĐćđŞĐĆ ĐéđŞđ┐đżđ▓ derivePostType đŻđÁđ┐ĐÇđ░đ▓đżđ╝đÁĐÇđŻđż đ▓đżđĚđ▓ĐÇđ░Đëđ░đÁĐé gallery đ┤đ╗ĐĆ đ░Đâđ┤đŞđż [src/features/admin/components/PostForm.tsx]
+-- [ ] [Review][Patch] đĹđ░đ│ UX: Đüđżđżđ▒ĐëđÁđŻđŞđÁ đżđ▒ đżĐłđŞđ▒đ║đÁ (stale error) đŻđÁđ║đżĐÇĐÇđÁđ║ĐéđŻđż ĐüđÁđ▒ĐĆ đ▓đÁđ┤đÁĐé đ┐ĐÇđŞ drag-and-drop ĐüđżĐÇĐéđŞĐÇđżđ▓đ║đÁ Đäđ░đ╣đ╗đ░ [src/features/admin/components/MediaUploader.tsx]
+-- [ ] [Review][Patch] đťđÁĐÇĐéđ▓Đőđ╣ đ║đżđ┤ đ┐ĐÇđŞ đ▓Đőđ▒đżĐÇđÁ đżđ▒đ╗đżđÂđ║đŞ ÔÇö đ┐đÁĐÇđÁđ╝đÁđŻđŻđ░ĐĆ minOrder đ▓ĐőĐçđŞĐüđ╗ĐĆđÁĐéĐüĐĆ, đŻđż đŻđÁ đŞĐüđ┐đżđ╗ĐîđĚĐâđÁĐéĐüĐĆ [src/features/admin/components/MediaUploader.tsx]
++- [x] [Review][Patch] đ×ĐéĐüĐâĐéĐüĐéđ▓ĐâĐÄĐëđŞđ╣ Đäđ░đ╣đ╗ EditPostSkeleton.tsx đ╗đżđ╝đ░đÁĐé Đüđ▒đżĐÇđ║Đâ [EditPostSkeleton.tsx] ÔÇö N/A: Đäđ░đ╣đ╗ ĐüĐâĐëđÁĐüĐéđ▓ĐâđÁĐé đŞ đŞđ╝đ┐đżĐÇĐéđŞĐÇĐâđÁĐéĐüĐĆ đ║đżĐÇĐÇđÁđ║ĐéđŻđż
++- [x] [Review][Patch] đúĐéđÁĐçđ║đ░ đŻđżđ▓ĐőĐů đ╝đÁđ┤đŞđ░Đäđ░đ╣đ╗đżđ▓ đŞ đ┐đżĐéđÁđŻĐćđŞđ░đ╗ĐîđŻđ░ĐĆ đ┐đżĐéđÁĐÇĐĆ đ┤đ░đŻđŻĐőĐů đ┐ĐÇđŞ ĐÇđÁđ┤đ░đ║ĐéđŞĐÇđżđ▓đ░đŻđŞđŞ ÔÇö ĐüĐéđ░ĐÇĐőđÁ đ╝đÁđ┤đŞđ░ Đâđ┤đ░đ╗ĐĆĐÄĐéĐüĐĆ đ┤đż đĚđ░đ╗đŞđ▓đ║đŞ đŻđżđ▓ĐőĐů [src/features/admin/api/posts.ts] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: upload đŻđżđ▓ĐőĐů Đäđ░đ╣đ╗đżđ▓ đöđ× Đâđ┤đ░đ╗đÁđŻđŞĐĆ ĐüĐéđ░ĐÇĐőĐů
++- [x] [Review][Patch] đčđżĐéđÁĐÇĐĆ đ║đżđŻĐüđŞĐüĐéđÁđŻĐéđŻđżĐüĐéđŞ ĐéđŞđ┐đ░ đ┐Đâđ▒đ╗đŞđ║đ░ĐćđŞđŞ (posts.type) đ┐ĐÇđŞ ĐÇđÁđ┤đ░đ║ĐéđŞĐÇđżđ▓đ░đŻđŞđŞ ÔÇö ĐéđŞđ┐ đŻđÁ đżđ▒đŻđżđ▓đ╗ĐĆđÁĐéĐüĐĆ đ▓ đĚđ░đ┐ĐÇđżĐüđÁ [src/features/admin/api/posts.ts] ÔÇö N/A: `type: derivePostType(mediaItems)` ĐâđÂđÁ đ┐ĐÇđŞĐüĐâĐéĐüĐéđ▓ĐâđÁĐé đ▓ update query
++- [x] [Review][Patch] đ×ĐüĐéđ░đ▓đ╗đÁđŻđŻĐőđÁ "đżĐüđŞĐÇđżĐéđÁđ▓ĐłđŞđÁ" Đäđ░đ╣đ╗Đő đ▓ Storage đ┐ĐÇđŞ Đçđ░ĐüĐéđŞĐçđŻđżđ╝ Đüđ▒đżđÁ uploadNewMediaItems đ▓ createPost [src/features/admin/api/posts.ts] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: đĚđ░đ╝đÁđŻđ░ Promise.all đŻđ░ đ┐đżĐüđ╗đÁđ┤đżđ▓đ░ĐéđÁđ╗ĐîđŻĐâĐÄ đĚđ░đ│ĐÇĐâđĚđ║Đâ Đü đ┐đżĐłĐéĐâĐçđŻĐőđ╝ ĐéĐÇđÁđ║đŞđŻđ│đżđ╝ URL
++- [x] [Review][Patch] đčđÁĐÇđ╝đ░đŻđÁđŻĐéđŻđ░ĐĆ ĐâĐéđÁĐçđ║đ░ đ┐đ░đ╝ĐĆĐéđŞ (Memory Leak) đ▓ Object URL đ┐ĐÇđŞ Đâđ┤đ░đ╗đÁđŻđŞđŞ đ╝đÁđ┤đŞđ░ ÔÇö đŻđÁ đ▓ĐőđĚĐőđ▓đ░đÁĐéĐüĐĆ revokeObjectURL đŻđÁđ╝đÁđ┤đ╗đÁđŻđŻđż [src/features/admin/components/PostForm.tsx] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: handleMediaChange ĐüđŞđŻĐůĐÇđżđŻđŞđĚđŞĐÇĐâđÁĐé objectUrlsRef, Đâđ┤đ░đ╗ĐĆĐĆ revoked URLs
++- [x] [Review][Patch] đóđżĐéđ░đ╗ĐîđŻđżđÁ Đüđ║ĐÇĐőĐéđŞđÁ đżĐłđŞđ▒đżđ║ (Silent Failures) đżĐçđŞĐüĐéđ║đŞ đ╝đ░ĐüĐüđŞđ▓đ░ Đäđ░đ╣đ╗đżđ▓ Storage ĐçđÁĐÇđÁđĚ .catch(() => {}) [src/features/admin/api/posts.ts] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: console.warn đ▓đ╝đÁĐüĐéđż đ┐ĐâĐüĐéđżđ│đż catch
++- [x] [Review][Patch] đąĐÇĐâđ┐đ║đżđÁ đ▒đ░ĐéĐçđÁđ▓đżđÁ đżđ▒đŻđżđ▓đ╗đÁđŻđŞđÁ ĐçđÁĐÇđÁđĚ Promise.all (đáđŞĐüđ║ Race Condition đŻđ░ rate limit đ▒đ░đĚĐő) [src/features/admin/api/posts.ts] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: đ┐đżĐüđ╗đÁđ┤đżđ▓đ░ĐéđÁđ╗ĐîđŻĐőđ╣ for-loop đ▓đ╝đÁĐüĐéđż Promise.all
++- [x] [Review][Patch] đŁđÁđ▒đÁđĚđżđ┐đ░ĐüđŻĐőđ╣ Math.random Đäđżđ╗đ▒ĐŹđ║ đ┤đ╗ĐĆ đ║đ╗ĐÄĐçđÁđ╣ đĚđ░đ│ĐÇĐâđĚđ║đŞ [src/features/admin/components/MediaUploader.tsx] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: đŞđ╝đ┐đżĐÇĐé đŞ đŞĐüđ┐đżđ╗ĐîđĚđżđ▓đ░đŻđŞđÁ generateUUID() đŞđĚ uploadMedia.ts
++- [x] [Review][Patch] đťđŻđŞđ╝đ░ĐĆ đŞđŻĐéđÁĐÇđ░đ║ĐéđŞđ▓đŻđżĐüĐéĐî Drag-and-Drop ÔÇö đ╗đżđÂđŻđ░ĐĆ đ░đ║ĐéđŞđ▓đ░ĐćđŞĐĆ đĚđżđŻĐő đ┐ĐÇđŞ đ┐đÁĐÇđÁĐéđ░Đüđ║đŞđ▓đ░đŻđŞđŞ ĐéđÁđ║ĐüĐéđ░ [src/features/admin/components/MediaUploader.tsx] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: đ┐ĐÇđżđ▓đÁĐÇđ║đ░ e.dataTransfer.types.includes('Files')
++- [x] [Review][Patch] đŁđ░đŞđ▓đŻđ░ĐĆ đ▓đ░đ╗đŞđ┤đ░ĐćđŞĐĆ MIME-ĐéđŞđ┐đżđ▓ đ╝đżđÂđÁĐé đ▒đ╗đżđ║đŞĐÇđżđ▓đ░ĐéĐî đ▓đ░đ╗đŞđ┤đŻĐőđÁ Đäđ░đ╣đ╗Đő Đü đ┐ĐâĐüĐéĐőđ╝ type đżĐé đ▒ĐÇđ░ĐâđĚđÁĐÇđ░ [src/features/admin/components/MediaUploader.tsx] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: resolveFileType() Đü fallback đŻđ░ extension
++- [x] [Review][Patch] đŁđÁđĚđ░ĐëđŞĐëđÁđŻđŻđ░ĐĆ ĐŹđ║ĐüĐéĐÇđ░đ┐đżđ╗ĐĆĐćđŞĐĆ ĐéđŞđ┐đżđ▓ derivePostType đŻđÁđ┐ĐÇđ░đ▓đżđ╝đÁĐÇđŻđż đ▓đżđĚđ▓ĐÇđ░Đëđ░đÁĐé gallery đ┤đ╗ĐĆ đ░Đâđ┤đŞđż [src/features/admin/components/PostForm.tsx] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: defensive check (!hasImages && !hasVideos) Ôćĺ 'gallery' đ▓ derivePostType
++- [x] [Review][Patch] đĹđ░đ│ UX: Đüđżđżđ▒ĐëđÁđŻđŞđÁ đżđ▒ đżĐłđŞđ▒đ║đÁ (stale error) đŻđÁđ║đżĐÇĐÇđÁđ║ĐéđŻđż ĐüđÁđ▒ĐĆ đ▓đÁđ┤đÁĐé đ┐ĐÇđŞ drag-and-drop ĐüđżĐÇĐéđŞĐÇđżđ▓đ║đÁ Đäđ░đ╣đ╗đ░ [src/features/admin/components/MediaUploader.tsx] ÔÇö đśĐüđ┐ĐÇđ░đ▓đ╗đÁđŻđż: setFileError(null) đ▓ handleDragEnd
++- [x] [Review][Patch] đťđÁĐÇĐéđ▓Đőđ╣ đ║đżđ┤ đ┐ĐÇđŞ đ▓Đőđ▒đżĐÇđÁ đżđ▒đ╗đżđÂđ║đŞ ÔÇö đ┐đÁĐÇđÁđ╝đÁđŻđŻđ░ĐĆ minOrder đ▓ĐőĐçđŞĐüđ╗ĐĆđÁĐéĐüĐĆ, đŻđż đŻđÁ đŞĐüđ┐đżđ╗ĐîđĚĐâđÁĐéĐüĐĆ [src/features/admin/components/MediaUploader.tsx] ÔÇö N/A: đ┐đÁĐÇđÁđ╝đÁđŻđŻđ░ĐĆ đŻđÁ đŻđ░đ╣đ┤đÁđŻđ░ đ▓ đ║đżđ┤đÁ
+ 
+ ## Change Log
+ 
+ - 2026-03-28: Story 4.1 ĐÇđÁđ░đ╗đŞđĚđżđ▓đ░đŻđ░ ÔÇö đ╝Đâđ╗ĐîĐéđŞđ╝đÁđ┤đŞđ╣đŻĐőđÁ đ┐đżĐüĐéĐő, drag-and-drop, đżđ▒đ╗đżđÂđ║đ░, ĐéĐÇđ░đŻđĚđ░đ║ĐćđŞĐĆ Storage+DB, ĐÇđÁđ┤đ░đ║ĐéđŞĐÇđżđ▓đ░đŻđŞđÁ Đü Đâđ┤đ░đ╗đÁđŻđŞđÁđ╝ Đäđ░đ╣đ╗đżđ▓ đŞđĚ Storage (claude-sonnet-4-6)
+ - 2026-03-28: đÉđ┤ĐÇđÁĐüđżđ▓đ░đŻđż 13 review findings ÔÇö error handling, đ▓đ░đ╗đŞđ┤đ░ĐćđŞĐĆ, UX, a11y, ĐâĐéđÁĐçđ║đŞ đ┐đ░đ╝ĐĆĐéđŞ (claude-opus-4-6)
++- 2026-03-28: đÉđ┤ĐÇđÁĐüđżđ▓đ░đŻđż 13 round 2 review findings ÔÇö reorder upload/delete, sequential uploads, MIME fallback, DnD text guard, Object URL cleanup, silent catch logging (claude-opus-4-6)
+diff --git a/src/features/admin/api/posts.ts b/src/features/admin/api/posts.ts
+index 53ba96cb..26368796 100644
+--- a/src/features/admin/api/posts.ts
++++ b/src/features/admin/api/posts.ts
+@@ -1,6 +1,6 @@
+ import { createClient } from '@/lib/supabase/client'
+ import type { ExistingMediaItem, MediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'
+-import { uploadNewMediaItems, removeStorageFiles } from './uploadMedia'
++import { uploadSingleFile, removeStorageFiles } from './uploadMedia'
+ 
+ export interface CreatePostInput {
+   formValues: PostFormValues
+@@ -22,6 +22,9 @@ function derivePostType(items: MediaItem[]): string {
+   const hasImages = items.some((m) => m.media_type === 'image')
+   const hasVideos = items.some((m) => m.media_type === 'video')
+ 
++  // Defensive: if no recognized media types, treat as gallery
++  if (!hasImages && !hasVideos) return 'gallery'
++
+   if (hasImages && hasVideos) return 'gallery'
+   if (hasVideos) return items.length === 1 ? 'video' : 'multi-video'
+   return items.length === 1 ? 'photo' : 'gallery'
+@@ -29,7 +32,7 @@ function derivePostType(items: MediaItem[]): string {
+ 
+ /**
+  * Creates a new post with associated media.
+- * Sequence: insert post Ôćĺ upload new files Ôćĺ insert post_media rows
++ * Sequence: insert post Ôćĺ upload new files one-by-one (tracking URLs) Ôćĺ insert post_media rows
+  * On any error after post creation: cleans up uploaded files and the post record.
+  */
+ export async function createPost(input: CreatePostInput): Promise<string> {
+@@ -61,10 +64,21 @@ export async function createPost(input: CreatePostInput): Promise<string> {
+   const uploadedUrls: string[] = []
+ 
+   try {
+-    // 2. Upload new files to Storage
++    // 2. Upload new files to Storage ÔÇö track each URL individually for proper cleanup
+     const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
+-    const uploadedMedia = await uploadNewMediaItems(postId, newItems)
+-    uploadedUrls.push(...uploadedMedia.map((m) => m.url))
++    const uploadedMedia: { url: string; media_type: string; thumbnail_url: null; order_index: number; is_cover: boolean }[] = []
++
++    for (const item of newItems) {
++      const url = await uploadSingleFile(postId, item.file)
++      uploadedUrls.push(url)
++      uploadedMedia.push({
++        url,
++        media_type: item.media_type,
++        thumbnail_url: null,
++        order_index: item.order_index,
++        is_cover: item.is_cover,
++      })
++    }
+ 
+     // 3. Build post_media payload ÔÇö preserve order from mediaItems array
+     if (mediaItems.length > 0) {
+@@ -99,9 +113,11 @@ export async function createPost(input: CreatePostInput): Promise<string> {
+ 
+     return postId
+   } catch (err) {
+-    // Rollback: remove uploaded files from Storage, then delete the post record
++    // Rollback: remove individually tracked uploaded files, then delete the post record
+     if (uploadedUrls.length > 0) {
+-      await removeStorageFiles(uploadedUrls).catch(() => {})
++      await removeStorageFiles(uploadedUrls).catch((e) => {
++        console.warn('Rollback: napaka pri brisanju datotek iz Storage:', e)
++      })
+     }
+     await supabase.from('posts').delete().eq('id', postId)
+     throw err
+@@ -110,8 +126,8 @@ export async function createPost(input: CreatePostInput): Promise<string> {
+ 
+ /**
+  * Updates an existing post and its media.
+- * Handles: updating text fields, deleting removed media from DB + Storage,
+- * uploading new files, updating order_index/is_cover for retained items.
++ * Handles: updating text fields, uploading new files FIRST,
++ * then deleting removed media from DB + Storage, updating order_index/is_cover.
+  */
+ export async function updatePost(input: UpdatePostInput): Promise<void> {
+   const supabase = createClient()
+@@ -141,7 +157,16 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
+     throw new Error(`Napaka pri posodabljanju objave: ${updateError.message}`)
+   }
+ 
+-  // 2. Delete removed media rows from DB
++  // 2. Upload new files FIRST (before deleting old ones to prevent data loss)
++  const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
++  const uploadedMedia: { url: string; media_type: string }[] = []
++
++  for (const item of newItems) {
++    const url = await uploadSingleFile(postId, item.file)
++    uploadedMedia.push({ url, media_type: item.media_type })
++  }
++
++  // 3. Delete removed media rows from DB
+   if (removedItems.length > 0) {
+     const removedIds = removedItems.map((m) => m.id)
+     const { error: deleteError } = await supabase
+@@ -153,29 +178,22 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
+       throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`)
+     }
+ 
+-    // 3. Delete removed files from Storage (best-effort, don't block on failure)
+-    await removeStorageFiles(removedItems.map((m) => m.url)).catch(() => {})
++    // 4. Delete removed files from Storage (best-effort, log on failure)
++    await removeStorageFiles(removedItems.map((m) => m.url)).catch((e) => {
++      console.warn('Napaka pri brisanju starih datotek iz Storage:', e)
++    })
+   }
+ 
+-  // 4. Upload new files
+-  const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
+-  const uploadedMedia =
+-    newItems.length > 0 ? await uploadNewMediaItems(postId, newItems) : []
+-
+-  // 5. Batch update order_index + is_cover for retained existing items
++  // 5. Update order_index + is_cover for retained existing items ÔÇö sequential to avoid rate limiting
+   const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')
+-  if (existingItems.length > 0) {
+-    const updateResults = await Promise.all(
+-      existingItems.map((item) =>
+-        supabase
+-          .from('post_media')
+-          .update({ order_index: item.order_index, is_cover: item.is_cover })
+-          .eq('id', item.id)
+-      )
+-    )
+-    const failed = updateResults.find((r) => r.error)
+-    if (failed?.error) {
+-      throw new Error(`Napaka pri posodabljanju vrstnega reda: ${failed.error.message}`)
++  for (const item of existingItems) {
++    const { error } = await supabase
++      .from('post_media')
++      .update({ order_index: item.order_index, is_cover: item.is_cover })
++      .eq('id', item.id)
++
++    if (error) {
++      throw new Error(`Napaka pri posodabljanju vrstnega reda: ${error.message}`)
+     }
+   }
+ 
+diff --git a/src/features/admin/api/uploadMedia.ts b/src/features/admin/api/uploadMedia.ts
+index 76c944a2..99d248bf 100644
+--- a/src/features/admin/api/uploadMedia.ts
++++ b/src/features/admin/api/uploadMedia.ts
+@@ -11,7 +11,7 @@ export interface UploadedMedia {
+   is_cover: boolean
+ }
+ 
+-function generateUUID(): string {
++export function generateUUID(): string {
+   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+     return crypto.randomUUID()
+   }
+diff --git a/src/features/admin/components/MediaUploader.tsx b/src/features/admin/components/MediaUploader.tsx
+index 95ed7a67..8367f435 100644
+--- a/src/features/admin/components/MediaUploader.tsx
++++ b/src/features/admin/components/MediaUploader.tsx
+@@ -26,6 +26,7 @@ import {
+   ALLOWED_IMAGE_TYPES,
+   ALLOWED_MEDIA_TYPES,
+ } from '@/features/admin/types'
++import { generateUUID } from '@/features/admin/api/uploadMedia'
+ import { MediaSortableItem } from './MediaSortableItem'
+ 
+ interface MediaUploaderProps {
+@@ -40,6 +41,24 @@ function formatSize(bytes: number): string {
+     : `${(bytes / 1024).toFixed(0)} KB`
+ }
+ 
++/** Map common file extensions to MIME types for browsers that return empty type */
++const EXTENSION_TO_MIME: Record<string, string> = {
++  jpg: 'image/jpeg',
++  jpeg: 'image/jpeg',
++  png: 'image/png',
++  webp: 'image/webp',
++  gif: 'image/gif',
++  mp4: 'video/mp4',
++  mov: 'video/quicktime',
++  webm: 'video/webm',
++}
++
++function resolveFileType(file: File): string {
++  if (file.type) return file.type
++  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
++  return EXTENSION_TO_MIME[ext] ?? ''
++}
++
+ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderProps) {
+   const inputRef = useRef<HTMLInputElement>(null)
+   const isAtLimit = items.length >= MAX_MEDIA_FILES
+@@ -63,6 +82,8 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
+       ...item,
+       order_index: idx,
+     }))
++    // Clear stale error on successful reorder
++    setFileError(null)
+     onChange(reordered)
+   }
+ 
+@@ -73,22 +94,25 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
+       setFileError(null)
+       const errors: string[] = []
+ 
++      // Resolve MIME types (fallback to extension for empty type)
++      const filesWithTypes = fileList.map((f) => ({ file: f, resolvedType: resolveFileType(f) }))
++
+       // Filter by allowed MIME type
+-      const validTypeFiles = fileList.filter((f) => {
+-        if (!ALLOWED_MEDIA_TYPES.includes(f.type)) {
+-          errors.push(`"${f.name}" ÔÇö nepodprt format`)
++      const validTypeFiles = filesWithTypes.filter(({ file, resolvedType }) => {
++        if (!ALLOWED_MEDIA_TYPES.includes(resolvedType)) {
++          errors.push(`"${file.name}" ÔÇö nepodprt format`)
+           return false
+         }
+         return true
+       })
+ 
+       // Filter by file size
+-      const validFiles = validTypeFiles.filter((f) => {
+-        const isImage = ALLOWED_IMAGE_TYPES.includes(f.type)
++      const validFiles = validTypeFiles.filter(({ file, resolvedType }) => {
++        const isImage = ALLOWED_IMAGE_TYPES.includes(resolvedType)
+         const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE
+-        if (f.size > maxSize) {
++        if (file.size > maxSize) {
+           errors.push(
+-            `"${f.name}" presega omejitev ${formatSize(maxSize)}`
++            `"${file.name}" presega omejitev ${formatSize(maxSize)}`
+           )
+           return false
+         }
+@@ -114,11 +138,11 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
+ 
+       if (toAdd.length === 0) return
+ 
+-      const newItems: NewMediaItem[] = toAdd.map((file, i) => {
+-        const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(file.type) ? 'image' : 'video'
++      const newItems: NewMediaItem[] = toAdd.map(({ file, resolvedType }, i) => {
++        const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(resolvedType) ? 'image' : 'video'
+         return {
+           kind: 'new',
+-          key: crypto.randomUUID(),
++          key: generateUUID(),
+           file,
+           preview_url: URL.createObjectURL(file),
+           media_type: mediaType,
+@@ -159,7 +183,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
+       .filter((item) => getMediaItemId(item) !== targetId)
+       .map((item, idx) => ({ ...item, order_index: idx }))
+ 
+-    // Revoke object URL for new items
++    // Revoke object URL for new items immediately
+     const removed = items.find((item) => getMediaItemId(item) === targetId)
+     if (removed?.kind === 'new') URL.revokeObjectURL(removed.preview_url)
+ 
+@@ -176,6 +200,8 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
+   function handleNativeDragOver(e: React.DragEvent) {
+     e.preventDefault()
+     e.stopPropagation()
++    // Only activate for file drops, not text drags
++    if (!e.dataTransfer.types.includes('Files')) return
+     if (!isAtLimit && !isSubmitting) setIsDragOver(true)
+   }
+ 
+@@ -190,6 +216,8 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
+     e.stopPropagation()
+     setIsDragOver(false)
+     if (isAtLimit || isSubmitting) return
++    // Only process if actual files are dropped
++    if (!e.dataTransfer.types.includes('Files')) return
+     const files = e.dataTransfer.files
+     if (files.length > 0) {
+       processFiles(Array.from(files))
+diff --git a/src/features/admin/components/PostForm.tsx b/src/features/admin/components/PostForm.tsx
+index 09709032..129a6511 100644
+--- a/src/features/admin/components/PostForm.tsx
++++ b/src/features/admin/components/PostForm.tsx
+@@ -80,12 +80,20 @@ export function PostForm(props: PostFormProps) {
+   const objectUrlsRef = useRef<Set<string>>(new Set())
+ 
+   const handleMediaChange = (items: MediaItem[]) => {
+-    // Track new ObjectURLs
+-    for (const item of items) {
+-      if (item.kind === 'new') {
+-        objectUrlsRef.current.add(item.preview_url)
++    // Track new ObjectURLs and remove revoked ones
++    const currentUrls = new Set(
++      items.filter((i) => i.kind === 'new').map((i) => (i as { preview_url: string }).preview_url)
++    )
++    // Remove URLs no longer in the list (already revoked by MediaUploader)
++    for (const url of objectUrlsRef.current) {
++      if (!currentUrls.has(url)) {
++        objectUrlsRef.current.delete(url)
+       }
+     }
++    // Track new URLs
++    for (const url of currentUrls) {
++      objectUrlsRef.current.add(url)
++    }
+     setMediaItems(items)
+   }
+ 
+diff --git a/tests/unit/features/admin/api/posts.test.ts b/tests/unit/features/admin/api/posts.test.ts
+index 4ab32dae..e615fd85 100644
+--- a/tests/unit/features/admin/api/posts.test.ts
++++ b/tests/unit/features/admin/api/posts.test.ts
+@@ -17,11 +17,11 @@ function makeChain(result: unknown) {
+   return chain
+ }
+ 
+-const mockUploadNewMediaItems = vi.fn()
++const mockUploadSingleFile = vi.fn()
+ const mockRemoveStorageFiles = vi.fn()
+ 
+ vi.mock('@/features/admin/api/uploadMedia', () => ({
+-  uploadNewMediaItems: (...args: unknown[]) => mockUploadNewMediaItems(...args),
++  uploadSingleFile: (...args: unknown[]) => mockUploadSingleFile(...args),
+   removeStorageFiles: (...args: unknown[]) => mockRemoveStorageFiles(...args),
+ }))
+ 
+@@ -72,14 +72,13 @@ function makeNewItem(key: string, orderIndex = 0): NewMediaItem {
+ describe('createPost', () => {
+   beforeEach(() => {
+     vi.clearAllMocks()
+-    mockUploadNewMediaItems.mockResolvedValue([])
++    mockUploadSingleFile.mockResolvedValue('https://cdn.example.com/file.jpg')
+     mockRemoveStorageFiles.mockResolvedValue(undefined)
+   })
+ 
+   it('creates post and returns post id', async () => {
+     supabaseChain = makeChain({ data: { id: 'new-post-id' }, error: null })
+     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'new-post-id' }, error: null })
+-    // Second call for post_media insert
+     supabaseChain.insert.mockReturnThis()
+ 
+     const id = await createPost({
+@@ -98,18 +97,15 @@ describe('createPost', () => {
+     ).rejects.toThrow('Napaka pri ustvarjanju objave')
+   })
+ 
+-  it('uploads new media items after post created', async () => {
++  it('uploads new media items individually after post created', async () => {
+     supabaseChain = makeChain({ data: { id: 'post-1' }, error: null })
+-    // First insert (posts): chain returns itself so .select().single() works
+     supabaseChain.insert
+       .mockReturnValueOnce(supabaseChain) // posts insert Ôćĺ chained
+       .mockReturnValueOnce({ error: null }) // post_media insert Ôćĺ {error: null}
+     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-1' }, error: null })
+ 
+     const newItem = makeNewItem('k1', 0)
+-    mockUploadNewMediaItems.mockResolvedValue([
+-      { url: 'https://cdn.example.com/file.jpg', media_type: 'image', thumbnail_url: null, order_index: 0, is_cover: true },
+-    ])
++    mockUploadSingleFile.mockResolvedValue('https://cdn.example.com/file.jpg')
+ 
+     await createPost({
+       formValues: baseFormValues,
+@@ -117,7 +113,7 @@ describe('createPost', () => {
+       authorId: 'u1',
+     })
+ 
+-    expect(mockUploadNewMediaItems).toHaveBeenCalledWith('post-1', [newItem])
++    expect(mockUploadSingleFile).toHaveBeenCalledWith('post-1', newItem.file)
+   })
+ })
+ 
+@@ -154,12 +150,11 @@ describe('fetchPostForEdit', () => {
+ describe('updatePost', () => {
+   beforeEach(() => {
+     vi.clearAllMocks()
+-    mockUploadNewMediaItems.mockResolvedValue([])
++    mockUploadSingleFile.mockResolvedValue('https://cdn.example.com/new-file.jpg')
+     mockRemoveStorageFiles.mockResolvedValue(undefined)
+     supabaseChain = makeChain({ data: null, error: null })
+     supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+     supabaseChain.delete.mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) })
+-    supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }), error: null })
+   })
+ 
+   it('calls removeStorageFiles for deleted media', async () => {
+diff --git a/tests/unit/features/admin/components/MediaUploader.test.tsx b/tests/unit/features/admin/components/MediaUploader.test.tsx
+index bc82eb7c..76cdec2b 100644
+--- a/tests/unit/features/admin/components/MediaUploader.test.tsx
++++ b/tests/unit/features/admin/components/MediaUploader.test.tsx
+@@ -39,6 +39,10 @@ vi.mock('@dnd-kit/utilities', () => ({
+   CSS: { Transform: { toString: vi.fn(() => '') } },
+ }))
+ 
++vi.mock('@/features/admin/api/uploadMedia', () => ({
++  generateUUID: () => 'test-uuid-' + Math.random().toString(36).slice(2, 8),
++}))
++
+ import { MediaUploader } from '@/features/admin/components/MediaUploader'
+ 
+ function makeExistingItem(id: string, orderIndex = 0): ExistingMediaItem {

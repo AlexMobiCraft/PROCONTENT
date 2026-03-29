@@ -39,6 +39,10 @@ vi.mock('@dnd-kit/utilities', () => ({
   CSS: { Transform: { toString: vi.fn(() => '') } },
 }))
 
+vi.mock('@/features/admin/api/uploadMedia', () => ({
+  generateUUID: () => 'test-uuid-' + Math.random().toString(36).slice(2, 8),
+}))
+
 import { MediaUploader } from '@/features/admin/components/MediaUploader'
 
 function makeExistingItem(id: string, orderIndex = 0): ExistingMediaItem {

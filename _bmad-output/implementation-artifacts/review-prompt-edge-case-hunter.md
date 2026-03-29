@@ -1,4 +1,4 @@
-Run the bmad-review-edge-case-hunter skill on the diff file.
+Please run the `bmad-review-edge-case-hunter` skill on the following diff file:
+`c:\Users\1\DEV\PROCONTENT\_bmad-output\implementation-artifacts\CR-4-1-diff.patch`
 
-Command:
-@[/bmad-review-edge-case-hunter] @[c:\Users\1\DEV\PROCONTENT\_bmad-output\diff_utf8.txt]
+You have read access to the project files. Hunt for unhandled edge cases, boundary conditions, and breaking logic.

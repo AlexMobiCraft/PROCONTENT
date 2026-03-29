@@ -14,6 +14,7 @@ import {
   PostFormSchema,
   type PostFormValues,
   type MediaItem,
+  type NewMediaItem,
   type ExistingMediaItem,
 } from '@/features/admin/types'
 
@@ -80,11 +81,22 @@ export function PostForm(props: PostFormProps) {
   const objectUrlsRef = useRef<Set<string>>(new Set())
 
   const handleMediaChange = (items: MediaItem[]) => {
-    // Track new ObjectURLs
-    for (const item of items) {
-      if (item.kind === 'new') {
-        objectUrlsRef.current.add(item.preview_url)
+    // Track new ObjectURLs and clean up revoked ones
+    const currentUrls = new Set(
+      items
+        .filter((i): i is NewMediaItem => i.kind === 'new')
+        .map((i) => i.preview_url)
+    )
+    // Revoke URLs no longer in the list
+    for (const url of objectUrlsRef.current) {
+      if (!currentUrls.has(url)) {
+        URL.revokeObjectURL(url)
+        objectUrlsRef.current.delete(url)
       }
+    }
+    // Track new URLs
+    for (const url of currentUrls) {
+      objectUrlsRef.current.add(url)
     }
     setMediaItems(items)
   }

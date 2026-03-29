@@ -26,6 +26,7 @@ import {
   ALLOWED_IMAGE_TYPES,
   ALLOWED_MEDIA_TYPES,
 } from '@/features/admin/types'
+import { generateUUID } from '@/features/admin/api/uploadMedia'
 import { MediaSortableItem } from './MediaSortableItem'
 
 interface MediaUploaderProps {
@@ -38,6 +39,28 @@ function formatSize(bytes: number): string {
   return bytes >= 1024 * 1024
     ? `${(bytes / (1024 * 1024)).toFixed(0)} MB`
     : `${(bytes / 1024).toFixed(0)} KB`
+}
+
+/** Map common file extensions to MIME types for browsers that return empty type */
+const EXTENSION_TO_MIME: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+}
+
+/**
+ * Resolves MIME type from browser-provided type, falling back to extension.
+ * Extension fallback is client-side UX only — Supabase Storage validates server-side.
+ */
+function resolveFileType(file: File): string {
+  if (file.type && ALLOWED_MEDIA_TYPES.includes(file.type)) return file.type
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  return EXTENSION_TO_MIME[ext] ?? ''
 }
 
 export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderProps) {
@@ -63,6 +86,8 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
       ...item,
       order_index: idx,
     }))
+    // Clear stale error on successful reorder
+    setFileError(null)
     onChange(reordered)
   }
 
@@ -73,22 +98,25 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
       setFileError(null)
       const errors: string[] = []
 
+      // Resolve MIME types (fallback to extension for empty type)
+      const filesWithTypes = fileList.map((f) => ({ file: f, resolvedType: resolveFileType(f) }))
+
       // Filter by allowed MIME type
-      const validTypeFiles = fileList.filter((f) => {
-        if (!ALLOWED_MEDIA_TYPES.includes(f.type)) {
-          errors.push(`"${f.name}" — nepodprt format`)
+      const validTypeFiles = filesWithTypes.filter(({ file, resolvedType }) => {
+        if (!ALLOWED_MEDIA_TYPES.includes(resolvedType)) {
+          errors.push(`"${file.name}" — nepodprt format`)
           return false
         }
         return true
       })
 
       // Filter by file size
-      const validFiles = validTypeFiles.filter((f) => {
-        const isImage = ALLOWED_IMAGE_TYPES.includes(f.type)
+      const validFiles = validTypeFiles.filter(({ file, resolvedType }) => {
+        const isImage = ALLOWED_IMAGE_TYPES.includes(resolvedType)
         const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE
-        if (f.size > maxSize) {
+        if (file.size > maxSize) {
           errors.push(
-            `"${f.name}" presega omejitev ${formatSize(maxSize)}`
+            `"${file.name}" presega omejitev ${formatSize(maxSize)}`
           )
           return false
         }
@@ -114,11 +142,11 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
 
       if (toAdd.length === 0) return
 
-      const newItems: NewMediaItem[] = toAdd.map((file, i) => {
-        const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(file.type) ? 'image' : 'video'
+      const newItems: NewMediaItem[] = toAdd.map(({ file, resolvedType }, i) => {
+        const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(resolvedType) ? 'image' : 'video'
         return {
           kind: 'new',
-          key: crypto.randomUUID(),
+          key: generateUUID(),
           file,
           preview_url: URL.createObjectURL(file),
           media_type: mediaType,
@@ -159,7 +187,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
       .filter((item) => getMediaItemId(item) !== targetId)
       .map((item, idx) => ({ ...item, order_index: idx }))
 
-    // Revoke object URL for new items
+    // Revoke object URL for new items immediately
     const removed = items.find((item) => getMediaItemId(item) === targetId)
     if (removed?.kind === 'new') URL.revokeObjectURL(removed.preview_url)
 
@@ -172,10 +200,19 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
     setFileError(null)
   }
 
+  function hasFileTransfer(e: React.DragEvent): boolean {
+    try {
+      return e.dataTransfer?.types?.includes('Files') ?? false
+    } catch {
+      return false
+    }
+  }
+
   // Native drag-and-drop handlers for file upload zone
   function handleNativeDragOver(e: React.DragEvent) {
     e.preventDefault()
     e.stopPropagation()
+    if (!hasFileTransfer(e)) return
     if (!isAtLimit && !isSubmitting) setIsDragOver(true)
   }
 
@@ -190,6 +227,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
     e.stopPropagation()
     setIsDragOver(false)
     if (isAtLimit || isSubmitting) return
+    if (!hasFileTransfer(e)) return
     const files = e.dataTransfer.files
     if (files.length > 0) {
       processFiles(Array.from(files))

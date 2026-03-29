@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { NewMediaItem } from '@/features/admin/types'
 
 const mockUpload = vi.fn()
 const mockGetPublicUrl = vi.fn()
@@ -19,24 +18,12 @@ vi.mock('@/lib/supabase/client', () => ({
 
 import {
   uploadSingleFile,
-  uploadNewMediaItems,
+  uploadFilesWithTracking,
   removeStorageFiles,
 } from '@/features/admin/api/uploadMedia'
 
 function makeFile(name = 'photo.jpg', type = 'image/jpeg') {
   return new File(['content'], name, { type })
-}
-
-function makeNewItem(key: string, orderIndex = 0): NewMediaItem {
-  return {
-    kind: 'new',
-    key,
-    file: makeFile(),
-    preview_url: `blob:${key}`,
-    media_type: 'image',
-    is_cover: orderIndex === 0,
-    order_index: orderIndex,
-  }
 }
 
 describe('uploadSingleFile', () => {
@@ -65,26 +52,32 @@ describe('uploadSingleFile', () => {
   })
 })
 
-describe('uploadNewMediaItems', () => {
+describe('uploadFilesWithTracking', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUpload.mockResolvedValue({ error: null })
     mockGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/media.jpg' } })
   })
 
-  it('uploads all items and returns UploadedMedia array', async () => {
-    const items = [makeNewItem('k1', 0), makeNewItem('k2', 1)]
-    const result = await uploadNewMediaItems('post-1', items)
+  it('uploads files in batches and returns URLs', async () => {
+    const files = [makeFile('a.jpg'), makeFile('b.jpg')]
+    const uploadedUrls: string[] = []
+    const result = await uploadFilesWithTracking('post-1', files, uploadedUrls)
     expect(result).toHaveLength(2)
-    expect(result[0].url).toBe('https://cdn.example.com/media.jpg')
-    expect(result[0].order_index).toBe(0)
-    expect(result[0].is_cover).toBe(true)
-    expect(result[1].order_index).toBe(1)
-    expect(result[1].is_cover).toBe(false)
+    expect(result[0]).toBe('https://cdn.example.com/media.jpg')
+    expect(uploadedUrls).toHaveLength(2)
+  })
+
+  it('tracks uploaded URLs for rollback', async () => {
+    const files = [makeFile('a.jpg')]
+    const uploadedUrls: string[] = []
+    await uploadFilesWithTracking('post-1', files, uploadedUrls)
+    expect(uploadedUrls).toEqual(['https://cdn.example.com/media.jpg'])
   })
 
   it('returns empty array for empty input', async () => {
-    const result = await uploadNewMediaItems('post-1', [])
+    const uploadedUrls: string[] = []
+    const result = await uploadFilesWithTracking('post-1', [], uploadedUrls)
     expect(result).toHaveLength(0)
     expect(mockUpload).not.toHaveBeenCalled()
   })

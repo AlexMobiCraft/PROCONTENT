@@ -17,11 +17,11 @@ function makeChain(result: unknown) {
   return chain
 }
 
-const mockUploadNewMediaItems = vi.fn()
+const mockUploadFilesWithTracking = vi.fn()
 const mockRemoveStorageFiles = vi.fn()
 
 vi.mock('@/features/admin/api/uploadMedia', () => ({
-  uploadNewMediaItems: (...args: unknown[]) => mockUploadNewMediaItems(...args),
+  uploadFilesWithTracking: (...args: unknown[]) => mockUploadFilesWithTracking(...args),
   removeStorageFiles: (...args: unknown[]) => mockRemoveStorageFiles(...args),
 }))
 
@@ -72,14 +72,19 @@ function makeNewItem(key: string, orderIndex = 0): NewMediaItem {
 describe('createPost', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUploadNewMediaItems.mockResolvedValue([])
+    mockUploadFilesWithTracking.mockImplementation(
+      async (_postId: string, _files: File[], uploadedUrls: string[]) => {
+        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/file${i}.jpg`)
+        uploadedUrls.push(...urls)
+        return urls
+      }
+    )
     mockRemoveStorageFiles.mockResolvedValue(undefined)
   })
 
   it('creates post and returns post id', async () => {
     supabaseChain = makeChain({ data: { id: 'new-post-id' }, error: null })
     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'new-post-id' }, error: null })
-    // Second call for post_media insert
     supabaseChain.insert.mockReturnThis()
 
     const id = await createPost({
@@ -98,18 +103,14 @@ describe('createPost', () => {
     ).rejects.toThrow('Napaka pri ustvarjanju objave')
   })
 
-  it('uploads new media items after post created', async () => {
+  it('uploads new media items with concurrency after post created', async () => {
     supabaseChain = makeChain({ data: { id: 'post-1' }, error: null })
-    // First insert (posts): chain returns itself so .select().single() works
     supabaseChain.insert
       .mockReturnValueOnce(supabaseChain) // posts insert → chained
       .mockReturnValueOnce({ error: null }) // post_media insert → {error: null}
     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-1' }, error: null })
 
     const newItem = makeNewItem('k1', 0)
-    mockUploadNewMediaItems.mockResolvedValue([
-      { url: 'https://cdn.example.com/file.jpg', media_type: 'image', thumbnail_url: null, order_index: 0, is_cover: true },
-    ])
 
     await createPost({
       formValues: baseFormValues,
@@ -117,7 +118,11 @@ describe('createPost', () => {
       authorId: 'u1',
     })
 
-    expect(mockUploadNewMediaItems).toHaveBeenCalledWith('post-1', [newItem])
+    expect(mockUploadFilesWithTracking).toHaveBeenCalledWith(
+      'post-1',
+      [newItem.file],
+      expect.any(Array)
+    )
   })
 })
 
@@ -154,12 +159,17 @@ describe('fetchPostForEdit', () => {
 describe('updatePost', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUploadNewMediaItems.mockResolvedValue([])
+    mockUploadFilesWithTracking.mockImplementation(
+      async (_postId: string, _files: File[], uploadedUrls: string[]) => {
+        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/new-file${i}.jpg`)
+        uploadedUrls.push(...urls)
+        return urls
+      }
+    )
     mockRemoveStorageFiles.mockResolvedValue(undefined)
     supabaseChain = makeChain({ data: null, error: null })
     supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
     supabaseChain.delete.mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) })
-    supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }), error: null })
   })
 
   it('calls removeStorageFiles for deleted media', async () => {

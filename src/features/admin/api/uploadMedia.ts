@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import type { MediaType, NewMediaItem } from '@/features/admin/types'
+import type { MediaType } from '@/features/admin/types'
 
 const STORAGE_BUCKET = 'post_media'
 
@@ -11,11 +11,20 @@ export interface UploadedMedia {
   is_cover: boolean
 }
 
-function generateUUID(): string {
+export function generateUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
-  // Fallback for non-secure contexts (e.g., HTTP dev servers)
+  // Fallback for non-secure contexts — use getRandomValues when available
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
+    bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant 10
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  }
+  // Last resort fallback (e.g., very old browsers)
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
@@ -51,28 +60,30 @@ export async function uploadSingleFile(postId: string, file: File): Promise<stri
   return urlData.publicUrl
 }
 
-/**
- * Uploads all new media items to Supabase Storage in parallel.
- * Returns array of UploadedMedia in the same order as input.
- */
-export async function uploadNewMediaItems(
-  postId: string,
-  newItems: NewMediaItem[]
-): Promise<UploadedMedia[]> {
-  if (newItems.length === 0) return []
+/** Max number of concurrent file uploads to avoid rate limiting */
+const UPLOAD_CONCURRENCY = 3
 
-  return Promise.all(
-    newItems.map(async (item) => {
-      const url = await uploadSingleFile(postId, item.file)
-      return {
-        url,
-        media_type: item.media_type,
-        thumbnail_url: null,
-        order_index: item.order_index,
-        is_cover: item.is_cover,
-      } satisfies UploadedMedia
-    })
-  )
+/**
+ * Uploads files with controlled concurrency, tracking each URL for rollback.
+ * Returns uploaded URLs in same order as input files.
+ */
+export async function uploadFilesWithTracking(
+  postId: string,
+  files: File[],
+  uploadedUrls: string[]
+): Promise<string[]> {
+  const results: string[] = []
+
+  for (let i = 0; i < files.length; i += UPLOAD_CONCURRENCY) {
+    const batch = files.slice(i, i + UPLOAD_CONCURRENCY)
+    const batchUrls = await Promise.all(
+      batch.map((file) => uploadSingleFile(postId, file))
+    )
+    results.push(...batchUrls)
+    uploadedUrls.push(...batchUrls)
+  }
+
+  return results
 }
 
 /**
