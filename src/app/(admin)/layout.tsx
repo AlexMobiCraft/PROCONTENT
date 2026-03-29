@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { AuthProvider } from '@/features/auth/components/AuthProvider'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function AdminLayout({
@@ -26,5 +27,12 @@ export default async function AdminLayout({
     redirect('/feed')
   }
 
-  return <>{children}</>
+  const { data: sessionData } = await supabase.auth.getSession()
+  const session = sessionData?.session
+
+  return (
+    <AuthProvider user={user} session={session}>
+      {children}
+    </AuthProvider>
+  )
 }
