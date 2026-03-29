@@ -7,144 +7,160 @@ description: Six-phase conversational discovery process for building BMad workfl
 
 # Build Process
 
-Build workflows and skills through six phases of conversational discovery. Act as an architect guide — help users articulate their vision completely, classify the right skill type, and build something that exceeds what they imagined.
+Build workflows and skills through conversational discovery. Your north star: **outcome-driven design**. Every instruction in the final skill should describe what to achieve, not prescribe how to do it step by step. Only add procedural detail where the LLM would genuinely fail without it.
 
 ## Phase 1: Discover Intent
 
-Understand their vision before diving into specifics. Let them describe what they want to build, encourage them to be as detailed as possible including edge cases, variants, tone and persona of the workflow if needed, tools or other skills.
+Understand their vision before diving into specifics. Let them describe what they want to build — encourage detail on edge cases, tone, persona, tools, and other skills involved.
 
 **Input flexibility:** Accept input in any format:
-- Existing BMad workflow/skill path → read, analyze, determine if editing or converting
+
+- Existing BMad workflow/skill path → read and extract intent (see below)
 - Rough idea or description → guide through discovery
 - Code, documentation, API specs → extract intent and requirements
-- Non-BMad skill/tool → convert to BMad-compliant structure
+- Non-BMad skill/tool → extract intent for conversion
 
-If editing/converting an existing skill: read it, analyze what exists vs what's missing, ensure BMad standard conformance.
+### When given an existing skill
 
-Remember, the best user experience for this process is you conversationally allowing the user to give us info in this stage and you being able to confirm or suggest for them most of what you need for Phase 2 and 3.
-For Phase 2 and 3 that follow, adapt to what you already know that the user has given you so far, since they just brain dumped and gave you a lot of information
+**Critical:** Treat the existing skill as a **description of intent**, not a specification to follow. Extract _what_ it's trying to achieve. Do not inherit its verbosity, structure, or mechanical procedures — the old skill is reference material, not a template.
+
+If the SKILL.md routing already asked the 3-way question (Analyze/Edit/Rebuild), proceed with that intent. Otherwise ask now:
+
+- **Edit** — changing specific behavior while keeping the current approach
+- **Rebuild** — rethinking from core outcomes, full discovery using the old skill as context
+
+For **Edit**: identify what to change, preserve what works, apply outcome-driven principles to the changed portions.
+
+For **Rebuild**: read the old skill to understand its goals, then proceed through full discovery as if building new — the old skill informs your questions but doesn't constrain the design.
+
+### Discovery questions (don't skip these, even with existing input)
+
+The best skills come from understanding the human's intent, not reverse-engineering it from code. Walk through these conversationally — adapt based on what the user has already shared:
+
+- What is the **core outcome** this skill delivers? What does success look like?
+- **Who is the user** and how should the experience feel? What's the interaction model — collaborative discovery, rapid execution, guided interview?
+- What **judgment calls** does the LLM need to make vs. just do mechanically?
+- What's the **one thing** this skill must get right?
+- Are there things the user might not know or might get wrong? How should the skill handle that?
+
+The goal is to conversationally gather enough to cover Phase 2 and 3 naturally. Since users often brain-dump rich detail, adapt subsequent phases to what you already know.
 
 ## Phase 2: Classify Skill Type
 
 Ask upfront:
-- Will this be part of a module? If yes:
-   - What's the module code? (so we can configure properly)
-   - What other skills will it use from the core or specified module, we need the name, inputs, and output so we know how to integrate it? (other skills should be either core skills or skills that will be part of the module)
-   - What are the variable names it will have access to that it needs to use? (variables can be use for things like choosing various paths in the skill, adjusting output styles, configuring output locations, tool availability, and anything that could be configurable by a user)
 
-Load `./references/classification-reference.md` and use it to classify the skill type. Present classification with reasoning.
+- Will this be part of a module? If yes:
+  - What's the module code?
+  - What other skills will it use from the core or module? (need name, inputs, outputs for integration)
+  - What config variables does it need access to?
+
+Load `./references/classification-reference.md` and classify. Present classification with reasoning.
 
 For Simple Workflows and Complex Workflows, also ask:
-- **Headless mode?** Should this workflow support `--headless` invocation? (If it produces an artifact, headless mode may be valuable)
 
-This determines template and structure.
+- **Headless mode?** Should this support `--headless`? (If it produces an artifact, headless is often valuable)
 
 ## Phase 3: Gather Requirements
 
-Work through conversationally, adapted per skill type, so you can either glean from the user or suggest based on their narrative.
+Work through conversationally, adapted per skill type. Glean from what the user already shared or suggest based on their narrative.
 
 **All types — Common fields:**
-- **Name:** kebab-case. If module: `bmad-{modulecode}-{skillname}`. If standalone: `bmad-{skillname}`
-- **Description:** Two parts: [5-8 word summary of what it does]. [Use when user says 'specific phrase' or 'specific phrase'.] — Default to explicit invocation (conservative triggering) unless user specifies organic/reactive activation. See `./references/standard-fields.md` for format details and examples.
-- **Overview:** 3-part formula (What/How/Why-Outcome). For interactive or complex skills, also include brief domain framing (what concepts does this skill operate on?) and theory of mind (who is the user and what might they not know?). These give the executing agent enough context to make judgment calls when situations don't match the script.
-- **Role guidance:** Brief "Act as a [role/expert]" statement to prime the model for the right domain expertise and tone
-- **Design rationale:** Any non-obvious choices the executing agent should understand? (e.g., "We interview before building because users rarely know their full requirements upfront")
-- **Module context:** Already determined in Phase 2
+
+- **Name:** kebab-case. Module: `bmad-{modulecode}-{skillname}`. Standalone: `bmad-{skillname}`
+- **Description:** Two parts: [5-8 word summary]. [Use when user says 'specific phrase'.] — Default to conservative triggering. See `./references/standard-fields.md` for format.
+- **Overview:** What/How/Why-Outcome. For interactive or complex skills, include domain framing and theory of mind — these give the executing agent context for judgment calls.
+- **Role guidance:** Brief "Act as a [role/expert]" primer
+- **Design rationale:** Non-obvious choices the executing agent should understand
 - **External skills used:** Which skills does this invoke?
-- **Script Opportunity Discovery** (active probing — do not skip):
-  Walk through each planned step with the user. Identify deterministic operations that should be scripts rather than prompts. Load `./references/script-opportunities-reference.md` for the full catalog. Confirm the script-vs-prompt plan with the user before proceeding.
-- **Creates output documents?** If yes, will use `{document_output_language}` from config
-**Simple Utility additional fields:**
-- **Input/output format:** What does it accept and return?
-- **Standalone?** No config needed? (Makes it a truly standalone building block)
-- **Composability:** How might this be used by other skills/workflows?
+- **Script Opportunity Discovery** — Walk through planned steps with the user. Identify deterministic operations that should be scripts not prompts. Load `./references/script-opportunities-reference.md` for guidance. Confirm the script-vs-prompt plan. If any scripts require external dependencies (anything beyond Python's standard library), explicitly list each dependency and get user approval before proceeding — dependencies add install-time cost and require `uv` to be available.
+- **Creates output documents?** If yes, will use `{document_output_language}`
 
-**Simple Workflow additional fields:**
-- **Steps:** Numbered steps (inline in SKILL.md)
-- **Config variables:** What config vars beyond core does it need?
+**Simple Utility additional:**
 
-**Complex Workflow additional fields:**
-- **Stages:** Named numbered stages with purposes
-- **Stage progression conditions:** When does each stage complete?
-- **Headless mode:** If yes, what should headless execution do? Default behavior? Named tasks?
-- **Config variables:** Core + module-specific vars needed
+- Input/output format, standalone?, composability
+
+**Simple Workflow additional:**
+
+- Steps (inline in SKILL.md), config variables
+
+**Complex Workflow additional:**
+
+- Stages with purposes, progression conditions, headless behavior, config variables
 
 **Module capability metadata (if part of a module):**
-For each capability, confirm these with the user — they determine how the module's help system presents and sequences the skill:
-- **phase-name:** Which module phase does this belong to? (e.g., "1-analysis", "2-design", "3-build", "anytime")
-- **after:** Array of skill names that should ideally run before this one. Ask: "What does this skill use as input? What should have already run?" (e.g., `["brainstorming", "perform-research"]`)
-- **before:** Array of skill names this should run before. Ask: "What downstream skills consume this skill's output?" (e.g., `["create-prd"]`)
-- **is-required:** If true, skills in the `before` array are blocked until this completes. If false, the ordering is a suggestion (nice-to-have input, not a hard dependency).
-- **description (capability):** Keep this VERY short — a single sentence describing what it produces, not how it works. This is what the LLM help system shows users. (e.g., "Produces executive product brief and optional LLM distillate for PRD input.")
+Confirm with user: phase-name, after (dependencies), before (downstream), is-required, description (short — what it produces, not how).
 
 **Path conventions (CRITICAL):**
-- Skill-internal files always use `./` prefix: `./references/`, `./scripts/` — this distinguishes them from `{project-root}` paths
-- Only `_bmad` paths get `{project-root}` prefix: `{project-root}/_bmad/...`
-- Config variables used directly — they already contain `{project-root}` (no double-prefix)
+
+- Skill-internal: `./references/`, `./scripts/`
+- Project `_bmad` paths: `{project-root}/_bmad/...`
+- Config variables used directly — they already contain `{project-root}`
 
 ## Phase 4: Draft & Refine
 
-Once you have a cohesive idea, think one level deeper, clarify with the user any gaps in logic or understanding. Create and present a plan. Point out vague areas. Ask what else is needed. Iterate until they say they're ready.
+Think one level deeper. Clarify gaps in logic or understanding. Create and present a plan. Point out vague areas. Iterate until ready.
+
+**Pruning check (apply before building):**
+
+For every planned instruction, ask: **would the LLM do this correctly without being told?** If yes, cut it. Scoring algorithms, calibration tables, decision matrices for subjective judgment, weighted formulas — these are things LLMs handle naturally. The instruction must earn its place by preventing a failure that would otherwise happen.
+
+Watch especially for:
+
+- Mechanical procedures for tasks the LLM does through general capability
+- Per-platform instructions when a single adaptive instruction works
+- Templates that explain things the LLM already knows (how to format output, how to greet users)
+- Multiple files that could be a single instruction
 
 ## Phase 5: Build
 
-**Always load these before building:**
-- Load `./references/standard-fields.md` — field definitions, description format, path rules
-- Load `./references/skill-best-practices.md` — authoring patterns (freedom levels, templates, anti-patterns)
-- Load `./references/quality-dimensions.md` — quick mental checklist for build quality
+**Load these before building:**
+
+- `./references/standard-fields.md` — field definitions, description format, path rules
+- `./references/skill-best-practices.md` — outcome-driven authoring, patterns, anti-patterns
+- `./references/quality-dimensions.md` — build quality checklist
 
 **Load based on skill type:**
-- **If Complex Workflow:** Load `./references/complex-workflow-patterns.md` — compaction survival, document-as-cache pattern, config integration, facilitator model, progressive disclosure with prompt files in `./references/`. This is essential for building workflows that survive long-running sessions.
-- **Always load** `./references/script-opportunities-reference.md` — script opportunity spotting guide, catalog, and output standards. Use this to identify additional script opportunities not caught in Phase 3, even if no scripts were initially planned.
 
-When confirmed:
+- **If Complex Workflow:** `./references/complex-workflow-patterns.md` — compaction survival, config integration, progressive disclosure
 
-Load the references listed above, the template from `./assets/SKILL-template.md`, and `./references/template-substitution-rules.md`. Build the skill structure with progressive disclosure (SKILL.md for overview and routing, `./references/` for all progressive disclosure content). Output to `{bmad_builder_output_folder}`.
+Load the template from `./assets/SKILL-template.md` and `./references/template-substitution-rules.md`. Build the skill with progressive disclosure (SKILL.md for overview and routing, `./references/` for progressive disclosure content). Output to `{bmad_builder_output_folder}`.
 
-Generate folder structure and include only what is needed for the specific skill:
-**Skill Source Tree:**
+**Skill Source Tree** (only create subfolders that are needed):
+
 ```
 {skill-name}/
-├── SKILL.md           # Frontmatter (name + description only), overview, activation, capability routing
-├── references/        # ALL progressive disclosure content — capability prompts, guides, schemas
-├── assets/            # Templates, starter files (copied/transformed into output)
-├── scripts/           # Deterministic code — validation, transformation, testing
-│   └── tests/         # All scripts need unit tests
+├── SKILL.md           # Frontmatter, overview, activation, routing
+├── references/        # Progressive disclosure content — prompts, guides, schemas
+├── assets/            # Templates, starter files
+├── scripts/           # Deterministic code with tests
+│   └── tests/
 ```
 
-**What goes where:**
-| Location | Contains | LLM relationship |
-|----------|----------|-----------------|
-| **SKILL.md** | Overview, activation, capability routing table | LLM **identity and router** — the only root `.md` file |
-| **`./references/`** | Capability prompts, reference data, schemas, guides | LLM **loads on demand** — progressive disclosure via routing table |
-| **`./assets/`** | Templates, starter files, boilerplate | LLM **copies/transforms** these into output — not for reasoning |
-| **`./scripts/`** | Python, shell scripts with tests | LLM **invokes** these — deterministic operations that don't need judgment |
+| Location            | Contains                           | LLM relationship                     |
+| ------------------- | ---------------------------------- | ------------------------------------ |
+| **SKILL.md**        | Overview, activation, routing      | LLM identity and router              |
+| **`./references/`** | Capability prompts, reference data | Loaded on demand                     |
+| **`./assets/`**     | Templates, starter files           | Copied/transformed into output       |
+| **`./scripts/`**    | Python, shell scripts with tests   | Invoked for deterministic operations |
 
-Only create subfolders that are needed — most skills won't need all three.
+**If the built skill includes scripts**, also load `./references/script-standards.md` — ensures PEP 723 metadata, correct shebangs, and `uv run` invocation from the start.
 
-**Lint gate** — after building, run validation and auto-fix failures:
+**Lint gate** — after building, validate and auto-fix:
 
-If subagents are available, delegate the lint-fix loop to a subagent. Otherwise run inline.
+If subagents available, delegate lint-fix to a subagent. Otherwise run inline.
 
 1. Run both lint scripts in parallel:
    ```bash
    python3 ./scripts/scan-path-standards.py {skill-path}
    python3 ./scripts/scan-scripts.py {skill-path}
    ```
-2. If any findings at high or critical severity: fix them and re-run the failing script
-3. Repeat up to 3 attempts per script — if still failing after 3, report remaining findings and continue
-4. If scripts exist in the built skill, also run unit tests
+2. Fix high/critical findings and re-run (up to 3 attempts per script)
+3. Run unit tests if scripts exist in the built skill
 
 ## Phase 6: Summary
 
-Present what was built: location, structure, capabilities. Include lint results. Ask if adjustments needed.
+Present what was built: location, structure, capabilities. Include lint results.
 
-If scripts exist, also run unit tests.
+Run unit tests if scripts exist. Remind user to commit before quality analysis.
 
-**Remind user to commit** working version before optimization.
-
-**Offer quality optimization:**
-
-Ask: *"Build is done. Would you like to run a Quality Scan to optimize further?"*
-
-If yes, load `quality-optimizer.md` with `{scan_mode}=full` and the skill path.
+**Offer quality analysis:** Ask if they'd like a Quality Analysis to identify opportunities. If yes, load `quality-analysis.md` with the skill path.

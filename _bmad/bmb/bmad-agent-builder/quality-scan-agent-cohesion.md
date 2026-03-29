@@ -9,6 +9,7 @@ You evaluate the overall cohesion of a BMad agent: does the persona align with c
 ## Your Role
 
 Analyze the agent as a unified whole to identify:
+
 - **Gaps** — Capabilities the agent should likely have but doesn't
 - **Redundancies** — Overlapping capabilities that could be consolidated
 - **Misalignments** — Capabilities that don't fit the persona or purpose
@@ -20,6 +21,7 @@ This is an **opinionated, advisory scan**. Findings are suggestions, not errors.
 ## Scan Targets
 
 Find and read:
+
 - `SKILL.md` — Identity, persona, principles, description
 - `*.md` (prompt files at root) — What each prompt actually does
 - `references/dimension-definitions.md` — If exists, context for capability design
@@ -31,14 +33,15 @@ Find and read:
 
 **Question:** Does WHO the agent is match WHAT it can do?
 
-| Check | Why It Matters |
-|-------|----------------|
-| Agent's stated expertise matches its capabilities | An "expert in X" should be able to do core X tasks |
-| Communication style fits the persona's role | A "senior engineer" sounds different than a "friendly assistant" |
-| Principles are reflected in actual capabilities | Don't claim "user autonomy" if you never ask preferences |
-| Description matches what capabilities actually deliver | Misalignment causes user disappointment |
+| Check                                                  | Why It Matters                                                   |
+| ------------------------------------------------------ | ---------------------------------------------------------------- |
+| Agent's stated expertise matches its capabilities      | An "expert in X" should be able to do core X tasks               |
+| Communication style fits the persona's role            | A "senior engineer" sounds different than a "friendly assistant" |
+| Principles are reflected in actual capabilities        | Don't claim "user autonomy" if you never ask preferences         |
+| Description matches what capabilities actually deliver | Misalignment causes user disappointment                          |
 
 **Examples of misalignment:**
+
 - Agent claims "expert code reviewer" but has no linting/format analysis
 - Persona is "friendly mentor" but all prompts are terse and mechanical
 - Description says "end-to-end project management" but only has task-listing capabilities
@@ -47,14 +50,15 @@ Find and read:
 
 **Question:** Given the persona and purpose, what's OBVIOUSLY missing?
 
-| Check | Why It Matters |
-|-------|----------------|
-| Core workflow is fully supported | Users shouldn't need to switch agents mid-task |
-| Basic CRUD operations exist if relevant | Can't have "data manager" that only reads |
-| Setup/teardown capabilities present | Start and end states matter |
-| Output/export capabilities exist | Data trapped in agent is useless |
+| Check                                   | Why It Matters                                 |
+| --------------------------------------- | ---------------------------------------------- |
+| Core workflow is fully supported        | Users shouldn't need to switch agents mid-task |
+| Basic CRUD operations exist if relevant | Can't have "data manager" that only reads      |
+| Setup/teardown capabilities present     | Start and end states matter                    |
+| Output/export capabilities exist        | Data trapped in agent is useless               |
 
 **Gap detection heuristic:**
+
 - If agent does X, does it also handle related X' and X''?
 - If agent manages a lifecycle, does it cover all stages?
 - If agent analyzes something, can it also fix/report on it?
@@ -64,13 +68,14 @@ Find and read:
 
 **Question:** Are multiple capabilities doing the same thing?
 
-| Check | Why It Matters |
-|-------|----------------|
-| No overlapping capabilities | Confuses users, wastes tokens |
-- Prompts don't duplicate functionality | Pick ONE place for each behavior |
-| Similar capabilities aren't separated | Could be consolidated into stronger single capability |
+| Check                                   | Why It Matters                                        |
+| --------------------------------------- | ----------------------------------------------------- |
+| No overlapping capabilities             | Confuses users, wastes tokens                         |
+| - Prompts don't duplicate functionality | Pick ONE place for each behavior                      |
+| Similar capabilities aren't separated   | Could be consolidated into stronger single capability |
 
 **Redundancy patterns:**
+
 - "Format code" and "lint code" and "fix code style" — maybe one capability?
 - "Summarize document" and "extract key points" and "get main ideas" — overlapping?
 - Multiple prompts that read files with slight variations — could parameterize
@@ -79,11 +84,11 @@ Find and read:
 
 **Question:** How does this agent work with others, and is that intentional?
 
-| Check | Why It Matters |
-|-------|----------------|
-| Referenced external skills fit the workflow | Random skill calls confuse the purpose |
+| Check                                        | Why It Matters                              |
+| -------------------------------------------- | ------------------------------------------- |
+| Referenced external skills fit the workflow  | Random skill calls confuse the purpose      |
 | Agent can function standalone OR with skills | Don't REQUIRE skills that aren't documented |
-| Skill delegation follows a clear pattern | Haphazard calling suggests poor design |
+| Skill delegation follows a clear pattern     | Haphazard calling suggests poor design      |
 
 **Note:** If external skills aren't available, infer their purpose from name and usage context.
 
@@ -91,13 +96,14 @@ Find and read:
 
 **Question:** Are capabilities at the right level of abstraction?
 
-| Check | Why It Matters |
-|-------|----------------|
-| Capabilities aren't too granular | 5 similar micro-capabilities should be one |
-| Capabilities aren't too broad | "Do everything related to code" isn't a capability |
-| Each capability has clear, unique purpose | Users should understand what each does |
+| Check                                     | Why It Matters                                     |
+| ----------------------------------------- | -------------------------------------------------- |
+| Capabilities aren't too granular          | 5 similar micro-capabilities should be one         |
+| Capabilities aren't too broad             | "Do everything related to code" isn't a capability |
+| Each capability has clear, unique purpose | Users should understand what each does             |
 
 **Goldilocks test:**
+
 - Too small: "Open file", "Read file", "Parse file" → Should be "Analyze file"
 - Too large: "Handle all git operations" → Split into clone/commit/branch/PR
 - Just right: "Create pull request with review template"
@@ -106,109 +112,26 @@ Find and read:
 
 **Question:** Can a user accomplish meaningful work end-to-end?
 
-| Check | Why It Matters |
-|-------|----------------|
-| Common workflows are fully supported | Gaps force context switching |
-| Capabilities can be chained logically | No dead-end operations |
-| Entry points are clear | User knows where to start |
-| Exit points provide value | User gets something useful, not just internal state |
+| Check                                 | Why It Matters                                      |
+| ------------------------------------- | --------------------------------------------------- |
+| Common workflows are fully supported  | Gaps force context switching                        |
+| Capabilities can be chained logically | No dead-end operations                              |
+| Entry points are clear                | User knows where to start                           |
+| Exit points provide value             | User gets something useful, not just internal state |
 
-## Output Format
+## Output
 
-Output your findings using the universal schema defined in `references/universal-scan-schema.md`.
+Write your analysis as a natural document. This is an opinionated, advisory assessment. Include:
 
-Use EXACTLY these field names: `file`, `line`, `severity`, `category`, `title`, `detail`, `action`. Do not rename, restructure, or add fields to findings.
+- **Assessment** — overall cohesion verdict in 2-3 sentences. Does this agent feel authentic and purposeful?
+- **Cohesion dimensions** — for each dimension analyzed (persona-capability alignment, identity consistency, capability completeness, etc.), give a score (strong/moderate/weak) and brief explanation
+- **Per-capability cohesion** — for each capability, does it fit the agent's identity and expertise? Would this agent naturally have this capability? Flag misalignments.
+- **Key findings** — gaps, redundancies, misalignments. Each with severity (high/medium/low/suggestion), affected area, what's off, and how to improve. High = glaring persona contradiction or missing core capability. Medium = clear gap. Low = minor. Suggestion = creative idea.
+- **Strengths** — what works well about this agent's coherence
+- **Creative suggestions** — ideas that could make the agent more compelling
 
-Before writing output, verify: Is your array called `findings`? Does every item have `title`, `detail`, `action`? Is `assessments` an object, not items in the findings array?
+Be opinionated but fair. The report creator will synthesize your analysis with other scanners' output.
 
-You will receive `{skill-path}` and `{quality-report-dir}` as inputs.
+Write your analysis to: `{quality-report-dir}/agent-cohesion-analysis.md`
 
-Write JSON findings to: `{quality-report-dir}/agent-cohesion-temp.json`
-
-```json
-{
-  "scanner": "agent-cohesion",
-  "agent_path": "{path}",
-  "findings": [
-    {
-      "file": "SKILL.md|{name}.md",
-      "severity": "high|medium|low|suggestion|strength",
-      "category": "gap|redundancy|misalignment|opportunity|strength",
-      "title": "Brief description",
-      "detail": "What you noticed, why this matters for cohesion, and what value addressing it would add",
-      "action": "Specific improvement idea"
-    }
-  ],
-  "assessments": {
-    "agent_identity": {
-      "name": "{skill-name}",
-      "persona_summary": "Brief characterization of who this agent is",
-      "primary_purpose": "What this agent is for",
-      "capability_count": 12
-    },
-    "cohesion_analysis": {
-      "persona_alignment": {
-        "score": "strong|moderate|weak",
-        "notes": "Brief explanation of why persona fits or doesn't fit capabilities"
-      },
-      "capability_completeness": {
-        "score": "complete|mostly-complete|gaps-obvious",
-        "missing_areas": ["area1", "area2"],
-        "notes": "What's missing that should probably be there"
-      },
-      "redundancy_level": {
-        "score": "clean|some-overlap|significant-redundancy",
-        "consolidation_opportunities": [
-          {
-            "capabilities": ["cap-a", "cap-b", "cap-c"],
-            "suggested_consolidation": "How these could be combined"
-          }
-        ]
-      },
-      "external_integration": {
-        "external_skills_referenced": 3,
-        "integration_pattern": "intentional|incidental|unclear",
-        "notes": "How external skills fit into the overall design"
-      },
-      "user_journey_score": {
-        "score": "complete-end-to-end|mostly-complete|fragmented",
-        "broken_workflows": ["workflow that can't be completed"],
-        "notes": "Can a user accomplish real work with this agent?"
-      }
-    }
-  },
-  "summary": {
-    "total_findings": 0,
-    "by_severity": {"high": 0, "medium": 0, "low": 0, "suggestion": 0, "strength": 0},
-    "by_category": {"gap": 0, "redundancy": 0, "misalignment": 0, "opportunity": 0, "strength": 0},
-    "overall_cohesion": "cohesive|mostly-cohesive|fragmented|confused",
-    "single_most_important_fix": "The ONE thing that would most improve this agent"
-  }
-}
-```
-
-Merge all findings into the single `findings[]` array:
-- Former `findings[]` items: map `issue` to `title`, merge `observation`+`rationale`+`impact` into `detail`, map `suggestion` to `action`
-- Former `strengths[]` items: use `severity: "strength"`, `category: "strength"`
-- Former `creative_suggestions[]` items: use `severity: "suggestion"`, map `idea` to `title`, `rationale` to `detail`, merge `type` and `estimated_impact` context into `detail`, map actionable recommendation to `action`
-
-## Severity Guidelines
-
-| Severity | When to Use |
-|----------|-------------|
-| **high** | Glaring omission that would obviously confuse users OR capability that completely contradicts persona |
-| **medium** | Clear gap in core workflow OR significant redundancy OR moderate misalignment |
-| **low** | Minor enhancement opportunity OR edge case not covered |
-| **suggestion** | Creative idea, nice-to-have, speculative improvement |
-
-## Process
-
-Read all agent files. Evaluate cohesion across all 6 dimensions above. Write findings to `{quality-report-dir}/agent-cohesion-temp.json`. Return only the filename.
-
-## Critical After Draft Output
-
-Before finalizing, verify completeness across all dimensions and that findings tell a coherent story.
-
-## Key Principle
-
-You are NOT checking for syntax errors or missing fields. You are evaluating whether this agent makes sense as a coherent tool. Think like a product designer reviewing a feature set: Is this useful? Is it complete? Does it fit together? Be opinionated but fair—call out what works well, not just what needs improvement.
+Return only the filename when complete.

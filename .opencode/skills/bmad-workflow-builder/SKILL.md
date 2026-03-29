@@ -1,21 +1,19 @@
 ---
 name: bmad-workflow-builder
-description: Builds workflows and skills through conversational discovery and validates existing ones. Use when the user requests to "build a workflow", "modify a workflow", "quality check workflow", or "optimize skill".
+description: Builds workflows and skills through conversational discovery and analyzes existing ones. Use when the user requests to "build a workflow", "modify a workflow", "quality check workflow", or "analyze skill".
 ---
 
 # Workflow & Skill Builder
 
 ## Overview
 
-This skill helps you build AI workflows and skills through conversational discovery and iterative refinement. Act as an architect guide helping dreamers, builders, doers, and visionaries create the AI workflows and skills of their dreams - walking users through six phases: intent discovery, skill type classification, requirements gathering, drafting, building, and testing. Your output is a complete skill structure — from simple composable utilities to complex multi-stage workflows — ready to integrate into the BMad Method ecosystem.
+This skill helps you build AI workflows and skills that are **outcome-driven** — describing what to achieve, not micromanaging how to get there. LLMs are powerful reasoners. Great skills give them mission context and desired outcomes; poor skills drown them in mechanical procedures they'd figure out naturally. Your job is to help users articulate the outcomes they want, then build the leanest possible skill that delivers them.
 
-**Args:** Accepts `--headless` / `-H` for non-interactive execution, an initial description for create, or a path to an existing skill with keywords like optimize, edit, or validate.
+Act as an architect guide — walk users through conversational discovery to understand their vision, then craft skill structures that trust the executing LLM's judgment. The best skill is the one where every instruction carries its weight and nothing tells the LLM how to do what it already knows.
 
-**What they're building:**
+**Args:** Accepts `--headless` / `-H` for non-interactive execution, an initial description for create, or a path to an existing skill with keywords like analyze, edit, or rebuild.
 
-Workflows and skills are **processes, tools, and composable building blocks** — and some may benefit from personality or tone guidance when it serves the user experience. A workflow automates multi-step processes. A skill provides reusable capabilities. They range from simple input/output utilities to complex multi-stage workflows with progressive disclosure following multiple paths based on the intent routing.
-
-**Your output:** A skill structure ready to integrate into a module or use standalone.
+**Your output:** A skill structure ready to integrate into a module or use standalone — from simple composable utilities to complex multi-stage workflows.
 
 ## On Activation
 
@@ -28,34 +26,37 @@ Workflows and skills are **processes, tools, and composable building blocks** �
    - `{bmad_builder_output_folder}` (default: `{project-root}/skills`) — save built agents here
    - `{bmad_builder_reports}` (default: `{project-root}/skills/reports`) — save reports (quality, eval, planning) here
 
-3. Route by intent — see Quick Reference below, or read the capability descriptions that follow.
+3. Route by intent — see Quick Reference below.
 
 ## Build Process
 
-This is the core creative path — where workflow and skill ideas become reality. Through six phases of conversational discovery, you guide users from a rough vision to a complete, tested skill structure. This covers building new workflows/skills from scratch, converting non-compliant formats, editing existing ones, and applying improvements or fixes.
-
-Workflows and skills span three types: simple utilities (composable building blocks), simple workflows (single-file processes), and complex workflows (multi-stage with routing and progressive disclosure). The build process includes a lint gate for structural validation. When building or modifying skills that include scripts, unit tests are created alongside the scripts and run as part of validation.
+The core creative path — where workflow and skill ideas become reality. Through conversational discovery, you guide users from a rough vision to a complete, outcome-driven skill structure. This covers building new skills from scratch, converting non-compliant formats, editing existing ones, and rebuilding from intent.
 
 Load `build-process.md` to begin.
 
-## Quality Optimizer
+## Quality Analysis
 
-For workflows/skills that already work but could work *better*. This is comprehensive validation and performance optimization — structure compliance, prompt craft, execution efficiency, workflow integrity, enhancement opportunities, and more. Uses deterministic lint scripts for instant structural checks and LLM scanner subagents for judgment-based analysis, all run in parallel.
+Comprehensive quality analysis toward outcome-driven design. Analyzes existing skills for over-specification, structural issues, execution efficiency, and enhancement opportunities. Uses deterministic lint scripts and parallel LLM scanner subagents. Produces a synthesized report with themes and actionable opportunities.
 
-Run this anytime you want to assess and improve an existing skill's quality.
-
-Load `quality-optimizer.md` — it orchestrates everything including scan modes, headless handling, and remediation options.
+Load `quality-analysis.md` to begin.
 
 ---
 
 ## Skill Intent Routing Reference
 
-| Intent | Trigger Phrases | Route |
-|--------|----------------|-------|
-| **Build** | "build/create/design/convert/edit/fix a workflow/skill/tool" | Load `build-process.md` |
-| **Quality Optimize** | "quality check", "validate", "review/optimize/improve workflow/skill" | Load `quality-optimizer.md` |
-| **Unclear** | — | Present the two options above and ask |
+| Intent                      | Trigger Phrases                                       | Route                                    |
+| --------------------------- | ----------------------------------------------------- | ---------------------------------------- |
+| **Build new**               | "build/create/design a workflow/skill/tool"           | Load `build-process.md`                  |
+| **Existing skill provided** | Path to existing skill, or "convert/edit/fix/analyze" | Ask the 3-way question below, then route |
+| **Quality analyze**         | "quality check", "validate", "review workflow/skill"  | Load `quality-analysis.md`               |
+| **Unclear**                 | —                                                     | Present options and ask                  |
 
-Regardless of what path is taken, respect and follow headless mode guidance if user requested headless_mode - if a specific instruction does not indicate how to handle headless mode, you will try to find a way.
+### When given an existing skill, ask:
 
-Enjoy the adventure and help the user create amazing Workflows and tools!
+- **Analyze** — Run quality analysis: identify opportunities, prune over-specification, get an actionable report
+- **Edit** — Modify specific behavior while keeping the current approach
+- **Rebuild** — Rethink from core outcomes using this as reference material, full discovery process
+
+Analyze routes to `quality-analysis.md`. Edit and Rebuild both route to `build-process.md` with the chosen intent.
+
+Regardless of path, respect headless mode if requested.
