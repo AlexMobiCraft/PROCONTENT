@@ -1,5 +1,17 @@
 ﻿# Deferred Work
 
+## Deferred from: code review of 4-2-managing-categories.md (2026-03-29) - Group 1
+- **Hardcoded Slovenian categories (i18n concern)**: Migration seeds categories with Slovenian names and slugs. Multi-language support requires translating categories in a separate migration or refactoring seed approach. [supabase/migrations/021_create_categories.sql:38-47]
+
+## Deferred from: code review of 4-2-managing-categories.md (2026-03-29) - Group 2
+- **Media reordering race condition**: Concurrent upserts on post_media can collide without transactions. Pre-existing from Story 4.1; isolated by post_id FK constraint, but atomic transactions would be safer. [src/features/admin/api/posts.ts:186-206]
+- **Cursor validation edge case**: Feed cursor parsing ("||id" state) is confusing, though regex catches invalids. Pre-existing pattern affecting feed pagination, not categories. [src/features/admin/api/posts.ts]
+
+## Deferred from: code review of 4-2-managing-categories.md (2026-03-29) - Group 3
+- **Input debounce missing**: Rapid onChange in category name input causes re-renders, but submission is protected by isAdding lock. Low-priority performance optimization. [src/features/admin/components/CategoryManager.tsx:97-103]
+- **Select styling not CVA component**: PostForm category select uses raw Tailwind className instead of reusable component wrapper. Code quality issue; functional but not idiomatic. Refactor when upgrading form inputs. [src/features/admin/components/PostForm.tsx:237]
+- **Input sanitization assumption**: Category name sanitization relies on backend validation. Frontend XSS risk addressed separately (aria-label escaping). Pre-existing pattern. [src/features/admin/components/CategoryManager.tsx:16-22]
+
 ## Deferred from: code review (2026-03-27) - 3-4-automatic-email-notifications-new-posts.md
 
 ### Раунды 1 и 2
