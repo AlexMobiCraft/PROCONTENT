@@ -314,3 +314,19 @@ claude-sonnet-4-6
 - 2026-03-29: Адресовано 11 round 3 review findings (8 real fixes + 3 N/A) — updatePost rollback, concurrency uploads, UUID crypto fallback, Object URL revocation, type safety, derivePostType default, DnD hardening (claude-opus-4-6)
 - 2026-03-29: Адресовано 15 round 4 review findings (8 real fixes + 3 N/A + 4 deferred) — N+1→upsert, allSettled upload rollback, formatSize precision, content max length, error cause chains, ObjectURL race fix, Zod toast, updatePost text rollback (claude-opus-4-6)
 - 2026-03-29: Адресовано 6 round 5 review findings (5 real fixes + 1 N/A) — reorder updatePost ops (delete-after-success), DB snapshot rollback, instanceof Set guard, MAX_MEDIA_FILES server-side check, ESLint fix (claude-opus-4-6)
+
+### Review Findings
+- [ ] [Review][Decision] Архитектура транзакций БД — Сейчас Supabase REST API делает несколько вызовов подряд, возможны race conditions и частичные сохранения. Требуется решение: переписывать ли это на SQL RPC-функции для гарантии атомарности, или оставить текущий best-effort REST-подход с доработкой логики отката на клиенте?
+- [ ] [Review][Patch] Утечка медиафайлов в Storage при сбое — Отсутствует очистка загруженных файлов в updatePost и uploadFilesWithTracking при падении БД-операций. [src/features/admin/api/posts.ts]
+- [ ] [Review][Patch] Потеря консистентности posts.type — При редактировании состав файлов меняется, но тип поста (photo/video/gallery) не пересчитывается и не обновляется в БД. [src/features/admin/api/posts.ts]
+- [ ] [Review][Patch] Серверная валидация лимита файлов — Отсутствует защита MAX_MEDIA_FILES в API (защита от обхода фронтенда). [src/features/admin/api/posts.ts]
+- [ ] [Review][Patch] Нарушение последовательности REST вызовов — Несоблюдение порядка AC: текст обновляется до файлов без отката, запись создается до загрузки, старые медиа удаляются до вставки новых. [src/features/admin/api/posts.ts]
+- [ ] [Review][Patch] Небезопасный Math.random() для UUID — Использование Math.random в fallback-генераторе. [src/features/admin/api/uploadMedia.ts]
+- [ ] [Review][Patch] Утечка ObjectURL при удалении — URL.revokeObjectURL не вызывается немедленно при удалении медиафайла из списка формы. [src/features/admin/components/PostForm.tsx]
+- [ ] [Review][Patch] Состояние гонки в UI — Кнопки удаления и отправки активны во время загрузки, что приводит к рассинхронизации. [src/features/admin/components/PostForm.tsx]
+- [ ] [Review][Patch] Нарушение инкапсуляции Skeletons — EditPostSkeleton находится на уровне страницы. [src/app/(admin)/posts/[id]/edit/page.tsx]
+- [ ] [Review][Patch] Жестко закодированный бакет и кэширование — Хардкод 'post_media' и отсутствие cacheControl заголовков. [src/features/admin/api/uploadMedia.ts]
+- [ ] [Review][Patch] Мертвый код minOrder — Неиспользуемая переменная в handleSetCover. [src/features/admin/components/MediaUploader.tsx]
+- [ ] [Review][Patch] Пробелы в order_index — Индексы не пересчитываются после удаления элементов. [src/features/admin/api/posts.ts]
+- [x] [Review][Defer] Promise.allSettled скрывает индивидуальные ошибки — deferred, pre-existing (незначительная проблема производительности при сбоях)
+- [x] [Review][Defer] Тихое проглатывание ошибок при откате — deferred, pre-existing (очистка в Storage реализована как best-effort)

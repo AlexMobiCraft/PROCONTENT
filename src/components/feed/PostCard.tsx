@@ -51,9 +51,11 @@ interface PostCardProps {
   onLikeToggle?: (postId: string) => void
   /** Вызывается при нажатии кнопки опций (троеточие). */
   onOptionsClick?: (postId: string) => void
+  /** Вызывается при нажатии на pill категории — для фильтрации ленты. */
+  onCategoryClick?: (category: string) => void
 }
 
-export function PostCard({ post, priority = false, isPending = false, onCommentClick, onLikeToggle, onOptionsClick }: PostCardProps) {
+export function PostCard({ post, priority = false, isPending = false, onCommentClick, onLikeToggle, onOptionsClick, onCategoryClick }: PostCardProps) {
   const router = useRouter()
   // Локальный state не нужен: FeedContainer управляет оптимистичным обновлением post.isLiked/post.likes
   const liked = post.isLiked ?? false
@@ -105,9 +107,23 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-              {post.category}
-            </span>
+            {onCategoryClick ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCategoryClick(post.category)
+                }}
+                className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                aria-label={`Filtriraj po kategoriji ${post.category}`}
+              >
+                {post.category}
+              </button>
+            ) : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {post.category}
+              </span>
+            )}
             <time dateTime={post.created_at} className="text-xs text-muted-foreground">{post.date}</time>
           </div>
         </div>

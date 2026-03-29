@@ -5,10 +5,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockCreatePost = vi.fn()
 const mockUpdatePost = vi.fn()
 const mockRouterPush = vi.fn()
+const mockGetCategories = vi.fn()
 
 vi.mock('@/features/admin/api/posts', () => ({
   createPost: (...args: unknown[]) => mockCreatePost(...args),
   updatePost: (...args: unknown[]) => mockUpdatePost(...args),
+}))
+
+vi.mock('@/features/admin/api/categories', () => ({
+  getCategories: (...args: unknown[]) => mockGetCategories(...args),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -53,9 +58,15 @@ vi.mock('@/features/auth/store', () => ({
 
 import { PostForm } from '@/features/admin/components/PostForm'
 
+const testCategories = [
+  { id: '1', name: 'Stories', slug: 'stories', created_at: '2026-01-01' },
+  { id: '2', name: 'Insight', slug: 'insight', created_at: '2026-01-01' },
+]
+
 describe('PostForm (create mode)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetCategories.mockResolvedValue(testCategories)
   })
 
   it('renders form fields', () => {
@@ -96,7 +107,9 @@ describe('PostForm (create mode)', () => {
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
-    await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    // Wait for categories to load and select one
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     await user.click(screen.getByRole('button', { name: /objavi/i }))
 
     await waitFor(() => {
@@ -111,7 +124,9 @@ describe('PostForm (create mode)', () => {
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
-    await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    // Wait for categories to load and select one
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     // Add a media item via mock button
     await user.click(screen.getByTestId('add-media-btn'))
     await user.click(screen.getByRole('button', { name: /objavi/i }))
@@ -132,7 +147,8 @@ describe('PostForm (create mode)', () => {
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
-    await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     // Add a media item
     await user.click(screen.getByTestId('add-media-btn'))
 
@@ -151,7 +167,8 @@ describe('PostForm (create mode)', () => {
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
-    await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     await user.click(screen.getByTestId('add-media-btn'))
     await user.click(screen.getByRole('button', { name: /objavi/i }))
 
@@ -166,7 +183,8 @@ describe('PostForm (create mode)', () => {
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
-    await user.type(screen.getByLabelText(/kategorija/i), 'insight')
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     await user.click(screen.getByTestId('add-media-btn'))
     await user.click(screen.getByRole('button', { name: /objavi/i }))
 
@@ -182,7 +200,7 @@ describe('PostForm (edit mode)', () => {
     title: 'Existing Post',
     content: 'Some content',
     excerpt: 'Excerpt',
-    category: 'tips',
+    category: 'stories',
     post_media: [
       {
         id: 'm1',
@@ -197,12 +215,16 @@ describe('PostForm (edit mode)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetCategories.mockResolvedValue(testCategories)
   })
 
-  it('pre-fills form with existing data', () => {
+  it('pre-fills form with existing data', async () => {
     render(<PostForm mode="edit" initialData={initialData} />)
     expect(screen.getByDisplayValue('Existing Post')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('tips')).toBeInTheDocument()
+    // Select should have the initial category value ('stories') pre-selected
+    await waitFor(() => {
+      expect(screen.getByLabelText(/kategorija/i)).toHaveValue('stories')
+    })
     // MediaUploader receives 1 existing item
     expect(screen.getByTestId('media-uploader')).toHaveAttribute('data-count', '1')
   })
@@ -212,6 +234,10 @@ describe('PostForm (edit mode)', () => {
     mockUpdatePost.mockResolvedValue(undefined)
     render(<PostForm mode="edit" initialData={initialData} />)
 
+    // Wait for categories to load so form validation passes
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
     await user.click(screen.getByRole('button', { name: /shrani/i }))
 
     await waitFor(() => {

@@ -1,0 +1,104 @@
+[
+  {
+    "location": "src/features/admin/api/posts.ts\r (hunk)",
+    "trigger_condition": "Potential division by zero",
+    "guard_snippet": "if (divisor !== 0) { ... }",
+    "potential_consequence": "Infinity or NaN result"
+  },
+  {
+    "location": "src/features/admin/api/posts.ts\r (hunk)",
+    "trigger_condition": "Unhandled Promise rejection",
+    "guard_snippet": "try { await ... } catch (e) { ... }",
+    "potential_consequence": "Silent failure or crash"
+  },
+  {
+    "location": "src/features/admin/api/uploadMedia.ts\r (hunk)",
+    "trigger_condition": "Potential division by zero",
+    "guard_snippet": "if (divisor !== 0) { ... }",
+    "potential_consequence": "Infinity or NaN result"
+  },
+  {
+    "location": "src/features/admin/api/uploadMedia.ts\r (hunk)",
+    "trigger_condition": "Array access without bounds check",
+    "guard_snippet": "if (array.length > index) { ... }",
+    "potential_consequence": "TypeError or undefined access"
+  },
+  {
+    "location": "src/features/admin/api/uploadMedia.ts\r (hunk)",
+    "trigger_condition": "Unhandled Promise rejection",
+    "guard_snippet": "try { await ... } catch (e) { ... }",
+    "potential_consequence": "Silent failure or crash"
+  },
+  {
+    "location": "src/features/admin/components/MediaUploader.tsx\r (hunk)",
+    "trigger_condition": "Potential division by zero",
+    "guard_snippet": "if (divisor !== 0) { ... }",
+    "potential_consequence": "Infinity or NaN result"
+  },
+  {
+    "location": "src/features/admin/components/MediaUploader.tsx\r (hunk)",
+    "trigger_condition": "Array access without bounds check",
+    "guard_snippet": "if (array.length > index) { ... }",
+    "potential_consequence": "TypeError or undefined access"
+  },
+  {
+    "location": "src/features/admin/components/PostForm.tsx\r (hunk)",
+    "trigger_condition": "Array access without bounds check",
+    "guard_snippet": "if (array.length > index) { ... }",
+    "potential_consequence": "TypeError or undefined access"
+  },
+  {
+    "location": "tests/unit/features/admin/api/posts.test.ts\r (hunk)",
+    "trigger_condition": "Potential division by zero",
+    "guard_snippet": "if (divisor !== 0) { ... }",
+    "potential_consequence": "Infinity or NaN result"
+  },
+  {
+    "location": "tests/unit/features/admin/api/posts.test.ts\r (hunk)",
+    "trigger_condition": "Unhandled Promise rejection",
+    "guard_snippet": "try { await ... } catch (e) { ... }",
+    "potential_consequence": "Silent failure or crash"
+  },
+  {
+    "location": "tests/unit/features/admin/api/uploadMedia.test.ts\r (hunk)",
+    "trigger_condition": "Unhandled Promise rejection",
+    "guard_snippet": "try { await ... } catch (e) { ... }",
+    "potential_consequence": "Silent failure or crash"
+  },
+  {
+    "location": "tests/unit/features/admin/api/uploadMedia.test.ts\r (hunk)",
+    "trigger_condition": "Array access without bounds check",
+    "guard_snippet": "if (array.length > index) { ... }",
+    "potential_consequence": "TypeError or undefined access"
+  },
+  {
+    "location": "tests/unit/features/admin/components/MediaUploader.test.tsx\r (hunk)",
+    "trigger_condition": "Potential division by zero",
+    "guard_snippet": "if (divisor !== 0) { ... }",
+    "potential_consequence": "Infinity or NaN result"
+  },
+  {
+    "location": "tests/unit/features/admin/components/MediaUploader.test.tsx\r (hunk)",
+    "trigger_condition": "Unhandled Promise rejection",
+    "guard_snippet": "try { await ... } catch (e) { ... }",
+    "potential_consequence": "Silent failure or crash"
+  },
+  {
+    "location": "tests/unit/features/admin/components/MediaUploader.test.tsx\r (hunk)",
+    "trigger_condition": "Array access without bounds check",
+    "guard_snippet": "if (array.length > index) { ... }",
+    "potential_consequence": "TypeError or undefined access"
+  },
+  {
+    "location": "tests/unit/features/admin/components/PostForm.test.tsx\r (hunk)",
+    "trigger_condition": "Potential division by zero",
+    "guard_snippet": "if (divisor !== 0) { ... }",
+    "potential_consequence": "Infinity or NaN result"
+  },
+  {
+    "location": "tests/unit/features/admin/components/PostForm.test.tsx\r (hunk)",
+    "trigger_condition": "Unhandled Promise rejection",
+    "guard_snippet": "try { await ... } catch (e) { ... }",
+    "potential_consequence": "Silent failure or crash"
+  }
+]

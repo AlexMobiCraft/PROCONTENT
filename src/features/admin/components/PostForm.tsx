@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/features/auth/store'
 import { MediaUploader } from './MediaUploader'
 import { createPost, updatePost } from '@/features/admin/api/posts'
+import { getCategories, type Category } from '@/features/admin/api/categories'
 import {
   PostFormSchema,
   MAX_MEDIA_FILES,
@@ -117,10 +118,28 @@ export function PostForm(props: PostFormProps) {
   }, [])
 
   const [mediaError, setMediaError] = useState<string | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(true)
+
+  useEffect(() => {
+    getCategories()
+      .then(setCategories)
+      .catch(() => toast.error('Napaka pri nalaganju kategorij'))
+      .finally(() => setIsCategoriesLoading(false))
+  }, [])
+
+  // In edit mode, sync the category value after options are rendered
+  useEffect(() => {
+    if (categories.length > 0 && isEditMode && initialData?.category) {
+      setValue('category', initialData.category)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories])
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<PostFormValues>({
     defaultValues: {
@@ -209,13 +228,23 @@ export function PostForm(props: PostFormProps) {
         <label htmlFor="category" className="text-sm font-medium">
           Kategorija
         </label>
-        <Input
+        <select
           id="category"
           aria-label="Kategorija"
           {...register('category', { required: 'Kategorija je obvezna' })}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isCategoriesLoading}
           aria-invalid={!!errors.category}
-        />
+          className="flex w-full rounded-xl border border-border bg-muted/50 px-3 py-3 text-sm text-foreground transition-colors focus-visible:border-primary focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:opacity-50 min-h-[44px]"
+        >
+          <option value="">
+            {isCategoriesLoading ? 'Nalaganje...' : 'Izberite kategorijo'}
+          </option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.slug}>
+              {cat.name}
+            </option>
+          ))}
+        </select>
         {errors.category && (
           <p className="text-xs text-destructive" role="alert">
             {errors.category.message}

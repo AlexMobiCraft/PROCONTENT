@@ -470,6 +470,7 @@ export function FeedContainer({
               isPending={pendingLikes.includes(cardData.id)}
               onLikeToggle={handleLikeToggle}
               onCommentClick={onCommentClick}
+              onCategoryClick={(category) => useFeedStore.getState().changeCategory(category)}
             />
           </li>
         ))}

@@ -1,0 +1,1202 @@
+﻿diff --git a/src/features/admin/api/posts.ts b/src/features/admin/api/posts.ts
++new file mode 100644
++index 00000000..97c4c1b9
++--- /dev/null
+++++ b/src/features/admin/api/posts.ts
++@@ -0,0 +1,257 @@
+++import { createClient } from '@/lib/supabase/client'
+++import type { ExistingMediaItem, MediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'
+++import { uploadFilesWithTracking, removeStorageFiles } from './uploadMedia'
+++
+++export interface CreatePostInput {
+++  formValues: PostFormValues
+++  mediaItems: MediaItem[]
+++  authorId: string
+++}
+++
+++export interface UpdatePostInput {
+++  postId: string
+++  formValues: PostFormValues
+++  mediaItems: MediaItem[]
+++  originalMedia: ExistingMediaItem[]
+++}
+++
+++/** Derives `posts.type` from the media items in the form state */
+++function derivePostType(items: MediaItem[]): string {
+++  if (items.length === 0) return 'text'
+++
+++  const hasImages = items.some((m) => m.media_type === 'image')
+++  const hasVideos = items.some((m) => m.media_type === 'video')
+++
+++  // Defensive: if items exist but none are recognized image/video, treat as text
+++  if (!hasImages && !hasVideos) return 'text'
+++
+++  if (hasImages && hasVideos) return 'gallery'
+++  if (hasVideos) return items.length === 1 ? 'video' : 'multi-video'
+++  return items.length === 1 ? 'photo' : 'gallery'
+++}
+++
+++/**
+++ * Creates a new post with associated media.
+++ * Sequence: insert post ├ö─ç─║ upload new files one-by-one (tracking URLs) ├ö─ç─║ insert post_media rows
+++ * On any error after post creation: cleans up uploaded files and the post record.
+++ */
+++export async function createPost(input: CreatePostInput): Promise<string> {
+++  const supabase = createClient()
+++  const { formValues, mediaItems, authorId } = input
+++
+++  // 1. Insert post record
+++  const { data: post, error: postError } = await supabase
+++    .from('posts')
+++    .insert({
+++      title: formValues.title,
+++      content: formValues.content ?? null,
+++      excerpt: formValues.excerpt ?? null,
+++      category: formValues.category,
+++      author_id: authorId,
+++      type: derivePostType(mediaItems),
+++      is_published: true,
+++    })
+++    .select('id')
+++    .single()
+++
+++  if (postError || !post) {
+++    throw new Error(
+++      `Napaka pri ustvarjanju objave: ${postError?.message ?? 'Neznan error'}`
+++    )
+++  }
+++
+++  const postId = post.id
+++  const uploadedUrls: string[] = []
+++
+++  try {
+++    // 2. Upload new files to Storage with controlled concurrency ├ö├ç├Â track URLs for rollback
+++    const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
+++    const newFileUrls = await uploadFilesWithTracking(
+++      postId,
+++      newItems.map((item) => item.file),
+++      uploadedUrls
+++    )
+++
+++    // 3. Build post_media payload ├ö├ç├Â preserve order from mediaItems array
+++    if (mediaItems.length > 0) {
+++      let newIdx = 0
+++      const postMediaPayload = mediaItems.map((item) => {
+++        if (item.kind === 'existing') {
+++          return {
+++            post_id: postId,
+++            url: item.url,
+++            thumbnail_url: item.thumbnail_url,
+++            media_type: item.media_type,
+++            order_index: item.order_index,
+++            is_cover: item.is_cover,
+++          }
+++        }
+++        return {
+++          post_id: postId,
+++          url: newFileUrls[newIdx++],
+++          thumbnail_url: null,
+++          media_type: item.media_type,
+++          order_index: item.order_index,
+++          is_cover: item.is_cover,
+++        }
+++      })
+++
+++      const { error: mediaError } = await supabase.from('post_media').insert(postMediaPayload)
+++      if (mediaError) {
+++        throw new Error(`Napaka pri shranjevanju medijev: ${mediaError.message}`)
+++      }
+++    }
+++
+++    return postId
+++  } catch (err) {
+++    // Rollback: remove individually tracked uploaded files, then delete the post record
+++    if (uploadedUrls.length > 0) {
+++      await removeStorageFiles(uploadedUrls).catch((e) => {
+++        console.warn('Rollback: napaka pri brisanju datotek iz Storage:', e)
+++      })
+++    }
+++    await supabase.from('posts').delete().eq('id', postId)
+++    throw err
+++  }
+++}
+++
+++/**
+++ * Updates an existing post and its media.
+++ * Handles: updating text fields, uploading new files FIRST,
+++ * then deleting removed media from DB + Storage, updating order_index/is_cover.
+++ * Tracks uploaded URLs for rollback on failure.
+++ */
+++export async function updatePost(input: UpdatePostInput): Promise<void> {
+++  const supabase = createClient()
+++  const { postId, formValues, mediaItems, originalMedia } = input
+++
+++  // Determine which original items have been removed
+++  const retainedIds = new Set(
+++    mediaItems
+++      .filter((m): m is ExistingMediaItem => m.kind === 'existing')
+++      .map((m) => m.id)
+++  )
+++  const removedItems = originalMedia.filter((m) => !retainedIds.has(m.id))
+++
+++  // 1. Update post text fields + type
+++  const { error: updateError } = await supabase
+++    .from('posts')
+++    .update({
+++      title: formValues.title,
+++      content: formValues.content ?? null,
+++      excerpt: formValues.excerpt ?? null,
+++      category: formValues.category,
+++      type: derivePostType(mediaItems),
+++    })
+++    .eq('id', postId)
+++
+++  if (updateError) {
+++    throw new Error(`Napaka pri posodabljanju objave: ${updateError.message}`)
+++  }
+++
+++  // 2. Upload new files FIRST (before deleting old ones to prevent data loss)
+++  // Track uploaded URLs for rollback on failure
+++  const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
+++  const uploadedUrls: string[] = []
+++
+++  try {
+++    await uploadFilesWithTracking(
+++      postId,
+++      newItems.map((item) => item.file),
+++      uploadedUrls
+++    )
+++
+++    // 3. Delete removed media rows from DB
+++    if (removedItems.length > 0) {
+++      const removedIds = removedItems.map((m) => m.id)
+++      const { error: deleteError } = await supabase
+++        .from('post_media')
+++        .delete()
+++        .in('id', removedIds)
+++
+++      if (deleteError) {
+++        throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`)
+++      }
+++
+++      // 4. Delete removed files from Storage (best-effort, log on failure)
+++      await removeStorageFiles(removedItems.map((m) => m.url)).catch((e) => {
+++        console.warn('Napaka pri brisanju starih datotek iz Storage:', e)
+++      })
+++    }
+++
+++    // 5. Update order_index + is_cover for retained existing items ├ö├ç├Â sequential to avoid rate limiting
+++    const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')
+++    for (const item of existingItems) {
+++      const { error } = await supabase
+++        .from('post_media')
+++        .update({ order_index: item.order_index, is_cover: item.is_cover })
+++        .eq('id', item.id)
+++
+++      if (error) {
+++        throw new Error(`Napaka pri posodabljanju vrstnega reda: ${error.message}`)
+++      }
+++    }
+++
+++    // 6. Insert new post_media rows
+++    if (newItems.length > 0) {
+++      const newMediaPayload = newItems.map((item, idx) => ({
+++        post_id: postId,
+++        url: uploadedUrls[idx],
+++        thumbnail_url: null as string | null,
+++        media_type: item.media_type,
+++        order_index: item.order_index,
+++        is_cover: item.is_cover,
+++      }))
+++
+++      const { error: insertError } = await supabase.from('post_media').insert(newMediaPayload)
+++      if (insertError) {
+++        throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`)
+++      }
+++    }
+++  } catch (err) {
+++    // Rollback: remove newly uploaded files from Storage on any failure
+++    if (uploadedUrls.length > 0) {
+++      await removeStorageFiles(uploadedUrls).catch((e) => {
+++        console.warn('Rollback: napaka pri brisanju novih datotek iz Storage:', e)
+++      })
+++    }
+++    throw err
+++  }
+++}
+++
+++/**
+++ * Fetches a post with its media for pre-filling the edit form.
+++ * Uses client-side Supabase (called from 'use client' component).
+++ */
+++export async function fetchPostForEdit(postId: string) {
+++  const supabase = createClient()
+++
+++  const { data, error } = await supabase
+++    .from('posts')
+++    .select(
+++      `
+++      id,
+++      title,
+++      content,
+++      excerpt,
+++      category,
+++      type,
+++      post_media (
+++        id,
+++        url,
+++        thumbnail_url,
+++        media_type,
+++        order_index,
+++        is_cover
+++      )
+++    `
+++    )
+++    .eq('id', postId)
+++    .single()
+++
+++  if (error || !data) {
+++    throw new Error(`Objava ni bila najdena: ${error?.message ?? ''}`)
+++  }
+++
+++  return data
+++}
++
+diff --git a/src/features/admin/api/uploadMedia.ts b/src/features/admin/api/uploadMedia.ts
++new file mode 100644
++index 00000000..59aae253
++--- /dev/null
+++++ b/src/features/admin/api/uploadMedia.ts
++@@ -0,0 +1,112 @@
+++import { createClient } from '@/lib/supabase/client'
+++import type { MediaType } from '@/features/admin/types'
+++
+++const STORAGE_BUCKET = 'post_media'
+++
+++export interface UploadedMedia {
+++  url: string
+++  media_type: MediaType
+++  thumbnail_url: string | null
+++  order_index: number
+++  is_cover: boolean
+++}
+++
+++export function generateUUID(): string {
+++  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+++    return crypto.randomUUID()
+++  }
+++  // Fallback for non-secure contexts ├ö├ç├Â use getRandomValues when available
+++  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+++    const bytes = new Uint8Array(16)
+++    crypto.getRandomValues(bytes)
+++    bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4
+++    bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant 10
+++    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+++    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+++  }
+++  // Last resort fallback (e.g., very old browsers)
+++  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+++    const r = (Math.random() * 16) | 0
+++    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+++  })
+++}
+++
+++/**
+++ * Generates a unique storage path for a file.
+++ * Format: posts/{postId}/{randomUUID}/{safeFileName}
+++ */
+++function generateStoragePath(postId: string, fileName: string): string {
+++  const uuid = generateUUID()
+++  const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
+++  return `posts/${postId}/${uuid}/${safeFileName}`
+++}
+++
+++/**
+++ * Uploads a single file to Supabase Storage and returns its public URL.
+++ */
+++export async function uploadSingleFile(postId: string, file: File): Promise<string> {
+++  const supabase = createClient()
+++  const path = generateStoragePath(postId, file.name)
+++
+++  const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
+++    upsert: false,
+++  })
+++
+++  if (error) {
+++    throw new Error(`Napaka pri nalaganju datoteke: ${error.message}`)
+++  }
+++
+++  const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path)
+++  return urlData.publicUrl
+++}
+++
+++/** Max number of concurrent file uploads to avoid rate limiting */
+++const UPLOAD_CONCURRENCY = 3
+++
+++/**
+++ * Uploads files with controlled concurrency, tracking each URL for rollback.
+++ * Returns uploaded URLs in same order as input files.
+++ */
+++export async function uploadFilesWithTracking(
+++  postId: string,
+++  files: File[],
+++  uploadedUrls: string[]
+++): Promise<string[]> {
+++  const results: string[] = []
+++
+++  for (let i = 0; i < files.length; i += UPLOAD_CONCURRENCY) {
+++    const batch = files.slice(i, i + UPLOAD_CONCURRENCY)
+++    const batchUrls = await Promise.all(
+++      batch.map((file) => uploadSingleFile(postId, file))
+++    )
+++    results.push(...batchUrls)
+++    uploadedUrls.push(...batchUrls)
+++  }
+++
+++  return results
+++}
+++
+++/**
+++ * Removes files from Supabase Storage by their public URLs.
+++ * Silently skips URLs that do not match the expected bucket path format.
+++ */
+++export async function removeStorageFiles(urls: string[]): Promise<void> {
+++  if (urls.length === 0) return
+++
+++  const supabase = createClient()
+++  const marker = `/object/public/${STORAGE_BUCKET}/`
+++
+++  const paths = urls
+++    .map((url) => {
+++      const idx = url.indexOf(marker)
+++      return idx !== -1 ? url.slice(idx + marker.length) : null
+++    })
+++    .filter((p): p is string => p !== null)
+++
+++  if (paths.length === 0) return
+++
+++  const { error } = await supabase.storage.from(STORAGE_BUCKET).remove(paths)
+++  if (error) {
+++    throw new Error(`Napaka pri brisanju datotek: ${error.message}`)
+++  }
+++}
++
+diff --git a/src/features/admin/components/EditPostSkeleton.tsx b/src/features/admin/components/EditPostSkeleton.tsx
++new file mode 100644
++index 00000000..d5db3d10
++--- /dev/null
+++++ b/src/features/admin/components/EditPostSkeleton.tsx
++@@ -0,0 +1,15 @@
+++'use client'
+++
+++export function EditPostSkeleton() {
+++  return (
+++    <div className="flex flex-col gap-6" aria-label="Nalaganje...">
+++      {[1, 2, 3].map((i) => (
+++        <div key={i} className="flex flex-col gap-1.5">
+++          <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+++          <div className="h-[44px] w-full animate-pulse rounded border bg-muted" />
+++        </div>
+++      ))}
+++      <div className="h-[44px] w-32 animate-pulse rounded bg-muted" />
+++    </div>
+++  )
+++}
++
+diff --git a/src/features/admin/components/MediaSortableItem.tsx b/src/features/admin/components/MediaSortableItem.tsx
++new file mode 100644
++index 00000000..b8e6edb4
++--- /dev/null
+++++ b/src/features/admin/components/MediaSortableItem.tsx
++@@ -0,0 +1,116 @@
+++'use client'
+++
+++import { useSortable } from '@dnd-kit/sortable'
+++import { CSS } from '@dnd-kit/utilities'
+++import { Star, Trash2, GripVertical } from 'lucide-react'
+++import { cn } from '@/lib/utils'
+++import type { MediaItem } from '@/features/admin/types'
+++import { getMediaItemId } from '@/features/admin/types'
+++
+++interface MediaSortableItemProps {
+++  item: MediaItem
+++  onSetCover: () => void
+++  onRemove: () => void
+++  isSubmitting?: boolean
+++}
+++
+++export function MediaSortableItem({
+++  item,
+++  onSetCover,
+++  onRemove,
+++  isSubmitting,
+++}: MediaSortableItemProps) {
+++  const id = getMediaItemId(item)
+++  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+++    id,
+++    disabled: isSubmitting,
+++  })
+++
+++  const style = {
+++    transform: CSS.Transform.toString(transform),
+++    transition,
+++  }
+++
+++  const previewUrl = item.kind === 'new' ? item.preview_url : item.url
+++  const isVideo = item.media_type === 'video'
+++
+++  return (
+++    <div
+++      ref={setNodeRef}
+++      style={style}
+++      data-testid={`media-item-${id}`}
+++      className={cn(
+++        'relative flex items-center gap-2 rounded border bg-background p-2',
+++        isDragging && 'opacity-50 ring-2 ring-primary',
+++        item.is_cover && 'ring-2 ring-primary/60'
+++      )}
+++    >
+++      {/* Drag handle */}
+++      <button
+++        type="button"
+++        className="cursor-grab touch-none text-muted-foreground disabled:cursor-default"
+++        aria-label="Povleci za premikanje"
+++        disabled={isSubmitting}
+++        {...attributes}
+++        {...listeners}
+++      >
+++        <GripVertical className="size-4" />
+++      </button>
+++
+++      {/* Thumbnail */}
+++      <div className="size-14 shrink-0 overflow-hidden rounded bg-muted">
+++        {isVideo ? (
+++          <video
+++            src={previewUrl}
+++            className="size-full object-cover"
+++            muted
+++            preload="none"
+++          />
+++        ) : (
+++          // eslint-disable-next-line @next/next/no-img-element
+++          <img src={previewUrl} alt="" className="size-full object-cover" />
+++        )}
+++      </div>
+++
+++      {/* Media type badge */}
+++      <span className="text-xs uppercase text-muted-foreground">
+++        {isVideo ? 'Video' : 'Slika'}
+++      </span>
+++
+++      {item.is_cover && (
+++        <span className="ml-auto mr-1 text-xs font-medium text-primary">Naslovnica</span>
+++      )}
+++
+++      <div className={cn('flex gap-1', item.is_cover ? '' : 'ml-auto')}>
+++        {/* Set cover button */}
+++        <button
+++          type="button"
+++          data-testid={`cover-btn-${id}`}
+++          className={cn(
+++            'flex min-h-[44px] min-w-[44px] items-center justify-center rounded transition-colors',
+++            item.is_cover
+++              ? 'text-primary'
+++              : 'text-muted-foreground hover:text-primary'
+++          )}
+++          aria-label="Nastavi kot naslovnico"
+++          disabled={isSubmitting}
+++          onClick={onSetCover}
+++        >
+++          <Star className={cn('size-4', item.is_cover && 'fill-primary')} />
+++        </button>
+++
+++        {/* Remove button */}
+++        <button
+++          type="button"
+++          data-testid={`delete-btn-${id}`}
+++          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-muted-foreground transition-colors hover:text-destructive"
+++          aria-label="Odstrani medij"
+++          disabled={isSubmitting}
+++          onClick={onRemove}
+++        >
+++          <Trash2 className="size-4" />
+++        </button>
+++      </div>
+++    </div>
+++  )
+++}
++
+diff --git a/src/features/admin/components/MediaUploader.tsx b/src/features/admin/components/MediaUploader.tsx
++new file mode 100644
++index 00000000..b67c12c9
++--- /dev/null
+++++ b/src/features/admin/components/MediaUploader.tsx
++@@ -0,0 +1,302 @@
+++'use client'
+++
+++import {
+++  DndContext,
+++  closestCenter,
+++  KeyboardSensor,
+++  PointerSensor,
+++  useSensor,
+++  useSensors,
+++  type DragEndEvent,
+++} from '@dnd-kit/core'
+++import {
+++  SortableContext,
+++  sortableKeyboardCoordinates,
+++  arrayMove,
+++  verticalListSortingStrategy,
+++} from '@dnd-kit/sortable'
+++import { ImagePlus } from 'lucide-react'
+++import { useCallback, useRef, useState } from 'react'
+++import type { MediaItem, MediaType, NewMediaItem } from '@/features/admin/types'
+++import {
+++  getMediaItemId,
+++  MAX_MEDIA_FILES,
+++  MAX_IMAGE_SIZE,
+++  MAX_VIDEO_SIZE,
+++  ALLOWED_IMAGE_TYPES,
+++  ALLOWED_MEDIA_TYPES,
+++} from '@/features/admin/types'
+++import { generateUUID } from '@/features/admin/api/uploadMedia'
+++import { MediaSortableItem } from './MediaSortableItem'
+++
+++interface MediaUploaderProps {
+++  items: MediaItem[]
+++  onChange: (items: MediaItem[]) => void
+++  isSubmitting?: boolean
+++}
+++
+++function formatSize(bytes: number): string {
+++  return bytes >= 1024 * 1024
+++    ? `${(bytes / (1024 * 1024)).toFixed(0)} MB`
+++    : `${(bytes / 1024).toFixed(0)} KB`
+++}
+++
+++/** Map common file extensions to MIME types for browsers that return empty type */
+++const EXTENSION_TO_MIME: Record<string, string> = {
+++  jpg: 'image/jpeg',
+++  jpeg: 'image/jpeg',
+++  png: 'image/png',
+++  webp: 'image/webp',
+++  gif: 'image/gif',
+++  mp4: 'video/mp4',
+++  mov: 'video/quicktime',
+++  webm: 'video/webm',
+++}
+++
+++/**
+++ * Resolves MIME type from browser-provided type, falling back to extension.
+++ * Extension fallback is client-side UX only ├ö├ç├Â Supabase Storage validates server-side.
+++ */
+++function resolveFileType(file: File): string {
+++  if (file.type && ALLOWED_MEDIA_TYPES.includes(file.type)) return file.type
+++  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+++  return EXTENSION_TO_MIME[ext] ?? ''
+++}
+++
+++export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderProps) {
+++  const inputRef = useRef<HTMLInputElement>(null)
+++  const isAtLimit = items.length >= MAX_MEDIA_FILES
+++  const [fileError, setFileError] = useState<string | null>(null)
+++  const [isDragOver, setIsDragOver] = useState(false)
+++
+++  const sensors = useSensors(
+++    useSensor(PointerSensor),
+++    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+++  )
+++
+++  function handleDragEnd(event: DragEndEvent) {
+++    const { active, over } = event
+++    if (!over || active.id === over.id) return
+++
+++    const oldIndex = items.findIndex((m) => getMediaItemId(m) === active.id)
+++    const newIndex = items.findIndex((m) => getMediaItemId(m) === over.id)
+++    if (oldIndex === -1 || newIndex === -1) return
+++
+++    const reordered = arrayMove(items, oldIndex, newIndex).map((item, idx) => ({
+++      ...item,
+++      order_index: idx,
+++    }))
+++    // Clear stale error on successful reorder
+++    setFileError(null)
+++    onChange(reordered)
+++  }
+++
+++  const processFiles = useCallback(
+++    (fileList: File[]) => {
+++      if (fileList.length === 0) return
+++
+++      setFileError(null)
+++      const errors: string[] = []
+++
+++      // Resolve MIME types (fallback to extension for empty type)
+++      const filesWithTypes = fileList.map((f) => ({ file: f, resolvedType: resolveFileType(f) }))
+++
+++      // Filter by allowed MIME type
+++      const validTypeFiles = filesWithTypes.filter(({ file, resolvedType }) => {
+++        if (!ALLOWED_MEDIA_TYPES.includes(resolvedType)) {
+++          errors.push(`"${file.name}" ├ö├ç├Â nepodprt format`)
+++          return false
+++        }
+++        return true
+++      })
+++
+++      // Filter by file size
+++      const validFiles = validTypeFiles.filter(({ file, resolvedType }) => {
+++        const isImage = ALLOWED_IMAGE_TYPES.includes(resolvedType)
+++        const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE
+++        if (file.size > maxSize) {
+++          errors.push(
+++            `"${file.name}" presega omejitev ${formatSize(maxSize)}`
+++          )
+++          return false
+++        }
+++        return true
+++      })
+++
+++      const remaining = MAX_MEDIA_FILES - items.length
+++      if (remaining <= 0) {
+++        setFileError(`DoseÔö╝┼╝ena je omejitev ${MAX_MEDIA_FILES} datotek`)
+++        return
+++      }
+++
+++      const toAdd = validFiles.slice(0, remaining)
+++      if (validFiles.length > remaining) {
+++        errors.push(
+++          `${validFiles.length - remaining} datotek ni bilo dodanih ├ö├ç├Â omejitev ${MAX_MEDIA_FILES}`
+++        )
+++      }
+++
+++      if (errors.length > 0) {
+++        setFileError(errors.join('. '))
+++      }
+++
+++      if (toAdd.length === 0) return
+++
+++      const newItems: NewMediaItem[] = toAdd.map(({ file, resolvedType }, i) => {
+++        const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(resolvedType) ? 'image' : 'video'
+++        return {
+++          kind: 'new',
+++          key: generateUUID(),
+++          file,
+++          preview_url: URL.createObjectURL(file),
+++          media_type: mediaType,
+++          is_cover: false,
+++          order_index: items.length + i,
+++        }
+++      })
+++
+++      // Auto-assign first item as cover if none set
+++      const combined: MediaItem[] = [...items, ...newItems]
+++      const hasCover = combined.some((m) => m.is_cover)
+++      if (!hasCover && combined.length > 0) {
+++        combined[0] = { ...combined[0], is_cover: true }
+++      }
+++
+++      onChange(combined)
+++      // Reset input so same file can be re-selected
+++      if (inputRef.current) inputRef.current.value = ''
+++    },
+++    [items, onChange]
+++  )
+++
+++  function handleFilesSelected(files: FileList | null) {
+++    if (!files) return
+++    processFiles(Array.from(files))
+++  }
+++
+++  function handleSetCover(targetId: string) {
+++    const updated = items.map((item) => ({
+++      ...item,
+++      is_cover: getMediaItemId(item) === targetId,
+++    }))
+++    onChange(updated)
+++  }
+++
+++  function handleRemove(targetId: string) {
+++    const filtered = items
+++      .filter((item) => getMediaItemId(item) !== targetId)
+++      .map((item, idx) => ({ ...item, order_index: idx }))
+++
+++    // Revoke object URL for new items immediately
+++    const removed = items.find((item) => getMediaItemId(item) === targetId)
+++    if (removed?.kind === 'new') URL.revokeObjectURL(removed.preview_url)
+++
+++    // Re-assign cover if the cover was removed
+++    if (filtered.length > 0 && !filtered.some((m) => m.is_cover)) {
+++      filtered[0] = { ...filtered[0], is_cover: true }
+++    }
+++
+++    onChange(filtered)
+++    setFileError(null)
+++  }
+++
+++  function hasFileTransfer(e: React.DragEvent): boolean {
+++    try {
+++      return e.dataTransfer?.types?.includes('Files') ?? false
+++    } catch {
+++      return false
+++    }
+++  }
+++
+++  // Native drag-and-drop handlers for file upload zone
+++  function handleNativeDragOver(e: React.DragEvent) {
+++    e.preventDefault()
+++    e.stopPropagation()
+++    if (!hasFileTransfer(e)) return
+++    if (!isAtLimit && !isSubmitting) setIsDragOver(true)
+++  }
+++
+++  function handleNativeDragLeave(e: React.DragEvent) {
+++    e.preventDefault()
+++    e.stopPropagation()
+++    setIsDragOver(false)
+++  }
+++
+++  function handleNativeDrop(e: React.DragEvent) {
+++    e.preventDefault()
+++    e.stopPropagation()
+++    setIsDragOver(false)
+++    if (isAtLimit || isSubmitting) return
+++    if (!hasFileTransfer(e)) return
+++    const files = e.dataTransfer.files
+++    if (files.length > 0) {
+++      processFiles(Array.from(files))
+++    }
+++  }
+++
+++  const sortableIds = items.map(getMediaItemId)
+++
+++  return (
+++    <div className="flex flex-col gap-3">
+++      {/* Sortable list */}
+++      {items.length > 0 && (
+++        <DndContext
+++          sensors={sensors}
+++          collisionDetection={closestCenter}
+++          onDragEnd={handleDragEnd}
+++        >
+++          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+++            <div className="flex flex-col gap-2">
+++              {items.map((item) => (
+++                <MediaSortableItem
+++                  key={getMediaItemId(item)}
+++                  item={item}
+++                  onSetCover={() => handleSetCover(getMediaItemId(item))}
+++                  onRemove={() => handleRemove(getMediaItemId(item))}
+++                  isSubmitting={isSubmitting}
+++                />
+++              ))}
+++            </div>
+++          </SortableContext>
+++        </DndContext>
+++      )}
+++
+++      {/* Upload button / drop zone */}
+++      <div className="flex flex-col gap-1">
+++        <label
+++          onDragOver={handleNativeDragOver}
+++          onDragLeave={handleNativeDragLeave}
+++          onDrop={handleNativeDrop}
+++          className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors focus-within:ring-2 focus-within:ring-ring hover:bg-muted ${
+++            isDragOver ? 'border-primary bg-primary/5' : ''
+++          } ${isAtLimit || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
+++        >
+++          <ImagePlus className="size-4" />
+++          <span>Dodaj medij ({items.length}/{MAX_MEDIA_FILES})</span>
+++          <input
+++            ref={inputRef}
+++            type="file"
+++            multiple
+++            accept={ALLOWED_MEDIA_TYPES.join(',')}
+++            className="sr-only"
+++            disabled={isAtLimit || isSubmitting}
+++            data-testid="media-input"
+++            onChange={(e) => handleFilesSelected(e.target.files)}
+++          />
+++        </label>
+++
+++        {isAtLimit && !fileError && (
+++          <p className="text-xs text-destructive" data-testid="media-limit-message">
+++            DoseÔö╝┼╝ena je omejitev {MAX_MEDIA_FILES} datotek
+++          </p>
+++        )}
+++
+++        {fileError && (
+++          <p className="text-xs text-destructive" data-testid="media-file-error">
+++            {fileError}
+++          </p>
+++        )}
+++      </div>
+++    </div>
+++  )
+++}
++
+diff --git a/src/features/admin/components/PostForm.tsx b/src/features/admin/components/PostForm.tsx
++new file mode 100644
++index 00000000..63b5afaa
++--- /dev/null
+++++ b/src/features/admin/components/PostForm.tsx
++@@ -0,0 +1,275 @@
+++'use client'
+++
+++import { useForm } from 'react-hook-form'
+++import { useState, useEffect, useRef } from 'react'
+++import { useRouter } from 'next/navigation'
+++import { toast } from 'sonner'
+++import { Loader2 } from 'lucide-react'
+++import { Button } from '@/components/ui/button'
+++import { Input } from '@/components/ui/input'
+++import { useAuthStore } from '@/features/auth/store'
+++import { MediaUploader } from './MediaUploader'
+++import { createPost, updatePost } from '@/features/admin/api/posts'
+++import {
+++  PostFormSchema,
+++  type PostFormValues,
+++  type MediaItem,
+++  type NewMediaItem,
+++  type ExistingMediaItem,
+++} from '@/features/admin/types'
+++
+++type PostMediaRow = {
+++  id: string
+++  url: string
+++  thumbnail_url: string | null
+++  media_type: 'image' | 'video'
+++  order_index: number
+++  is_cover: boolean
+++}
+++
+++interface InitialData {
+++  id: string
+++  title: string
+++  content?: string | null
+++  excerpt?: string | null
+++  category: string
+++  post_media?: PostMediaRow[]
+++}
+++
+++type PostFormProps =
+++  | { mode: 'create' }
+++  | { mode: 'edit'; initialData: InitialData }
+++
+++export function PostForm(props: PostFormProps) {
+++  const router = useRouter()
+++  const user = useAuthStore((s) => s.user)
+++
+++  const isEditMode = props.mode === 'edit'
+++  const initialData = isEditMode ? props.initialData : null
+++
+++  // Initialize media items from existing post_media
+++  const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
+++    if (!initialData?.post_media) return []
+++    return [...initialData.post_media]
+++      .sort((a, b) => a.order_index - b.order_index)
+++      .map((m) => ({
+++        kind: 'existing' as const,
+++        id: m.id,
+++        url: m.url,
+++        thumbnail_url: m.thumbnail_url,
+++        media_type: m.media_type,
+++        is_cover: m.is_cover,
+++        order_index: m.order_index,
+++      }))
+++  })
+++
+++  // Keep original media for edit mode (to detect deletions)
+++  const [originalMedia] = useState<ExistingMediaItem[]>(() => {
+++    if (!initialData?.post_media) return []
+++    return initialData.post_media.map((m) => ({
+++      kind: 'existing' as const,
+++      id: m.id,
+++      url: m.url,
+++      thumbnail_url: m.thumbnail_url,
+++      media_type: m.media_type,
+++      is_cover: m.is_cover,
+++      order_index: m.order_index,
+++    }))
+++  })
+++
+++  // Track ObjectURLs for cleanup on unmount
+++  const objectUrlsRef = useRef<Set<string>>(new Set())
+++
+++  const handleMediaChange = (items: MediaItem[]) => {
+++    // Track new ObjectURLs and clean up revoked ones
+++    const currentUrls = new Set(
+++      items
+++        .filter((i): i is NewMediaItem => i.kind === 'new')
+++        .map((i) => i.preview_url)
+++    )
+++    // Revoke URLs no longer in the list
+++    for (const url of objectUrlsRef.current) {
+++      if (!currentUrls.has(url)) {
+++        URL.revokeObjectURL(url)
+++        objectUrlsRef.current.delete(url)
+++      }
+++    }
+++    // Track new URLs
+++    for (const url of currentUrls) {
+++      objectUrlsRef.current.add(url)
+++    }
+++    setMediaItems(items)
+++  }
+++
+++  // Cleanup ObjectURLs on unmount
+++  useEffect(() => {
+++    const urls = objectUrlsRef.current
+++    return () => {
+++      for (const url of urls) {
+++        URL.revokeObjectURL(url)
+++      }
+++    }
+++  }, [])
+++
+++  const [mediaError, setMediaError] = useState<string | null>(null)
+++
+++  const {
+++    register,
+++    handleSubmit,
+++    formState: { errors, isSubmitting },
+++  } = useForm<PostFormValues>({
+++    defaultValues: {
+++      title: initialData?.title ?? '',
+++      content: initialData?.content ?? '',
+++      excerpt: initialData?.excerpt ?? '',
+++      category: initialData?.category ?? '',
+++    },
+++  })
+++
+++  async function onSubmit(values: PostFormValues) {
+++    // Validate with Zod (react-hook-form handles required/max, but Zod is authoritative)
+++    const parsed = PostFormSchema.safeParse(values)
+++    if (!parsed.success) return
+++
+++    // Validate media: at least 1 file required
+++    if (mediaItems.length === 0) {
+++      setMediaError('Dodajte vsaj eno medijsko datoteko')
+++      return
+++    }
+++    setMediaError(null)
+++
+++    if (!user) {
+++      toast.error('Niste prijavljeni')
+++      return
+++    }
+++
+++    try {
+++      if (isEditMode && initialData) {
+++        await updatePost({
+++          postId: initialData.id,
+++          formValues: parsed.data,
+++          mediaItems,
+++          originalMedia,
+++        })
+++        toast.success('Objava je bila posodobljena')
+++      } else {
+++        await createPost({
+++          formValues: parsed.data,
+++          mediaItems,
+++          authorId: user.id,
+++        })
+++        toast.success('Objava je bila objavljena')
+++      }
+++      router.push('/feed')
+++    } catch (err: unknown) {
+++      const message = err instanceof Error ? err.message : 'Napaka pri shranjevanju'
+++      toast.error(message)
+++    }
+++  }
+++
+++  return (
+++    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-6">
+++      {/* Title */}
+++      <div className="flex flex-col gap-1.5">
+++        <label htmlFor="title" className="text-sm font-medium">
+++          Naslov
+++        </label>
+++        <Input
+++          id="title"
+++          aria-label="Naslov"
+++          {...register('title', {
+++            required: 'Naslov je obvezen',
+++            maxLength: { value: 255, message: 'Naslov je predolg (max 255 znakov)' },
+++          })}
+++          disabled={isSubmitting}
+++          aria-invalid={!!errors.title}
+++        />
+++        {errors.title && (
+++          <p className="text-xs text-destructive" role="alert">
+++            {errors.title.message}
+++          </p>
+++        )}
+++      </div>
+++
+++      {/* Category */}
+++      <div className="flex flex-col gap-1.5">
+++        <label htmlFor="category" className="text-sm font-medium">
+++          Kategorija
+++        </label>
+++        <Input
+++          id="category"
+++          aria-label="Kategorija"
+++          {...register('category', { required: 'Kategorija je obvezna' })}
+++          disabled={isSubmitting}
+++          aria-invalid={!!errors.category}
+++        />
+++        {errors.category && (
+++          <p className="text-xs text-destructive" role="alert">
+++            {errors.category.message}
+++          </p>
+++        )}
+++      </div>
+++
+++      {/* Excerpt */}
+++      <div className="flex flex-col gap-1.5">
+++        <label htmlFor="excerpt" className="text-sm font-medium">
+++          Povzetek
+++        </label>
+++        <Input
+++          id="excerpt"
+++          aria-label="Povzetek"
+++          {...register('excerpt', {
+++            maxLength: { value: 500, message: 'Povzetek je predolg (max 500 znakov)' },
+++          })}
+++          disabled={isSubmitting}
+++          aria-invalid={!!errors.excerpt}
+++        />
+++        {errors.excerpt && (
+++          <p className="text-xs text-destructive" role="alert">
+++            {errors.excerpt.message}
+++          </p>
+++        )}
+++      </div>
+++
+++      {/* Content */}
+++      <div className="flex flex-col gap-1.5">
+++        <label htmlFor="content" className="text-sm font-medium">
+++          Vsebina
+++        </label>
+++        <textarea
+++          id="content"
+++          aria-label="Vsebina"
+++          {...register('content')}
+++          disabled={isSubmitting}
+++          rows={8}
+++          className="min-h-[44px] w-full rounded border border-input bg-background px-3 py-2 text-sm outline-none ring-ring focus-visible:ring-2 disabled:opacity-50"
+++        />
+++      </div>
+++
+++      {/* Media uploader */}
+++      <div className="flex flex-col gap-1.5">
+++        <span className="text-sm font-medium">Mediji</span>
+++        <MediaUploader items={mediaItems} onChange={handleMediaChange} isSubmitting={isSubmitting} />
+++        {mediaError && (
+++          <p className="text-xs text-destructive" role="alert" data-testid="media-required-error">
+++            {mediaError}
+++          </p>
+++        )}
+++      </div>
+++
+++      {/* Submit */}
+++      <Button type="submit" disabled={isSubmitting} className="self-start">
+++        {isSubmitting ? (
+++          <>
+++            <Loader2 className="animate-spin" />
+++            <span>Shranjevanje...</span>
+++          </>
+++        ) : isEditMode ? (
+++          'Shrani'
+++        ) : (
+++          'Objavi'
+++        )}
+++      </Button>
+++    </form>
+++  )
+++}
++
+diff --git a/src/features/admin/types.ts b/src/features/admin/types.ts
++new file mode 100644
++index 00000000..ae1762cf
++--- /dev/null
+++++ b/src/features/admin/types.ts
++@@ -0,0 +1,75 @@
+++import { z } from 'zod'
+++
+++// Media type union ├ö├ç├Â aligned with DB CHECK constraint
+++export type MediaType = 'image' | 'video'
+++
+++/** A NEW media item selected by the user ├ö├ç├Â not yet uploaded to Storage */
+++export interface NewMediaItem {
+++  kind: 'new'
+++  /** Unique local key generated by crypto.randomUUID() */
+++  key: string
+++  file: File
+++  /** Object URL for thumbnail preview ├ö├ç├Â revoke when item is removed */
+++  preview_url: string
+++  media_type: MediaType
+++  is_cover: boolean
+++  order_index: number
+++}
+++
+++/** An EXISTING media item loaded from the database */
+++export interface ExistingMediaItem {
+++  kind: 'existing'
+++  id: string
+++  url: string
+++  thumbnail_url: string | null
+++  media_type: MediaType
+++  is_cover: boolean
+++  order_index: number
+++}
+++
+++/** Union of new (not yet uploaded) and existing (already in DB) media items */
+++export type MediaItem = NewMediaItem | ExistingMediaItem
+++
+++/** Unique identifier for drag-and-drop ├ö├ç├Â new items use key, existing use id */
+++export function getMediaItemId(item: MediaItem): string {
+++  return item.kind === 'new' ? item.key : item.id
+++}
+++
+++/** Post form field values ├ö├ç├Â validated by Zod */
+++export const PostFormSchema = z.object({
+++  title: z
+++    .string()
+++    .transform((s) => s.trim())
+++    .pipe(z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)')),
+++  content: z.string().optional(),
+++  excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),
+++  category: z
+++    .string()
+++    .transform((s) => s.trim())
+++    .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),
+++})
+++
+++export type PostFormValues = z.infer<typeof PostFormSchema>
+++
+++/** Maximum number of media files allowed per post */
+++export const MAX_MEDIA_FILES = 10
+++
+++/** Maximum file size for images (10 MB) */
+++export const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+++
+++/** Maximum file size for videos (100 MB) */
+++export const MAX_VIDEO_SIZE = 100 * 1024 * 1024
+++
+++/** Allowed MIME types for image uploads */
+++export const ALLOWED_IMAGE_TYPES = [
+++  'image/jpeg',
+++  'image/png',
+++  'image/webp',
+++  'image/gif',
+++]
+++
+++/** Allowed MIME types for video uploads */
+++export const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
+++
+++/** All allowed media MIME types */
+++export const ALLOWED_MEDIA_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES]
++
+

@@ -24,7 +24,16 @@ export function generateUUID(): string {
     const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
   }
-  // Last resort fallback (e.g., very old browsers)
+  // Last resort fallback (e.g., very old browsers) - use crypto.getRandomValues if available
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = bytes[Math.floor(Math.random() * 16)] & 15
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+    })
+  }
+  // Final fallback - Math.random is unavoidable in very old environments
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)

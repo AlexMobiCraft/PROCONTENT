@@ -682,6 +682,51 @@ describe('PostCard — семантика даты <time dateTime>', () => {
   })
 })
 
+describe('PostCard — category pill', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('без onCategoryClick рендерит span (не кнопку)', () => {
+    render(<PostCard post={makeCardData({ category: 'stories' })} />)
+    expect(screen.queryByRole('button', { name: /Filtriraj po kategoriji/ })).not.toBeInTheDocument()
+    expect(screen.getByText('stories')).toBeInTheDocument()
+  })
+
+  it('с onCategoryClick рендерит кнопку категории', () => {
+    const onCategoryClick = vi.fn()
+    render(<PostCard post={makeCardData({ category: 'stories' })} onCategoryClick={onCategoryClick} />)
+    expect(screen.getByRole('button', { name: 'Filtriraj po kategoriji stories' })).toBeInTheDocument()
+  })
+
+  it('клик по pill категории вызывает onCategoryClick с категорией', async () => {
+    const user = userEvent.setup()
+    const onCategoryClick = vi.fn()
+    render(<PostCard post={makeCardData({ category: 'snemanje' })} onCategoryClick={onCategoryClick} />)
+
+    await user.click(screen.getByRole('button', { name: 'Filtriraj po kategoriji snemanje' }))
+
+    expect(onCategoryClick).toHaveBeenCalledWith('snemanje')
+    expect(onCategoryClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('клик по pill не вызывает навигацию к посту', async () => {
+    const user = userEvent.setup()
+    const onCategoryClick = vi.fn()
+    render(
+      <PostCard
+        post={makeCardData({ id: 'post-cat-click', category: 'ugc', type: 'text' })}
+        onCategoryClick={onCategoryClick}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Filtriraj po kategoriji ugc' }))
+
+    expect(mockRouterPush).not.toHaveBeenCalled()
+    expect(onCategoryClick).toHaveBeenCalledWith('ugc')
+  })
+})
+
 describe('PostCardSkeleton', () => {
   it('по умолчанию не рендерит media placeholder для text-карточек', () => {
     render(<PostCardSkeleton />)
