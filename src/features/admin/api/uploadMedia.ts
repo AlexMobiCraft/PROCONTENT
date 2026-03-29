@@ -53,7 +53,7 @@ export async function uploadSingleFile(postId: string, file: File): Promise<stri
   })
 
   if (error) {
-    throw new Error(`Napaka pri nalaganju datoteke: ${error.message}`)
+    throw new Error(`Napaka pri nalaganju datoteke: ${error.message}`, { cause: error })
   }
 
   const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path)
@@ -65,6 +65,8 @@ const UPLOAD_CONCURRENCY = 3
 
 /**
  * Uploads files with controlled concurrency, tracking each URL for rollback.
+ * Each file's URL is pushed to uploadedUrls immediately on success,
+ * so partial failures within a batch are still tracked for cleanup.
  * Returns uploaded URLs in same order as input files.
  */
 export async function uploadFilesWithTracking(
@@ -76,11 +78,30 @@ export async function uploadFilesWithTracking(
 
   for (let i = 0; i < files.length; i += UPLOAD_CONCURRENCY) {
     const batch = files.slice(i, i + UPLOAD_CONCURRENCY)
-    const batchUrls = await Promise.all(
+    const batchResults = await Promise.allSettled(
       batch.map((file) => uploadSingleFile(postId, file))
     )
+
+    // Track successful uploads for rollback, then check for failures
+    const batchUrls: string[] = []
+    let firstError: Error | null = null
+
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled') {
+        batchUrls.push(result.value)
+        uploadedUrls.push(result.value)
+      } else if (!firstError) {
+        firstError = result.reason instanceof Error
+          ? result.reason
+          : new Error(String(result.reason))
+      }
+    }
+
     results.push(...batchUrls)
-    uploadedUrls.push(...batchUrls)
+
+    if (firstError) {
+      throw firstError
+    }
   }
 
   return results
@@ -107,6 +128,6 @@ export async function removeStorageFiles(urls: string[]): Promise<void> {
 
   const { error } = await supabase.storage.from(STORAGE_BUCKET).remove(paths)
   if (error) {
-    throw new Error(`Napaka pri brisanju datotek: ${error.message}`)
+    throw new Error(`Napaka pri brisanju datotek: ${error.message}`, { cause: error })
   }
 }

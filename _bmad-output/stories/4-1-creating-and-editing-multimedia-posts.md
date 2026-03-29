@@ -166,6 +166,23 @@ claude-sonnet-4-6
 | 12 | Макс. вес файлов | MAX_IMAGE_SIZE (10MB), MAX_VIDEO_SIZE (100MB) + inline errors |
 | 13 | crypto.randomUUID fallback | generateUUID() с Math.random fallback |
 
+✅ **Round 4 review findings адресованы (15/15, 8 real fixes + 3 N/A + 4 deferred):**
+
+| # | Finding | Решение |
+|---|---------|---------|
+| 1 | N+1 order_index updates | Один upsert с onConflict:'id' |
+| 2 | Утечка Storage при partial batch | Promise.allSettled + tracked URLs |
+| 3 | formatSize precision | toFixed(1) для MB |
+| 4 | Content max length | .max(50000) в Zod |
+| 5 | originalMedia desync | N/A — router.push('/feed') после update |
+| 6 | Потеря stack trace | { cause } во всех Error |
+| 7 | ObjectURL race condition | Snapshot Set + clear ref в cleanup |
+| 8 | Silent Zod safeParse | toast.error с первой issue |
+| 9 | Skeleton encapsulation | N/A — RSC page ≠ Smart Container |
+| 10 | updatePost text rollback | originalFormValues revert в catch |
+| 11 | Media в Zod schema | MAX_MEDIA_FILES check в onSubmit |
+| 12-15 | 4 Deferred | Бэкенд миниатюры, сетевой откат, MIME libs, best-effort cleanup |
+
 ✅ **Round 3 review findings адресованы (11/11, 8 real fixes + 3 N/A):**
 
 | # | Finding | Решение |
@@ -253,9 +270,35 @@ claude-sonnet-4-6
 - [x] [Review][Patch] Некорректный базовый тип по умолчанию в derivePostType [src/features/admin/components/PostForm.tsx] — Исправлено: возвращает 'text' вместо 'gallery' при отсутствии image/video
 - [x] [Review][Patch] Хрупкая защита Drag-and-Drop [src/features/admin/components/MediaUploader.tsx] — Исправлено: hasFileTransfer() с try-catch для устойчивости к синтетическим drag-событиям
 
+**Round 4: Final Acceptance & Adversarial Review (2026-03-29)**
+- [x] [Review][Patch] N+1 запросов при обновлении order_index в updatePost [src/features/admin/api/posts.ts] — Исправлено: заменены N последовательных update на один upsert с onConflict:'id'
+- [x] [Review][Patch] Возможная утечка Storage при сбое параллельной загрузки (отсутствует AbortSignal) [src/features/admin/api/posts.ts] — Исправлено: Promise.allSettled вместо Promise.all, частично загруженные файлы трекаются для rollback
+- [x] [Review][Patch] Неточное форматирование размера файлов (1.49MB отображается как 1MB) [src/features/admin/components/MediaUploader.tsx] — Исправлено: toFixed(1) для MB
+- [x] [Review][Patch] Отсутствие ограничения длины для поля content в Zod-схеме [src/features/admin/types.ts] — Исправлено: .max(50000) для content
+- [x] [Review][Patch] Рассинхронизация состояния originalMedia после успешного update без перезагрузки [src/features/admin/components/PostForm.tsx] — N/A: router.push('/feed') выполняется сразу после update, форма размонтируется
+- [x] [Review][Patch] Потеря stack trace при пробросе ошибок API (отсутствует cause) [src/features/admin/api/posts.ts] — Исправлено: { cause } добавлен ко всем Error конструкторам в posts.ts и uploadMedia.ts
+- [x] [Review][Patch] Состояние гонки при очистке ObjectURL [src/features/admin/components/PostForm.tsx] — Исправлено: useEffect cleanup создаёт snapshot Set и очищает ref, предотвращая double-revoke
+- [x] [Review][Patch] Тихий сбой ручной валидации Zod в onSubmit (ошибки не показываются в UI) [src/features/admin/components/PostForm.tsx] — Исправлено: toast.error с первой Zod issue при safeParse failure
+- [x] [Review][Patch] Нарушение инкапсуляции Skeletons (использование в Smart-компоненте) [src/app/(admin)/posts/[id]/edit/page.tsx] — N/A: RSC page не является Smart Container, Suspense fallback — стандартный Next.js паттерн
+- [x] [Review][Patch] Нарушение транзакционности в updatePost (текст не откатывается при сбое загрузки медиа) [src/features/admin/api/posts.ts] — Исправлено: текстовый update перенесён в try-catch, при ошибке откатывается к originalFormValues
+- [x] [Review][Patch] Исключение массива файлов из Zod-схемы (неполная валидация) [src/features/admin/types.ts] — Исправлено: добавлена проверка MAX_MEDIA_FILES в onSubmit; File объекты несовместимы с Zod
+- [x] [Review][Defer] Отсутствие генерации миниатюр для видео (жесткий null) — deferred: требует бэкенд процессинга
+- [x] [Review][Defer] Хрупкая логика отката в createPost при сбое сети — deferred: архитектурное ограничение клиента
+- [x] [Review][Defer] Определение MIME-типа по расширению — deferred: идеальное решение требует тяжелых библиотек
+- [x] [Review][Defer] Тихие утечки при удалении старых медиа (best-effort очистка) — deferred: осознанный компромисс из Round 3
+
+**Round 5: Final Edge Case & Consistency Review (2026-03-29)**
+- [ ] [Review][Patch] Incomplete rollback leaves database in corrupted state on media upsert/insert failure [src/features/admin/api/posts.ts:156-178]
+- [ ] [Review][Patch] Removed media files are permanently deleted from Storage before DB updates succeed [src/features/admin/api/posts.ts:116-119]
+- [ ] [Review][Patch] Rollback state relies on initial page data instead of current database state [src/features/admin/components/PostForm.tsx:161-168]
+- [ ] [Review][Patch] Unmount cleanup assumes objectUrlsRef.current is a Set [src/features/admin/components/PostForm.tsx:295-296]
+- [ ] [Review][Patch] Garbled character encoding in max files error message [src/features/admin/components/PostForm.tsx:318]
+- [ ] [Review][Patch] API lacks server-side enforcement of MAX_MEDIA_FILES limit [src/features/admin/api/posts.ts:67]
+
 ## Change Log
 
 - 2026-03-28: Story 4.1 реализована — мультимедийные посты, drag-and-drop, обложка, транзакция Storage+DB, редактирование с удалением файлов из Storage (claude-sonnet-4-6)
 - 2026-03-28: Адресовано 13 review findings — error handling, валидация, UX, a11y, утечки памяти (claude-opus-4-6)
 - 2026-03-28: Адресовано 13 round 2 review findings — reorder upload/delete, sequential uploads, MIME fallback, DnD text guard, Object URL cleanup, silent catch logging (claude-opus-4-6)
 - 2026-03-29: Адресовано 11 round 3 review findings (8 real fixes + 3 N/A) — updatePost rollback, concurrency uploads, UUID crypto fallback, Object URL revocation, type safety, derivePostType default, DnD hardening (claude-opus-4-6)
+- 2026-03-29: Адресовано 15 round 4 review findings (8 real fixes + 3 N/A + 4 deferred) — N+1→upsert, allSettled upload rollback, formatSize precision, content max length, error cause chains, ObjectURL race fix, Zod toast, updatePost text rollback (claude-opus-4-6)

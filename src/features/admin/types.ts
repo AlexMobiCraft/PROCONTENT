@@ -41,7 +41,7 @@ export const PostFormSchema = z.object({
     .string()
     .transform((s) => s.trim())
     .pipe(z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)')),
-  content: z.string().optional(),
+  content: z.string().max(50000, 'Vsebina je predolga (max 50.000 znakov)').optional(),
   excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),
   category: z
     .string()

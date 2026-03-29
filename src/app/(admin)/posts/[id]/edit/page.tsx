@@ -53,6 +53,7 @@ async function EditPostContent({ postId }: { postId: string }) {
         content: data.content,
         excerpt: data.excerpt,
         category: data.category,
+        type: data.type,
         post_media: postMedia,
       }}
     />

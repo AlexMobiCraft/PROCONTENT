@@ -13,6 +13,7 @@ export interface UpdatePostInput {
   formValues: PostFormValues
   mediaItems: MediaItem[]
   originalMedia: ExistingMediaItem[]
+  originalFormValues: { title: string; content: string | null; excerpt: string | null; category: string; type: string }
 }
 
 /** Derives `posts.type` from the media items in the form state */
@@ -56,7 +57,8 @@ export async function createPost(input: CreatePostInput): Promise<string> {
 
   if (postError || !post) {
     throw new Error(
-      `Napaka pri ustvarjanju objave: ${postError?.message ?? 'Neznan error'}`
+      `Napaka pri ustvarjanju objave: ${postError?.message ?? 'Neznan error'}`,
+      { cause: postError }
     )
   }
 
@@ -98,7 +100,7 @@ export async function createPost(input: CreatePostInput): Promise<string> {
 
       const { error: mediaError } = await supabase.from('post_media').insert(postMediaPayload)
       if (mediaError) {
-        throw new Error(`Napaka pri shranjevanju medijev: ${mediaError.message}`)
+        throw new Error(`Napaka pri shranjevanju medijev: ${mediaError.message}`, { cause: mediaError })
       }
     }
 
@@ -123,7 +125,7 @@ export async function createPost(input: CreatePostInput): Promise<string> {
  */
 export async function updatePost(input: UpdatePostInput): Promise<void> {
   const supabase = createClient()
-  const { postId, formValues, mediaItems, originalMedia } = input
+  const { postId, formValues, mediaItems, originalMedia, originalFormValues } = input
 
   // Determine which original items have been removed
   const retainedIds = new Set(
@@ -133,28 +135,30 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
   )
   const removedItems = originalMedia.filter((m) => !retainedIds.has(m.id))
 
-  // 1. Update post text fields + type
-  const { error: updateError } = await supabase
-    .from('posts')
-    .update({
-      title: formValues.title,
-      content: formValues.content ?? null,
-      excerpt: formValues.excerpt ?? null,
-      category: formValues.category,
-      type: derivePostType(mediaItems),
-    })
-    .eq('id', postId)
-
-  if (updateError) {
-    throw new Error(`Napaka pri posodabljanju objave: ${updateError.message}`)
-  }
-
-  // 2. Upload new files FIRST (before deleting old ones to prevent data loss)
   // Track uploaded URLs for rollback on failure
   const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
   const uploadedUrls: string[] = []
+  let textUpdated = false
 
   try {
+    // 1. Update post text fields + type
+    const { error: updateError } = await supabase
+      .from('posts')
+      .update({
+        title: formValues.title,
+        content: formValues.content ?? null,
+        excerpt: formValues.excerpt ?? null,
+        category: formValues.category,
+        type: derivePostType(mediaItems),
+      })
+      .eq('id', postId)
+
+    if (updateError) {
+      throw new Error(`Napaka pri posodabljanju objave: ${updateError.message}`, { cause: updateError })
+    }
+    textUpdated = true
+
+    // 2. Upload new files FIRST (before deleting old ones to prevent data loss)
     await uploadFilesWithTracking(
       postId,
       newItems.map((item) => item.file),
@@ -170,7 +174,7 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
         .in('id', removedIds)
 
       if (deleteError) {
-        throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`)
+        throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`, { cause: deleteError })
       }
 
       // 4. Delete removed files from Storage (best-effort, log on failure)
@@ -179,16 +183,25 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       })
     }
 
-    // 5. Update order_index + is_cover for retained existing items — sequential to avoid rate limiting
+    // 5. Update order_index + is_cover for retained existing items — single upsert call
     const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')
-    for (const item of existingItems) {
+    if (existingItems.length > 0) {
+      const upsertPayload = existingItems.map((item) => ({
+        id: item.id,
+        post_id: postId,
+        url: item.url,
+        thumbnail_url: item.thumbnail_url,
+        media_type: item.media_type,
+        order_index: item.order_index,
+        is_cover: item.is_cover,
+      }))
+
       const { error } = await supabase
         .from('post_media')
-        .update({ order_index: item.order_index, is_cover: item.is_cover })
-        .eq('id', item.id)
+        .upsert(upsertPayload, { onConflict: 'id' })
 
       if (error) {
-        throw new Error(`Napaka pri posodabljanju vrstnega reda: ${error.message}`)
+        throw new Error(`Napaka pri posodabljanju vrstnega reda: ${error.message}`, { cause: error })
       }
     }
 
@@ -205,7 +218,7 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
 
       const { error: insertError } = await supabase.from('post_media').insert(newMediaPayload)
       if (insertError) {
-        throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`)
+        throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`, { cause: insertError })
       }
     }
   } catch (err) {
@@ -214,6 +227,23 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       await removeStorageFiles(uploadedUrls).catch((e) => {
         console.warn('Rollback: napaka pri brisanju novih datotek iz Storage:', e)
       })
+    }
+    // Rollback: revert text fields if they were updated before the failure
+    if (textUpdated) {
+      const { error: rollbackError } = await supabase
+        .from('posts')
+        .update({
+          title: originalFormValues.title,
+          content: originalFormValues.content,
+          excerpt: originalFormValues.excerpt,
+          category: originalFormValues.category,
+          type: originalFormValues.type,
+        })
+        .eq('id', postId)
+
+      if (rollbackError) {
+        console.warn('Rollback: napaka pri povrnitvi besedila objave:', rollbackError)
+      }
     }
     throw err
   }
@@ -250,7 +280,7 @@ export async function fetchPostForEdit(postId: string) {
     .single()
 
   if (error || !data) {
-    throw new Error(`Objava ni bila najdena: ${error?.message ?? ''}`)
+    throw new Error(`Objava ni bila najdena: ${error?.message ?? ''}`, { cause: error })
   }
 
   return data

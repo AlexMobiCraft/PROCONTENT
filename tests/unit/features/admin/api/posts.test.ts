@@ -8,6 +8,7 @@ function makeChain(result: unknown) {
   const chain = {
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
+    upsert: vi.fn().mockResolvedValue({ error: null }),
     delete: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
@@ -189,6 +190,7 @@ describe('updatePost', () => {
       formValues: baseFormValues,
       mediaItems: current,
       originalMedia: original,
+      originalFormValues: { title: 'Old', content: null, excerpt: null, category: 'old', type: 'text' },
     })
 
     expect(mockRemoveStorageFiles).toHaveBeenCalledWith([original[1].url])
@@ -205,6 +207,7 @@ describe('updatePost', () => {
         formValues: baseFormValues,
         mediaItems: [],
         originalMedia: [],
+        originalFormValues: { title: 'Old', content: null, excerpt: null, category: 'old', type: 'text' },
       })
     ).rejects.toThrow('Napaka pri posodabljanju objave')
   })

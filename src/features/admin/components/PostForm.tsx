@@ -12,6 +12,7 @@ import { MediaUploader } from './MediaUploader'
 import { createPost, updatePost } from '@/features/admin/api/posts'
 import {
   PostFormSchema,
+  MAX_MEDIA_FILES,
   type PostFormValues,
   type MediaItem,
   type NewMediaItem,
@@ -33,6 +34,7 @@ interface InitialData {
   content?: string | null
   excerpt?: string | null
   category: string
+  type?: string
   post_media?: PostMediaRow[]
 }
 
@@ -101,10 +103,11 @@ export function PostForm(props: PostFormProps) {
     setMediaItems(items)
   }
 
-  // Cleanup ObjectURLs on unmount
+  // Cleanup ObjectURLs on unmount — snapshot the ref to avoid double-revoke
   useEffect(() => {
-    const urls = objectUrlsRef.current
     return () => {
+      const urls = new Set(objectUrlsRef.current)
+      objectUrlsRef.current.clear()
       for (const url of urls) {
         URL.revokeObjectURL(url)
       }
@@ -129,11 +132,19 @@ export function PostForm(props: PostFormProps) {
   async function onSubmit(values: PostFormValues) {
     // Validate with Zod (react-hook-form handles required/max, but Zod is authoritative)
     const parsed = PostFormSchema.safeParse(values)
-    if (!parsed.success) return
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0]?.message ?? 'Napaka pri validaciji'
+      toast.error(firstError)
+      return
+    }
 
-    // Validate media: at least 1 file required
+    // Validate media: at least 1, at most MAX_MEDIA_FILES
     if (mediaItems.length === 0) {
       setMediaError('Dodajte vsaj eno medijsko datoteko')
+      return
+    }
+    if (mediaItems.length > MAX_MEDIA_FILES) {
+      setMediaError(`Največ ${MAX_MEDIA_FILES} datotek je dovoljenih`)
       return
     }
     setMediaError(null)
@@ -150,6 +161,13 @@ export function PostForm(props: PostFormProps) {
           formValues: parsed.data,
           mediaItems,
           originalMedia,
+          originalFormValues: {
+            title: initialData.title,
+            content: initialData.content ?? null,
+            excerpt: initialData.excerpt ?? null,
+            category: initialData.category,
+            type: initialData.type ?? 'text',
+          },
         })
         toast.success('Objava je bila posodobljena')
       } else {

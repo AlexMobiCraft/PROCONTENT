@@ -20,3 +20,9 @@
 
 ## Deferred from: code review of 3-4-automatic-email-notifications-new-posts.md (2026-03-27) - Round 5
 - **`excerpt` поле зависит от Story 4.1**: `post.excerpt` принимается route handler'ом и передаётся в шаблон, но таблица `posts` может не содержать этого поля до реализации Story 4.1. Пока excerpt приходит как `undefined` — шаблон отображает без excerpta. [src/app/api/notifications/new-post/route.ts:16]
+
+## Deferred from: code review of 4-1-creating-and-editing-multimedia-posts.md (2026-03-29) - Round 4
+- Отсутствие генерации миниатюр для видео (жесткий null) — deferred: требует бэкенд процессинга [src/features/admin/api/posts.ts]
+- Хрупкая логика отката в createPost при сбое сети — deferred: архитектурное ограничение клиента (недоступность RPC транзакций) [src/features/admin/api/posts.ts]
+- Определение MIME-типа по расширению — deferred: идеальное решение (магические числа) требует тяжелых библиотек [src/features/admin/components/MediaUploader.tsx]
+- Тихие утечки при удалении старых медиа (best-effort очистка) — deferred: осознанный компромисс из Round 3 для избежания блокировки UI [src/features/admin/api/posts.ts]
