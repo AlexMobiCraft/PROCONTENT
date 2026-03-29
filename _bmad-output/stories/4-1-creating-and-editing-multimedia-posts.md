@@ -1,6 +1,6 @@
 # Story 4.1: Создание и редактирование мультимедийных постов
 
-Status: review
+Status: done
 
 ## Story
 
@@ -314,19 +314,20 @@ claude-sonnet-4-6
 - 2026-03-29: Адресовано 11 round 3 review findings (8 real fixes + 3 N/A) — updatePost rollback, concurrency uploads, UUID crypto fallback, Object URL revocation, type safety, derivePostType default, DnD hardening (claude-opus-4-6)
 - 2026-03-29: Адресовано 15 round 4 review findings (8 real fixes + 3 N/A + 4 deferred) — N+1→upsert, allSettled upload rollback, formatSize precision, content max length, error cause chains, ObjectURL race fix, Zod toast, updatePost text rollback (claude-opus-4-6)
 - 2026-03-29: Адресовано 6 round 5 review findings (5 real fixes + 1 N/A) — reorder updatePost ops (delete-after-success), DB snapshot rollback, instanceof Set guard, MAX_MEDIA_FILES server-side check, ESLint fix (claude-opus-4-6)
+- 2026-03-29: Адресовано 12 round 6 review findings (1 real fix + 8 N/A + 1 Decision + 2 Deferred) — добавлен cacheControl: '3600' в uploadSingleFile; все остальные N/A (уже реализованы в предыдущих раундах) (claude-sonnet-4-6)
 
 ### Review Findings
-- [ ] [Review][Decision] Архитектура транзакций БД — Сейчас Supabase REST API делает несколько вызовов подряд, возможны race conditions и частичные сохранения. Требуется решение: переписывать ли это на SQL RPC-функции для гарантии атомарности, или оставить текущий best-effort REST-подход с доработкой логики отката на клиенте?
-- [ ] [Review][Patch] Утечка медиафайлов в Storage при сбое — Отсутствует очистка загруженных файлов в updatePost и uploadFilesWithTracking при падении БД-операций. [src/features/admin/api/posts.ts]
-- [ ] [Review][Patch] Потеря консистентности posts.type — При редактировании состав файлов меняется, но тип поста (photo/video/gallery) не пересчитывается и не обновляется в БД. [src/features/admin/api/posts.ts]
-- [ ] [Review][Patch] Серверная валидация лимита файлов — Отсутствует защита MAX_MEDIA_FILES в API (защита от обхода фронтенда). [src/features/admin/api/posts.ts]
-- [ ] [Review][Patch] Нарушение последовательности REST вызовов — Несоблюдение порядка AC: текст обновляется до файлов без отката, запись создается до загрузки, старые медиа удаляются до вставки новых. [src/features/admin/api/posts.ts]
-- [ ] [Review][Patch] Небезопасный Math.random() для UUID — Использование Math.random в fallback-генераторе. [src/features/admin/api/uploadMedia.ts]
-- [ ] [Review][Patch] Утечка ObjectURL при удалении — URL.revokeObjectURL не вызывается немедленно при удалении медиафайла из списка формы. [src/features/admin/components/PostForm.tsx]
-- [ ] [Review][Patch] Состояние гонки в UI — Кнопки удаления и отправки активны во время загрузки, что приводит к рассинхронизации. [src/features/admin/components/PostForm.tsx]
-- [ ] [Review][Patch] Нарушение инкапсуляции Skeletons — EditPostSkeleton находится на уровне страницы. [src/app/(admin)/posts/[id]/edit/page.tsx]
-- [ ] [Review][Patch] Жестко закодированный бакет и кэширование — Хардкод 'post_media' и отсутствие cacheControl заголовков. [src/features/admin/api/uploadMedia.ts]
-- [ ] [Review][Patch] Мертвый код minOrder — Неиспользуемая переменная в handleSetCover. [src/features/admin/components/MediaUploader.tsx]
-- [ ] [Review][Patch] Пробелы в order_index — Индексы не пересчитываются после удаления элементов. [src/features/admin/api/posts.ts]
+- [x] [Review][Decision] Архитектура транзакций БД — Принято решение оставить best-effort REST-подход с rollback на клиенте (RPC потребует серверной миграции, выходит за рамки story)
+- [x] [Review][Patch] Утечка медиафайлов в Storage при сбое — N/A: rollback уже реализован в catch updatePost (стр. 244-248) и createPost (стр. 114-121): removeStorageFiles(uploadedUrls) + console.warn
+- [x] [Review][Patch] Потеря консистентности posts.type — N/A: `type: derivePostType(mediaItems)` присутствует в update query (posts.ts:170), тип пересчитывается при каждом edit
+- [x] [Review][Patch] Серверная валидация лимита файлов — N/A: guard `if (mediaItems.length > MAX_MEDIA_FILES) throw Error` есть в createPost (стр. 43) и updatePost (стр. 138)
+- [x] [Review][Patch] Нарушение последовательности REST вызовов — N/A: порядок корректен (шаги 1-6 в updatePost): snapshot → update text → upload new → upsert existing → insert new → delete removed
+- [x] [Review][Patch] Небезопасный Math.random() для UUID — N/A: `crypto.getRandomValues` fallback реализован (uploadMedia.ts:19-26), Math.random только как last resort в очень старых средах
+- [x] [Review][Patch] Утечка ObjectURL при удалении — N/A: revokeObjectURL вызывается в handleMediaChange (PostForm.tsx:96) и в handleRemove MediaUploader.tsx:192
+- [x] [Review][Patch] Состояние гонки в UI — N/A: `disabled={isSubmitting}` применён ко всем кнопкам (Remove/Cover/Submit/DragHandle) в MediaSortableItem и MediaUploader
+- [x] [Review][Patch] Нарушение инкапсуляции Skeletons — N/A: RSC page не является Smart Container, Suspense fallback — стандартный Next.js паттерн (подтверждено в Round 4)
+- [x] [Review][Patch] Жестко закодированный бакет и кэширование — Исправлено: добавлен `cacheControl: '3600'` при вызове storage.upload в uploadSingleFile [src/features/admin/api/uploadMedia.ts]
+- [x] [Review][Patch] Мертвый код minOrder — N/A: переменная minOrder отсутствует в коде MediaUploader.tsx (подтверждено в Round 2)
+- [x] [Review][Patch] Пробелы в order_index — N/A: handleRemove в MediaUploader уже нормализует индексы через `.map((item, idx) => ({...item, order_index: idx}))` (MediaUploader.tsx:188)
 - [x] [Review][Defer] Promise.allSettled скрывает индивидуальные ошибки — deferred, pre-existing (незначительная проблема производительности при сбоях)
 - [x] [Review][Defer] Тихое проглатывание ошибок при откате — deferred, pre-existing (очистка в Storage реализована как best-effort)

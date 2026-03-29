@@ -121,14 +121,14 @@ development_status:
   # 2026-03-29: Round 4 Review findings resolved (8 fixes + 3 N/A + 4 deferred) → review
   # 2026-03-29: Раунд 5 Edge Case Review сгенерировал 6 action items. Story возвращена в in-progress.
   # 2026-03-29: Round 5 findings resolved (5 fixes + 1 N/A) → review
-  4-1-creating-and-editing-multimedia-posts: review
+  4-1-creating-and-editing-multimedia-posts: done
   # 2026-03-29: Story реализована → review
   # 2026-03-29: Code Review Round 1 (Group 1: DB & Types) — 10 patch findings
   # 2026-03-29: Code Review Round 2 (Group 2: API Layer) — 11 patch findings
   # 2026-03-29: Code Review Round 3 (Group 3: Components & Pages) — 12 patch findings
   # 2026-03-29: Code Review Round 4 (Group 4: Tests) — 20 patch findings
   # 2026-03-29: Code Review Complete — 53 patch findings (8 CRITICAL, 16 HIGH, 29 MEDIUM) left as action items → in-progress
-  4-2-managing-categories-and-post-rubrics: in-progress
+  4-2-managing-categories-and-post-rubrics: done
   4-3-managing-content-for-onboarding-and-landing: backlog
   4-4-monitoring-members-and-manual-access-control: backlog
   epic-4-retrospective: optional

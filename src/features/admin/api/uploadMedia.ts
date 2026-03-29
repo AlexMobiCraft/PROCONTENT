@@ -59,6 +59,7 @@ export async function uploadSingleFile(postId: string, file: File): Promise<stri
 
   const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
     upsert: false,
+    cacheControl: '3600',
   })
 
   if (error) {

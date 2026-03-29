@@ -1,6 +1,6 @@
 # Story 4.2: Управление категориями и рубриками постов
 
-Status: review-complete
+Status: done
 
 **Code Review Complete (2026-03-29):**
 - 53 patch findings (8 CRITICAL, 16 HIGH, 29 MEDIUM) — все исправлены (2026-03-29)
