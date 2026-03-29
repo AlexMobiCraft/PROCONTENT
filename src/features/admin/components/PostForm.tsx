@@ -105,9 +105,11 @@ export function PostForm(props: PostFormProps) {
 
   // Cleanup ObjectURLs on unmount — snapshot the ref to avoid double-revoke
   useEffect(() => {
+    const ref = objectUrlsRef.current
     return () => {
-      const urls = new Set(objectUrlsRef.current)
-      objectUrlsRef.current.clear()
+      if (!(ref instanceof Set)) return
+      const urls = new Set(ref)
+      ref.clear()
       for (const url of urls) {
         URL.revokeObjectURL(url)
       }
@@ -161,13 +163,6 @@ export function PostForm(props: PostFormProps) {
           formValues: parsed.data,
           mediaItems,
           originalMedia,
-          originalFormValues: {
-            title: initialData.title,
-            content: initialData.content ?? null,
-            excerpt: initialData.excerpt ?? null,
-            category: initialData.category,
-            type: initialData.type ?? 'text',
-          },
         })
         toast.success('Objava je bila posodobljena')
       } else {

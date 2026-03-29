@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ExistingMediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'
+import { MAX_MEDIA_FILES } from '@/features/admin/types'
 
 const mockFrom = vi.fn()
 
@@ -104,6 +105,14 @@ describe('createPost', () => {
     ).rejects.toThrow('Napaka pri ustvarjanju objave')
   })
 
+  it('throws when media items exceed MAX_MEDIA_FILES', async () => {
+    const tooMany = Array.from({ length: MAX_MEDIA_FILES + 1 }, (_, i) => makeNewItem(`k${i}`, i))
+
+    await expect(
+      createPost({ formValues: baseFormValues, mediaItems: tooMany, authorId: 'u1' })
+    ).rejects.toThrow('Prekoračena omejitev')
+  })
+
   it('uploads new media items with concurrency after post created', async () => {
     supabaseChain = makeChain({ data: { id: 'post-1' }, error: null })
     supabaseChain.insert
@@ -169,13 +178,17 @@ describe('updatePost', () => {
     )
     mockRemoveStorageFiles.mockResolvedValue(undefined)
     supabaseChain = makeChain({ data: null, error: null })
+    // Snapshot select returns current post data
+    supabaseChain.single.mockResolvedValue({
+      data: { title: 'DB Title', content: 'DB Content', excerpt: null, category: 'cat', type: 'photo' },
+      error: null,
+    })
     supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
     supabaseChain.delete.mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) })
   })
 
-  it('calls removeStorageFiles for deleted media', async () => {
+  it('deletes removed media only after all DB ops succeed', async () => {
     const original = [makeExistingItem('m1', 0), makeExistingItem('m2', 1)]
-    // Keep only m1 — m2 should be deleted
     const current = [makeExistingItem('m1', 0)]
 
     supabaseChain.update.mockReturnValue({
@@ -190,7 +203,6 @@ describe('updatePost', () => {
       formValues: baseFormValues,
       mediaItems: current,
       originalMedia: original,
-      originalFormValues: { title: 'Old', content: null, excerpt: null, category: 'old', type: 'text' },
     })
 
     expect(mockRemoveStorageFiles).toHaveBeenCalledWith([original[1].url])
@@ -207,8 +219,48 @@ describe('updatePost', () => {
         formValues: baseFormValues,
         mediaItems: [],
         originalMedia: [],
-        originalFormValues: { title: 'Old', content: null, excerpt: null, category: 'old', type: 'text' },
       })
     ).rejects.toThrow('Napaka pri posodabljanju objave')
+  })
+
+  it('throws when media items exceed MAX_MEDIA_FILES', async () => {
+    const tooMany = Array.from({ length: MAX_MEDIA_FILES + 1 }, (_, i) => makeNewItem(`k${i}`, i))
+
+    await expect(
+      updatePost({
+        postId: 'p1',
+        formValues: baseFormValues,
+        mediaItems: tooMany,
+        originalMedia: [],
+      })
+    ).rejects.toThrow('Prekoračena omejitev')
+  })
+
+  it('snapshots DB state for rollback instead of using stale page data', async () => {
+    // Snapshot returns current DB state
+    supabaseChain.single.mockResolvedValueOnce({
+      data: { title: 'Current DB Title', content: 'Current', excerpt: null, category: 'real', type: 'gallery' },
+      error: null,
+    })
+
+    // Make text update succeed, then upload fail
+    supabaseChain.update.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    })
+    mockUploadFilesWithTracking.mockRejectedValueOnce(new Error('Upload failed'))
+
+    const newItem = makeNewItem('k1', 0)
+
+    await expect(
+      updatePost({
+        postId: 'p1',
+        formValues: baseFormValues,
+        mediaItems: [newItem],
+        originalMedia: [],
+      })
+    ).rejects.toThrow('Upload failed')
+
+    // Verify rollback was called with DB snapshot values (not stale page data)
+    expect(supabaseChain.update).toHaveBeenCalledTimes(2) // update + rollback
   })
 })

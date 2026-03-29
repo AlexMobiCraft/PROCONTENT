@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type { ExistingMediaItem, MediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'
+import { MAX_MEDIA_FILES } from '@/features/admin/types'
 import { uploadFilesWithTracking, removeStorageFiles } from './uploadMedia'
 
 export interface CreatePostInput {
@@ -13,7 +14,6 @@ export interface UpdatePostInput {
   formValues: PostFormValues
   mediaItems: MediaItem[]
   originalMedia: ExistingMediaItem[]
-  originalFormValues: { title: string; content: string | null; excerpt: string | null; category: string; type: string }
 }
 
 /** Derives `posts.type` from the media items in the form state */
@@ -39,6 +39,10 @@ function derivePostType(items: MediaItem[]): string {
 export async function createPost(input: CreatePostInput): Promise<string> {
   const supabase = createClient()
   const { formValues, mediaItems, authorId } = input
+
+  if (mediaItems.length > MAX_MEDIA_FILES) {
+    throw new Error(`Prekoračena omejitev: največ ${MAX_MEDIA_FILES} datotek`)
+  }
 
   // 1. Insert post record
   const { data: post, error: postError } = await supabase
@@ -119,13 +123,21 @@ export async function createPost(input: CreatePostInput): Promise<string> {
 
 /**
  * Updates an existing post and its media.
- * Handles: updating text fields, uploading new files FIRST,
- * then deleting removed media from DB + Storage, updating order_index/is_cover.
- * Tracks uploaded URLs for rollback on failure.
+ * Operation order ensures no data loss on failure:
+ * 1. Snapshot current DB state (for rollback)
+ * 2. Update text fields
+ * 3. Upload new files (tracked for rollback)
+ * 4. Upsert existing media (order_index/is_cover)
+ * 5. Insert new post_media rows
+ * 6. Delete removed media from DB + Storage (only after all DB ops succeed)
  */
 export async function updatePost(input: UpdatePostInput): Promise<void> {
   const supabase = createClient()
-  const { postId, formValues, mediaItems, originalMedia, originalFormValues } = input
+  const { postId, formValues, mediaItems, originalMedia } = input
+
+  if (mediaItems.length > MAX_MEDIA_FILES) {
+    throw new Error(`Prekoračena omejitev: največ ${MAX_MEDIA_FILES} datotek`)
+  }
 
   // Determine which original items have been removed
   const retainedIds = new Set(
@@ -135,13 +147,19 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
   )
   const removedItems = originalMedia.filter((m) => !retainedIds.has(m.id))
 
-  // Track uploaded URLs for rollback on failure
   const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')
   const uploadedUrls: string[] = []
   let textUpdated = false
 
+  // 1. Snapshot current post state from DB for accurate rollback
+  const { data: snapshot } = await supabase
+    .from('posts')
+    .select('title, content, excerpt, category, type')
+    .eq('id', postId)
+    .single()
+
   try {
-    // 1. Update post text fields + type
+    // 2. Update post text fields + type
     const { error: updateError } = await supabase
       .from('posts')
       .update({
@@ -158,32 +176,14 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
     }
     textUpdated = true
 
-    // 2. Upload new files FIRST (before deleting old ones to prevent data loss)
+    // 3. Upload new files (tracked for rollback)
     await uploadFilesWithTracking(
       postId,
       newItems.map((item) => item.file),
       uploadedUrls
     )
 
-    // 3. Delete removed media rows from DB
-    if (removedItems.length > 0) {
-      const removedIds = removedItems.map((m) => m.id)
-      const { error: deleteError } = await supabase
-        .from('post_media')
-        .delete()
-        .in('id', removedIds)
-
-      if (deleteError) {
-        throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`, { cause: deleteError })
-      }
-
-      // 4. Delete removed files from Storage (best-effort, log on failure)
-      await removeStorageFiles(removedItems.map((m) => m.url)).catch((e) => {
-        console.warn('Napaka pri brisanju starih datotek iz Storage:', e)
-      })
-    }
-
-    // 5. Update order_index + is_cover for retained existing items — single upsert call
+    // 4. Upsert existing media (order_index/is_cover) — single call
     const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')
     if (existingItems.length > 0) {
       const upsertPayload = existingItems.map((item) => ({
@@ -205,7 +205,7 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       }
     }
 
-    // 6. Insert new post_media rows
+    // 5. Insert new post_media rows
     if (newItems.length > 0) {
       const newMediaPayload = newItems.map((item, idx) => ({
         post_id: postId,
@@ -221,23 +221,41 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
         throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`, { cause: insertError })
       }
     }
+
+    // 6. Delete removed media AFTER all DB ops succeed — prevents data loss on failure
+    if (removedItems.length > 0) {
+      const removedIds = removedItems.map((m) => m.id)
+      const { error: deleteError } = await supabase
+        .from('post_media')
+        .delete()
+        .in('id', removedIds)
+
+      if (deleteError) {
+        console.warn('Napaka pri brisanju starih medijev iz DB:', deleteError)
+      }
+
+      // Delete removed files from Storage (best-effort)
+      await removeStorageFiles(removedItems.map((m) => m.url)).catch((e) => {
+        console.warn('Napaka pri brisanju starih datotek iz Storage:', e)
+      })
+    }
   } catch (err) {
-    // Rollback: remove newly uploaded files from Storage on any failure
+    // Rollback: remove newly uploaded files from Storage
     if (uploadedUrls.length > 0) {
       await removeStorageFiles(uploadedUrls).catch((e) => {
         console.warn('Rollback: napaka pri brisanju novih datotek iz Storage:', e)
       })
     }
-    // Rollback: revert text fields if they were updated before the failure
-    if (textUpdated) {
+    // Rollback: revert text fields using DB snapshot (not stale page data)
+    if (textUpdated && snapshot) {
       const { error: rollbackError } = await supabase
         .from('posts')
         .update({
-          title: originalFormValues.title,
-          content: originalFormValues.content,
-          excerpt: originalFormValues.excerpt,
-          category: originalFormValues.category,
-          type: originalFormValues.type,
+          title: snapshot.title,
+          content: snapshot.content,
+          excerpt: snapshot.excerpt,
+          category: snapshot.category,
+          type: snapshot.type,
         })
         .eq('id', postId)
 

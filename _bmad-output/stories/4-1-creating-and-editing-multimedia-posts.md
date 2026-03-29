@@ -183,6 +183,17 @@ claude-sonnet-4-6
 | 11 | Media в Zod schema | MAX_MEDIA_FILES check в onSubmit |
 | 12-15 | 4 Deferred | Бэкенд миниатюры, сетевой откат, MIME libs, best-effort cleanup |
 
+✅ **Round 5 review findings адресованы (6/6, 5 real fixes + 1 N/A):**
+
+| # | Finding | Решение |
+|---|---------|---------|
+| 1 | Незавершенный откат при сбое upsert/insert | Удаление removed медиа перенесено ПОСЛЕ upsert/insert |
+| 2 | Storage deletion до успешного обновления БД | Storage cleanup перенесён в конец после всех DB ops |
+| 3 | Rollback на stale page data | DB snapshot перед update, используется для rollback |
+| 4 | objectUrlsRef instanceof guard | instanceof Set + ref capture в теле эффекта |
+| 5 | Повреждённая кодировка символов | N/A — UTF-8 кодировка корректна |
+| 6 | Нет server-side MAX_MEDIA_FILES | Guard в createPost и updatePost |
+
 ✅ **Round 3 review findings адресованы (11/11, 8 real fixes + 3 N/A):**
 
 | # | Finding | Решение |
@@ -287,13 +298,13 @@ claude-sonnet-4-6
 - [x] [Review][Defer] Определение MIME-типа по расширению — deferred: идеальное решение требует тяжелых библиотек
 - [x] [Review][Defer] Тихие утечки при удалении старых медиа (best-effort очистка) — deferred: осознанный компромисс из Round 3
 
-**Round 5: Final Edge Case & Consistency Review (2026-03-29)**
-- [ ] [Review][Patch] Incomplete rollback leaves database in corrupted state on media upsert/insert failure [src/features/admin/api/posts.ts:156-178]
-- [ ] [Review][Patch] Removed media files are permanently deleted from Storage before DB updates succeed [src/features/admin/api/posts.ts:116-119]
-- [ ] [Review][Patch] Rollback state relies on initial page data instead of current database state [src/features/admin/components/PostForm.tsx:161-168]
-- [ ] [Review][Patch] Unmount cleanup assumes objectUrlsRef.current is a Set [src/features/admin/components/PostForm.tsx:295-296]
-- [ ] [Review][Patch] Garbled character encoding in max files error message [src/features/admin/components/PostForm.tsx:318]
-- [ ] [Review][Patch] API lacks server-side enforcement of MAX_MEDIA_FILES limit [src/features/admin/api/posts.ts:67]
+**Раунд 5: Финальный Edge Case & Consistency Review (2026-03-29)**
+- [x] [Review][Patch] Незавершенный откат оставляет БД в поврежденном состоянии при сбое upsert/insert медиа [src/features/admin/api/posts.ts] — Исправлено: удаление removed медиа перенесено ПОСЛЕ успешного upsert/insert (шаг 6)
+- [x] [Review][Patch] Удаленные медиа-файлы безвозвратно удаляются из Storage до успешного обновления БД [src/features/admin/api/posts.ts] — Исправлено: Storage deletion перенесена в конец после всех DB операций
+- [x] [Review][Patch] Откат состояния полагается на начальные данные страницы вместо текущего состояния БД [src/features/admin/components/PostForm.tsx] — Исправлено: snapshot текущего состояния из БД перед update, используется для rollback
+- [x] [Review][Patch] Очистка при размонтировании предполагает, что objectUrlsRef.current это Set [src/features/admin/components/PostForm.tsx] — Исправлено: добавлен instanceof Set guard + захват ref в теле эффекта (ESLint fix)
+- [x] [Review][Patch] Поврежденная кодировка символов в сообщении об ошибке макс. количества файлов [src/features/admin/components/PostForm.tsx] — N/A: кодировка корректна (UTF-8 \xc4\x8d = č), все символы валидны
+- [x] [Review][Patch] В API отсутствует серверная проверка лимита MAX_MEDIA_FILES [src/features/admin/api/posts.ts] — Исправлено: guard в createPost и updatePost с throw Error
 
 ## Change Log
 
@@ -302,3 +313,4 @@ claude-sonnet-4-6
 - 2026-03-28: Адресовано 13 round 2 review findings — reorder upload/delete, sequential uploads, MIME fallback, DnD text guard, Object URL cleanup, silent catch logging (claude-opus-4-6)
 - 2026-03-29: Адресовано 11 round 3 review findings (8 real fixes + 3 N/A) — updatePost rollback, concurrency uploads, UUID crypto fallback, Object URL revocation, type safety, derivePostType default, DnD hardening (claude-opus-4-6)
 - 2026-03-29: Адресовано 15 round 4 review findings (8 real fixes + 3 N/A + 4 deferred) — N+1→upsert, allSettled upload rollback, formatSize precision, content max length, error cause chains, ObjectURL race fix, Zod toast, updatePost text rollback (claude-opus-4-6)
+- 2026-03-29: Адресовано 6 round 5 review findings (5 real fixes + 1 N/A) — reorder updatePost ops (delete-after-success), DB snapshot rollback, instanceof Set guard, MAX_MEDIA_FILES server-side check, ESLint fix (claude-opus-4-6)
