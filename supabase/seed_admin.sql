@@ -13,5 +13,5 @@ SET
   current_period_end  = now() + INTERVAL '1 year',
   display_name        = COALESCE(NULLIF(display_name, ''), 'Admin')
 WHERE id = (
-  SELECT id FROM auth.users WHERE email = 'your-email@example.com' LIMIT 1
+  SELECT id FROM auth.users WHERE email = 'milenagasparin@gmail.com' LIMIT 1
 );
