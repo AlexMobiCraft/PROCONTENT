@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { ADMIN_POSTS_CREATE_PATH, ADMIN_CATEGORIES_PATH, ADMIN_SETTINGS_PATH } from '@/lib/app-routes'
+import { useFeedStore } from '@/features/feed/store'
 import { EmailPreferencesCard } from './EmailPreferencesCard'
 import { SubscriptionCard } from './SubscriptionCard'
 import { PasswordResetCard } from './PasswordResetCard'
@@ -75,6 +76,9 @@ export function ProfileScreen({
     }
     if (updates.avatar_url !== undefined) {
       setCurrentAvatarUrl(updates.avatar_url)
+      if (userId) {
+        useFeedStore.getState().updateProfileAvatar(userId, updates.avatar_url)
+      }
     }
   }
 

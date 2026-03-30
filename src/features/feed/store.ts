@@ -29,6 +29,8 @@ interface FeedState {
   updatePost: (postId: string, updates: Partial<Post>) => void
   addPendingLike: (postId: string) => void
   removePendingLike: (postId: string) => void
+  /** Обновляет avatar_url профиля во всех кэшированных постах этого автора */
+  updateProfileAvatar: (userId: string, avatarUrl: string | null) => void
 }
 
 const initialState = {
@@ -102,5 +104,14 @@ export const useFeedStore = create<FeedState>((set) => ({
     })),
 
   setActiveVideo: (id) => set({ activeVideoId: id }),
+
+  updateProfileAvatar: (userId, avatarUrl) =>
+    set((state) => ({
+      posts: state.posts.map((p) =>
+        p.author_id === userId && p.profiles
+          ? { ...p, profiles: { ...p.profiles, avatar_url: avatarUrl } }
+          : p
+      ),
+    })),
 }))
 
