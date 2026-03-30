@@ -1,15 +1,17 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { Pencil, Trash2 } from 'lucide-react'
 import { deletePost } from '@/features/admin/api/posts'
 import { getAdminPostEditPath } from '@/lib/app-routes'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { GalleryGrid } from './GalleryGrid'
-import { PostActionsMenu } from './PostActionsMenu'
 import { HeartIcon } from '@/components/ui/icons/HeartIcon'
 import { CommentIcon } from '@/components/ui/icons/CommentIcon'
 import { createClient } from '@/lib/supabase/client'
@@ -58,6 +60,8 @@ export function PostDetail({
   const [liked, setLiked] = useState(post.is_liked)
   const [likesCount, setLikesCount] = useState(post.likes)
   const [isPending, setIsPending] = useState(false)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [isDeletingPost, setIsDeletingPost] = useState(false)
   // Предотвращает утечку памяти: не вызываем setState на unmounted компоненте
   const isMountedRef = useRef(true)
 
@@ -86,14 +90,24 @@ export function PostDetail({
       return
     }
 
+    if (isDeletingPost) {
+      return
+    }
+
+    setIsDeletingPost(true)
     try {
       await deletePost(post.id)
       useFeedStore.getState().removePost(post.id)
       toast.success('Objava je bila izbrisana')
+      setIsDeleteConfirmOpen(false)
       router.replace('/feed')
     } catch (error) {
       console.error('Napaka pri brisanju objave:', error)
       toast.error('Brisanje objave ni uspelo')
+    } finally {
+      if (isMountedRef.current) {
+        setIsDeletingPost(false)
+      }
     }
   }
 
@@ -213,12 +227,31 @@ export function PostDetail({
           </div>
         </div>
         <div className="ml-auto">
-          <PostActionsMenu
-            canEdit={canEditPost}
-            canDelete={canDeletePost}
-            editHref={canEditPost ? getAdminPostEditPath(post.id) : undefined}
-            onDelete={handleDeletePost}
-          />
+          <div className="flex items-center gap-2">
+            {canEditPost ? (
+              <Link
+                href={getAdminPostEditPath(post.id)}
+                aria-label="Uredi objavo"
+                title="Uredi objavo"
+                className={buttonVariants({ variant: 'outline', size: 'icon' })}
+              >
+                <Pencil className="size-4" />
+              </Link>
+            ) : null}
+            {canDeletePost ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                aria-label="Izbriši objavo"
+                title="Izbriši objavo"
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                disabled={isDeletingPost}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -316,6 +349,48 @@ export function PostDetail({
           </div>
         )}
       </section>
+
+      {isDeleteConfirmOpen ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-foreground/40 p-4 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-post-title"
+            aria-describedby="delete-post-description"
+            className="w-full max-w-sm rounded-[1.5rem] border border-border bg-background p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
+          >
+            <div className="flex flex-col gap-2">
+              <h3 id="delete-post-title" className="font-heading text-xl font-semibold text-foreground">
+                Izbris objave
+              </h3>
+              <p id="delete-post-description" className="text-sm leading-relaxed text-muted-foreground">
+                Ali res želite izbrisati to objavo? Tega dejanja ni mogoče razveljaviti.
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                disabled={isDeletingPost}
+              >
+                Prekliči
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => void handleDeletePost()}
+                disabled={isDeletingPost}
+              >
+                {isDeletingPost ? 'Brisanje…' : 'Izbriši'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </article>
   )
 }
