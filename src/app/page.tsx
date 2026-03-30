@@ -43,7 +43,7 @@ export default async function LandingPage() {
           src="/images/hero-bg.png"
           alt=""
           fill
-          className="object-cover object-center opacity-10"
+          className="object-contain object-center opacity-10"
           priority
         />
       </div>
