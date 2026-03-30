@@ -9,12 +9,16 @@ interface CommentFormProps {
   parentId?: string | null
   placeholder?: string
   autoFocus?: boolean
+  formId?: string
+  showSubmitButton?: boolean
 }
 
 export function CommentForm({
   onSubmit,
   placeholder = 'Napišite komentar...',
   autoFocus = false,
+  formId,
+  showSubmitButton = true,
 }: CommentFormProps) {
   const [content, setContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -35,7 +39,7 @@ export function CommentForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+    <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-2">
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
@@ -48,19 +52,21 @@ export function CommentForm({
           'focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30'
         )}
       />
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={isEmpty || isSubmitting}
-          className={cn(
-            'min-h-[44px] min-w-[44px] rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground',
-            'transition-colors hover:bg-primary/90',
-            'disabled:cursor-not-allowed disabled:opacity-50'
-          )}
-        >
-          {isSubmitting ? 'Pošiljanje...' : 'Pošlji'}
-        </button>
-      </div>
+      {showSubmitButton ? (
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={isEmpty || isSubmitting}
+            className={cn(
+              'flex size-11 items-center justify-center border border-primary bg-transparent font-sans text-[10px] font-medium uppercase tracking-[0.2em] text-foreground',
+              'transition-colors hover:bg-primary/10',
+              'disabled:cursor-not-allowed disabled:opacity-50'
+            )}
+          >
+            {isSubmitting ? 'Pošiljanje...' : 'Pošlji'}
+          </button>
+        </div>
+      ) : null}
     </form>
   )
 }

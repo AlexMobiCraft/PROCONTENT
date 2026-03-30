@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
+import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -101,15 +102,17 @@ export function PostActionsMenu({
             align === 'right' ? 'right-0' : 'left-0'
           )}
         >
-          <div className="flex flex-col p-1">
+          <div className="flex items-center gap-1 p-1">
             {canEdit && editHref ? (
               <Link
                 href={editHref}
                 role="menuitem"
-                className="flex min-h-[44px] items-center rounded-xl px-4 text-xs font-medium uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-muted"
+                aria-label="Uredi objavo"
+                title="Uredi objavo"
+                className="flex size-11 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 onClick={() => setIsMenuOpen(false)}
               >
-                Uredi objavo
+                <Pencil className="size-4" />
               </Link>
             ) : null}
 
@@ -117,13 +120,15 @@ export function PostActionsMenu({
               <button
                 type="button"
                 role="menuitem"
-                className="flex min-h-[44px] items-center rounded-xl px-4 text-left text-xs font-medium uppercase tracking-[0.2em] text-destructive transition-colors hover:bg-destructive/10"
+                aria-label="Izbriši objavo"
+                title="Izbriši objavo"
+                className="flex size-11 items-center justify-center rounded-xl text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 onClick={() => {
                   setIsMenuOpen(false)
                   setIsConfirmOpen(true)
                 }}
               >
-                Izbriši objavo
+                <Trash2 className="size-4" />
               </button>
             ) : null}
           </div>
