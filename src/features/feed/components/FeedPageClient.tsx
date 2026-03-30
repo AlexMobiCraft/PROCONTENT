@@ -14,9 +14,11 @@ import type { FeedPage } from '../types'
 export function FeedPageClient({
   initialData,
   initialUserId,
+  initialUserRole,
 }: {
   initialData: FeedPage
   initialUserId?: string | null
+  initialUserRole?: string | null
 }) {
   // Точечные селекторы — компонент перерисовывается только при изменении
   // activeCategory или changeCategory, а не при любом изменении store.
@@ -34,6 +36,7 @@ export function FeedPageClient({
         <FeedContainer
           initialData={initialData}
           initialUserId={initialUserId}
+          initialUserRole={initialUserRole}
         />
       </div>
 

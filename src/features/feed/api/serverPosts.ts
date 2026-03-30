@@ -8,6 +8,7 @@ const PAGE_SIZE = 10
 export async function fetchInitialPostsServer(): Promise<{
   feedPage: FeedPage
   currentUserId: string | null
+  currentUserRole: string | null
 }> {
   try {
     const supabase = await createClient()
@@ -32,8 +33,11 @@ export async function fetchInitialPostsServer(): Promise<{
     const lastPost = posts[posts.length - 1]
     const nextCursor = lastPost ? `${lastPost.created_at}|${lastPost.id}` : null
     const currentUserId = userResult.data?.user?.id ?? null
+    const currentUserRole = currentUserId
+      ? ((await supabase.from('profiles').select('role').eq('id', currentUserId).single()).data?.role ?? null)
+      : null
 
-    return { feedPage: { posts, nextCursor, hasMore }, currentUserId }
+    return { feedPage: { posts, nextCursor, hasMore }, currentUserId, currentUserRole }
   } catch (err) {
     console.error('[fetchInitialPostsServer] Supabase query failed:', err)
     throw err

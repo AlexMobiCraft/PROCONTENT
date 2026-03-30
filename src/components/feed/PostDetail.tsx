@@ -4,9 +4,11 @@ import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { deletePost } from '@/features/admin/api/posts'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { GalleryGrid } from './GalleryGrid'
+import { PostActionsMenu } from './PostActionsMenu'
 import { HeartIcon } from '@/components/ui/icons/HeartIcon'
 import { CommentIcon } from '@/components/ui/icons/CommentIcon'
 import { createClient } from '@/lib/supabase/client'
@@ -65,6 +67,8 @@ export function PostDetail({
   })
 
   const currentUserIsAdmin = currentUserProfile?.role === 'admin'
+  const canDeletePost = Boolean(currentUserId && (currentUserId === post.author_id || currentUserIsAdmin))
+  const canEditPost = currentUserId === post.author_id
 
   async function handleDelete(commentId: string) {
     try {
@@ -72,6 +76,23 @@ export function PostDetail({
       toast.success('Komentar je bil izbrisan')
     } catch {
       toast.error('Napaka pri brisanju komentarja')
+    }
+  }
+
+  async function handleDeletePost() {
+    if (!canDeletePost) {
+      toast.error('Objavo lahko izbriše avtorica ali admin')
+      return
+    }
+
+    try {
+      await deletePost(post.id)
+      useFeedStore.getState().removePost(post.id)
+      toast.success('Objava je bila izbrisana')
+      router.replace('/feed')
+    } catch (error) {
+      console.error('Napaka pri brisanju objave:', error)
+      toast.error('Brisanje objave ni uspelo')
     }
   }
 
@@ -189,6 +210,14 @@ export function PostDetail({
             </span>
             <time dateTime={post.created_at} className="text-xs text-muted-foreground">{displayDate}</time>
           </div>
+        </div>
+        <div className="ml-auto">
+          <PostActionsMenu
+            canEdit={canEditPost}
+            canDelete={canDeletePost}
+            editHref={canEditPost ? `/admin/posts/${post.id}/edit` : undefined}
+            onDelete={handleDeletePost}
+          />
         </div>
       </header>
 

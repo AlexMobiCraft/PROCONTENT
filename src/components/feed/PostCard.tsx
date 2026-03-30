@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { PostActionsMenu } from './PostActionsMenu'
 import { LazyMediaWrapper, type MediaItem } from '../media/LazyMediaWrapper'
 import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { GalleryGrid, GalleryGridSkeleton } from './GalleryGrid'
@@ -46,6 +47,9 @@ interface PostCardProps {
   priority?: boolean
   /** Кнопка лайка заблокирована — запрос toggle_like в процессе */
   isPending?: boolean
+  canManage?: boolean
+  canEdit?: boolean
+  editHref?: string
   onCommentClick?: (postId: string) => void
   /** Вызывается при нажатии кнопки лайка — вызывающий код определяет направление toggle. */
   onLikeToggle?: (postId: string) => void
@@ -55,7 +59,7 @@ interface PostCardProps {
   onCategoryClick?: (category: string) => void
 }
 
-export function PostCard({ post, priority = false, isPending = false, onCommentClick, onLikeToggle, onOptionsClick, onCategoryClick }: PostCardProps) {
+export function PostCard({ post, priority = false, isPending = false, canManage = false, canEdit = false, editHref, onCommentClick, onLikeToggle, onOptionsClick, onCategoryClick }: PostCardProps) {
   const router = useRouter()
   // Локальный state не нужен: FeedContainer управляет оптимистичным обновлением post.isLiked/post.likes
   const liked = post.isLiked ?? false
@@ -133,17 +137,12 @@ export function PostCard({ post, priority = false, isPending = false, onCommentC
           </div>
         </div>
 
-        {/* Options button */}
-        <button
-          type="button"
-          onClick={() => onOptionsClick?.(post.id)}
-          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"
-          aria-label="Možnosti objave"
-        >
-          <svg className="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-            <path d="M12 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-          </svg>
-        </button>
+        <PostActionsMenu
+          canEdit={canEdit}
+          canDelete={canManage}
+          editHref={editHref}
+          onDelete={() => onOptionsClick?.(post.id)}
+        />
       </header>
 
       {/* Media Content — кликабельна, tabIndex=-1 чтобы не дублировать tab-stop с заголовком */}

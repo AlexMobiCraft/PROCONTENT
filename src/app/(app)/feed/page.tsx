@@ -8,6 +8,6 @@ export const dynamic = 'force-dynamic'
 // браузер preload-ит их немедленно, LCP соответствует NFR1 (≤ 2.5с).
 // currentUserId передаётся для устранения badge pop-in при гидрации auth store.
 export default async function FeedPage() {
-  const { feedPage: initialData, currentUserId } = await fetchInitialPostsServer()
-  return <FeedPageClient initialData={initialData} initialUserId={currentUserId} />
+  const { feedPage: initialData, currentUserId, currentUserRole } = await fetchInitialPostsServer()
+  return <FeedPageClient initialData={initialData} initialUserId={currentUserId} initialUserRole={currentUserRole} />
 }

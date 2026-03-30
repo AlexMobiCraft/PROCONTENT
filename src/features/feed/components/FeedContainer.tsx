@@ -50,10 +50,12 @@ const SENTINEL_ROOT_MARGIN = '200px'
 export function FeedContainer({
   initialData,
   initialUserId,
+  initialUserRole,
   onCommentClick,
 }: {
   initialData?: FeedPage
   initialUserId?: string | null
+  initialUserRole?: string | null
   onCommentClick?: (postId: string) => void
 } = {}) {
   // Индивидуальные селекторы — компонент перерисовывается только при изменении
@@ -71,6 +73,7 @@ export function FeedContainer({
 
   const isAuthReady = useAuthStore((state) => state.isReady)
   const resolvedUserId = isAuthReady ? currentUserId : (initialUserId ?? null)
+  const resolvedUserRole = initialUserRole ?? null
 
   const observerRef = useRef<HTMLDivElement>(null)
   const initialLoadAbortRef = useRef<AbortController | null>(null)
@@ -362,13 +365,12 @@ export function FeedContainer({
       const post = useFeedStore.getState().posts.find((item) => item.id === postId)
       if (!post) return
 
-      if (post.author_id !== currentUser.id) {
-        toast.error('Objavo lahko izbriše samo avtorica')
+      const canDelete = post.author_id === currentUser.id || resolvedUserRole === 'admin'
+
+      if (!canDelete) {
+        toast.error('Objavo lahko izbriše avtorica ali admin')
         return
       }
-
-      const confirmed = window.confirm('Ali res želite izbrisati to objavo?')
-      if (!confirmed) return
 
       try {
         await deletePost(postId)
@@ -379,7 +381,7 @@ export function FeedContainer({
         toast.error('Brisanje objave ni uspelo')
       }
     },
-    [currentUser, router]
+    [currentUser, resolvedUserRole, router]
   )
 
   // Auto-trigger loadMore когда displayedPosts.length === 0 и sentinel в DOM,
@@ -500,6 +502,9 @@ export function FeedContainer({
               post={cardData}
               priority={index < 2}
               isPending={pendingLikes.includes(cardData.id)}
+              canManage={Boolean(resolvedUserId && (resolvedUserId === displayedPosts[index]?.author_id || resolvedUserRole === 'admin'))}
+              canEdit={resolvedUserId === displayedPosts[index]?.author_id}
+              editHref={resolvedUserId === displayedPosts[index]?.author_id ? `/admin/posts/${cardData.id}/edit` : undefined}
               onLikeToggle={handleLikeToggle}
               onCommentClick={onCommentClick}
               onOptionsClick={handleOptionsClick}
