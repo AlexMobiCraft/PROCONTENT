@@ -1,16 +1,25 @@
 -- Migration: 036_add_user_profile_fields.sql
 -- Добавление полей first_name и last_name в таблицу profiles
 
--- Добавить поля first_name и last_name
+-- Шаг 1: Добавить поля (сначала без NOT NULL для existing data)
 alter table public.profiles
-  add column if not exists first_name text not null default '',
+  add column if not exists first_name text,
   add column if not exists last_name text;
 
--- Удалить default после добавления данных для новых пользователей
-alter table public.profiles
-  alter column first_name drop default;
+-- Шаг 2: Заполнить existing строки перед добавлением constraints
+-- Используем часть email до @, или "User" если email < 3 символов
+update public.profiles
+set first_name = coalesce(
+  nullif(trim(substring(email from 1 for position('@' in email) - 1)), ''),
+  'User'
+)
+where first_name is null or first_name = '';
 
--- Fix #7: CHECK constraints — server-side enforcement длины имён
+-- Шаг 3: Добавить NOT NULL constraint на first_name
+alter table public.profiles
+  alter column first_name set not null;
+
+-- Шаг 4: Добавить CHECK constraints для валидации (Fix #7)
 alter table public.profiles
   add constraint check_first_name_not_empty
     check (first_name <> ''),

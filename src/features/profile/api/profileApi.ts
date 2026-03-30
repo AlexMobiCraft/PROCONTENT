@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/client'
 
 const AVATARS_BUCKET = 'avatars'
-const MAX_AVATAR_SIZE = 5 * 1024 * 1024 // 5MB
+const MAX_AVATAR_SIZE = 512 * 512 // 256KB
 
 // Fix #5: белый список допустимых MIME-типов
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -34,7 +34,7 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
   }
 
   if (file.size > MAX_AVATAR_SIZE) {
-    throw new Error(`Datoteka je prevelika. Največja velikost je 5 MB.`)
+    throw new Error(`Datoteka je prevelika. Največja velikost je 256 KB.`)
   }
 
   const supabase = createClient()

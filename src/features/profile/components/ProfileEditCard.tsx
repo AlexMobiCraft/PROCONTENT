@@ -146,7 +146,7 @@ export function ProfileEditCard({
             onChange={handleAvatarUpload}
             className="hidden"
           />
-          <p className="text-[10px] text-muted-foreground mt-1">Največja velikost: 5 MB</p>
+          <p className="text-[10px] text-muted-foreground mt-1">Največja velikost: 256 KB</p>
         </div>
       </div>
 

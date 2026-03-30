@@ -143,5 +143,5 @@ development_status:
   epic-5: in-progress
   # 2026-03-30: Story-файл создан SM Bob
   # 2026-03-30: Story реализована → review
-  5-1-access-to-the-entire-content-archive-telegram-migration: review
+  5-1-access-to-the-entire-content-archive-telegram-migration: done
   epic-5-retrospective: optional
