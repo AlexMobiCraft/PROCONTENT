@@ -1,6 +1,6 @@
 # Story 4.4: Мониторинг участниц и ручное управление доступом
 
-Status: review
+Status: done
 
 ## Story
 

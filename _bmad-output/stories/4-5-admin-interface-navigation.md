@@ -1,6 +1,6 @@
 # Story 4.5: Навигация в интерфейсе администратора
 
-Status: review
+Status: done
 
 ## Story
 

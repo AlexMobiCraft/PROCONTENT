@@ -1,6 +1,6 @@
 # Story 4.3: Управление контентом для Onboarding и Лендинга
 
-Status: review
+Status: done
 
 ## Story
 

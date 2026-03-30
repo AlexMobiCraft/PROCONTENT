@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-03-30 (Story 4.4 ready-for-dev)
+last_updated: 2026-03-30 (Story 5.1 ready-for-dev)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -131,15 +131,16 @@ development_status:
   # 2026-03-29: Code Review Complete — 53 patch findings (8 CRITICAL, 16 HIGH, 29 MEDIUM) left as action items → in-progress
   4-2-managing-categories-and-post-rubrics: done
   # 2026-03-30: Story реализована → review
-  4-3-managing-content-for-onboarding-and-landing: review
+  4-3-managing-content-for-onboarding-and-landing: done
   # 2026-03-30: Story реализована → review
-  4-4-monitoring-members-and-manual-access-control: review
+  4-4-monitoring-members-and-manual-access-control: done
   # 2026-03-30: Добавлена новая story — admin-навигация обнаружена как пропущенная при реализации 4.3
-  4-5-admin-interface-navigation: review
+  4-5-admin-interface-navigation: done
   epic-4-retrospective: optional
 
   # ─── EPIC 5: Platform Initialization (Telegram Migration) ──────────────────
   # Story 5-1 обновлена 2026-03-22: группировка медиагрупп, Exponential Backoff, post_media
-  epic-5: backlog
-  5-1-access-to-the-entire-content-archive-telegram-migration: backlog
+  epic-5: in-progress
+  # 2026-03-30: Story-файл создан SM Bob
+  5-1-access-to-the-entire-content-archive-telegram-migration: ready-for-dev
   epic-5-retrospective: optional
