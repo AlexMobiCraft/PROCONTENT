@@ -134,7 +134,7 @@ development_status:
   4-3-managing-content-for-onboarding-and-landing: review
   4-4-monitoring-members-and-manual-access-control: backlog
   # 2026-03-30: Добавлена новая story — admin-навигация обнаружена как пропущенная при реализации 4.3
-  4-5-admin-interface-navigation: ready-for-dev
+  4-5-admin-interface-navigation: review
   epic-4-retrospective: optional
 
   # ─── EPIC 5: Platform Initialization (Telegram Migration) ──────────────────

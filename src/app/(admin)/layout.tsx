@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { AuthProvider } from '@/features/auth/components/AuthProvider'
+import { AdminSidebar } from '@/components/navigation/AdminSidebar'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function AdminLayout({
@@ -32,7 +33,10 @@ export default async function AdminLayout({
 
   return (
     <AuthProvider user={user} session={session}>
-      {children}
+      <div className="md:flex md:min-h-screen">
+        <AdminSidebar />
+        <main className="min-w-0 flex-1">{children}</main>
+      </div>
     </AuthProvider>
   )
 }

@@ -46,6 +46,7 @@ export default async function ProfilePage() {
       userId={user.id}
       emailNotificationsEnabled={profile?.email_notifications_enabled ?? true}
       canManageEmailPreferences={!!profile}
+      isAdmin={profile?.role === 'admin'}
     />
   )
 }

@@ -15,6 +15,11 @@ vi.mock('@/lib/supabase/server', () => ({
       getUser: mockGetUser,
       getSession: mockGetSession,
     },
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'member' }, error: null }),
+    })),
   })),
 }))
 

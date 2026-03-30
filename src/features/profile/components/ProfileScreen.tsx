@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { ADMIN_POSTS_CREATE_PATH, ADMIN_CATEGORIES_PATH, ADMIN_SETTINGS_PATH } from '@/lib/app-routes'
 import { EmailPreferencesCard } from './EmailPreferencesCard'
 import { SubscriptionCard } from './SubscriptionCard'
 import { PasswordResetCard } from './PasswordResetCard'
@@ -18,6 +20,7 @@ interface ProfileScreenProps {
   userId?: string
   emailNotificationsEnabled?: boolean | null
   canManageEmailPreferences?: boolean
+  isAdmin?: boolean
 }
 
 export function ProfileScreen({
@@ -29,6 +32,7 @@ export function ProfileScreen({
   userId,
   emailNotificationsEnabled: initialEmailEnabled,
   canManageEmailPreferences = false,
+  isAdmin = false,
 }: ProfileScreenProps) {
   const [emailEnabled, setEmailEnabled] = useState(initialEmailEnabled ?? true)
   const [isEmailSaving, setIsEmailSaving] = useState(false)
@@ -95,6 +99,40 @@ export function ProfileScreen({
           )}
 
           <PasswordResetCard email={email} />
+
+          {isAdmin && (
+            <section
+              aria-label="Administracija"
+              className="rounded-xl border border-border bg-card p-6 space-y-3"
+            >
+              <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Administracija
+              </h2>
+              <div className="space-y-1">
+                <Link
+                  href={ADMIN_POSTS_CREATE_PATH}
+                  aria-label="Nova objava"
+                  className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                >
+                  Nova objava
+                </Link>
+                <Link
+                  href={ADMIN_CATEGORIES_PATH}
+                  aria-label="Kategorije"
+                  className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                >
+                  Kategorije
+                </Link>
+                <Link
+                  href={ADMIN_SETTINGS_PATH}
+                  aria-label="Nastavitve administracije"
+                  className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                >
+                  Nastavitve
+                </Link>
+              </div>
+            </section>
+          )}
         </div>
       </div>
 

@@ -22,10 +22,16 @@ export default async function AppLayout({
     const { data: sessionData } = await supabase.auth.getSession()
     const session = sessionData?.session
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
     return (
       <AuthProvider user={user} session={session}>
         <div className="md:mx-auto md:flex md:max-w-[1200px]">
-          <DesktopSidebar />
+          <DesktopSidebar isAdmin={profile?.role === 'admin'} />
           <div className="min-w-0 flex-1">{children}</div>
         </div>
         <div className="md:hidden">

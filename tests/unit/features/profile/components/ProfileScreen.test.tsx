@@ -54,6 +54,14 @@ vi.mock('sonner', () => ({
   },
 }))
 
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...props }: { href: string; children: React.ReactNode; [key: string]: unknown }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}))
+
 import { ProfileScreen } from '@/features/profile/components/ProfileScreen'
 
 const defaultProps = {
@@ -188,6 +196,37 @@ describe('ProfileScreen', () => {
     await waitFor(() => {
       expect(toggle).toHaveAttribute('aria-checked', 'true')
     })
+  })
+
+  it('не показывает admin-секцию без isAdmin', () => {
+    render(<ProfileScreen {...defaultProps} />)
+    expect(screen.queryByRole('region', { name: 'Administracija' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Nova objava')).not.toBeInTheDocument()
+  })
+
+  it('не показывает admin-секцию при isAdmin=false', () => {
+    render(<ProfileScreen {...defaultProps} isAdmin={false} />)
+    expect(screen.queryByText('Nova objava')).not.toBeInTheDocument()
+    expect(screen.queryByText('Kategorije')).not.toBeInTheDocument()
+  })
+
+  it('показывает admin-секцию при isAdmin=true', () => {
+    render(<ProfileScreen {...defaultProps} isAdmin={true} />)
+    expect(screen.getByText('Administracija')).toBeInTheDocument()
+  })
+
+  it('при isAdmin=true показывает 3 admin-ссылки', () => {
+    render(<ProfileScreen {...defaultProps} isAdmin={true} />)
+    expect(screen.getByText('Nova objava')).toBeInTheDocument()
+    expect(screen.getByText('Kategorije')).toBeInTheDocument()
+    expect(screen.getByText('Nastavitve')).toBeInTheDocument()
+  })
+
+  it('admin-ссылки ведут на правильные пути', () => {
+    render(<ProfileScreen {...defaultProps} isAdmin={true} />)
+    expect(screen.getByRole('link', { name: 'Nova objava' })).toHaveAttribute('href', '/admin/posts/create')
+    expect(screen.getByRole('link', { name: 'Kategorije' })).toHaveAttribute('href', '/admin/categories')
+    expect(screen.getByRole('link', { name: 'Nastavitve administracije' })).toHaveAttribute('href', '/admin/settings')
   })
 
   it('не вызывает Supabase если userId не передан', async () => {

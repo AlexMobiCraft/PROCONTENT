@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockRedirect = vi.hoisted(() => vi.fn())
 const mockGetUser = vi.hoisted(() => vi.fn())
-const mockSingle = vi.hoisted(() => vi.fn())
+const mockMaybeSingle = vi.hoisted(() => vi.fn())
 
 vi.mock('next/navigation', () => ({
   redirect: mockRedirect,
@@ -14,7 +14,7 @@ vi.mock('@/lib/supabase/server', () => ({
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: mockSingle,
+      maybeSingle: mockMaybeSingle,
     })),
   })),
 }))
@@ -41,7 +41,7 @@ describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123', email: 'test@example.com' } } })
-    mockSingle.mockResolvedValue({ data: mockProfile, error: null })
+    mockMaybeSingle.mockResolvedValue({ data: mockProfile, error: null })
   })
 
   it('рендерит ProfileScreen с данными профиля', async () => {
@@ -59,7 +59,7 @@ describe('ProfilePage', () => {
   })
 
   it('передаёт email из auth.user если в profiles нет email', async () => {
-    mockSingle.mockResolvedValueOnce({
+    mockMaybeSingle.mockResolvedValueOnce({
       data: { ...mockProfile, email: null },
       error: null,
     })
@@ -74,7 +74,7 @@ describe('ProfilePage', () => {
   })
 
   it('передаёт hasStripeCustomer=false если stripe_customer_id отсутствует', async () => {
-    mockSingle.mockResolvedValueOnce({
+    mockMaybeSingle.mockResolvedValueOnce({
       data: { ...mockProfile, stripe_customer_id: null },
       error: null,
     })
@@ -99,9 +99,10 @@ describe('ProfilePage', () => {
   })
 
   it('показывает ProfileScreen с email из auth при PGRST116 (профиль не создан)', async () => {
-    mockSingle.mockResolvedValueOnce({
+    // maybeSingle() обрабатывает PGRST116 внутри — возвращает { data: null, error: null }
+    mockMaybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116', message: 'no rows returned' },
+      error: null,
     })
 
     const page = await ProfilePage()
@@ -117,7 +118,7 @@ describe('ProfilePage', () => {
   })
 
   it('показывает ошибку с заголовком Профиль если profileError существует', async () => {
-    mockSingle.mockResolvedValueOnce({
+    mockMaybeSingle.mockResolvedValueOnce({
       data: null,
       error: { message: 'DB connection error' },
     })
