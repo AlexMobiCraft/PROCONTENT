@@ -103,7 +103,7 @@ export function ProfileScreen({
           {isAdmin && (
             <section
               aria-label="Administracija"
-              className="rounded-xl border border-border bg-card p-6 space-y-3"
+              className="border border-border bg-card p-6 space-y-3"
             >
               <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Administracija
