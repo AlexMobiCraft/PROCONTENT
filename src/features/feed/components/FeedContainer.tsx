@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/features/auth/store'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import { createClient } from '@/lib/supabase/client'
+import { getAdminPostEditPath } from '@/lib/app-routes'
 import { deletePost } from '@/features/admin/api/posts'
 import { fetchPosts } from '../api/posts'
 import { useFeedStore } from '../store'
@@ -504,7 +505,7 @@ export function FeedContainer({
               isPending={pendingLikes.includes(cardData.id)}
               canManage={Boolean(resolvedUserId && (resolvedUserId === displayedPosts[index]?.author_id || resolvedUserRole === 'admin'))}
               canEdit={resolvedUserId === displayedPosts[index]?.author_id}
-              editHref={resolvedUserId === displayedPosts[index]?.author_id ? `/admin/posts/${cardData.id}/edit` : undefined}
+              editHref={resolvedUserId === displayedPosts[index]?.author_id ? getAdminPostEditPath(cardData.id) : undefined}
               onLikeToggle={handleLikeToggle}
               onCommentClick={onCommentClick}
               onOptionsClick={handleOptionsClick}
