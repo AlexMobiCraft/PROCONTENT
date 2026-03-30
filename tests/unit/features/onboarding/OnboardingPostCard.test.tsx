@@ -48,9 +48,9 @@ describe('OnboardingPostCard', () => {
     ).toBeInTheDocument()
   })
 
-  it('ссылка ведёт на /feed (MVP)', () => {
+  it('ссылка ведёт на /feed/[id]', () => {
     render(<OnboardingPostCard {...defaultProps} />)
-    expect(screen.getByRole('link')).toHaveAttribute('href', '/feed')
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/feed/1')
   })
 
   it('touch target — ссылка имеет класс min-h-[44px]', () => {

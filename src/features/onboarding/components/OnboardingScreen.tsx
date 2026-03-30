@@ -9,7 +9,7 @@ type Post = {
   id: string
   title: string
   category: string
-  type: 'video' | 'photo' | 'text'
+  type: string
 }
 
 interface OnboardingScreenProps {

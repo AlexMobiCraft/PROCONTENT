@@ -14,6 +14,8 @@ import { getCategories, type Category } from '@/features/admin/api/categories'
 import {
   PostFormSchema,
   MAX_MEDIA_FILES,
+  MAX_LANDING_PREVIEW,
+  MAX_ONBOARDING_POSTS,
   type PostFormValues,
   type MediaItem,
   type NewMediaItem,
@@ -36,6 +38,8 @@ interface InitialData {
   excerpt?: string | null
   category: string
   type?: string
+  is_landing_preview?: boolean
+  is_onboarding?: boolean
   post_media?: PostMediaRow[]
 }
 
@@ -144,6 +148,7 @@ export function PostForm(props: PostFormProps) {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<PostFormValues>({
     defaultValues: {
@@ -151,8 +156,13 @@ export function PostForm(props: PostFormProps) {
       content: initialData?.content ?? '',
       excerpt: initialData?.excerpt ?? '',
       category: initialData?.category ?? '',
+      is_landing_preview: initialData?.is_landing_preview ?? false,
+      is_onboarding: initialData?.is_onboarding ?? false,
     },
   })
+
+  const isLandingPreview = watch('is_landing_preview')
+  const isOnboarding = watch('is_onboarding')
 
   async function onSubmit(values: PostFormValues) {
     // Validate with Zod (react-hook-form handles required/max, but Zod is authoritative)
@@ -299,6 +309,55 @@ export function PostForm(props: PostFormProps) {
         {mediaError && (
           <p className="text-xs text-destructive" role="alert" data-testid="media-required-error">
             {mediaError}
+          </p>
+        )}
+      </div>
+
+      {/* Curation toggles */}
+      <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
+        <span className="text-sm font-medium">Upravljanje vsebine</span>
+
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            aria-label="Prikaži na začetni strani"
+            {...register('is_landing_preview')}
+            disabled={isSubmitting}
+            className="h-4 w-4 accent-primary"
+          />
+          <div className="flex flex-col">
+            <span className="text-sm">Predogled na začetni strani</span>
+            <span className="text-xs text-muted-foreground">
+              Največ {MAX_LANDING_PREVIEW} objave hkrati
+            </span>
+          </div>
+        </label>
+
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            aria-label="Dodaj v uvajanje novih članic"
+            {...register('is_onboarding')}
+            disabled={isSubmitting}
+            className="h-4 w-4 accent-primary"
+          />
+          <div className="flex flex-col">
+            <span className="text-sm">Uvajanje novih članic (Top-{MAX_ONBOARDING_POSTS})</span>
+            <span className="text-xs text-muted-foreground">
+              Največ {MAX_ONBOARDING_POSTS} objav hkrati
+            </span>
+          </div>
+        </label>
+
+        {(isLandingPreview || isOnboarding) && (
+          <p className="text-xs text-muted-foreground">
+            {[
+              isLandingPreview && 'predogled na začetni strani',
+              isOnboarding && 'uvajanje novih članic',
+            ]
+              .filter(Boolean)
+              .join(' in ')
+              .replace(/^./, (s) => s.toUpperCase())}
           </p>
         )}
       </div>

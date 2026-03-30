@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { ONBOARDING_PATH } from '@/lib/app-routes'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   {
-    href: '/',
+    href: ONBOARDING_PATH,
     exact: true,
     label: 'Domov',
     ariaLabel: 'Domača stran',

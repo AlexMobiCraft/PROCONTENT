@@ -7,6 +7,7 @@ import { TestimonialsSection } from '@/features/landing/components/TestimonialsS
 import { PricingCheckoutWrapper } from '@/features/landing/components/PricingCheckoutWrapper'
 import { CtaSection } from '@/features/landing/components/CtaSection'
 import { createClient } from '@/lib/supabase/server'
+import { getLandingPreviewPosts } from '@/features/landing/api/publicPreview'
 
 export const metadata: Metadata = {
   title: 'PROCONTENT — Zaprta skupnost za ustvarjalke vsebin',
@@ -32,11 +33,13 @@ export default async function LandingPage() {
     }
   }
 
+  const previewPosts = await getLandingPreviewPosts()
+
   return (
     <main>
       <HeroSection />
       <BenefitsSection />
-      <PreviewPostsSection />
+      <PreviewPostsSection posts={previewPosts} />
       <TestimonialsSection />
       <PricingCheckoutWrapper />
       <CtaSection />

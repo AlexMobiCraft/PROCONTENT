@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type { ExistingMediaItem, MediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'
-import { MAX_MEDIA_FILES } from '@/features/admin/types'
+import { MAX_MEDIA_FILES, MAX_LANDING_PREVIEW, MAX_ONBOARDING_POSTS } from '@/features/admin/types'
 import { uploadFilesWithTracking, removeStorageFiles } from './uploadMedia'
 
 export interface CreatePostInput {
@@ -44,6 +44,22 @@ export async function createPost(input: CreatePostInput): Promise<string> {
     throw new Error(`Prekoračena omejitev: največ ${MAX_MEDIA_FILES} datotek`)
   }
 
+  // Guard: landing preview limit
+  if (formValues.is_landing_preview) {
+    const { data: previewCount } = await supabase.rpc('count_landing_preview_posts', { exclude_id: null })
+    if ((previewCount ?? 0) >= MAX_LANDING_PREVIEW) {
+      throw new Error(`Največje število predogledov na začetni strani je ${MAX_LANDING_PREVIEW}. Najprej odstranite obstoječi predogled.`)
+    }
+  }
+
+  // Guard: onboarding limit
+  if (formValues.is_onboarding) {
+    const { data: onboardingCount } = await supabase.rpc('count_onboarding_posts', { exclude_id: null })
+    if ((onboardingCount ?? 0) >= MAX_ONBOARDING_POSTS) {
+      throw new Error(`Največje število objav za uvajanje je ${MAX_ONBOARDING_POSTS}. Najprej odstranite obstoječo objavo.`)
+    }
+  }
+
   // 1. Insert post record
   const { data: post, error: postError } = await supabase
     .from('posts')
@@ -55,6 +71,8 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       author_id: authorId,
       type: derivePostType(mediaItems),
       is_published: true,
+      is_landing_preview: formValues.is_landing_preview ?? false,
+      is_onboarding: formValues.is_onboarding ?? false,
     })
     .select('id')
     .single()
@@ -139,6 +157,22 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
     throw new Error(`Prekoračena omejitev: največ ${MAX_MEDIA_FILES} datotek`)
   }
 
+  // Guard: landing preview limit (exclude current post from count since we're updating it)
+  if (formValues.is_landing_preview) {
+    const { data: previewCount } = await supabase.rpc('count_landing_preview_posts', { exclude_id: postId })
+    if ((previewCount ?? 0) >= MAX_LANDING_PREVIEW) {
+      throw new Error(`Največje število predogledov na začetni strani je ${MAX_LANDING_PREVIEW}. Najprej odstranite obstoječi predogled.`)
+    }
+  }
+
+  // Guard: onboarding limit (exclude current post from count)
+  if (formValues.is_onboarding) {
+    const { data: onboardingCount } = await supabase.rpc('count_onboarding_posts', { exclude_id: postId })
+    if ((onboardingCount ?? 0) >= MAX_ONBOARDING_POSTS) {
+      throw new Error(`Največje število objav za uvajanje je ${MAX_ONBOARDING_POSTS}. Najprej odstranite obstoječo objavo.`)
+    }
+  }
+
   // Determine which original items have been removed
   const retainedIds = new Set(
     mediaItems
@@ -154,12 +188,12 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
   // 1. Snapshot current post state from DB for accurate rollback
   const { data: snapshot } = await supabase
     .from('posts')
-    .select('title, content, excerpt, category, type')
+    .select('title, content, excerpt, category, type, is_landing_preview, is_onboarding')
     .eq('id', postId)
     .single()
 
   try {
-    // 2. Update post text fields + type
+    // 2. Update post text fields + type + curation flags
     const { error: updateError } = await supabase
       .from('posts')
       .update({
@@ -168,6 +202,8 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
         excerpt: formValues.excerpt ?? null,
         category: formValues.category,
         type: derivePostType(mediaItems),
+        is_landing_preview: formValues.is_landing_preview ?? false,
+        is_onboarding: formValues.is_onboarding ?? false,
       })
       .eq('id', postId)
 
@@ -256,6 +292,8 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
           excerpt: snapshot.excerpt,
           category: snapshot.category,
           type: snapshot.type,
+          is_landing_preview: snapshot.is_landing_preview,
+          is_onboarding: snapshot.is_onboarding,
         })
         .eq('id', postId)
 
@@ -284,6 +322,8 @@ export async function fetchPostForEdit(postId: string) {
       excerpt,
       category,
       type,
+      is_landing_preview,
+      is_onboarding,
       post_media (
         id,
         url,

@@ -39,6 +39,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      site_settings: {
+        Row: {
+          id: number
+          whatsapp_url: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          whatsapp_url?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          whatsapp_url?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           id: string
@@ -289,6 +307,20 @@ export type Database = {
     }
     Functions: {
       get_auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      get_landing_preview_posts: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          title: string
+          excerpt: string | null
+          category: string
+          created_at: string
+          likes_count: number
+          comments_count: number
+        }[]
+      }
+      count_onboarding_posts: { Args: { exclude_id?: string | null }; Returns: number }
+      count_landing_preview_posts: { Args: { exclude_id?: string | null }; Returns: number }
       is_active_subscriber: { Args: never; Returns: boolean }
       posts_is_liked: {
         Args: { post_row: Database["public"]["Tables"]["posts"]["Row"] }

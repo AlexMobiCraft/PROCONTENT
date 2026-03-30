@@ -1,5 +1,6 @@
 import { OnboardingScreen } from '@/features/onboarding/components/OnboardingScreen'
-import { ONBOARDING_CONFIG } from '@/features/onboarding/data/onboarding-config'
+import { getOnboardingPosts } from '@/features/onboarding/api/onboardingServer'
+import { getSettingsServer } from '@/features/admin/api/settingsServer'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,10 +15,15 @@ export default async function OnboardingPage({
     console.info('[onboarding] session_id:', sessionId)
   }
 
+  const [posts, settings] = await Promise.all([
+    getOnboardingPosts(),
+    getSettingsServer().catch(() => ({ whatsapp_url: 'https://chat.whatsapp.com/placeholder' })),
+  ])
+
   return (
     <OnboardingScreen
-      posts={ONBOARDING_CONFIG.topPosts}
-      whatsappUrl={ONBOARDING_CONFIG.whatsappUrl}
+      posts={posts}
+      whatsappUrl={settings.whatsapp_url}
     />
   )
 }

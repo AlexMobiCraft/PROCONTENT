@@ -21,6 +21,8 @@ async function EditPostContent({ postId }: { postId: string }) {
       excerpt,
       category,
       type,
+      is_landing_preview,
+      is_onboarding,
       post_media (
         id,
         url,
@@ -54,6 +56,8 @@ async function EditPostContent({ postId }: { postId: string }) {
         excerpt: data.excerpt,
         category: data.category,
         type: data.type,
+        is_landing_preview: data.is_landing_preview,
+        is_onboarding: data.is_onboarding,
         post_media: postMedia,
       }}
     />

@@ -1,42 +1,11 @@
 import { PreviewPostCard } from './PreviewPostCard'
+import type { LandingPreviewPost } from '@/features/landing/api/publicPreview'
 
-const previewPosts = [
-  {
-    id: '1',
-    category: '#insight',
-    title: 'Zakaj algoritem Reelsa promovira ene in ignorira druge',
-    excerpt:
-      'Razkrili smo mehaniko razvrščanja kratkih videoposnetkov: kaj resnično vpliva na doseg in kaj je mit.',
-    date: '12. feb',
-    likes: 47,
-    comments: 12,
-    isLocked: false,
-  },
-  {
-    id: '2',
-    category: '#analize',
-    title: 'UGC portfelj: kako zbrati prvih 5 primerov brez proračuna',
-    excerpt:
-      'Vodnik po korakih: od izbire niše do predstavitve blagovni znamki. Vključuje predlogo pisma.',
-    date: '8. feb',
-    likes: 83,
-    comments: 24,
-    isLocked: true,
-  },
-  {
-    id: '3',
-    category: '#snemanje',
-    title: 'Osvetlitev v prostoru: 3 postavitve za vsebino s telefonom',
-    excerpt:
-      'Obročna luč ni edina možnost. Pokažemo, kako delati z naravno svetlobo.',
-    date: '1. feb',
-    likes: 61,
-    comments: 18,
-    isLocked: true,
-  },
-]
+interface PreviewPostsSectionProps {
+  posts: LandingPreviewPost[]
+}
 
-export function PreviewPostsSection() {
+export function PreviewPostsSection({ posts }: PreviewPostsSectionProps) {
   return (
     <section id="preview" className="bg-muted/40 px-5 py-16">
       <div className="mx-auto max-w-xl">
@@ -52,20 +21,25 @@ export function PreviewPostsSection() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-4">
-          {previewPosts.map((post) => (
-            <PreviewPostCard
-              key={post.id}
-              category={post.category}
-              title={post.title}
-              excerpt={post.excerpt}
-              date={post.date}
-              likes={post.likes}
-              comments={post.comments}
-              isLocked={post.isLocked}
-            />
-          ))}
-        </div>
+        {posts.length > 0 ? (
+          <div className="flex flex-col gap-4">
+            {posts.map((post) => (
+              <PreviewPostCard
+                key={post.id}
+                category={post.category}
+                title={post.title}
+                excerpt={post.excerpt ?? ''}
+                date={new Date(post.created_at).toLocaleDateString('sl-SI', {
+                  day: 'numeric',
+                  month: 'short',
+                })}
+                likes={post.likes_count}
+                comments={post.comments_count}
+                isLocked={true}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   )

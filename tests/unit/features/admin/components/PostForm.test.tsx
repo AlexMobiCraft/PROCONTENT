@@ -239,6 +239,77 @@ describe('PostForm (create mode) — race conditions', () => {
   })
 })
 
+describe('PostForm — curation toggles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetCategories.mockResolvedValue(testCategories)
+  })
+
+  it('рендерит чекбокс landing preview', () => {
+    render(<PostForm mode="create" />)
+    expect(screen.getByLabelText(/Prikaži na začetni strani/i)).toBeInTheDocument()
+  })
+
+  it('рендерит чекбокс onboarding', () => {
+    render(<PostForm mode="create" />)
+    expect(screen.getByLabelText(/Dodaj v uvajanje novih članic/i)).toBeInTheDocument()
+  })
+
+  it('передаёт is_landing_preview=true при включённом чекбоксе', async () => {
+    const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('post-id')
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Landing Post')
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
+    await user.click(screen.getByLabelText(/Prikaži na začetni strani/i))
+    await user.click(screen.getByRole('button', { name: /objavi/i }))
+
+    await waitFor(() => expect(mockCreatePost).toHaveBeenCalledOnce())
+    const call = mockCreatePost.mock.calls[0][0]
+    expect(call.formValues.is_landing_preview).toBe(true)
+  })
+
+  it('передаёт is_onboarding=true при включённом чекбоксе', async () => {
+    const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('post-id')
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Onboarding Post')
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
+    await user.click(screen.getByLabelText(/Dodaj v uvajanje novih članic/i))
+    await user.click(screen.getByRole('button', { name: /objavi/i }))
+
+    await waitFor(() => expect(mockCreatePost).toHaveBeenCalledOnce())
+    const call = mockCreatePost.mock.calls[0][0]
+    expect(call.formValues.is_onboarding).toBe(true)
+  })
+
+  it('edit mode предзаполняет is_landing_preview из initialData', async () => {
+    render(<PostForm mode="edit" initialData={{
+      id: 'p1', title: 'Post', category: 'stories',
+      is_landing_preview: true, is_onboarding: false,
+      post_media: [{ id: 'm1', url: 'https://cdn.example.com/m1.jpg', thumbnail_url: null, media_type: 'image' as const, order_index: 0, is_cover: true }],
+    }} />)
+    const checkbox = screen.getByLabelText(/Prikaži na začetni strani/i) as HTMLInputElement
+    expect(checkbox.checked).toBe(true)
+  })
+
+  it('edit mode предзаполняет is_onboarding из initialData', async () => {
+    render(<PostForm mode="edit" initialData={{
+      id: 'p1', title: 'Post', category: 'stories',
+      is_landing_preview: false, is_onboarding: true,
+      post_media: [{ id: 'm1', url: 'https://cdn.example.com/m1.jpg', thumbnail_url: null, media_type: 'image' as const, order_index: 0, is_cover: true }],
+    }} />)
+    const checkbox = screen.getByLabelText(/Dodaj v uvajanje novih članic/i) as HTMLInputElement
+    expect(checkbox.checked).toBe(true)
+  })
+})
+
 describe('PostForm (edit mode)', () => {
   const initialData = {
     id: 'post-1',

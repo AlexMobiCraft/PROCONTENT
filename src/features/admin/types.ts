@@ -47,12 +47,20 @@ export const PostFormSchema = z.object({
     .string()
     .transform((s) => s.trim())
     .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),
+  is_landing_preview: z.boolean().optional(),
+  is_onboarding: z.boolean().optional(),
 })
 
 export type PostFormValues = z.infer<typeof PostFormSchema>
 
 /** Maximum number of media files allowed per post */
 export const MAX_MEDIA_FILES = 10
+
+/** Maximum number of landing preview posts */
+export const MAX_LANDING_PREVIEW = 3
+
+/** Maximum number of onboarding posts */
+export const MAX_ONBOARDING_POSTS = 5
 
 /** Maximum file size for images (10 MB) */
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024
