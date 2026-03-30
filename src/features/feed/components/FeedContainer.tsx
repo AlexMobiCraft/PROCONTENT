@@ -131,6 +131,7 @@ export function FeedContainer({
     try {
       const { posts: newPosts, nextCursor, hasMore } = await fetchPosts(undefined, {
         signal: controller.signal,
+        category: useFeedStore.getState().activeCategory,
       })
       if (controller.signal.aborted) return
       useFeedStore.getState().setPosts(newPosts, nextCursor, hasMore)
@@ -202,7 +203,7 @@ export function FeedContainer({
         posts: newPosts,
         nextCursor,
         hasMore: more,
-      } = await fetchPosts(cursor, { signal: controller.signal })
+      } = await fetchPosts(cursor, { signal: controller.signal, category: categoryBefore })
       // Guard: если запрос отменён или категория сменилась — не добавлять stale данные
       if (controller.signal.aborted) return
       if (useFeedStore.getState().activeCategory !== categoryBefore) return
@@ -292,11 +293,11 @@ export function FeedContainer({
     return () => observer.disconnect()
   }, [error, hasMore, isLoadingMore, stallCount, loadMoreWithStallDetection])
 
-  // Клиентская фильтрация по категории (серверная — в Story 2.4).
-  // Мемоизация предотвращает лишний .filter() на каждом ре-рендере.
+  // Серверная фильтрация по категории (передаём в fetchPosts).
+  // displayedPosts = posts напрямую (уже отфильтрованы на сервере).
   const displayedPosts = useMemo(
-    () => (activeCategory === 'all' ? posts : posts.filter((p) => p.category === activeCategory)),
-    [posts, activeCategory]
+    () => posts,
+    [posts]
   )
 
   // Мемоизация маппинга — стабильные ссылки на объекты, нет лишних рендеров PostCard.

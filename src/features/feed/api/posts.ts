@@ -18,7 +18,7 @@ function isValidUuid(value: string) {
 
 export async function fetchPosts(
   cursor?: string,
-  options?: { signal?: AbortSignal }
+  options?: { signal?: AbortSignal; category?: string }
 ): Promise<FeedPage> {
   const supabase = createClient()
 
@@ -26,6 +26,13 @@ export async function fetchPosts(
     .from('posts')
     .select('*, profiles!author_id(display_name, avatar_url), post_media(id, media_type, url, thumbnail_url, order_index, is_cover), is_liked:posts_is_liked')
     .eq('is_published', true)
+
+  // Фильтр по категории на сервере (если не "all")
+  if (options?.category && options.category !== 'all') {
+    query = query.eq('category', options.category)
+  }
+
+  query = query
     .order('created_at', { ascending: false })
     .order('id', { ascending: false }) // Tiebreaker: стабильный порядок при одинаковых created_at
 
