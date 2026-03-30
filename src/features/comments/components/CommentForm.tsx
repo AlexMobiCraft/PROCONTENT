@@ -1,5 +1,6 @@
 'use client'
 
+import { ArrowRight } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -58,13 +59,13 @@ export function CommentForm({
             type="submit"
             disabled={isEmpty || isSubmitting}
             className={cn(
-              'inline-flex min-h-[44px] items-center justify-center gap-2 border-2 border-primary px-8 py-3 font-sans text-xs font-medium uppercase tracking-[0.2em] text-foreground',
+              'inline-flex min-h-[44px] items-center gap-2 border border-primary px-8 py-3 font-sans text-xs font-medium uppercase tracking-[0.2em] text-foreground',
               'transition-colors hover:bg-primary/10',
               'disabled:cursor-not-allowed disabled:opacity-50'
             )}
           >
             <span>{isSubmitting ? 'Pošiljanje...' : 'Pošlji'}</span>
-            <span aria-hidden>→</span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       ) : null}
