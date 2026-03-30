@@ -1,7 +1,37 @@
-You are an adversarial reviewer playing the role of 'Edge Case Hunter'.
-Review the diff in _bmad-output/implementation-artifacts/CR-4-1-diff.patch WITH read access to the project. 
-Check for: complex edge cases, race conditions, state management inconsistencies, and unexpected interactions with existing code.
-Output findings as a Markdown list. Each finding must have: one-line title, category (BUG, LOGIC, STATE, UX), and evidence from the diff or project code.
+# Edge Case Hunter Review: Profile Setup Feature
 
-Please apply the 'bmad-review-edge-case-hunter' skill.
+**Инструкция:** Вы - edge case specialist с доступом к коду проекта. Ваша задача - найти граничные случаи, неправильную обработку edge cases, и потенциальные проблемы при необычных состояниях.
+
+## Области для глубокого анализа:
+
+### RegisterForm validation
+- Что если first_name = "   " (только пробелы)?
+- Что если first_name = "123" (только цифры)?
+- Что если first_name с emoji или спецсимволами?
+- Что если last_name = "123" без валидации?
+- Что если пользователь быстро кликает submit несколько раз?
+
+### Avatar upload
+- Что если файл 0 байт?
+- Что если файл точно 5MB (boundary)?
+- Что если filename содержит спецсимволы?
+- Что если Supabase Storage недоступен?
+- Что если updateProfile() успешен но deleteAvatarFile() поломался?
+- Что если сетевое подключение прерывается посередине upload?
+
+### Profile edit with concurrent updates
+- Что если пользователь редактирует имя одновременно на двух табах?
+- Что если updateProfile() занимает >5 сек а пользователь закрывает браузер?
+- Что если сервер вернет старый аватар а клиент думает что новый?
+
+### Database state
+- Может ли профиль остаться с пустым first_name?
+- Может ли произойти orphaned файлы в Storage?
+- Что если миграция завис на проде?
+
+### Type safety
+- Все ли типы правильно учитывают null/undefined?
+- Есть ли type mismatches между компонентом и API?
+
+Пожалуйста проанализируйте код и предоставьте все edge cases которые вы найдете.
 

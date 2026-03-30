@@ -10,6 +10,7 @@ import { EmailPreferencesCard } from './EmailPreferencesCard'
 import { SubscriptionCard } from './SubscriptionCard'
 import { PasswordResetCard } from './PasswordResetCard'
 import { ProfileRightPanel } from './ProfileRightPanel'
+import { ProfileEditCard } from './ProfileEditCard'
 
 interface ProfileScreenProps {
   email: string
@@ -18,6 +19,8 @@ interface ProfileScreenProps {
   currentPeriodEnd: string | null
   hasStripeCustomer: boolean
   userId?: string
+  first_name?: string
+  avatar_url?: string | null
   emailNotificationsEnabled?: boolean | null
   canManageEmailPreferences?: boolean
   isAdmin?: boolean
@@ -30,12 +33,16 @@ export function ProfileScreen({
   currentPeriodEnd,
   hasStripeCustomer,
   userId,
+  first_name = '',
+  avatar_url = null,
   emailNotificationsEnabled: initialEmailEnabled,
   canManageEmailPreferences = false,
   isAdmin = false,
 }: ProfileScreenProps) {
   const [emailEnabled, setEmailEnabled] = useState(initialEmailEnabled ?? true)
   const [isEmailSaving, setIsEmailSaving] = useState(false)
+  const [currentFirstName, setCurrentFirstName] = useState(first_name)
+  const [currentAvatarUrl, setCurrentAvatarUrl] = useState(avatar_url)
 
   async function handleEmailToggle(enabled: boolean) {
     if (!userId) return
@@ -57,6 +64,18 @@ export function ProfileScreen({
       enabled ? 'E-poštna obvestila so vklopljena' : 'E-poštna obvestila so izklopljena'
     )
     setIsEmailSaving(false)
+  }
+
+  function handleProfileUpdate(updates: {
+    first_name?: string
+    avatar_url?: string | null
+  }) {
+    if (updates.first_name !== undefined) {
+      setCurrentFirstName(updates.first_name)
+    }
+    if (updates.avatar_url !== undefined) {
+      setCurrentAvatarUrl(updates.avatar_url)
+    }
   }
 
   return (
@@ -82,6 +101,15 @@ export function ProfileScreen({
             {displayName && <p className="font-medium text-foreground">{displayName}</p>}
             <p className="text-sm text-muted-foreground">{email}</p>
           </div>
+
+          {userId && (
+            <ProfileEditCard
+              userId={userId}
+              first_name={currentFirstName}
+              avatar_url={currentAvatarUrl}
+              onProfileUpdate={handleProfileUpdate}
+            />
+          )}
 
           <SubscriptionCard
             subscriptionStatus={subscriptionStatus}

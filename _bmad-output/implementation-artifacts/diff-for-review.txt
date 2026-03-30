@@ -1,0 +1,44 @@
+# НОВЫЕ ФАЙЛЫ
+
+## supabase/migrations/036_add_user_profile_fields.sql
+- Добавляет поля first_name (NOT NULL) и last_name (NULL) в таблицу profiles
+- Обновляет триггер handle_new_user для инициализации этих полей
+
+## src/features/profile/api/profileApi.ts
+- uploadAvatar() — загружает аватар в Supabase Storage, возвращает public URL
+- updateProfile() — обновляет профиль пользователя (optimistic update pattern)
+- deleteAvatarFile() — удаляет аватар из Storage (best-effort cleanup)
+
+## src/features/profile/components/ProfileEditCard.tsx
+- Новый компонент для редактирования имени и загрузки аватара
+- Smart container паттерн: получает данные + callbacks
+- Оптимистичные обновления с откатом при ошибке
+- Валидация: first_name минимум 3 символа
+
+## tests/unit/features/auth/RegisterForm.test.tsx
+- 9 тестов для валидации first_name (min 3 chars, empty, symbols)
+- Тесты для password валидации
+- Тесты для успешного submit всех полей
+
+## tests/unit/features/profile/ProfileEditCard.test.tsx
+- Тесты для edit mode, валидации, save, cancel
+- Avatar upload success/error scenarios
+- Rollback поведение при ошибках
+
+# ИЗМЕНЁННЫЕ ФАЙЛЫ
+
+## src/types/supabase.ts
+- Добавлены first_name (string) и last_name (string | null) в profiles Row/Insert/Update
+
+## src/features/auth/components/RegisterForm.tsx
+- Добавлены input поля для first_name и last_name
+- Обновлена валидация: first_name required, min 3 chars
+- onSubmit теперь передаёт { first_name, last_name, password }
+
+## src/features/auth/components/RegisterContainer.tsx
+- После успешного signUp вызывает updateProfile для сохранения first_name, last_name
+
+## src/features/profile/components/ProfileScreen.tsx
+- Добавлены props first_name и avatar_url
+- Интегрирован новый ProfileEditCard компонент
+- Handler для обновления profile state при изменениях

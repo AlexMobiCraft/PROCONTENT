@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { signUp } from '@/features/auth/api/auth'
 import { RegisterForm } from './RegisterForm'
 
@@ -14,7 +15,16 @@ export function RegisterContainer({ email }: RegisterContainerProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleRegisterSubmit({ password }: { password: string }) {
+  // eslint-disable-next-line camelcase
+  async function handleRegisterSubmit({
+    password,
+    first_name,
+    last_name,
+  }: {
+    password: string
+    first_name: string
+    last_name: string
+  }) {
     setIsLoading(true)
     setError(null)
 
@@ -27,15 +37,22 @@ export function RegisterContainer({ email }: RegisterContainerProps) {
     }
 
     if (data?.user) {
-      // После успешной регистрации в Supabase с подтверждением email, 
-      // пользователь должен подтвердить почту, либо если подтверждение отключено — он залогинится сразу.
-      // Но в стандартной настройке Supabase отправляет письмо.
-      // Сообщим об этом.
+      // Обновить профиль с first_name и last_name
+      const supabase = createClient()
+      const { error: updateError } = await supabase
+        .from('profiles')
+        // eslint-disable-next-line camelcase
+        .update({ first_name, last_name: last_name || null })
+        .eq('id', data.user.id)
+
+      if (updateError) {
+        console.warn('Napaka pri posodobitvi profila:', updateError)
+      }
+
       setError('Potrditveno sporočilo je bilo poslano na vašo e-pošto. Potrdite e-pošto za vstop v klub.')
       setIsLoading(false)
-      // Можно было бы редиректнуть на страницу "Проверьте почту"
     } else {
-       router.push('/feed')
+      router.push('/feed')
     }
   }
 

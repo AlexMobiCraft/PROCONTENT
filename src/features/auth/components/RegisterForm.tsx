@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 interface RegisterFormProps {
   email: string
-  onSubmit: (data: { password: string }) => void
+  onSubmit: (data: { password: string; first_name: string; last_name: string }) => void
   isLoading: boolean
   error: string | null
 }
@@ -16,7 +16,18 @@ export function RegisterForm({ email, onSubmit, isLoading, error }: RegisterForm
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = e.currentTarget
+    const firstNameInput = form.elements.namedItem('first_name') as HTMLInputElement
+    const lastNameInput = form.elements.namedItem('last_name') as HTMLInputElement
     const passwordInput = form.elements.namedItem('password') as HTMLInputElement
+
+    if (firstNameInput.validity.valueMissing) {
+      setValidationError('Polje je obvezno')
+      return
+    }
+    if (firstNameInput.value.length < 3) {
+      setValidationError('Najmanj 3 znaki')
+      return
+    }
 
     if (passwordInput.validity.valueMissing) {
       setValidationError('Izmislite si geslo')
@@ -28,10 +39,14 @@ export function RegisterForm({ email, onSubmit, isLoading, error }: RegisterForm
     }
 
     setValidationError(null)
-    onSubmit({ password: passwordInput.value })
+    onSubmit({
+      first_name: firstNameInput.value,
+      last_name: lastNameInput.value,
+      password: passwordInput.value,
+    })
   }
 
-  const displayError = validationError ?? error
+  const displayPasswordError = (validationError?.includes('Geslo') || validationError?.includes('6')) ? validationError : error
 
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
@@ -53,6 +68,47 @@ export function RegisterForm({ email, onSubmit, isLoading, error }: RegisterForm
       </div>
 
       <div className="flex flex-col gap-1.5">
+        <label htmlFor="first_name" className="text-foreground text-sm font-medium">
+          Ime
+        </label>
+        <input
+          id="first_name"
+          name="first_name"
+          type="text"
+          required
+          minLength={3}
+          placeholder="Najmanj 3 znaki"
+          disabled={isLoading}
+          onChange={() => setValidationError(null)}
+          className={cn(
+            'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
+            validationError && !validationError.includes('Geslo') &&
+              'border-destructive focus:ring-destructive/20 focus:border-destructive'
+          )}
+        />
+        {validationError && !validationError.includes('Geslo') && (
+          <p role="alert" className="text-destructive text-sm mt-1">
+            {validationError}
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="last_name" className="text-foreground text-sm font-medium">
+          Priimek (izbirno)
+        </label>
+        <input
+          id="last_name"
+          name="last_name"
+          type="text"
+          placeholder="Vaš priimek"
+          disabled={isLoading}
+          onChange={() => setValidationError(null)}
+          className="border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
         <label htmlFor="password" className="text-foreground text-sm font-medium">
           Ustvarite geslo
         </label>
@@ -61,19 +117,18 @@ export function RegisterForm({ email, onSubmit, isLoading, error }: RegisterForm
           name="password"
           type="password"
           required
-          autoFocus
           placeholder="Najmanj 6 znakov"
           disabled={isLoading}
           onChange={() => setValidationError(null)}
           className={cn(
             'border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring/50 focus:border-ring min-h-[44px] rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2 focus:outline-none disabled:opacity-50',
-            displayError &&
+            displayPasswordError &&
               'border-destructive focus:ring-destructive/20 focus:border-destructive'
           )}
         />
-        {displayError && (
+        {displayPasswordError && (
           <p role="alert" className="text-destructive text-sm mt-1">
-            {displayError}
+            {displayPasswordError}
           </p>
         )}
       </div>
