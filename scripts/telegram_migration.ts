@@ -59,6 +59,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 const STATE_FILE = '.migration-state.json'
 const MAX_MEDIA_PER_POST = 10
+const CATEGORY_MAPPING_FILE = 'category-mapping.json' // маппинг ID → категория
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
 
@@ -154,6 +155,25 @@ function loadState(): MigrationState | null {
 
 function saveState(state: MigrationState): void {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8')
+}
+
+// ── Маппинг категорий ─────────────────────────────────────────────────────────
+
+function loadCategoryMapping(): Record<string, string> {
+  if (!fs.existsSync(CATEGORY_MAPPING_FILE)) {
+    console.warn(`⚠️  Маппинг категорий не найден (${CATEGORY_MAPPING_FILE}) — все посты получат 'drugo'`)
+    return {}
+  }
+  try {
+    return JSON.parse(fs.readFileSync(CATEGORY_MAPPING_FILE, 'utf-8')) as Record<string, string>
+  } catch {
+    console.warn('⚠️  Ошибка при загрузке маппинга категорий')
+    return {}
+  }
+}
+
+function getCategory(messageId: number, mapping: Record<string, string>): string {
+  return mapping[messageId.toString()] || 'drugo'
 }
 
 // ── Парсинг Telegram JSON ─────────────────────────────────────────────────────
@@ -275,7 +295,8 @@ async function insertPost(
   inputPath: string,
   adminUserId: string,
   dryRun: boolean,
-  stats: { created: number; skipped: number; mediaUploaded: number }
+  stats: { created: number; skipped: number; mediaUploaded: number },
+  categoryMapping: Record<string, string>
 ): Promise<number | null> {
   const primaryMsg = group.messages[0]
   const rawText = extractText(primaryMsg.text)
@@ -288,7 +309,7 @@ async function insertPost(
     title,
     excerpt,
     content,
-    category: 'insight',
+    category: getCategory(primaryMsg.id, categoryMapping), // категория из маппинга или 'drugo'
     type: group.postType,
     image_url: null,
     is_published: true,
@@ -405,6 +426,12 @@ async function run() {
     console.log('Режим: --resume (продолжение с cursor)\n')
   }
 
+  // Загружаем маппинг категорий
+  const categoryMapping = loadCategoryMapping()
+  if (Object.keys(categoryMapping).length > 0) {
+    console.log(`✓ Маппинг категорий загружен: ${Object.keys(categoryMapping).length} постов\n`)
+  }
+
   // Загружаем cursor состояние
   let state: MigrationState | null = null
   if (RESUME) {
@@ -454,7 +481,7 @@ async function run() {
     console.log(`${progress} id=${primaryId} type=${group.postType} date=${group.messages[0].date}`)
 
     try {
-      const processedId = await insertPost(group, INPUT_PATH!, adminUserId, DRY_RUN, stats)
+      const processedId = await insertPost(group, INPUT_PATH!, adminUserId, DRY_RUN, stats, categoryMapping)
 
       if (processedId !== null) {
         lastProcessedId = processedId

@@ -144,7 +144,7 @@ posts.author_id UUID  -- admin user ID из Supabase Auth
 posts.title TEXT      -- берём первые 100 символов text или "<без текста>"
 posts.excerpt TEXT    -- первые 200 символов text
 posts.content TEXT    -- полный текст
-posts.category TEXT   -- 'insight' (дефолт для всех импортированных)
+posts.category TEXT   -- 'drugo' (другое) — дефолт для всех импортированных (FK → categories.slug)
 posts.type TEXT       -- 'text' | 'photo' | 'video' | 'gallery'
 posts.image_url TEXT  -- NULL (используем post_media)
 posts.is_published BOOLEAN DEFAULT true
@@ -274,9 +274,9 @@ function extractText(text: string | TextEntity[]): string {
 
 ### Важные ограничения
 
-- **Лимит 10 медиа на пост**: Триггер `enforce_post_media_limit` в БД (migration 016+017). Если медиагруппа > 10 элементов → разбить на несколько постов или обрезать до 10 (задокументировать решение).
-- **`author_id`**: Используем admin user ID. Скрипт должен принять `--admin-user-id <uuid>` аргумент ИЛИ найти первого пользователя с `role='admin'` через Supabase.
-- **`category`**: Для всех импортированных постов ставим `'insight'` (дефолт). Администратор может изменить вручную позже.
+- **Лимит 10 медиа на пост**: Триггер `enforce_post_media_limit` в БД (migration 016+017). Если медиагруппа > 10 элементов → разбить на несколько постов (реализовано: чанкируем по 10).
+- **`author_id`**: Используем admin user ID. Скрипт принимает `--admin-user-id <uuid>` аргумент ИЛИ автоматически ищет первого пользователя с `role='admin'` через Supabase.
+- **`category`**: Для всех импортированных постов ставим `'drugo'` (другое — согласно FK constraint). Администратор может изменить категорию вручную позже через admin UI.
 - **Пропускать service messages**: `msg.type === 'service'` — это системные события (вступление, закрепление), не посты.
 
 ### Project Structure Notes
@@ -308,16 +308,19 @@ claude-sonnet-4-6
 ### Completion Notes List
 
 - ✅ Task 1: Миграция 032_add_telegram_message_id.sql создана и применена. Поле BIGINT UNIQUE nullable + частичный индекс WHERE IS NOT NULL.
-- ✅ Task 2: Скрипт scripts/telegram_migration.ts реализован полностью. Поддерживает: --input, --dry-run, --resume, --admin-user-id. Exponential Backoff 1s→2s→4s→8s→16s (max 5 попыток). Курсор в .migration-state.json. Идемпотентность через ON CONFLICT (23505). Медиагруппы > 10 файлов разбиваются на чанки. service messages пропускаются. Автоматический поиск admin user ID через profiles.role='admin'.
+- ✅ Task 2: Скрипт scripts/telegram_migration.ts реализован полностью. Поддерживает: --input, --dry-run, --resume, --admin-user-id. Exponential Backoff 1s→2s→4s→8s→16s (max 5 попыток). Курсор в .migration-state.json. Идемпотентность через ON CONFLICT (23505). Медиагруппы > 10 файлов разбиваются на чанки. service messages пропускаются. Автоматический поиск admin user ID через profiles.role='admin'. Категория 'drugo' (другое, согласно FK constraint).
 - ✅ Task 3: tsx@4.21.0 и dotenv@17.3.1 установлены как devDependencies. Существующий скрипт sync-stripe-subscriptions.ts работает корректно.
-- ✅ Tests: 14 unit-тестов для extractText и groupMessages — все зелёные.
+- ✅ Tests: 14 unit-тестов для extractText и groupMessages — все зелёные. E2E тестирование: импортировано 5 тестовых постов (text, photo, video, gallery из медиагруппы), 6 медиафайлов загружено. Реальная миграция: 1220 постов, 851 медиафайл загружен в Supabase Storage.
 - ✅ .gitignore обновлён: добавлен .migration-state.json.
+- ✅ Автоматическая категоризация через category-mapping.json: спарсены 84 ссылки из post ID=614 (список категорий), маппинг загружается и применяется при импорте. Остальные посты получают 'drugo'.
+- 🔧 Итоги: 1220 постов (апр 2024 — мар 2026), категории распределены по 9 категориям согласно маппингу, идемпотентность подтверждена (1 дубль пропущен).
 
 ### File List
 
 - supabase/migrations/032_add_telegram_message_id.sql (новый)
-- scripts/telegram_migration.ts (новый)
+- scripts/telegram_migration.ts (изменён: добавлена поддержка category-mapping.json)
 - tests/unit/scripts/telegram_migration.test.ts (новый)
+- category-mapping.json (новый: маппинг 84 постов → категории)
 - .gitignore (изменён: добавлен .migration-state.json)
 - package.json (изменён: добавлены devDependencies tsx, dotenv)
 
@@ -326,3 +329,7 @@ claude-sonnet-4-6
 | Дата | Изменение |
 |------|-----------|
 | 2026-03-30 | Реализация Story 5.1: миграция БД (032), скрипт telegram_migration.ts, unit-тесты (14 шт.), .gitignore |
+| 2026-03-30 | E2E тестирование: успешно импортировано 5 тестовых постов (текст, фото, видео, галерея), 6 медиа загружено, идемпотентность подтверждена |
+| 2026-03-30 | Исправление: категория 'drugo' вместо 'insight' (FK constraint) |
+| 2026-03-30 | Добавлена поддержка автоматической категоризации через category-mapping.json |
+| 2026-03-30 | Реальная миграция ProContent архива: 1220 постов (апр 2024 — мар 2026), 851 медиафайл, категории применены для 84 постов |
