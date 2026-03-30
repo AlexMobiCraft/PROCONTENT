@@ -149,9 +149,16 @@ export function FeedContainer({
   // Начальная загрузка + перезагрузка при смене категории.
   // Состояние читается через getState() в момент вызова — нет stale closure.
   useEffect(() => {
-    // Если уже есть данные в store — восстанавливаем из кэша (AC #6)
-    if (useFeedStore.getState().posts.length === 0) {
+    // При смене категории сбрасываем store и переделаем запрос.
+    // Без этого фильтр работает на старых постах из предыдущей категории.
+    if (activeCategory !== 'all') {
+      useFeedStore.getState().setPosts([], null, true)
       void loadInitial()
+    } else {
+      // Для "all": если уже есть данные в store — восстанавливаем из кэша (AC #6)
+      if (useFeedStore.getState().posts.length === 0) {
+        void loadInitial()
+      }
     }
 
     // Cleanup всегда регистрируется — при смене категории отменяем запросы
