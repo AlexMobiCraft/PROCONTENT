@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
+import Image from 'next/image'
 import { HeroSection } from '@/features/landing/components/HeroSection'
 import { BenefitsSection } from '@/features/landing/components/BenefitsSection'
 import { PreviewPostsSection } from '@/features/landing/components/PreviewPostsSection'
@@ -36,7 +37,16 @@ export default async function LandingPage() {
   const previewPosts = await getLandingPreviewPosts()
 
   return (
-    <main>
+    <main className="relative">
+      <div className="fixed inset-0 -z-10">
+        <Image
+          src="/images/hero-bg.png"
+          alt=""
+          fill
+          className="object-cover object-center opacity-10"
+          priority
+        />
+      </div>
       <HeroSection />
       <BenefitsSection />
       <PreviewPostsSection posts={previewPosts} />

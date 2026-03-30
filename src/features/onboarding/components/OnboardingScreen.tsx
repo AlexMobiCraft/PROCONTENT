@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowRight, MessageCircle } from 'lucide-react'
 
 import { OnboardingPostCard } from './OnboardingPostCard'
@@ -19,7 +20,16 @@ interface OnboardingScreenProps {
 
 export function OnboardingScreen({ posts, whatsappUrl }: OnboardingScreenProps) {
   return (
-    <main className="min-h-screen bg-background">
+    <main className="relative min-h-screen bg-background">
+      <div className="fixed inset-0 -z-10">
+        <Image
+          src="/images/hero-bg.png"
+          alt=""
+          fill
+          className="object-cover object-center opacity-10"
+          priority
+        />
+      </div>
       <div className="mx-auto max-w-xl px-5 py-16">
         {/* Приветственный блок */}
         <section className="mb-16" aria-label="Pozdrav">
