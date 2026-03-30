@@ -2,7 +2,7 @@
 title: 'Настройка профиля пользователя: регистрация с именем и управление аватаром'
 type: 'feature'
 created: '2026-03-30'
-status: 'done'
+status: 'in-review'
 baseline_commit: 'a8c8a3f357d7fd66240fa3282c492c30b0c32bd9'
 context:
   - src/CLAUDE.md
@@ -84,7 +84,35 @@ context:
 
 ## История изменений спеки
 
-(Пусто до циклов code review, которые заполнят это поле.)
+### Code Review Round 1 (Adversarial General) - 2026-03-30
+
+**Findings от Blind Hunter adversarial review:**
+
+**🔴 КРИТИЧЕСКИЕ (требуют исправления):**
+1. **first_name валидация только на клиенте** — HTML5 `required` и `minLength=3` легко обходятся. Нет server-side валидации перед insert/update.
+2. **Race condition: signup → profile update** — Если trigger `handle_new_user` запоздает, UPDATE может выполниться на несуществующий row.
+3. **Orphaned avatar files в Storage** — Если `uploadAvatar()` успешен но `updateProfile()` провалится, файл остаётся навечно.
+4. **Avatar upload без server-side валидации** — `MAX_AVATAR_SIZE` только на клиенте. Пользователь может обойти через API.
+5. **Отсутствует MIME type validation** — Пользователь может загрузить опасный файл (`.jpg.exe`).
+6. **registerContainer: updateError просто логируется** — Ошибка profile update не показана пользователю.
+
+**🟡 СРЕДНИЕ (логические ошибки):**
+7. **last_name может быть пробелы** — Нет `trim()` перед сохранением.
+8. **Отсутствует maxLength для first_name** — Можно ввести 10000+ символов.
+9. **Concurrent avatar uploads не заблокированы** — Несколько параллельных загрузок возможны.
+10. **deleteAvatarFile URL парсинг fragile** — Regex может провалиться на спецсимволах.
+
+**🟠 АРХИТЕКТУРНЫЕ:**
+11. **Триггер handle_new_user может перезаписать данные** — ON CONFLICT может перезаписать first_name на пустую строку.
+12. **Filename санитизация слабая** — `generateAvatarPath()` использует `file.name` без escaping (может содержать `../`).
+13. **Тесты используют mock вместо integration** — Нет real Supabase тестов.
+
+**Рекомендуемая последовательность исправления:**
+- HIGH: Server-side валидация first_name, MIME type validation, avatar size validation
+- HIGH: Обработка ошибок profile update для пользователя
+- HIGH: Блокировка concurrent avatar uploads
+- MEDIUM: Санитизация filename, trim() для last_name, maxLength
+- LOW: Integration tests для avatar upload
 
 ## Заметки о дизайне
 
