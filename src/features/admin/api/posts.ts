@@ -305,6 +305,33 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
   }
 }
 
+export async function deletePost(postId: string): Promise<void> {
+  const supabase = createClient()
+
+  const { data: mediaRows, error: mediaError } = await supabase
+    .from('post_media')
+    .select('url')
+    .eq('post_id', postId)
+
+  if (mediaError) {
+    throw new Error(`Napaka pri pridobivanju medijev objave: ${mediaError.message}`, { cause: mediaError })
+  }
+
+  const mediaUrls = mediaRows?.map((item) => item.url).filter((url): url is string => Boolean(url)) ?? []
+
+  const { error: deleteError } = await supabase.from('posts').delete().eq('id', postId)
+
+  if (deleteError) {
+    throw new Error(`Napaka pri brisanju objave: ${deleteError.message}`, { cause: deleteError })
+  }
+
+  if (mediaUrls.length > 0) {
+    await removeStorageFiles(mediaUrls).catch((error) => {
+      console.warn('Napaka pri brisanju datotek objave iz Storage:', error)
+    })
+  }
+}
+
 /**
  * Fetches a post with its media for pre-filling the edit form.
  * Uses client-side Supabase (called from 'use client' component).

@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/features/auth/store'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import { createClient } from '@/lib/supabase/client'
+import { deletePost } from '@/features/admin/api/posts'
 import { fetchPosts } from '../api/posts'
 import { useFeedStore } from '../store'
 import { dbPostToCardData, type FeedPage, type ToggleLikeResponse } from '../types'
@@ -350,6 +352,36 @@ export function FeedContainer({
     [currentUser, router]
   )
 
+  const handleOptionsClick = useCallback(
+    async (postId: string) => {
+      if (!currentUser) {
+        router.push('/login')
+        return
+      }
+
+      const post = useFeedStore.getState().posts.find((item) => item.id === postId)
+      if (!post) return
+
+      if (post.author_id !== currentUser.id) {
+        toast.error('Objavo lahko izbriše samo avtorica')
+        return
+      }
+
+      const confirmed = window.confirm('Ali res želite izbrisati to objavo?')
+      if (!confirmed) return
+
+      try {
+        await deletePost(postId)
+        useFeedStore.getState().removePost(postId)
+        toast.success('Objava je bila izbrisana')
+      } catch (error) {
+        console.error('Napaka pri brisanju objave:', error)
+        toast.error('Brisanje objave ni uspelo')
+      }
+    },
+    [currentUser, router]
+  )
+
   // Auto-trigger loadMore когда displayedPosts.length === 0 и sentinel в DOM,
   // но IO не срабатывает повторно (sentinel не уходил из viewport между пересозданиями).
   // Fix: "нулевой рост sentinel не триггерит observer при фильтрах".
@@ -470,6 +502,7 @@ export function FeedContainer({
               isPending={pendingLikes.includes(cardData.id)}
               onLikeToggle={handleLikeToggle}
               onCommentClick={onCommentClick}
+              onOptionsClick={handleOptionsClick}
               onCategoryClick={(category) => useFeedStore.getState().changeCategory(category)}
             />
           </li>

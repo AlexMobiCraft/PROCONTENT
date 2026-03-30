@@ -18,6 +18,7 @@ interface FeedState {
   setActiveVideo: (id: string | null) => void
   setPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   appendPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
+  removePost: (postId: string) => void
   setActiveCategory: (category: string) => void
   setLoading: (loading: boolean) => void
   setLoadingMore: (loading: boolean) => void
@@ -58,6 +59,11 @@ export const useFeedStore = create<FeedState>((set) => ({
         hasMore,
       }
     }),
+
+  removePost: (postId) =>
+    set((state) => ({
+      posts: state.posts.filter((post) => post.id !== postId),
+    })),
 
   setActiveCategory: (category) =>
     set({ activeCategory: category }),
