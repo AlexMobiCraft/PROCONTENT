@@ -53,9 +53,9 @@ describe('DesktopSidebar', () => {
 
   it('admin-ссылки ведут на правильные пути', () => {
     render(<DesktopSidebar isAdmin={true} />)
-    expect(screen.getByRole('link', { name: 'Nova objava' })).toHaveAttribute('href', '/admin/posts/create')
-    expect(screen.getByRole('link', { name: 'Upravljanje kategorij' })).toHaveAttribute('href', '/admin/categories')
-    expect(screen.getByRole('link', { name: 'Nastavitve administracije' })).toHaveAttribute('href', '/admin/settings')
+    expect(screen.getByRole('link', { name: 'Nova objava' })).toHaveAttribute('href', '/posts/create')
+    expect(screen.getByRole('link', { name: 'Upravljanje kategorij' })).toHaveAttribute('href', '/categories')
+    expect(screen.getByRole('link', { name: 'Nastavitve administracije' })).toHaveAttribute('href', '/settings')
   })
 
   it('при isAdmin=true не показывает admin-ссылок не-admin пользователям (isAdmin=false)', () => {

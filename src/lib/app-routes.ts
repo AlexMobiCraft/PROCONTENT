@@ -3,9 +3,9 @@ export const LOGIN_PATH = '/login'
 export const INACTIVE_PATH = '/inactive'
 export const DEFAULT_AUTH_REDIRECT_PATH = '/feed'
 export const ONBOARDING_PATH = '/onboarding'
-export const ADMIN_POSTS_CREATE_PATH = '/admin/posts/create'
-export const ADMIN_CATEGORIES_PATH = '/admin/categories'
-export const ADMIN_SETTINGS_PATH = '/admin/settings'
+export const ADMIN_POSTS_CREATE_PATH = '/posts/create'
+export const ADMIN_CATEGORIES_PATH = '/categories'
+export const ADMIN_SETTINGS_PATH = '/settings'
 // /update-password: в PUBLIC_PATHS чтобы middleware пропускал пользователей с неактивной подпиской
 // (recovery-flow), дополнительная защита от неавторизованных — серверная проверка в самой странице
 export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH, '/update-password', '/register', '/forgot-password', '/email-preferences', '/api/email/unsubscribe'] as const

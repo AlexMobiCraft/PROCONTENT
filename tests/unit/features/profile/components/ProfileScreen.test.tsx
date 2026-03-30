@@ -224,9 +224,9 @@ describe('ProfileScreen', () => {
 
   it('admin-ссылки ведут на правильные пути', () => {
     render(<ProfileScreen {...defaultProps} isAdmin={true} />)
-    expect(screen.getByRole('link', { name: 'Nova objava' })).toHaveAttribute('href', '/admin/posts/create')
-    expect(screen.getByRole('link', { name: 'Kategorije' })).toHaveAttribute('href', '/admin/categories')
-    expect(screen.getByRole('link', { name: 'Nastavitve administracije' })).toHaveAttribute('href', '/admin/settings')
+    expect(screen.getByRole('link', { name: 'Nova objava' })).toHaveAttribute('href', '/posts/create')
+    expect(screen.getByRole('link', { name: 'Kategorije' })).toHaveAttribute('href', '/categories')
+    expect(screen.getByRole('link', { name: 'Nastavitve administracije' })).toHaveAttribute('href', '/settings')
   })
 
   it('не вызывает Supabase если userId не передан', async () => {
