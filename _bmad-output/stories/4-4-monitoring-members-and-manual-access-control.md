@@ -1,6 +1,6 @@
 # Story 4.4: Мониторинг участниц и ручное управление доступом
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -17,41 +17,41 @@ so that решать спорные ситуации с платежами.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Суpabase-миграция — RLS admin для profiles (AC: 1, 2)
-  - [ ] Создать `supabase/migrations/024_admin_rls_for_profiles.sql`
-  - [ ] Добавить SECURITY DEFINER функцию `is_admin()` (аналог `is_active_subscriber()`)
-  - [ ] Заменить политику SELECT на profiles: `auth.uid() = id OR public.is_admin()`
-  - [ ] Добавить политику UPDATE на profiles для admin: `public.is_admin()` WITH CHECK
+- [x] Task 1: Суpabase-миграция — RLS admin для profiles (AC: 1, 2)
+  - [x] Создать `supabase/migrations/024_admin_rls_for_profiles.sql`
+  - [x] Добавить SECURITY DEFINER функцию `is_admin()` (аналог `is_active_subscriber()`)
+  - [x] Заменить политику SELECT на profiles: `auth.uid() = id OR public.is_admin()`
+  - [x] Добавить политику UPDATE на profiles для admin: `public.is_admin()` WITH CHECK
 
-- [ ] Task 2: Константы маршрутов (AC: 4)
-  - [ ] Добавить `ADMIN_MEMBERS_PATH = '/members'` в `src/lib/app-routes.ts`
+- [x] Task 2: Константы маршрутов (AC: 4)
+  - [x] Добавить `ADMIN_MEMBERS_PATH = '/members'` в `src/lib/app-routes.ts`
 
-- [ ] Task 3: Типы (AC: 1, 2)
-  - [ ] Добавить `MemberProfile` тип в `src/features/admin/types.ts` (поля из profiles нужные для UI)
+- [x] Task 3: Типы (AC: 1, 2)
+  - [x] Добавить `MemberProfile` тип в `src/features/admin/types.ts` (поля из profiles нужные для UI)
 
-- [ ] Task 4: Server API — чтение списка (AC: 1)
-  - [ ] Создать `src/features/admin/api/membersServer.ts` — функция `fetchMembersServer()`: читает все profiles через `createClient()` (server), сортировка `created_at DESC`
+- [x] Task 4: Server API — чтение списка (AC: 1)
+  - [x] Создать `src/features/admin/api/membersServer.ts` — функция `fetchMembersServer()`: читает все profiles через `createClient()` (server), сортировка `created_at DESC`
 
-- [ ] Task 5: Client API — мутация доступа (AC: 2)
-  - [ ] Создать `src/features/admin/api/members.ts` — функция `toggleMemberAccess(userId, grantAccess)`: обновляет `subscription_status` в profiles через `createClient()` (browser)
+- [x] Task 5: Client API — мутация доступа (AC: 2)
+  - [x] Создать `src/features/admin/api/members.ts` — функция `toggleMemberAccess(userId, grantAccess)`: обновляет `subscription_status` в profiles через `createClient()` (browser)
 
-- [ ] Task 6: Dumb-компонент MembersTable (AC: 1, 2)
-  - [ ] Создать `src/features/admin/components/MembersTable.tsx` — принимает `members: MemberProfile[]`, `onToggle(userId, grantAccess)` callback, `togglingId: string | null`; сам рендерит Skeleton при `isLoading=true`
+- [x] Task 6: Dumb-компонент MembersTable (AC: 1, 2)
+  - [x] Создать `src/features/admin/components/MembersTable.tsx` — принимает `members: MemberProfile[]`, `onToggle(userId, grantAccess)` callback, `togglingId: string | null`; сам рендерит Skeleton при `isLoading=true`
 
-- [ ] Task 7: Smart-контейнер MembersContainer (AC: 1, 2)
-  - [ ] Создать `src/features/admin/components/MembersContainer.tsx` — `'use client'`, принимает `initialMembers`, управляет optimistic UI, вызывает `toggleMemberAccess`, показывает Toast при ошибке
+- [x] Task 7: Smart-контейнер MembersContainer (AC: 1, 2)
+  - [x] Создать `src/features/admin/components/MembersContainer.tsx` — `'use client'`, принимает `initialMembers`, управляет optimistic UI, вызывает `toggleMemberAccess`, показывает Toast при ошибке
 
-- [ ] Task 8: RSC-страница members (AC: 1, 3)
-  - [ ] Создать `src/app/(admin)/members/page.tsx` — загружает данные через `fetchMembersServer()`, рендерит `MembersContainer`
+- [x] Task 8: RSC-страница members (AC: 1, 3)
+  - [x] Создать `src/app/(admin)/members/page.tsx` — загружает данные через `fetchMembersServer()`, рендерит `MembersContainer`
 
-- [ ] Task 9: Навигация AdminSidebar (AC: 4)
-  - [ ] Добавить nav-item "Udeleženke" в `adminNavItems` в `AdminSidebar.tsx`
+- [x] Task 9: Навигация AdminSidebar (AC: 4)
+  - [x] Добавить nav-item "Udeleženke" в `adminNavItems` в `AdminSidebar.tsx`
 
-- [ ] Task 10: Тесты
-  - [ ] `tests/unit/features/admin/api/members.test.ts` — тесты `toggleMemberAccess` (клиентская мутация)
-  - [ ] `tests/unit/app/(admin)/members/page.test.tsx` — тест RSC страницы (mock `fetchMembersServer`)
-  - [ ] `tests/unit/features/admin/components/MembersTable.test.tsx` — рендер, skeleton, кнопки toggle
-  - [ ] `tests/unit/components/navigation/AdminSidebar.test.tsx` — обновить существующий тест: проверить новый пункт "Udeleženke"
+- [x] Task 10: Тесты
+  - [x] `tests/unit/features/admin/api/members.test.ts` — тесты `toggleMemberAccess` (клиентская мутация)
+  - [x] `tests/unit/app/(admin)/members/page.test.tsx` — тест RSC страницы (mock `fetchMembersServer`)
+  - [x] `tests/unit/features/admin/components/MembersTable.test.tsx` — рендер, skeleton, кнопки toggle
+  - [x] `tests/unit/components/navigation/AdminSidebar.test.tsx` — обновить существующий тест: проверить новый пункт "Udeleženke"
 
 ## Dev Notes
 
@@ -262,4 +262,30 @@ claude-sonnet-4-6
 
 ### Completion Notes List
 
+- Реализована миграция 024 с SECURITY DEFINER функцией `is_admin()` — аналог паттерна из `is_active_subscriber()` (миграция 009). Обе RLS политики (SELECT + UPDATE) расширены: пользователь видит/обновляет свой профиль ИЛИ admin видит/обновляет всё.
+- Паттерн RSC+Client строго соответствует settings-странице: `page.tsx (RSC)` → `MembersContainer (Smart Client)` → `MembersTable (Dumb)`.
+- Optimistic UI: при переключении доступа статус обновляется мгновенно, при ошибке — rollback + Toast (паттерн из FeedContainer).
+- Skeleton встроен в MembersTable (prop `isLoading`) — не снаружи (CLAUDE.md).
+- Все кнопки min-h-[44px] min-w-[44px] (NFR14).
+- 22 новых теста (3 API + 2 RSC страница + 9 MembersTable + 8 AdminSidebar с новым пунктом).
+- Существующий сбой в PostCard.test.tsx — pre-existing, не связан с историей 4.4.
+
 ### File List
+
+supabase/migrations/024_admin_rls_for_profiles.sql
+src/lib/app-routes.ts
+src/features/admin/types.ts
+src/features/admin/api/membersServer.ts
+src/features/admin/api/members.ts
+src/features/admin/components/MembersTable.tsx
+src/features/admin/components/MembersContainer.tsx
+src/app/(admin)/members/page.tsx
+src/components/navigation/AdminSidebar.tsx
+tests/unit/features/admin/api/members.test.ts
+tests/unit/app/(admin)/members/page.test.tsx
+tests/unit/features/admin/components/MembersTable.test.tsx
+tests/unit/components/navigation/AdminSidebar.test.tsx
+
+## Change Log
+
+- 2026-03-30: Реализована Story 4.4 — мониторинг участниц и ручное управление доступом. Добавлены: миграция RLS (024), MemberProfile тип, server/client API, MembersTable/MembersContainer компоненты, RSC страница /members, nav-пункт Udeleženke в AdminSidebar, 22 теста.

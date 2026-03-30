@@ -1,5 +1,15 @@
 import { z } from 'zod'
 
+export interface MemberProfile {
+  id: string
+  email: string
+  display_name: string | null
+  created_at: string
+  subscription_status: string | null
+  current_period_end: string | null
+  stripe_customer_id: string | null
+}
+
 // Media type union — aligned with DB CHECK constraint
 export type MediaType = 'image' | 'video'
 

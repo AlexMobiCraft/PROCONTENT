@@ -17,11 +17,12 @@ vi.mock('next/link', () => ({
 import { AdminSidebar } from '@/components/navigation/AdminSidebar'
 
 describe('AdminSidebar', () => {
-  it('рендерит все 3 nav-пункта', () => {
+  it('рендерит все 4 nav-пункта', () => {
     mockPathname.mockReturnValue('/posts/create')
     render(<AdminSidebar />)
     expect(screen.getByText('Nova objava')).toBeInTheDocument()
     expect(screen.getByText('Kategorije')).toBeInTheDocument()
+    expect(screen.getByText('Udeleženke')).toBeInTheDocument()
     expect(screen.getByText('Nastavitve')).toBeInTheDocument()
   })
 
@@ -51,6 +52,13 @@ describe('AdminSidebar', () => {
     render(<AdminSidebar />)
     const activeLink = screen.getByRole('link', { name: 'Nastavitve administracije' })
     expect(activeLink.className).toContain('bg-muted')
+  })
+
+  it('активный пункт при pathname=/members получает aria-current="page"', () => {
+    mockPathname.mockReturnValue('/members')
+    render(<AdminSidebar />)
+    const activeLink = screen.getByRole('link', { name: 'Upravljanje udeleženk' })
+    expect(activeLink).toHaveAttribute('aria-current', 'page')
   })
 
   it('все nav-элементы имеют aria-label', () => {

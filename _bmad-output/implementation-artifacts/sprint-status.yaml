@@ -132,7 +132,8 @@ development_status:
   4-2-managing-categories-and-post-rubrics: done
   # 2026-03-30: Story реализована → review
   4-3-managing-content-for-onboarding-and-landing: review
-  4-4-monitoring-members-and-manual-access-control: ready-for-dev
+  # 2026-03-30: Story реализована → review
+  4-4-monitoring-members-and-manual-access-control: review
   # 2026-03-30: Добавлена новая story — admin-навигация обнаружена как пропущенная при реализации 4.3
   4-5-admin-interface-navigation: review
   epic-4-retrospective: optional
