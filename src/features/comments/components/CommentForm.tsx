@@ -58,12 +58,13 @@ export function CommentForm({
             type="submit"
             disabled={isEmpty || isSubmitting}
             className={cn(
-              'flex size-11 items-center justify-center border border-primary bg-transparent font-sans text-[10px] font-medium uppercase tracking-[0.2em] text-foreground',
+              'inline-flex min-h-11 items-center justify-center gap-4 border-2 border-primary px-8 py-3 font-sans text-[11px] font-medium uppercase tracking-[0.28em] text-foreground',
               'transition-colors hover:bg-primary/10',
               'disabled:cursor-not-allowed disabled:opacity-50'
             )}
           >
-            {isSubmitting ? 'Pošiljanje...' : 'Pošlji'}
+            <span>{isSubmitting ? 'Pošiljanje...' : 'Pošlji'}</span>
+            <span aria-hidden>→</span>
           </button>
         </div>
       ) : null}
