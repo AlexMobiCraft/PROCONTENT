@@ -5,12 +5,14 @@ export function HeroSection() {
   return (
     <section className="relative min-h-[100svh] overflow-hidden bg-foreground">
       {/* Background image */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 flex items-center justify-center">
         <Image
           src="/images/hero-bg.png"
           alt="Ustvarjalka vsebine pri delu"
-          fill
-          className="w-full object-cover object-center opacity-60 mix-blend-luminosity"
+          width={1080}
+          height={1920}
+          className="opacity-60 mix-blend-luminosity"
+          style={{ height: '100svh', width: 'auto' }}
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-b from-foreground/20 via-foreground/40 to-foreground/80" />

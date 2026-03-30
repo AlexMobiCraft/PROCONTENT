@@ -38,14 +38,12 @@ export default async function LandingPage() {
 
   return (
     <main className="relative">
-      <div className="fixed inset-0 -z-10 flex items-center justify-center">
+      <div className="fixed inset-0 -z-10">
         <Image
           src="/images/hero-bg.png"
           alt=""
-          width={1920}
-          height={1080}
-          className="opacity-10"
-          style={{ height: '100svh', width: 'auto' }}
+          fill
+          className="object-cover object-center opacity-10"
           priority
         />
       </div>
