@@ -61,7 +61,7 @@ export function CommentForm({
             className={cn(
               'inline-flex min-h-[44px] items-center gap-2 border border-primary px-8 py-3 font-sans text-xs font-medium uppercase tracking-[0.2em] text-foreground',
               'transition-colors hover:bg-primary/10',
-              'disabled:cursor-not-allowed disabled:opacity-50'
+              'disabled:cursor-not-allowed'
             )}
           >
             <span>{isSubmitting ? 'Pošiljanje...' : 'Pošlji'}</span>
