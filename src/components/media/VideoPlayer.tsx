@@ -12,7 +12,7 @@ export interface VideoPlayerProps {
   poster?: string
   /** alt для превью изображения (accessibility) */
   alt?: string
-  aspectRatio?: '16/9' | '4/5' | '1/1'
+  aspectRatio?: '16/9' | '4/5' | '1/1' | '9/16'
   className?: string
   /** Первое видео в ленте — предзагрузить метаданные вместо полного отказа от preload */
   priority?: boolean
@@ -49,6 +49,7 @@ export function VideoPlayer({
     '16/9': 'aspect-video',
     '4/5': 'aspect-[4/5]',
     '1/1': 'aspect-square',
+    '9/16': 'aspect-[9/16]',
   }[aspectRatio]
 
   // Автопауза при выходе из viewport через IntersectionObserver (AC #5, AC #8)

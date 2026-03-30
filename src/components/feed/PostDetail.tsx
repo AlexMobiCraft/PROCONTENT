@@ -277,7 +277,8 @@ export function PostDetail({
               src={(post.mediaItem?.url ?? post.imageUrl)!}
               poster={post.mediaItem?.thumbnail_url ?? undefined}
               alt={post.title}
-              aspectRatio="16/9"
+              aspectRatio="9/16"
+              className="max-h-[640px]"
               priority={true}
             />
           ) : post.type === 'photo' ? (

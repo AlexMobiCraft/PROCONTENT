@@ -184,7 +184,8 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
             src={(post.mediaItem?.url ?? post.media?.[0]?.url)!}
             poster={post.mediaItem?.thumbnail_url ?? post.media?.[0]?.thumbnail_url ?? undefined}
             alt={post.title}
-            aspectRatio={post.type === 'video' ? '16/9' : '4/5'}
+            aspectRatio={post.type === 'video' ? '9/16' : '4/5'}
+            className={post.type === 'video' ? 'max-h-[560px]' : undefined}
             priority={priority}
           />
         </div>
@@ -281,7 +282,7 @@ export function PostCardSkeleton({
   /** Количество ячеек в GalleryGridSkeleton (используется только при mediaType='gallery'). */
   galleryCount?: number
 }) {
-  const mediaAspectClass = mediaType === 'video' ? 'aspect-video' : 'h-72'
+  const mediaAspectClass = mediaType === 'video' ? 'aspect-[9/16] max-h-[560px]' : 'h-72'
   return (
     <div className="border-b border-border bg-background px-4 py-5" aria-hidden>
       <div className="flex items-center gap-3 mb-4">

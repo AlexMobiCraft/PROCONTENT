@@ -28,7 +28,7 @@ interface LazyMediaWrapperProps {
    * Пропорции контейнера. 'none' — не форсировать (AC 8, для GalleryGrid и гибких сеток).
    * По умолчанию — '16/9'.
    */
-  aspectRatio?: '16/9' | '4/5' | '1/1' | 'none'
+  aspectRatio?: '16/9' | '4/5' | '1/1' | '9/16' | 'none'
   className?: string
   priority?: boolean
   type?: 'photo' | 'video'
@@ -94,9 +94,12 @@ function LazyMediaWrapperContent({
   // 'none' или undefined — не применяем aspect класс (AC 8: гибкая сетка)
   const ratioClass =
     aspectRatio && aspectRatio !== 'none'
-      ? ({ '16/9': 'aspect-video', '4/5': 'aspect-[4/5]', '1/1': 'aspect-square' } as const)[
-          aspectRatio
-        ]
+      ? ({
+          '16/9': 'aspect-video',
+          '4/5': 'aspect-[4/5]',
+          '1/1': 'aspect-square',
+          '9/16': 'aspect-[9/16]',
+        } as const)[aspectRatio]
       : undefined
 
   return (

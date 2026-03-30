@@ -55,7 +55,7 @@ export function GalleryGridSkeleton({ count }: { count: number }) {
               key={i}
               className={cn(
                 'animate-pulse rounded-sm bg-muted',
-                isLastOdd ? 'aspect-video' : 'aspect-square',
+                isLastOdd ? 'aspect-video' : 'aspect-[4/5]',
                 isLastOdd && 'col-span-2'
               )}
             />
@@ -67,7 +67,7 @@ export function GalleryGridSkeleton({ count }: { count: number }) {
           {Array.from({ length: carouselCount }).map((_, i) => (
             <div
               key={i}
-              className="aspect-square w-32 flex-none animate-pulse rounded-sm bg-muted"
+              className="aspect-[4/5] w-32 flex-none animate-pulse rounded-sm bg-muted"
             />
           ))}
         </div>
@@ -110,7 +110,7 @@ export function GalleryGrid({
           const ariaLabel =
             item.media_type === 'video' ? `${videoLabel} ${i + 1}` : `${mediaLabel} ${i + 1}`
           // col-span-2 элементы занимают полную ширину → другой aspect и sizes
-          const itemAspectRatio = isLastOdd ? ('16/9' as const) : ('1/1' as const)
+          const itemAspectRatio = isLastOdd ? ('16/9' as const) : ('4/5' as const)
           const itemSizes = isLastOdd ? '(max-width: 768px) 100vw, 640px' : gridItemSizes
           const itemClass = cn(
             'overflow-hidden rounded-sm',
@@ -220,7 +220,7 @@ export function GalleryGrid({
                     src={item.url}
                     poster={item.thumbnail_url ?? undefined}
                     alt={ariaLabel}
-                    aspectRatio="1/1"
+                    aspectRatio="4/5"
                   />
                 </div>
               )
@@ -238,7 +238,7 @@ export function GalleryGrid({
                   <LazyMediaWrapper
                     mediaItem={item}
                     alt={ariaLabel}
-                    aspectRatio="1/1"
+                    aspectRatio="4/5"
                     priority={false}
                     sizes="128px"
                   />
@@ -258,7 +258,7 @@ export function GalleryGrid({
                   <LazyMediaWrapper
                     mediaItem={item}
                     alt={ariaLabel}
-                    aspectRatio="1/1"
+                    aspectRatio="4/5"
                     priority={false}
                     sizes="128px"
                   />
