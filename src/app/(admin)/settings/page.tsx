@@ -7,7 +7,7 @@ export default async function SettingsPage() {
   const settings = await getSettingsServer()
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8">
+    <main className="px-4 py-8">
       <h1 className="mb-2 font-heading text-2xl font-semibold">Nastavitve</h1>
       <p className="mb-8 text-sm text-muted-foreground">
         Globalne nastavitve spletnega mesta PROCONTENT.

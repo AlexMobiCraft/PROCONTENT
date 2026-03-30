@@ -33,7 +33,7 @@ export default async function AdminLayout({
 
   return (
     <AuthProvider user={user} session={session}>
-      <div className="md:flex md:min-h-screen">
+      <div className="md:mx-auto md:flex md:min-h-screen md:max-w-[1200px]">
         <AdminSidebar />
         <main className="min-w-0 flex-1">{children}</main>
       </div>
