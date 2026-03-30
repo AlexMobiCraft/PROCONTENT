@@ -100,7 +100,6 @@ export function VideoPlayer({
 
   return (
     <div className={cn('relative overflow-hidden rounded-md bg-black', ratioClass, className)}>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video
         ref={videoRef}
         data-video-id={videoId}
