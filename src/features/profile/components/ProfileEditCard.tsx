@@ -28,11 +28,14 @@ export function ProfileEditCard({
   const [validationError, setValidationError] = useState<string | null>(null)
 
   async function handleSaveName() {
-    if (!editedName.trim()) {
+    // Fix #1: trim перед любой проверкой длины
+    const trimmed = editedName.trim()
+
+    if (!trimmed) {
       setValidationError('Polje je obvezno')
       return
     }
-    if (editedName.length < 3) {
+    if (trimmed.length < 3) {
       setValidationError('Najmanj 3 znaki')
       return
     }
@@ -42,11 +45,11 @@ export function ProfileEditCard({
 
     try {
       // eslint-disable-next-line camelcase
-      await updateProfile(userId, { first_name: editedName })
+      await updateProfile(userId, { first_name: trimmed })
       toast.success('Ime je bilo posodobljeno')
       setIsEditing(false)
       // eslint-disable-next-line camelcase
-      onProfileUpdate?.({ first_name: editedName })
+      onProfileUpdate?.({ first_name: trimmed })
     } catch (error) {
       setEditedName(first_name) // Rollback
       toast.error(error instanceof Error ? error.message : 'Napaka pri posodobitvi imena')
@@ -63,18 +66,22 @@ export function ProfileEditCard({
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.currentTarget.files?.[0]
-    if (!file) return
+    // Fix #3: guard против concurrent uploads — блокируем если уже идёт загрузка
+    if (!file || isLoading) return
 
     setIsLoading(true)
 
+    // Fix #3: track uploaded URL для корректного rollback/cleanup
+    let uploadedAvatarUrl: string | null = null
+
     try {
-      const newAvatarUrl = await uploadAvatar(userId, file)
+      uploadedAvatarUrl = await uploadAvatar(userId, file)
 
       // Update profile with new avatar URL
       const oldAvatarUrl = currentAvatarUrl
-      setCurrentAvatarUrl(newAvatarUrl)
+      setCurrentAvatarUrl(uploadedAvatarUrl)
 
-      await updateProfile(userId, { avatar_url: newAvatarUrl })
+      await updateProfile(userId, { avatar_url: uploadedAvatarUrl })
 
       // Clean up old avatar if it exists
       if (oldAvatarUrl) {
@@ -84,10 +91,18 @@ export function ProfileEditCard({
       }
 
       toast.success('Avatar je bil naložen')
-      onProfileUpdate?.({ avatar_url: newAvatarUrl })
+      onProfileUpdate?.({ avatar_url: uploadedAvatarUrl })
     } catch (error) {
       // Rollback avatar URL in UI
       setCurrentAvatarUrl(currentAvatarUrl)
+
+      // Fix #6: cleanup orphaned file из Storage если upload прошёл, но updateProfile упал
+      if (uploadedAvatarUrl) {
+        deleteAvatarFile(uploadedAvatarUrl).catch(() => {
+          // best-effort — не бросаем ошибку
+        })
+      }
+
       toast.error(error instanceof Error ? error.message : 'Napaka pri nalaganju avatarja')
     } finally {
       setIsLoading(false)

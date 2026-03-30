@@ -10,7 +10,19 @@ alter table public.profiles
 alter table public.profiles
   alter column first_name drop default;
 
--- Обновить триггер handle_new_user для инициализации first_name и last_name
+-- Fix #7: CHECK constraints — server-side enforcement длины имён
+alter table public.profiles
+  add constraint check_first_name_not_empty
+    check (first_name <> ''),
+  add constraint check_first_name_min_length
+    check (char_length(trim(first_name)) >= 3),
+  add constraint check_first_name_max_length
+    check (char_length(first_name) <= 100),
+  add constraint check_last_name_max_length
+    check (last_name is null or char_length(last_name) <= 100);
+
+-- Fix #2: Обновить триггер handle_new_user — ON CONFLICT DO NOTHING
+-- чтобы повторные auth-события не перезаписывали first_name пустой строкой
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -19,10 +31,7 @@ as $$
 begin
   insert into public.profiles (id, email, first_name, last_name)
   values (new.id, new.email, '', null)
-  on conflict (id) do update
-  set email = excluded.email,
-      first_name = coalesce(excluded.first_name, profiles.first_name),
-      last_name = coalesce(excluded.last_name, profiles.last_name);
+  on conflict (id) do nothing;
   return new;
 end;
 $$;

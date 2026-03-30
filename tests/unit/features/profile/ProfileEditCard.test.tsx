@@ -20,7 +20,8 @@ vi.mock('sonner', () => ({
 
 // Mock next/image
 vi.mock('next/image', () => ({
-  default: ({ src, alt }: any) => <img src={src} alt={alt} />,
+  // eslint-disable-next-line @next/next/no-img-element
+  default: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
 }))
 
 // Import mocked modules
@@ -203,4 +204,46 @@ describe('ProfileEditCard', () => {
       expect(screen.queryByRole('button', { name: /Shrani/i })).not.toBeInTheDocument()
     })
   })
+
+  it('blocks concurrent avatar uploads — second call ignored while isLoading', async () => {
+    const mockUploadAvatar = vi.mocked(profileApi.uploadAvatar)
+    const mockUpdateProfile = vi.mocked(profileApi.updateProfile)
+
+    // Upload занимает "долго" — resolve вручную
+    let resolveUpload!: (val: string) => void
+    mockUploadAvatar.mockReturnValue(
+      new Promise<string>((res) => { resolveUpload = res })
+    )
+    mockUpdateProfile.mockResolvedValue({ old_avatar_url: null })
+
+    const mockOnUpdate = vi.fn()
+    render(
+      <ProfileEditCard
+        userId="user-123"
+        first_name="Janez"
+        avatar_url={null}
+        onProfileUpdate={mockOnUpdate}
+      />
+    )
+
+    const input = screen.getByLabelText(/Naloži avatar/i) as HTMLInputElement
+
+    const file1 = new File(['content1'], 'avatar1.jpg', { type: 'image/jpeg' })
+    const file2 = new File(['content2'], 'avatar2.jpg', { type: 'image/jpeg' })
+
+    // Первый upload — запускает загрузку
+    await userEvent.upload(input, file1)
+
+    // Второй upload — должен быть заблокирован guard'ом isLoading
+    await userEvent.upload(input, file2)
+
+    // Завершить первый upload
+    resolveUpload('https://example.com/avatar1.jpg')
+
+    await waitFor(() => {
+      // uploadAvatar должен был вызваться только 1 раз
+      expect(mockUploadAvatar).toHaveBeenCalledTimes(1)
+    })
+  })
 })
+

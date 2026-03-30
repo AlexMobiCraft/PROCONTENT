@@ -5,6 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 const AVATARS_BUCKET = 'avatars'
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024 // 5MB
 
+// Fix #5: белый список допустимых MIME-типов
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+
 /**
  * Generates a unique storage path for an avatar file.
  * Format: {userId}/{randomUUID}/{filename}
@@ -20,6 +23,16 @@ function generateAvatarPath(userId: string, fileName: string): string {
  * Returns the public URL on success.
  */
 export async function uploadAvatar(userId: string, file: File): Promise<string> {
+  // Fix #5a: проверка 0-byte файла (до проверки размера)
+  if (file.size === 0) {
+    throw new Error('Datoteka ne sme biti prazna')
+  }
+
+  // Fix #5b: MIME type validation
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    throw new Error('Samo slike (JPEG, PNG, GIF, WebP) so dovoljene')
+  }
+
   if (file.size > MAX_AVATAR_SIZE) {
     throw new Error(`Datoteka je prevelika. Največja velikost je 5 MB.`)
   }

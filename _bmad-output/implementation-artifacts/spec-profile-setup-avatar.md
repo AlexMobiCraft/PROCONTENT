@@ -53,17 +53,20 @@ context:
 
 ## Карта кода
 
-- `supabase/migrations/036_add_user_profile_fields.sql` -- Добавить first_name, last_name в таблицу profiles
+- `supabase/migrations/036_add_user_profile_fields.sql` -- Добавить first_name, last_name в таблицу profiles; исправить trigger (ON CONFLICT DO NOTHING); добавить CHECK constraints
 - `src/types/supabase.ts` -- Обновить тип Database с first_name, last_name в profiles
 - `src/features/auth/components/RegisterForm.tsx` -- Собирать поля first_name + last_name
-- `src/features/auth/components/RegisterContainer.tsx` -- Обновить profiles после регистрации
-- `src/features/profile/components/ProfileEditCard.tsx` -- Новая: Редактирование first_name + загрузка аватара
-- `src/features/profile/api/profileApi.ts` -- Обновить профиль (оптимистично), загрузить аватар
+- `src/features/auth/components/RegisterContainer.tsx` -- Обновить profiles после регистрации; отображать ошибку пользователю при сбое; trim перед сохранением
+- `src/features/profile/components/ProfileEditCard.tsx` -- Новая: Редактирование first_name + загрузка аватара; блокировка конкурентных загрузок; trim валидация; cleanup orphaned files
+- `src/features/profile/api/profileApi.ts` -- Обновить профиль (оптимистично), загрузить аватар; MIME type + empty file validation
 - `src/features/profile/components/ProfileScreen.tsx` -- Интегрировать ProfileEditCard
 - `tests/unit/features/auth/RegisterForm.test.tsx` -- Валидировать минимальную длину first_name
-- `tests/unit/features/profile/ProfileEditCard.test.tsx` -- Avatar upload happy/error пути
+- `tests/unit/features/profile/ProfileEditCard.test.tsx` -- Avatar upload happy/error пути; тест блокировки concurrent uploads
+- `tests/unit/features/profile/profileApi.test.ts` -- **НОВЫЙ**: Тесты uploadAvatar (0-byte, >5MB, invalid MIME, valid); deleteAvatarFile (malformed URL, path extraction); updateProfile (not found)
 
 ## Задачи и критерии приёма
+
+### Фаза 1 — Базовая реализация (выполнена)
 
 **Исполнение:**
 - [x] `supabase/migrations/036_add_user_profile_fields.sql` -- Создать миграцию, добавляющую first_name (NOT NULL VARCHAR), last_name (NULL VARCHAR), обновить handle_new_user для инициализации этих полей
@@ -76,11 +79,40 @@ context:
 - [x] `tests/unit/features/auth/RegisterForm.test.tsx` -- Тестировать валидацию first_name (мин 3 символа, пусто отклоняется)
 - [x] `tests/unit/features/profile/ProfileEditCard.test.tsx` -- Тестировать успех/ошибку загрузки аватара, редактирование first_name + откат
 
+### Фаза 2 — Критические исправления (Critical Fixes Execution Plan)
+
+> **Источник:** `_bmad-output/critical-fixes-execution-plan.md` · 7 блокирующих проблем из Code Review Round 1
+
+**Исполнение:**
+
+- [x] **Fix #2** — `supabase/migrations/036_add_user_profile_fields.sql` — Исправить trigger `handle_new_user`: заменить `ON CONFLICT DO UPDATE` на `ON CONFLICT DO NOTHING`, чтобы повторная вставка не перезаписывала first_name пустой строкой
+- [x] **Fix #7** — `supabase/migrations/036_add_user_profile_fields.sql` — Добавить CHECK constraints: `check_first_name_not_empty`, `check_first_name_min_length` (≥3), `check_first_name_max_length` (≤100), `check_last_name_max_length` (≤100 или NULL)
+- [x] **Fix #1** — `src/features/profile/components/ProfileEditCard.tsx` — Trim bug: создать `const trimmed = editedName.trim()`, использовать `trimmed` для проверки длины и передачи в `updateProfile(); также передавать trimmed в `onProfileUpdate`
+- [x] **Fix #3** — `src/features/profile/components/ProfileEditCard.tsx` — Блокировка concurrent uploads: добавить guard `if (!file || isLoading) return` в начало `handleAvatarUpload`; ввести `uploadedAvatarUrl` tracking variable для корректного rollback
+- [x] **Fix #6** — `src/features/profile/components/ProfileEditCard.tsx` — Cleanup orphaned avatar: в catch-блоке `handleAvatarUpload` удалять файл из Storage если `uploadedAvatarUrl` установлен (best-effort, не бросать)
+- [x] **Fix #4** — `src/features/auth/components/RegisterContainer.tsx` — Устранить silent error: при `updateError` показывать `setError('Napaka pri shranjevanju podatkov profila...')`, вызывать `return`; trim first_name/last_name перед update
+- [x] **Fix #5** — `src/features/profile/api/profileApi.ts` — Добавить валидацию в `uploadAvatar()`: проверка MIME type (jpeg/png/gif/webp), проверка 0-byte файла (до проверки размера)
+- [x] **Fix #8** — `tests/unit/features/profile/profileApi.test.ts` (**НОВЫЙ ФАЙЛ**) — Написать тесты: `uploadAvatar` (0-byte, >5MB, invalid MIME, valid 5MB), `deleteAvatarFile` (malformed URL, корректное извлечение пути), `updateProfile` (профиль не найден)
+  - [x] Добавить тест в `ProfileEditCard.test.tsx`: блокировка concurrent uploads (два быстрых вызова → только один upload)
+
 **Критерии приёма:**
+
+_Базовые (Фаза 1):_
 - Дано: новый пользователь на форме регистрации; когда: заполняет first_name="Ana" + пароль + отправляет; тогда: строка profiles создана с first_name="Ana" + last_name=NULL
 - Дано: пользователь на форме регистрации; когда: заполняет first_name="ab" + пароль + отправляет; тогда: форма показывает встроенную ошибку "Najmanj 3 znaki" и блокирует отправку
 - Дано: пользователь просматривает свой профиль; когда: загружает PNG изображение 2МБ; тогда: avatar_url обновляется в БД + UI отображает новое изображение в течение 1 сек
 - Дано: профиль пользователя с аватаром; когда: загрузка аватара не удаётся (ошибка сети); тогда: показана ошибка toast + аватар откатился к предыдущему URL + пользователь может повторить
+
+_Критические исправления (Фаза 2):_
+- Дано: `handleSaveName` с first_name="  Ana  "; тогда: в БД сохраняется "Ana" (trimmed), длина проверяется по trimmed значению
+- Дано: trigger `handle_new_user` срабатывает при повторном auth событии; тогда: `ON CONFLICT DO NOTHING` — first_name в profiles не перезаписывается
+- Дано: два быстрых клика загрузки аватара; тогда: только один upload выполняется; второй блокируется guard'ом `isLoading`
+- Дано: `uploadAvatar()` успешен, но `updateProfile()` падает; тогда: orphaned файл удаляется из Storage (best-effort)
+- Дано: `RegisterContainer` — profile update завершается с ошибкой; тогда: пользователь видит сообщение об ошибке (не тихий `console.warn`)
+- Дано: `uploadAvatar` вызван с файлом `text/plain`; тогда: выбрасывается ошибка "Samo slike (JPEG, PNG, GIF, WebP) so dovoljene"
+- Дано: `uploadAvatar` вызван с 0-byte файлом; тогда: выбрасывается ошибка "Datoteka ne sme biti prazna"
+- Дано: CHECK constraints в БД; тогда: insert с first_name длиной 1-2 символа отклоняется на уровне БД
+- `npm run test -- profileApi.test.ts ProfileEditCard.test.tsx` — все тесты проходят 100%
 
 ## История изменений спеки
 
@@ -114,6 +146,27 @@ context:
 - MEDIUM: Санитизация filename, trim() для last_name, maxLength
 - LOW: Integration tests для avatar upload
 
+**Статус устранения:** → Все 8 исправлений внесены в `_bmad-output/critical-fixes-execution-plan.md` и добавлены в задачи Фазы 2 выше.
+
+### Critical Fixes Plan - 2026-03-30
+
+**Источник:** `_bmad-output/critical-fixes-execution-plan.md`
+
+**7 блокирующих проблем, 8 исправлений, ~2 часа выполнения:**
+
+| Fix | Файл | Проблема | Решение |
+|-----|------|----------|---------|
+| **#1** | `ProfileEditCard.tsx` | Trim bug: длина проверяется до trim → "  ab  " проходит валидацию | `const trimmed = editedName.trim()`, проверять и сохранять `trimmed` |
+| **#2** | `036_add_user_profile_fields.sql` | `ON CONFLICT DO UPDATE` перезаписывает first_name пустой строкой | `ON CONFLICT DO NOTHING` |
+| **#3** | `ProfileEditCard.tsx` | Race condition: concurrent avatar uploads | Guard `if (!file \|\| isLoading) return`; track `uploadedAvatarUrl` |
+| **#4** | `RegisterContainer.tsx` | Silent profile update error (только `console.warn`) | Show `setError(...)` + `return` + trim перед сохранением |
+| **#5** | `profileApi.ts` | Нет MIME type / 0-byte validation | Проверять `file.type in allowedMimes` и `file.size === 0` |
+| **#6** | `ProfileEditCard.tsx` | Orphaned avatar files в Storage | В catch: `deleteAvatarFile(uploadedAvatarUrl)` (best-effort) |
+| **#7** | `036_add_user_profile_fields.sql` | Нет DB-level length constraints | CHECK constraints: min 3, max 100 для first_name; max 100 для last_name |
+| **#8** | `tests/…/profileApi.test.ts` (NEW) | Нет юнит-тестов для profileApi | Тесты: uploadAvatar, deleteAvatarFile, updateProfile + тест concurrent uploads |
+
+**Порядок применения:** Fix #2 → #1 → #3 → #4 → #5 → #6 (входит в #3) → #7 (входит в #5) → #8
+
 ## Заметки о дизайне
 
 **Путь загрузки аватара:** Отразить паттерн post_media — хранить в `avatars/{userId}/{uuid}/filename`. Это изолирует аватары пользователей и позволяет будущим cleanup job'ам работать без конфликтов.
@@ -128,8 +181,13 @@ context:
 
 **Команды:**
 - `npm run typecheck` -- TypeScript типы для новых полей разрешаются без ошибок
-- `npm run test -- RegisterForm ProfileEditCard` -- Unit тесты проходят для сценариев валидации + загрузки
+- `npm run test -- RegisterForm ProfileEditCard profileApi` -- Unit тесты проходят для сценариев валидации + загрузки + profileApi edge cases
 - `npm run lint` -- Нет ESLint нарушений в новых/изменённых файлах
+
+**Дополнительные проверки после Critical Fixes:**
+- `npm run test -- profileApi.test.ts` -- Новые тесты: 0-byte, invalid MIME, >5MB, valid upload, malformed URL, path extraction, profile not found
+- Ручная проверка trigger: зарегистрировать пользователя → проверить `profiles.first_name` = ожидаемое значение, не пустая строка
+- Ручная проверка: два быстрых клика загрузки → только один файл загружен в Storage
 
 **Ручные проверки (если нет CLI):**
 - Поток регистрации: Заполнить first_name="Janez", пароль, отправить → таблица profiles показывает first_name="Janez"
@@ -170,5 +228,8 @@ context:
 - Валидация имени в форме регистрации (min 3 chars, required, special characters)
   [`RegisterForm.test.tsx:1`](../../tests/unit/features/auth/RegisterForm.test.tsx#L1)
 
-- Avatar upload, редактирование имени и обработка ошибок в профиле
+- Avatar upload, редактирование имени, обработка ошибок, concurrent upload guard
   [`ProfileEditCard.test.tsx:1`](../../tests/unit/features/profile/ProfileEditCard.test.tsx#L1)
+
+- API-уровень: uploadAvatar edge cases, deleteAvatarFile URL parsing, updateProfile error handling
+  [`profileApi.test.ts:1`](../../tests/unit/features/profile/profileApi.test.ts#L1)

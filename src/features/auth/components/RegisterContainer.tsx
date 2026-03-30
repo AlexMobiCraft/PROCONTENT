@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
 import { signUp } from '@/features/auth/api/auth'
 import { RegisterForm } from './RegisterForm'
 
@@ -37,16 +38,23 @@ export function RegisterContainer({ email }: RegisterContainerProps) {
     }
 
     if (data?.user) {
-      // Обновить профиль с first_name и last_name
+      // Fix #4: trim перед сохранением в профиль
+      // eslint-disable-next-line camelcase
+      const trimmedFirstName = first_name.trim()
+      const trimmedLastName = last_name.trim()
+
       const supabase = createClient()
       const { error: updateError } = await supabase
         .from('profiles')
         // eslint-disable-next-line camelcase
-        .update({ first_name, last_name: last_name || null })
+        .update({ first_name: trimmedFirstName, last_name: trimmedLastName || null })
         .eq('id', data.user.id)
 
       if (updateError) {
-        console.warn('Napaka pri posodobitvi profila:', updateError)
+        // Fix #4: показываем ошибку пользователю, не тихий console.warn
+        setError('Napaka pri shranjevanju podatkov profila. Prosimo, posodobite profil ročno.')
+        setIsLoading(false)
+        return
       }
 
       setError('Potrditveno sporočilo je bilo poslano na vašo e-pošto. Potrdite e-pošto za vstop v klub.')
@@ -90,6 +98,3 @@ export function RegisterContainer({ email }: RegisterContainerProps) {
     </div>
   )
 }
-
-// Helper to use cn in the component above (didn't import it)
-import { cn } from '@/lib/utils'
