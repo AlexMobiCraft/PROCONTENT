@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { deletePost } from '@/features/admin/api/posts'
+import { getAdminPostEditPath } from '@/lib/app-routes'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
 import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { GalleryGrid } from './GalleryGrid'
@@ -215,7 +216,7 @@ export function PostDetail({
           <PostActionsMenu
             canEdit={canEditPost}
             canDelete={canDeletePost}
-            editHref={canEditPost ? `/admin/posts/${post.id}/edit` : undefined}
+            editHref={canEditPost ? getAdminPostEditPath(post.id) : undefined}
             onDelete={handleDeletePost}
           />
         </div>
