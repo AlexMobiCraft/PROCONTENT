@@ -40,6 +40,9 @@ supabase/.temp/
 supabase/run-custom-seed.js
 supabase/seed_gallery_test_2_4.sql
 
+# Telegram migration state (cursor file)
+.migration-state.json
+
 # Claude
 .claude/settings.local.json
 .claude/settings.json

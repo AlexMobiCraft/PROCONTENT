@@ -142,5 +142,6 @@ development_status:
   # Story 5-1 обновлена 2026-03-22: группировка медиагрупп, Exponential Backoff, post_media
   epic-5: in-progress
   # 2026-03-30: Story-файл создан SM Bob
-  5-1-access-to-the-entire-content-archive-telegram-migration: ready-for-dev
+  # 2026-03-30: Story реализована → review
+  5-1-access-to-the-entire-content-archive-telegram-migration: review
   epic-5-retrospective: optional
