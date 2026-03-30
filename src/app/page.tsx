@@ -44,7 +44,8 @@ export default async function LandingPage() {
           alt=""
           width={1920}
           height={1080}
-          className="h-screen w-auto opacity-10"
+          className="opacity-10"
+          style={{ height: '100svh', width: 'auto' }}
           priority
         />
       </div>

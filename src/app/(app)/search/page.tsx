@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { Suspense } from 'react'
 import { SearchContainer } from '@/features/search/components/SearchContainer'
 import SearchLoading from './loading'
