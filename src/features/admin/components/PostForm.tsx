@@ -173,11 +173,7 @@ export function PostForm(props: PostFormProps) {
       return
     }
 
-    // Validate media: at least 1, at most MAX_MEDIA_FILES
-    if (mediaItems.length === 0) {
-      setMediaError('Dodajte vsaj eno medijsko datoteko')
-      return
-    }
+    // Validate media: at most MAX_MEDIA_FILES
     if (mediaItems.length > MAX_MEDIA_FILES) {
       setMediaError(`Največ ${MAX_MEDIA_FILES} datotek je dovoljenih`)
       return
