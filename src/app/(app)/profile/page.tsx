@@ -44,6 +44,8 @@ export default async function ProfilePage() {
       currentPeriodEnd={profile?.current_period_end ?? null}
       hasStripeCustomer={!!profile?.stripe_customer_id}
       userId={user.id}
+      first_name={profile?.first_name ?? ''}
+      avatar_url={profile?.avatar_url ?? null}
       emailNotificationsEnabled={profile?.email_notifications_enabled ?? true}
       canManageEmailPreferences={!!profile}
       isAdmin={profile?.role === 'admin'}
