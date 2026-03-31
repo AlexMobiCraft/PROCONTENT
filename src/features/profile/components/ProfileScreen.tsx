@@ -96,6 +96,7 @@ export function ProfileScreen({
             email={email}
             displayName={displayName}
             subscriptionStatus={subscriptionStatus}
+            avatar_url={currentAvatarUrl}
           />
         </div>
 
@@ -177,6 +178,7 @@ export function ProfileScreen({
           email={email}
           displayName={displayName}
           subscriptionStatus={subscriptionStatus}
+          avatar_url={currentAvatarUrl}
         />
       </aside>
     </main>

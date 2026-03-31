@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
 function getInitials(displayName: string | null, email: string | null): string {
@@ -47,12 +48,16 @@ interface ProfileRightPanelProps {
   email: string
   displayName: string | null
   subscriptionStatus: string | null
+  // eslint-disable-next-line camelcase
+  avatar_url?: string | null
 }
 
 export function ProfileRightPanel({
   email,
   displayName,
   subscriptionStatus,
+  // eslint-disable-next-line camelcase
+  avatar_url,
 }: ProfileRightPanelProps) {
   const initials = getInitials(displayName, email)
   const { label: statusLabel, active } = getStatusBadge(subscriptionStatus)
@@ -69,8 +74,18 @@ export function ProfileRightPanel({
       <div className="flex flex-col gap-6 px-6 py-6">
         {/* Аватар + имя + статус */}
         <div className="flex flex-col items-center gap-3">
-          <div className="flex size-20 items-center justify-center rounded-full bg-primary/10 text-2xl font-semibold text-primary">
-            {initials}
+          <div className="flex size-20 items-center justify-center rounded-full bg-primary/10 text-2xl font-semibold text-primary overflow-hidden">
+            {avatar_url ? (
+              <Image
+                src={avatar_url}
+                alt={displayName || email}
+                width={80}
+                height={80}
+                className="size-full object-cover"
+              />
+            ) : (
+              initials
+            )}
           </div>
           <div className="text-center">
             {displayName && (
