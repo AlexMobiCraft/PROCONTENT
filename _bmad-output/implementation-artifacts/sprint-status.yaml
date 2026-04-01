@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-03-30 (Story 5.1 ready-for-dev)
+last_updated: 2026-04-01 (Story 6.2 ready-for-dev)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -145,3 +145,13 @@ development_status:
   # 2026-03-30: Story реализована → review
   5-1-access-to-the-entire-content-archive-telegram-migration: done
   epic-5-retrospective: optional
+
+  # ─── EPIC 6: Scheduled Publishing ──────────────────────────────────────────
+  epic-6: in-progress
+  # 2026-04-01: Story 6.1 взята в разработку
+  6-1-post-status-model-database-schema: in-progress
+  # 2026-04-01: Story-файл создан
+  6-2-pg-cron-automatic-publishing-of-scheduled-posts: ready-for-dev
+  6-3-ui-toggle-schedule-and-datetime-picker-in-post-form: backlog
+  6-4-admin-scheduled-posts-table: backlog
+  epic-6-retrospective: optional

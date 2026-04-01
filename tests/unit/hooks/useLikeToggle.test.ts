@@ -32,6 +32,9 @@ function makePost(id: string, overrides: Partial<Post> = {}): Post {
     likes_count: 5,
     comments_count: 2,
     is_published: true,
+    status: 'published',
+    scheduled_at: null,
+    published_at: '2026-01-01T00:00:00Z',
     is_landing_preview: false,
     is_onboarding: false,
     created_at: '2026-01-01T00:00:00Z',
@@ -40,7 +43,7 @@ function makePost(id: string, overrides: Partial<Post> = {}): Post {
     profiles: { display_name: 'Author', avatar_url: null },
     post_media: [],
     ...overrides,
-  }
+  } as Post
 }
 
 describe('useLikeToggle', () => {

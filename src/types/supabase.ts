@@ -209,6 +209,9 @@ export type Database = {
           is_onboarding: boolean
           is_published: boolean
           likes_count: number
+          published_at: string | null
+          scheduled_at: string | null
+          status: string
           title: string
           type: string
           updated_at: string
@@ -227,6 +230,9 @@ export type Database = {
           is_onboarding?: boolean
           is_published?: boolean
           likes_count?: number
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
           title: string
           type?: string
           updated_at?: string
@@ -245,6 +251,9 @@ export type Database = {
           is_onboarding?: boolean
           is_published?: boolean
           likes_count?: number
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
           title?: string
           type?: string
           updated_at?: string

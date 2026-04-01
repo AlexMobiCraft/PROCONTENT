@@ -15,6 +15,9 @@ function makePost(overrides: Partial<Post> = {}): Post {
     likes_count: 5,
     comments_count: 3,
     is_published: true,
+    status: 'published',
+    scheduled_at: null,
+    published_at: '2026-03-15T10:00:00Z',
     is_landing_preview: false,
     is_onboarding: false,
     created_at: '2026-03-15T10:00:00Z',
@@ -25,7 +28,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
       avatar_url: null,
     },
     ...overrides,
-  }
+  } as Post
 }
 
 describe('sortByOrderIndex', () => {

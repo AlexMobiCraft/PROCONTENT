@@ -9,12 +9,21 @@ vi.mock('@/features/admin/components/PostForm', () => ({
     initialData,
   }: {
     mode: string
-    initialData?: { id: string; title: string }
+    initialData?: {
+      id: string
+      title: string
+      status?: string
+      scheduled_at?: string | null
+      published_at?: string | null
+    }
   }) => (
     <div
       data-testid="post-form"
       data-mode={mode}
       data-title={initialData?.title ?? ''}
+      data-status={initialData?.status ?? ''}
+      data-scheduled-at={initialData?.scheduled_at ?? ''}
+      data-published-at={initialData?.published_at ?? ''}
     />
   ),
 }))
@@ -44,6 +53,9 @@ const postData = {
   excerpt: 'Excerpt',
   category: 'insight',
   type: 'photo',
+  status: 'published',
+  scheduled_at: null,
+  published_at: '2026-04-01T18:00:00.000Z',
   post_media: [
     {
       id: 'm1',
@@ -74,6 +86,9 @@ describe('EditPostPage', () => {
 
     // The heading is in the static shell — should render regardless of inner async content
     expect(screen.getByRole('heading', { name: /uredi objavo/i })).toBeInTheDocument()
+    expect(screen.getByTestId('post-form')).toHaveAttribute('data-status', 'published')
+    expect(screen.getByTestId('post-form')).toHaveAttribute('data-scheduled-at', '')
+    expect(screen.getByTestId('post-form')).toHaveAttribute('data-published-at', '2026-04-01T18:00:00.000Z')
   })
 
   it('page renders without throwing', async () => {

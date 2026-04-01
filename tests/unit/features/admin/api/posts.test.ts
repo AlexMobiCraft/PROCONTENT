@@ -95,6 +95,14 @@ describe('createPost', () => {
       authorId: 'user-123',
     })
     expect(id).toBe('new-post-id')
+    expect(supabaseChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_published: true,
+        status: 'published',
+        scheduled_at: null,
+        published_at: expect.any(String),
+      })
+    )
   })
 
   it('throws when post insert fails', async () => {
@@ -185,6 +193,9 @@ describe('fetchPostForEdit', () => {
       content: 'Content',
       excerpt: 'Excerpt',
       category: 'insight',
+      status: 'published',
+      scheduled_at: null,
+      published_at: '2026-04-01T18:00:00.000Z',
       type: 'photo',
       post_media: [
         { id: 'm1', url: 'https://cdn.example.com/m1.jpg', thumbnail_url: null, media_type: 'image', order_index: 0, is_cover: true },
@@ -195,6 +206,9 @@ describe('fetchPostForEdit', () => {
     const result = await fetchPostForEdit('post-1')
     expect(result.id).toBe('post-1')
     expect(result.post_media).toHaveLength(1)
+    expect(result.status).toBe('published')
+    expect(result.scheduled_at).toBeNull()
+    expect(result.published_at).toBe('2026-04-01T18:00:00.000Z')
   })
 
   it('throws when post not found', async () => {
@@ -217,7 +231,19 @@ describe('updatePost', () => {
     supabaseChain = makeChain({ data: null, error: null })
     // Snapshot select returns current post data
     supabaseChain.single.mockResolvedValue({
-      data: { title: 'DB Title', content: 'DB Content', excerpt: null, category: 'cat', type: 'photo' },
+      data: {
+        title: 'DB Title',
+        content: 'DB Content',
+        excerpt: null,
+        category: 'cat',
+        type: 'photo',
+        is_landing_preview: false,
+        is_onboarding: false,
+        is_published: true,
+        status: 'published',
+        scheduled_at: null,
+        published_at: '2026-04-01T18:00:00.000Z',
+      },
       error: null,
     })
     supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
@@ -260,6 +286,20 @@ describe('updatePost', () => {
     ).rejects.toThrow('Napaka pri posodabljanju objave')
   })
 
+  it('does not overwrite status fields during normal edit flow', async () => {
+    await updatePost({
+      postId: 'p1',
+      formValues: baseFormValues,
+      mediaItems: [],
+      originalMedia: [],
+    })
+
+    expect(supabaseChain.update).toHaveBeenCalled()
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('status')
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('scheduled_at')
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('published_at')
+  })
+
   it('throws when media items exceed MAX_MEDIA_FILES', async () => {
     const tooMany = Array.from({ length: MAX_MEDIA_FILES + 1 }, (_, i) => makeNewItem(`k${i}`, i))
 
@@ -276,7 +316,19 @@ describe('updatePost', () => {
   it('snapshots DB state for rollback instead of using stale page data', async () => {
     // Snapshot returns current DB state
     supabaseChain.single.mockResolvedValueOnce({
-      data: { title: 'Current DB Title', content: 'Current', excerpt: null, category: 'real', type: 'gallery' },
+      data: {
+        title: 'Current DB Title',
+        content: 'Current',
+        excerpt: null,
+        category: 'real',
+        type: 'gallery',
+        is_landing_preview: false,
+        is_onboarding: false,
+        is_published: true,
+        status: 'published',
+        scheduled_at: null,
+        published_at: '2026-04-01T18:00:00.000Z',
+      },
       error: null,
     })
 

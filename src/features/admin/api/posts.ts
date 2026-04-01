@@ -31,6 +31,10 @@ function derivePostType(items: MediaItem[]): string {
   return items.length === 1 ? 'photo' : 'gallery'
 }
 
+function getPublishedTimestamp(): string {
+  return new Date().toISOString()
+}
+
 /**
  * Creates a new post with associated media.
  * Sequence: insert post → upload new files one-by-one (tracking URLs) → insert post_media rows
@@ -39,6 +43,7 @@ function derivePostType(items: MediaItem[]): string {
 export async function createPost(input: CreatePostInput): Promise<string> {
   const supabase = createClient()
   const { formValues, mediaItems, authorId } = input
+  const publishedAt = getPublishedTimestamp()
 
   if (mediaItems.length > MAX_MEDIA_FILES) {
     throw new Error(`Prekoračena omejitev: največ ${MAX_MEDIA_FILES} datotek`)
@@ -71,6 +76,9 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       author_id: authorId,
       type: derivePostType(mediaItems),
       is_published: true,
+      status: 'published',
+      scheduled_at: null,
+      published_at: publishedAt,
       is_landing_preview: formValues.is_landing_preview ?? false,
       is_onboarding: formValues.is_onboarding ?? false,
     })
@@ -188,7 +196,7 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
   // 1. Snapshot current post state from DB for accurate rollback
   const { data: snapshot } = await supabase
     .from('posts')
-    .select('title, content, excerpt, category, type, is_landing_preview, is_onboarding')
+    .select('title, content, excerpt, category, type, is_landing_preview, is_onboarding, is_published, status, scheduled_at, published_at')
     .eq('id', postId)
     .single()
 
@@ -294,6 +302,10 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
           type: snapshot.type,
           is_landing_preview: snapshot.is_landing_preview,
           is_onboarding: snapshot.is_onboarding,
+          is_published: snapshot.is_published,
+          status: snapshot.status,
+          scheduled_at: snapshot.scheduled_at,
+          published_at: snapshot.published_at,
         })
         .eq('id', postId)
 
@@ -349,6 +361,9 @@ export async function fetchPostForEdit(postId: string) {
       excerpt,
       category,
       type,
+      status,
+      scheduled_at,
+      published_at,
       is_landing_preview,
       is_onboarding,
       post_media (

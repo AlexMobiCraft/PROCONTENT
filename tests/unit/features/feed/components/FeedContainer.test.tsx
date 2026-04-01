@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { useAuthStore } from '@/features/auth/store'
 import { useFeedStore } from '@/features/feed/store'
 import type { Post } from '@/features/feed/types'
@@ -46,7 +46,14 @@ vi.mock('@/components/feed/PostCard', () => ({
       data-is-liked={String(post.isLiked ?? false)}
     >
       {post.title}
-      <button data-testid={`like-btn-${post.id}`} onClick={() => onLikeToggle?.(post.id)}>Like</button>
+      <button
+        data-testid={`like-btn-${post.id}`}
+        onClick={() => {
+          void onLikeToggle?.(post.id)
+        }}
+      >
+        Like
+      </button>
     </div>
   ),
   PostCardSkeleton: ({ showMedia }: { showMedia?: boolean }) => (
@@ -69,6 +76,9 @@ function makePost(id: string, category = 'insight'): Post {
     likes_count: 0,
     comments_count: 0,
     is_published: true,
+    status: 'published',
+    scheduled_at: null,
+    published_at: '2026-03-15T10:00:00Z',
     is_landing_preview: false,
     is_onboarding: false,
     is_liked: false,
@@ -98,6 +108,10 @@ class MockIntersectionObserver {
 
 beforeEach(() => {
   vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('FeedContainer', () => {

@@ -38,6 +38,9 @@ interface InitialData {
   excerpt?: string | null
   category: string
   type?: string
+  status?: string
+  scheduled_at?: string | null
+  published_at?: string | null
   is_landing_preview?: boolean
   is_onboarding?: boolean
   post_media?: PostMediaRow[]
