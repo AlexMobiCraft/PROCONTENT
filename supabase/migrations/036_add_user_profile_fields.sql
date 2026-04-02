@@ -20,15 +20,53 @@ alter table public.profiles
   alter column first_name set not null;
 
 -- Шаг 4: Добавить CHECK constraints для валидации (Fix #7)
-alter table public.profiles
-  add constraint check_first_name_not_empty
-    check (first_name <> ''),
-  add constraint check_first_name_min_length
-    check (char_length(trim(first_name)) >= 3),
-  add constraint check_first_name_max_length
-    check (char_length(first_name) <= 100),
-  add constraint check_last_name_max_length
-    check (last_name is null or char_length(last_name) <= 100);
+-- Используем IF NOT EXISTS для избежания ошибок при повторном применении
+do $$
+begin
+  -- Добавить constraint check_first_name_not_empty если не существует
+  if not exists (
+    select 1 from pg_constraint 
+    where conname = 'check_first_name_not_empty' 
+    and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+      add constraint check_first_name_not_empty
+        check (first_name <> '');
+  end if;
+  
+  -- Добавить constraint check_first_name_min_length если не существует
+  if not exists (
+    select 1 from pg_constraint 
+    where conname = 'check_first_name_min_length' 
+    and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+      add constraint check_first_name_min_length
+        check (char_length(trim(first_name)) >= 3);
+  end if;
+  
+  -- Добавить constraint check_first_name_max_length если не существует
+  if not exists (
+    select 1 from pg_constraint 
+    where conname = 'check_first_name_max_length' 
+    and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+      add constraint check_first_name_max_length
+        check (char_length(first_name) <= 100);
+  end if;
+  
+  -- Добавить constraint check_last_name_max_length если не существует
+  if not exists (
+    select 1 from pg_constraint 
+    where conname = 'check_last_name_max_length' 
+    and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+      add constraint check_last_name_max_length
+        check (last_name is null or char_length(last_name) <= 100);
+  end if;
+end $$;
 
 -- Fix #2: Обновить триггер handle_new_user — ON CONFLICT DO NOTHING
 -- чтобы повторные auth-события не перезаписывали first_name пустой строкой

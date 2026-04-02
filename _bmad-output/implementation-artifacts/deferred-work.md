@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: code review of 6-2-pg-cron-automatic-publishing-of-scheduled-posts (2026-04-02)
+
+- **Race condition при параллельных cron-вызовах** — теоретически возможен duplicate-email при одновременном запуске двух cron-триггеров. PostgreSQL UPDATE с WHERE условием атомарен, но при одновременном чтении двух экземпляров cron оба могут захватить одни и те же строки. Для MVP с pg_cron каждые 5 минут вероятность крайне мала. При масштабировании рассмотреть `SELECT FOR UPDATE SKIP LOCKED` через RPC.
+
+
+
 ## Deferred from: code review of 6-1-post-status-model-database-schema (2026-04-02)
 
 - **`is_published` и `status` — два независимых флага без DB-level enforcement constraint.** Нет CHECK или триггера, гарантирующего синхронность `is_published=true ↔ status='published'`. Структурный debt, требует отдельного рассмотрения при полном переходе на `status`.
