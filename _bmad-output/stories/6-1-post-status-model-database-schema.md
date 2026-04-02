@@ -1,6 +1,6 @@
 # Story 6.1: Схема БД — статусная модель постов
 
-Status: ready-for-dev
+Status: in-progress
 
 ## Story
 
@@ -277,6 +277,20 @@ Cascade
 ### File List
 
 - `_bmad-output/stories/6-1-post-status-model-database-schema.md`
+
+### Review Findings
+
+- [ ] [Review][Patch] Backfill присваивает `status='published'` постам с `is_published=false` [supabase/migrations/037_add_post_status_scheduling.sql:9-11]
+- [ ] [Review][Patch] `published_at` фиксируется до загрузки медиа — не отражает реальный момент публикации [src/features/admin/api/posts.ts:46]
+- [ ] [Review][Patch] Тест `updatePost` не покрывает rollback-сценарий с новыми status-полями [tests/unit/features/admin/api/posts.test.ts]
+- [ ] [Review][Patch] Мёртвый код в миграции: второй `UPDATE SET status='draft' WHERE status IS NULL` никогда не выполняется [supabase/migrations/037_add_post_status_scheduling.sql:22-24]
+- [ ] [Review][Patch] `PostForm InitialData.status` типизирован как `string`, не как `'draft' | 'scheduled' | 'published'` [src/features/admin/components/PostForm.tsx:41]
+- [x] [Review][Defer] `is_published` и `status` — два независимых флага без DB-level enforcement constraint — deferred, pre-existing
+- [x] [Review][Defer] `scheduled_at` не имеет CHECK `NOT NULL` при `status='scheduled'` — deferred, уместно в Story 6.2/6.3
+- [x] [Review][Defer] Partial index `idx_posts_scheduled` не охватывает `published_at`; cron-запросы должны явно включать `status='scheduled'` — deferred, pre-existing
+- [x] [Review][Defer] `getPublishedTimestamp()` использует клиентское JS-время (clock skew) vs серверного `now()` — deferred, требует SA-рефакторинга
+- [x] [Review][Defer] Snapshot null check в `updatePost` при параллельном удалении поста — deferred, pre-existing
+- [x] [Review][Defer] Частичный rollback `post_media` при сбое step 5 не откатывает upserted медиа — deferred, pre-existing
 
 ## Change Log
 
