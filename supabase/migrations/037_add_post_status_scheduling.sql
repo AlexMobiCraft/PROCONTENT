@@ -8,7 +8,8 @@ alter table public.posts
 
 update public.posts
 set status = 'published'
-where status is null;
+where status is null
+  and is_published = true;
 
 update public.posts
 set published_at = coalesce(published_at, created_at)
@@ -18,6 +19,7 @@ where status = 'published'
 alter table public.posts
   alter column status set default 'draft';
 
+-- backfill posts with is_published = false as draft
 update public.posts
 set status = 'draft'
 where status is null;

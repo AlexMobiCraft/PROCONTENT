@@ -43,7 +43,6 @@ function getPublishedTimestamp(): string {
 export async function createPost(input: CreatePostInput): Promise<string> {
   const supabase = createClient()
   const { formValues, mediaItems, authorId } = input
-  const publishedAt = getPublishedTimestamp()
 
   if (mediaItems.length > MAX_MEDIA_FILES) {
     throw new Error(`Prekoračena omejitev: največ ${MAX_MEDIA_FILES} datotek`)
@@ -78,7 +77,7 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       is_published: true,
       status: 'published',
       scheduled_at: null,
-      published_at: publishedAt,
+      published_at: null,
       is_landing_preview: formValues.is_landing_preview ?? false,
       is_onboarding: formValues.is_onboarding ?? false,
     })
@@ -132,6 +131,16 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       if (mediaError) {
         throw new Error(`Napaka pri shranjevanju medijev: ${mediaError.message}`, { cause: mediaError })
       }
+    }
+
+    // Set published_at after all media is ready — reflects real publication moment
+    const { error: publishedAtError } = await supabase
+      .from('posts')
+      .update({ published_at: getPublishedTimestamp() })
+      .eq('id', postId)
+
+    if (publishedAtError) {
+      console.warn('Napaka pri posodobitvi published_at:', publishedAtError)
     }
 
     return postId

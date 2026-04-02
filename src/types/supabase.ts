@@ -10,74 +10,10 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
-  }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
-      site_settings: {
-        Row: {
-          id: number
-          whatsapp_url: string
-          updated_at: string
-        }
-        Insert: {
-          id?: number
-          whatsapp_url?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: number
-          whatsapp_url?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      categories: {
-        Row: {
-          id: string
-          name: string
-          slug: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          slug: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          slug?: string
-          created_at?: string
-        }
-        Relationships: []
-      }
       post_comments: {
         Row: {
           content: string
@@ -268,6 +204,27 @@ export type Database = {
           },
         ]
       }
+      categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -276,9 +233,7 @@ export type Database = {
           display_name: string | null
           email: string
           email_notifications_enabled: boolean
-          first_name: string
           id: string
-          last_name: string | null
           role: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
@@ -291,9 +246,7 @@ export type Database = {
           display_name?: string | null
           email: string
           email_notifications_enabled?: boolean
-          first_name?: string
           id: string
-          last_name?: string | null
           role?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -306,13 +259,29 @@ export type Database = {
           display_name?: string | null
           email?: string
           email_notifications_enabled?: boolean
-          first_name?: string
           id?: string
-          last_name?: string | null
           role?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string | null
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          id: number
+          updated_at: string
+          whatsapp_url: string
+        }
+        Insert: {
+          id?: number
+          updated_at?: string
+          whatsapp_url?: string
+        }
+        Update: {
+          id?: number
+          updated_at?: string
+          whatsapp_url?: string
         }
         Relationships: []
       }
@@ -321,21 +290,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
-      get_landing_preview_posts: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          id: string
-          title: string
-          excerpt: string | null
-          category: string
-          created_at: string
-          likes_count: number
-          comments_count: number
-        }[]
-      }
-      count_onboarding_posts: { Args: { exclude_id?: string | null }; Returns: number }
       count_landing_preview_posts: { Args: { exclude_id?: string | null }; Returns: number }
+      count_onboarding_posts: { Args: { exclude_id?: string | null }; Returns: number }
+      get_auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      get_landing_preview_posts: { Args: never; Returns: Array<{ id: string; title: string; excerpt: string | null; category: string; created_at: string; likes_count: number; comments_count: number }> }
       is_active_subscriber: { Args: never; Returns: boolean }
       posts_is_liked: {
         Args: { post_row: Database["public"]["Tables"]["posts"]["Row"] }
@@ -470,9 +428,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

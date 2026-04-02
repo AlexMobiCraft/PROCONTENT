@@ -59,7 +59,7 @@ async function EditPostContent({ postId }: { postId: string }) {
         excerpt: data.excerpt,
         category: data.category,
         type: data.type,
-        status: data.status,
+        status: data.status as 'draft' | 'scheduled' | 'published' | undefined,
         scheduled_at: data.scheduled_at,
         published_at: data.published_at,
         is_landing_preview: data.is_landing_preview,

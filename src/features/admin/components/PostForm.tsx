@@ -38,7 +38,7 @@ interface InitialData {
   excerpt?: string | null
   category: string
   type?: string
-  status?: string
+  status?: 'draft' | 'scheduled' | 'published'
   scheduled_at?: string | null
   published_at?: string | null
   is_landing_preview?: boolean

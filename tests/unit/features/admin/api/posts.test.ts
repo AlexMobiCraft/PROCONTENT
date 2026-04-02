@@ -100,8 +100,12 @@ describe('createPost', () => {
         is_published: true,
         status: 'published',
         scheduled_at: null,
-        published_at: expect.any(String),
+        published_at: null,
       })
+    )
+    // published_at is set via a separate UPDATE after media upload completes
+    expect(supabaseChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({ published_at: expect.any(String) })
     )
   })
 
@@ -311,6 +315,57 @@ describe('updatePost', () => {
         originalMedia: [],
       })
     ).rejects.toThrow('Prekoračena omejitev')
+  })
+
+  it('rollback-сценарий включает status-поля из snapshot при ошибке загрузки медиа', async () => {
+    const snapshotData = {
+      title: 'Original',
+      content: 'Content',
+      excerpt: null,
+      category: 'cat',
+      type: 'photo',
+      is_landing_preview: false,
+      is_onboarding: false,
+      is_published: true,
+      status: 'published',
+      scheduled_at: null,
+      published_at: '2026-04-01T18:00:00.000Z',
+    }
+
+    supabaseChain.single.mockResolvedValueOnce({ data: snapshotData, error: null })
+
+    const rollbackPayloadCapture: unknown[] = []
+    const textUpdateEq = vi.fn().mockResolvedValue({ error: null })
+    const rollbackEq = vi.fn().mockResolvedValue({ error: null })
+
+    let updateCallCount = 0
+    supabaseChain.update.mockImplementation((payload: unknown) => {
+      updateCallCount++
+      if (updateCallCount === 1) {
+        return { eq: textUpdateEq }
+      }
+      rollbackPayloadCapture.push(payload)
+      return { eq: rollbackEq }
+    })
+
+    mockUploadFilesWithTracking.mockRejectedValueOnce(new Error('Upload failed'))
+
+    await expect(
+      updatePost({
+        postId: 'p1',
+        formValues: baseFormValues,
+        mediaItems: [makeNewItem('k1', 0)],
+        originalMedia: [],
+      })
+    ).rejects.toThrow('Upload failed')
+
+    expect(rollbackPayloadCapture).toHaveLength(1)
+    expect(rollbackPayloadCapture[0]).toMatchObject({
+      status: 'published',
+      scheduled_at: null,
+      published_at: '2026-04-01T18:00:00.000Z',
+      is_published: true,
+    })
   })
 
   it('snapshots DB state for rollback instead of using stale page data', async () => {
