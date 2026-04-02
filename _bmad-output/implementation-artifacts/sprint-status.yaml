@@ -151,7 +151,8 @@ development_status:
   # 2026-04-01: Story 6.1 взята в разработку
   # 2026-04-02: Code Review Round 1 — 5 patch findings → in-progress
   # 2026-04-02: Round 1 patch findings resolved (backfill fix, published_at timing, rollback test, dead code, status type) → review
-  6-1-post-status-model-database-schema: review
+  # 2026-04-02: Code Review Round 2 passed successfully → done
+  6-1-post-status-model-database-schema: done
   # 2026-04-01: Story-файл создан
   6-2-pg-cron-automatic-publishing-of-scheduled-posts: ready-for-dev
   6-3-ui-toggle-schedule-and-datetime-picker-in-post-form: backlog

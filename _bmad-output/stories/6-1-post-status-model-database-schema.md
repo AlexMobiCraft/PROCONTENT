@@ -1,6 +1,6 @@
 # Story 6.1: Схема БД — статусная модель постов
 
-Status: review
+Status: done
 
 ## Story
 
@@ -296,8 +296,10 @@ Cascade
 - [x] [Review][Defer] `getPublishedTimestamp()` использует клиентское JS-время (clock skew) vs серверного `now()` — deferred, требует SA-рефакторинга
 - [x] [Review][Defer] Snapshot null check в `updatePost` при параллельном удалении поста — deferred, pre-existing
 - [x] [Review][Defer] Частичный rollback `post_media` при сбое step 5 не откатывает upserted медиа — deferred, pre-existing
+- [x] [Review][Patch] Регрессия типов: поля `first_name` и `last_name` ошибочно удалены из интерфейса `profiles` [src/types/supabase.ts:233]
 
 ## Change Log
 
 - 2026-04-01: Story 6.1 подготовлена в статусе `ready-for-dev` с developer guardrails по миграции схемы `posts`, регенерации Supabase types, transitional compatibility для `is_published` и проверке RLS-модели.
 - 2026-04-02: Исправлены 5 patch findings из Code Review Round 1: корректный backfill (только `is_published=true`), `published_at` выставляется после загрузки медиа, добавлен тест rollback с status-полями, строгий тип `status` в PostForm InitialData, cast в edit page. Все 14 тестов admin API прошли, typecheck чист.
+- 2026-04-02: Code Review Round 2 completed successfully. No new findings. Story moved to `done`.
