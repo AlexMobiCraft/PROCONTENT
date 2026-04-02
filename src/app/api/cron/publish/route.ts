@@ -73,21 +73,52 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const posts = published ?? []
   console.info(`[cron] Published ${posts.length} scheduled post(s)`)
 
-  // Отправляем email-уведомления, изолируя ошибки каждого поста
-  const emailErrors: Array<{ postId: string; error: string }> = []
+  // Проверяем env vars перед отправкой уведомлений
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
   const notificationSecret = process.env.NOTIFICATION_API_SECRET
 
+  if (!siteUrl) {
+    console.error('[cron] NEXT_PUBLIC_SITE_URL not configured — all notifications will fail')
+  }
+  if (!notificationSecret) {
+    console.error('[cron] NOTIFICATION_API_SECRET not configured — all notifications will fail')
+  }
+
+  // Отправляем email-уведомления, изолируя ошибки каждого поста
+  const emailErrors: Array<{ postId: string; error: string }> = []
+
   for (const post of posts) {
+    if (!siteUrl || !notificationSecret) {
+      emailErrors.push({ postId: post.id, error: 'Notification env vars not configured' })
+      continue
+    }
+
     try {
-      await fetch(`${siteUrl}/api/notifications/new-post`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${notificationSecret}`,
-        },
-        body: JSON.stringify({ id: post.id, title: post.title, excerpt: post.excerpt }),
-      })
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10_000)
+
+      let response: Response
+      try {
+        response = await fetch(`${siteUrl}/api/notifications/new-post`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${notificationSecret}`,
+          },
+          body: JSON.stringify({ id: post.id, title: post.title, excerpt: post.excerpt }),
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timeoutId)
+      }
+
+      // Потребляем body для возврата соединения в пул
+      const status = response.status
+      const ok = response.ok
+      await response.body?.cancel()
+      if (!ok) {
+        throw new Error(`HTTP ${status}`)
+      }
     } catch (err) {
       console.error(`[cron] Email failed for post ${post.id}:`, err)
       emailErrors.push({ postId: post.id, error: String(err) })

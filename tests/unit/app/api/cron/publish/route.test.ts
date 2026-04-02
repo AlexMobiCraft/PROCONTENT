@@ -200,6 +200,65 @@ describe('POST /api/cron/publish', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
+  it('HTTP 4xx/5xx от notifications endpoint добавляется в emailErrors', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 })
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 })
+
+    const req = makeAuthorizedRequest()
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    expect(body.published).toBe(2)
+    expect(body.emailErrors).toHaveLength(1)
+    expect(body.emailErrors[0].postId).toBe(PUBLISHED_POSTS[0].id)
+    expect(body.emailErrors[0].error).toContain('HTTP 401')
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('при отсутствии NEXT_PUBLIC_SITE_URL все посты попадают в emailErrors', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '')
+
+    const req = makeAuthorizedRequest()
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    expect(body.published).toBe(2)
+    expect(body.emailErrors).toHaveLength(2)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('при отсутствии NOTIFICATION_API_SECRET все посты попадают в emailErrors', async () => {
+    vi.stubEnv('NOTIFICATION_API_SECRET', '')
+
+    const req = makeAuthorizedRequest()
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    expect(body.published).toBe(2)
+    expect(body.emailErrors).toHaveLength(2)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('timeout fetch (AbortError) добавляется в emailErrors', async () => {
+    const abortError = new DOMException('The operation was aborted.', 'AbortError')
+    mockFetch.mockRejectedValueOnce(abortError)
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 })
+
+    const req = makeAuthorizedRequest()
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    expect(body.published).toBe(2)
+    expect(body.emailErrors).toHaveLength(1)
+    expect(body.emailErrors[0].postId).toBe(PUBLISHED_POSTS[0].id)
+    expect(body.emailErrors[0].error).toContain('AbortError')
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
   // --- Обработка ошибок БД ---
 
   it('возвращает 500 при ошибке базы данных', async () => {
