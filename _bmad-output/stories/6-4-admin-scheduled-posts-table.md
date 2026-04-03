@@ -1,6 +1,6 @@
 # Story 6.4: Admin — Раздел «Запланировано» в admin-панели
 
-Status: review
+Status: done
 
 ## Story
 
