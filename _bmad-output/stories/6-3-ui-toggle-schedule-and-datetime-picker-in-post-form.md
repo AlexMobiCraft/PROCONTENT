@@ -1,6 +1,6 @@
 # Story 6.3: UI — Toggle «Запланировать» + datetime picker в форме поста
 
-Status: review
+Status: done
 
 ## Story
 
