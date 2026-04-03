@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-04-03 (Story 6.2 — Round 3 patch findings resolved → review)
+last_updated: 2026-04-03 (Story 6.3 — story file created → ready-for-dev)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -155,7 +155,9 @@ development_status:
   6-1-post-status-model-database-schema: done
   # 2026-04-01: Story-файл создан
   # 2026-04-03: Round 3 patch findings resolved (migration guard DO block, mockFetch body.cancel test) → review
-  6-2-pg-cron-automatic-publishing-of-scheduled-posts: review
-  6-3-ui-toggle-schedule-and-datetime-picker-in-post-form: backlog
+  # 2026-04-03: Round 4 patch findings resolved (5 doc-only: CRON_SECRET removed from story, Dev Notes fixed, subtask 1.5 sync, Reference path, .env.local label) → review
+  6-2-pg-cron-automatic-publishing-of-scheduled-posts: done
+  # 2026-04-03: Story-файл создан SM Bob
+  6-3-ui-toggle-schedule-and-datetime-picker-in-post-form: ready-for-dev
   6-4-admin-scheduled-posts-table: backlog
   epic-6-retrospective: optional
