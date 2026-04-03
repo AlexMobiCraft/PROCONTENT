@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ExistingMediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'
 import { MAX_MEDIA_FILES } from '@/features/admin/types'
 
+type PostStatus = 'draft' | 'scheduled' | 'published'
+
 const mockFrom = vi.fn()
 
 // Build chainable query mock
@@ -45,6 +47,7 @@ const baseFormValues: PostFormValues = {
   category: 'insight',
   content: 'Content here',
   excerpt: 'Short excerpt',
+  status: 'published' as PostStatus,
 }
 
 function makeExistingItem(id: string, orderIndex = 0): ExistingMediaItem {
@@ -368,6 +371,20 @@ describe('updatePost', () => {
     })
   })
 
+  it('does not update status fields during normal edit flow', async () => {
+    await updatePost({
+      postId: 'p1',
+      formValues: baseFormValues,
+      mediaItems: [],
+      originalMedia: [],
+    })
+
+    expect(supabaseChain.update).toHaveBeenCalled()
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('status')
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('scheduled_at')
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('published_at')
+  })
+
   it('snapshots DB state for rollback instead of using stale page data', async () => {
     // Snapshot returns current DB state
     supabaseChain.single.mockResolvedValueOnce({
@@ -406,5 +423,167 @@ describe('updatePost', () => {
 
     // Verify rollback was called with DB snapshot values (not stale page data)
     expect(supabaseChain.update).toHaveBeenCalledTimes(2) // update + rollback
+  })
+})
+
+describe('createPost — scheduling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUploadFilesWithTracking.mockImplementation(
+      async (_postId: string, _files: File[], uploadedUrls: string[]) => {
+        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/file${i}.jpg`)
+        uploadedUrls.push(...urls)
+        return urls
+      }
+    )
+    mockRemoveStorageFiles.mockResolvedValue(undefined)
+  })
+
+  it('creates scheduled post with is_published=false and no published_at', async () => {
+    supabaseChain = makeChain({ data: { id: 'sched-post' }, error: null })
+    supabaseChain.single.mockResolvedValueOnce({ data: { id: 'sched-post' }, error: null })
+    supabaseChain.insert.mockReturnThis()
+
+    const futureDate = new Date(Date.now() + 3600_000).toISOString()
+    const scheduledFormValues: PostFormValues = {
+      ...baseFormValues,
+      status: 'scheduled' as PostStatus,
+      scheduled_at: futureDate,
+    }
+
+    const id = await createPost({
+      formValues: scheduledFormValues,
+      mediaItems: [],
+      authorId: 'user-123',
+    })
+
+    expect(id).toBe('sched-post')
+    expect(supabaseChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_published: false,
+        status: 'scheduled',
+        scheduled_at: futureDate,
+        published_at: null,
+      })
+    )
+    // published_at should NOT be set for scheduled posts
+    expect(supabaseChain.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('updatePost — scheduling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUploadFilesWithTracking.mockImplementation(
+      async (_postId: string, _files: File[], uploadedUrls: string[]) => {
+        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/new-file${i}.jpg`)
+        uploadedUrls.push(...urls)
+        return urls
+      }
+    )
+    mockRemoveStorageFiles.mockResolvedValue(undefined)
+    supabaseChain = makeChain({ data: null, error: null })
+    supabaseChain.single.mockResolvedValue({
+      data: {
+        title: 'DB Title',
+        content: 'DB Content',
+        excerpt: null,
+        category: 'cat',
+        type: 'photo',
+        is_landing_preview: false,
+        is_onboarding: false,
+        is_published: false,
+        status: 'scheduled',
+        scheduled_at: '2026-05-01T10:00:00.000Z',
+        published_at: null,
+      },
+      error: null,
+    })
+    supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    supabaseChain.delete.mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) })
+  })
+
+  it('updates scheduled_at when editing a scheduled post', async () => {
+    const newScheduledAt = new Date(Date.now() + 7200_000).toISOString()
+    const scheduledFormValues: PostFormValues = {
+      ...baseFormValues,
+      status: 'scheduled' as PostStatus,
+      scheduled_at: newScheduledAt,
+    }
+
+    await updatePost({
+      postId: 'p1',
+      formValues: scheduledFormValues,
+      mediaItems: [],
+      originalMedia: [],
+    })
+
+    expect(supabaseChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'scheduled',
+        scheduled_at: newScheduledAt,
+        is_published: false,
+        published_at: null,
+      })
+    )
+  })
+
+  it('rejects published → scheduled transition (AC 2.6)', async () => {
+    // Snapshot returns a published post (has published_at)
+    supabaseChain.single.mockResolvedValueOnce({
+      data: {
+        title: 'Published',
+        content: 'Content',
+        excerpt: null,
+        category: 'cat',
+        type: 'photo',
+        is_landing_preview: false,
+        is_onboarding: false,
+        is_published: true,
+        status: 'published',
+        scheduled_at: null,
+        published_at: '2026-04-01T18:00:00.000Z',
+      },
+      error: null,
+    })
+
+    const scheduledFormValues: PostFormValues = {
+      ...baseFormValues,
+      status: 'scheduled' as PostStatus,
+      scheduled_at: new Date(Date.now() + 7200_000).toISOString(),
+    }
+
+    await expect(
+      updatePost({
+        postId: 'p1',
+        formValues: scheduledFormValues,
+        mediaItems: [],
+        originalMedia: [],
+      })
+    ).rejects.toThrow('Objavljene objave ni mogoče ponovno načrtovati')
+  })
+
+  it('cancels schedule: scheduled → draft clears scheduled_at', async () => {
+    const draftFormValues: PostFormValues = {
+      ...baseFormValues,
+      status: 'draft' as PostStatus,
+      scheduled_at: null,
+    }
+
+    await updatePost({
+      postId: 'p1',
+      formValues: draftFormValues,
+      mediaItems: [],
+      originalMedia: [],
+    })
+
+    expect(supabaseChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'draft',
+        scheduled_at: null,
+        is_published: false,
+        published_at: null,
+      })
+    )
   })
 })

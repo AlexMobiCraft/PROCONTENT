@@ -64,6 +64,8 @@ export async function createPost(input: CreatePostInput): Promise<string> {
     }
   }
 
+  const isScheduled = formValues.status === 'scheduled'
+
   // 1. Insert post record
   const { data: post, error: postError } = await supabase
     .from('posts')
@@ -74,9 +76,9 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       category: formValues.category,
       author_id: authorId,
       type: derivePostType(mediaItems),
-      is_published: true,
-      status: 'published',
-      scheduled_at: null,
+      is_published: isScheduled ? false : true,
+      status: isScheduled ? 'scheduled' : 'published',
+      scheduled_at: isScheduled ? formValues.scheduled_at : null,
       published_at: null,
       is_landing_preview: formValues.is_landing_preview ?? false,
       is_onboarding: formValues.is_onboarding ?? false,
@@ -134,13 +136,16 @@ export async function createPost(input: CreatePostInput): Promise<string> {
     }
 
     // Set published_at after all media is ready — reflects real publication moment
-    const { error: publishedAtError } = await supabase
-      .from('posts')
-      .update({ published_at: getPublishedTimestamp() })
-      .eq('id', postId)
+    // Skip for scheduled posts — published_at will be set by cron or manual publish
+    if (!isScheduled) {
+      const { error: publishedAtError } = await supabase
+        .from('posts')
+        .update({ published_at: getPublishedTimestamp() })
+        .eq('id', postId)
 
-    if (publishedAtError) {
-      console.warn('Napaka pri posodobitvi published_at:', publishedAtError)
+      if (publishedAtError) {
+        console.warn('Napaka pri posodobitvi published_at:', publishedAtError)
+      }
     }
 
     return postId
@@ -210,18 +215,41 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
     .single()
 
   try {
-    // 2. Update post text fields + type + curation flags
+    // 2. Update post text fields + type + curation flags + scheduling
+    const updatePayload: Record<string, unknown> = {
+      title: formValues.title,
+      content: formValues.content ?? null,
+      excerpt: formValues.excerpt ?? null,
+      category: formValues.category,
+      type: derivePostType(mediaItems),
+      is_landing_preview: formValues.is_landing_preview ?? false,
+      is_onboarding: formValues.is_onboarding ?? false,
+    }
+
+    // Include scheduling fields only when form provides status
+    if (formValues.status) {
+      // Guard: published posts cannot be re-scheduled (AC 2.6)
+      if (formValues.status === 'scheduled' && snapshot?.published_at) {
+        throw new Error('Objavljene objave ni mogoče ponovno načrtovati')
+      }
+
+      if (formValues.status === 'scheduled') {
+        updatePayload.status = 'scheduled'
+        updatePayload.scheduled_at = formValues.scheduled_at
+        updatePayload.is_published = false
+        updatePayload.published_at = null
+      } else if (formValues.status === 'draft') {
+        updatePayload.status = 'draft'
+        updatePayload.scheduled_at = null
+        updatePayload.is_published = false
+        updatePayload.published_at = null
+      }
+      // status === 'published' is handled by the /api/posts/publish route handler
+    }
+
     const { error: updateError } = await supabase
       .from('posts')
-      .update({
-        title: formValues.title,
-        content: formValues.content ?? null,
-        excerpt: formValues.excerpt ?? null,
-        category: formValues.category,
-        type: derivePostType(mediaItems),
-        is_landing_preview: formValues.is_landing_preview ?? false,
-        is_onboarding: formValues.is_onboarding ?? false,
-      })
+      .update(updatePayload)
       .eq('id', postId)
 
     if (updateError) {

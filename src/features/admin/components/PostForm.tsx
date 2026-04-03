@@ -1,12 +1,13 @@
 'use client'
 
 import { useForm } from 'react-hook-form'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/features/auth/store'
 import { MediaUploader } from './MediaUploader'
 import { createPost, updatePost } from '@/features/admin/api/posts'
@@ -161,20 +162,88 @@ export function PostForm(props: PostFormProps) {
       category: initialData?.category ?? '',
       is_landing_preview: initialData?.is_landing_preview ?? false,
       is_onboarding: initialData?.is_onboarding ?? false,
+      status: initialData?.status === 'scheduled' ? 'scheduled' : 'published',
+      scheduled_at: initialData?.scheduled_at ?? null,
     },
   })
 
   const isLandingPreview = watch('is_landing_preview')
   const isOnboarding = watch('is_onboarding')
+  const formStatus = watch('status')
+  const scheduledAt = watch('scheduled_at')
+  const isScheduledMode = formStatus === 'scheduled'
+
+  // Guard: published posts cannot be re-scheduled (AC 2.6)
+  const wasAlreadyPublished = isEditMode && !!initialData?.published_at
+
+  // Convert UTC ISO to datetime-local string for input value
+  const localDatetimeValue = useMemo(() => {
+    if (!scheduledAt) return ''
+    const d = new Date(scheduledAt)
+    const offset = d.getTimezoneOffset()
+    const local = new Date(d.getTime() - offset * 60000)
+    return local.toISOString().slice(0, 16)
+  }, [scheduledAt])
+
+  // Minimum datetime: current time + 5 min
+  function getMinDatetime(): string {
+    const d = new Date(Date.now() + 5 * 60_000)
+    const offset = d.getTimezoneOffset()
+    const local = new Date(d.getTime() - offset * 60000)
+    return local.toISOString().slice(0, 16)
+  }
+
+  // Format preview text for scheduled datetime
+  function formatSchedulePreview(utcIso: string): string {
+    const date = new Date(utcIso)
+    const formatted = new Intl.DateTimeFormat('sl-SI', {
+      dateStyle: 'long',
+      timeStyle: 'short',
+    }).format(date)
+    const tzAbbr =
+      new Intl.DateTimeFormat('sl-SI', { timeZoneName: 'short' })
+        .formatToParts(date)
+        .find((p) => p.type === 'timeZoneName')?.value ?? ''
+    return `Objava bo objavljena ${formatted} (${tzAbbr})`
+  }
+
+  // Scheduling validation error state (inline, not toast)
+  const [scheduledAtError, setScheduledAtError] = useState<string | null>(null)
+
+  function handleModeChange(mode: 'published' | 'scheduled') {
+    setValue('status', mode)
+    if (mode === 'published') {
+      setValue('scheduled_at', null)
+      setScheduledAtError(null)
+    }
+  }
+
+  function handleDatetimeChange(localStr: string) {
+    if (!localStr) {
+      setValue('scheduled_at', null)
+      return
+    }
+    const utcIso = new Date(localStr).toISOString()
+    setValue('scheduled_at', utcIso)
+    setScheduledAtError(null)
+  }
 
   async function onSubmit(values: PostFormValues) {
     // Validate with Zod (react-hook-form handles required/max, but Zod is authoritative)
     const parsed = PostFormSchema.safeParse(values)
     if (!parsed.success) {
-      const firstError = parsed.error.issues[0]?.message ?? 'Napaka pri validaciji'
-      toast.error(firstError)
+      // Show scheduled_at errors inline, other errors as toast
+      const scheduledAtIssue = parsed.error.issues.find((i) => i.path.includes('scheduled_at'))
+      if (scheduledAtIssue) {
+        setScheduledAtError(scheduledAtIssue.message)
+      }
+      const otherIssue = parsed.error.issues.find((i) => !i.path.includes('scheduled_at'))
+      if (otherIssue) {
+        toast.error(otherIssue.message)
+      }
       return
     }
+    setScheduledAtError(null)
 
     // Validate media: at most MAX_MEDIA_FILES
     if (mediaItems.length > MAX_MEDIA_FILES) {
@@ -190,13 +259,34 @@ export function PostForm(props: PostFormProps) {
 
     try {
       if (isEditMode && initialData) {
+        // Detect scheduled → published transition (immediate publish)
+        const isImmediatePublish =
+          initialData.status === 'scheduled' && parsed.data.status === 'published'
+
+        // Update text/media/scheduling fields (updatePost skips status='published')
         await updatePost({
           postId: initialData.id,
           formValues: parsed.data,
           mediaItems,
           originalMedia,
         })
-        toast.success('Objava je bila posodobljena')
+
+        // For scheduled → published: call publish route handler for status change + email
+        if (isImmediatePublish) {
+          const res = await fetch('/api/posts/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postId: initialData.id }),
+          })
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            throw new Error(data.error ?? 'Napaka pri objavi')
+          }
+        }
+
+        toast.success(
+          isImmediatePublish ? 'Objava je bila objavljena' : 'Objava je bila posodobljena'
+        )
       } else {
         await createPost({
           formValues: parsed.data,
@@ -361,6 +451,78 @@ export function PostForm(props: PostFormProps) {
         )}
       </div>
 
+      {/* Scheduling toggle + datetime picker */}
+      <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
+        <span className="text-sm font-medium">Način objave</span>
+
+        <div className="flex rounded-lg border" role="group" aria-label="Način objave">
+          <button
+            type="button"
+            className={cn(
+              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-l-lg font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
+              'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+              !isScheduledMode
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-transparent hover:bg-primary/10'
+            )}
+            aria-pressed={!isScheduledMode}
+            onClick={() => handleModeChange('published')}
+            disabled={isSubmitting}
+          >
+            Objavi zdaj
+          </button>
+          <button
+            type="button"
+            className={cn(
+              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-r-lg font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
+              'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+              isScheduledMode
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-transparent hover:bg-primary/10',
+              wasAlreadyPublished && 'opacity-50 cursor-not-allowed'
+            )}
+            aria-pressed={isScheduledMode}
+            onClick={() => handleModeChange('scheduled')}
+            disabled={isSubmitting || wasAlreadyPublished}
+          >
+            Načrtuj objavo
+          </button>
+        </div>
+
+        {isScheduledMode && (
+          <div className="flex flex-col gap-1.5">
+            <input
+              type="datetime-local"
+              className={cn(
+                'min-h-[44px] min-w-[44px] rounded-lg border px-3 py-2 text-sm',
+                'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+                scheduledAtError ? 'border-destructive' : 'border-border'
+              )}
+              aria-label="Datum in čas objave"
+              aria-describedby="schedule-preview"
+              aria-invalid={!!scheduledAtError}
+              min={getMinDatetime()}
+              value={localDatetimeValue}
+              onChange={(e) => handleDatetimeChange(e.target.value)}
+              disabled={isSubmitting}
+            />
+            {scheduledAt && !scheduledAtError && (
+              <p
+                id="schedule-preview"
+                className="text-xs text-muted-foreground tracking-[0.1em]"
+              >
+                {formatSchedulePreview(scheduledAt)}
+              </p>
+            )}
+            {scheduledAtError && (
+              <p className="text-destructive text-sm" role="alert">
+                {scheduledAtError}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Submit */}
       <Button type="submit" disabled={isSubmitting} className="self-start">
         {isSubmitting ? (
@@ -368,6 +530,10 @@ export function PostForm(props: PostFormProps) {
             <Loader2 className="animate-spin" />
             <span>Shranjevanje...</span>
           </>
+        ) : isEditMode && isScheduledMode ? (
+          'Shrani spremembe'
+        ) : isScheduledMode ? (
+          'Načrtuj'
         ) : isEditMode ? (
           'Shrani'
         ) : (

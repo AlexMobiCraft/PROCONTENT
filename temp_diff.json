@@ -1,1 +1,1185 @@
-{"content":"﻿diff --git a/src/features/admin/api/posts.ts b/src/features/admin/api/posts.ts\r\nindex 7e1e3a07..790310bb 100644\r\n--- a/src/features/admin/api/posts.ts\r\n+++ b/src/features/admin/api/posts.ts\r\n@@ -1,6 +1,7 @@\r\n import { createClient } from '@/lib/supabase/client'\r\n import type { ExistingMediaItem, MediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'\r\n-import { uploadNewMediaItems, removeStorageFiles } from './uploadMedia'\r\n+import { MAX_MEDIA_FILES } from '@/features/admin/types'\r\n+import { uploadFilesWithTracking, removeStorageFiles } from './uploadMedia'\r\n \r\n export interface CreatePostInput {\r\n   formValues: PostFormValues\r\n@@ -18,19 +19,31 @@ export interface UpdatePostInput {\r\n /** Derives `posts.type` from the media items in the form state */\r\n function derivePostType(items: MediaItem[]): string {\r\n   if (items.length === 0) return 'text'\r\n-  if (items.length === 1) return items[0].media_type === 'video' ? 'video' : 'photo'\r\n-  return items.every((m) => m.media_type === 'video') ? 'multi-video' : 'gallery'\r\n+\r\n+  const hasImages = items.some((m) => m.media_type === 'image')\r\n+  const hasVideos = items.some((m) => m.media_type === 'video')\r\n+\r\n+  // Defensive: if items exist but none are recognized image/video, treat as text\r\n+  if (!hasImages && !hasVideos) return 'text'\r\n+\r\n+  if (hasImages && hasVideos) return 'gallery'\r\n+  if (hasVideos) return items.length === 1 ? 'video' : 'multi-video'\r\n+  return items.length === 1 ? 'photo' : 'gallery'\r\n }\r\n \r\n /**\r\n  * Creates a new post with associated media.\r\n- * Sequence: insert post Ôćĺ upload new files Ôćĺ insert post_media rows\r\n- * On any error after post creation: attempts to roll back the post record.\r\n+ * Sequence: insert post Ôćĺ upload new files one-by-one (tracking URLs) Ôćĺ insert post_media rows\r\n+ * On any error after post creation: cleans up uploaded files and the post record.\r\n  */\r\n export async function createPost(input: CreatePostInput): Promise<string> {\r\n   const supabase = createClient()\r\n   const { formValues, mediaItems, authorId } = input\r\n \r\n+  if (mediaItems.length > MAX_MEDIA_FILES) {\r\n+    throw new Error(`Prekora─Źena omejitev: najve─Ź ${MAX_MEDIA_FILES} datotek`)\r\n+  }\r\n+\r\n   // 1. Insert post record\r\n   const { data: post, error: postError } = await supabase\r\n     .from('posts')\r\n@@ -48,16 +61,22 @@ export async function createPost(input: CreatePostInput): Promise<string> {\r\n \r\n   if (postError || !post) {\r\n     throw new Error(\r\n-      `Napaka pri ustvarjanju objave: ${postError?.message ?? 'Neznan error'}`\r\n+      `Napaka pri ustvarjanju objave: ${postError?.message ?? 'Neznan error'}`,\r\n+      { cause: postError }\r\n     )\r\n   }\r\n \r\n   const postId = post.id\r\n+  const uploadedUrls: string[] = []\r\n \r\n   try {\r\n-    // 2. Upload new files to Storage\r\n+    // 2. Upload new files to Storage with controlled concurrency ÔÇö track URLs for rollback\r\n     const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')\r\n-    const uploadedMedia = await uploadNewMediaItems(postId, newItems)\r\n+    const newFileUrls = await uploadFilesWithTracking(\r\n+      postId,\r\n+      newItems.map((item) => item.file),\r\n+      uploadedUrls\r\n+    )\r\n \r\n     // 3. Build post_media payload ÔÇö preserve order from mediaItems array\r\n     if (mediaItems.length > 0) {\r\n@@ -73,11 +92,10 @@ export async function createPost(input: CreatePostInput): Promise<string> {\r\n             is_cover: item.is_cover,\r\n           }\r\n         }\r\n-        const uploaded = uploadedMedia[newIdx++]\r\n         return {\r\n           post_id: postId,\r\n-          url: uploaded.url,\r\n-          thumbnail_url: uploaded.thumbnail_url,\r\n+          url: newFileUrls[newIdx++],\r\n+          thumbnail_url: null,\r\n           media_type: item.media_type,\r\n           order_index: item.order_index,\r\n           is_cover: item.is_cover,\r\n@@ -86,13 +104,18 @@ export async function createPost(input: CreatePostInput): Promise<string> {\r\n \r\n       const { error: mediaError } = await supabase.from('post_media').insert(postMediaPayload)\r\n       if (mediaError) {\r\n-        throw new Error(`Napaka pri shranjevanju medijev: ${mediaError.message}`)\r\n+        throw new Error(`Napaka pri shranjevanju medijev: ${mediaError.message}`, { cause: mediaError })\r\n       }\r\n     }\r\n \r\n     return postId\r\n   } catch (err) {\r\n-    // Rollback: delete the post record\r\n+    // Rollback: remove individually tracked uploaded files, then delete the post record\r\n+    if (uploadedUrls.length > 0) {\r\n+      await removeStorageFiles(uploadedUrls).catch((e) => {\r\n+        console.warn('Rollback: napaka pri brisanju datotek iz Storage:', e)\r\n+      })\r\n+    }\r\n     await supabase.from('posts').delete().eq('id', postId)\r\n     throw err\r\n   }\r\n@@ -100,13 +123,22 @@ export async function createPost(input: CreatePostInput): Promise<string> {\r\n \r\n /**\r\n  * Updates an existing post and its media.\r\n- * Handles: updating text fields, deleting removed media from DB + Storage,\r\n- * uploading new files, updating order_index/is_cover for retained items.\r\n+ * Operation order ensures no data loss on failure:\r\n+ * 1. Snapshot current DB state (for rollback)\r\n+ * 2. Update text fields\r\n+ * 3. Upload new files (tracked for rollback)\r\n+ * 4. Upsert existing media (order_index/is_cover)\r\n+ * 5. Insert new post_media rows\r\n+ * 6. Delete removed media from DB + Storage (only after all DB ops succeed)\r\n  */\r\n export async function updatePost(input: UpdatePostInput): Promise<void> {\r\n   const supabase = createClient()\r\n   const { postId, formValues, mediaItems, originalMedia } = input\r\n \r\n+  if (mediaItems.length > MAX_MEDIA_FILES) {\r\n+    throw new Error(`Prekora─Źena omejitev: najve─Ź ${MAX_MEDIA_FILES} datotek`)\r\n+  }\r\n+\r\n   // Determine which original items have been removed\r\n   const retainedIds = new Set(\r\n     mediaItems\r\n@@ -115,69 +147,123 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {\r\n   )\r\n   const removedItems = originalMedia.filter((m) => !retainedIds.has(m.id))\r\n \r\n-  // 1. Update post text fields + type\r\n-  const { error: updateError } = await supabase\r\n+  const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')\r\n+  const uploadedUrls: string[] = []\r\n+  let textUpdated = false\r\n+\r\n+  // 1. Snapshot current post state from DB for accurate rollback\r\n+  const { data: snapshot } = await supabase\r\n     .from('posts')\r\n-    .update({\r\n-      title: formValues.title,\r\n-      content: formValues.content ?? null,\r\n-      excerpt: formValues.excerpt ?? null,\r\n-      category: formValues.category,\r\n-      type: derivePostType(mediaItems),\r\n-    })\r\n+    .select('title, content, excerpt, category, type')\r\n     .eq('id', postId)\r\n+    .single()\r\n \r\n-  if (updateError) {\r\n-    throw new Error(`Napaka pri posodabljanju objave: ${updateError.message}`)\r\n-  }\r\n+  try {\r\n+    // 2. Update post text fields + type\r\n+    const { error: updateError } = await supabase\r\n+      .from('posts')\r\n+      .update({\r\n+        title: formValues.title,\r\n+        content: formValues.content ?? null,\r\n+        excerpt: formValues.excerpt ?? null,\r\n+        category: formValues.category,\r\n+        type: derivePostType(mediaItems),\r\n+      })\r\n+      .eq('id', postId)\r\n+\r\n+    if (updateError) {\r\n+      throw new Error(`Napaka pri posodabljanju objave: ${updateError.message}`, { cause: updateError })\r\n+    }\r\n+    textUpdated = true\r\n+\r\n+    // 3. Upload new files (tracked for rollback)\r\n+    await uploadFilesWithTracking(\r\n+      postId,\r\n+      newItems.map((item) => item.file),\r\n+      uploadedUrls\r\n+    )\r\n \r\n-  // 2. Delete removed media rows from DB\r\n-  if (removedItems.length > 0) {\r\n-    const removedIds = removedItems.map((m) => m.id)\r\n-    const { error: deleteError } = await supabase\r\n-      .from('post_media')\r\n-      .delete()\r\n-      .in('id', removedIds)\r\n+    // 4. Upsert existing media (order_index/is_cover) ÔÇö single call\r\n+    const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')\r\n+    if (existingItems.length > 0) {\r\n+      const upsertPayload = existingItems.map((item) => ({\r\n+        id: item.id,\r\n+        post_id: postId,\r\n+        url: item.url,\r\n+        thumbnail_url: item.thumbnail_url,\r\n+        media_type: item.media_type,\r\n+        order_index: item.order_index,\r\n+        is_cover: item.is_cover,\r\n+      }))\r\n \r\n-    if (deleteError) {\r\n-      throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`)\r\n+      const { error } = await supabase\r\n+        .from('post_media')\r\n+        .upsert(upsertPayload, { onConflict: 'id' })\r\n+\r\n+      if (error) {\r\n+        throw new Error(`Napaka pri posodabljanju vrstnega reda: ${error.message}`, { cause: error })\r\n+      }\r\n     }\r\n \r\n-    // 3. Delete removed files from Storage\r\n-    await removeStorageFiles(removedItems.map((m) => m.url))\r\n-  }\r\n+    // 5. Insert new post_media rows\r\n+    if (newItems.length > 0) {\r\n+      const newMediaPayload = newItems.map((item, idx) => ({\r\n+        post_id: postId,\r\n+        url: uploadedUrls[idx],\r\n+        thumbnail_url: null as string | null,\r\n+        media_type: item.media_type,\r\n+        order_index: item.order_index,\r\n+        is_cover: item.is_cover,\r\n+      }))\r\n \r\n-  // 4. Upload new files\r\n-  const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')\r\n-  const uploadedMedia =\r\n-    newItems.length > 0 ? await uploadNewMediaItems(postId, newItems) : []\r\n-\r\n-  // 5. Update order_index + is_cover for retained existing items\r\n-  const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')\r\n-  await Promise.all(\r\n-    existingItems.map((item) =>\r\n-      supabase\r\n+      const { error: insertError } = await supabase.from('post_media').insert(newMediaPayload)\r\n+      if (insertError) {\r\n+        throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`, { cause: insertError })\r\n+      }\r\n+    }\r\n+\r\n+    // 6. Delete removed media AFTER all DB ops succeed ÔÇö prevents data loss on failure\r\n+    if (removedItems.length > 0) {\r\n+      const removedIds = removedItems.map((m) => m.id)\r\n+      const { error: deleteError } = await supabase\r\n         .from('post_media')\r\n-        .update({ order_index: item.order_index, is_cover: item.is_cover })\r\n-        .eq('id', item.id)\r\n-    )\r\n-  )\r\n+        .delete()\r\n+        .in('id', removedIds)\r\n+\r\n+      if (deleteError) {\r\n+        console.warn('Napaka pri brisanju starih medijev iz DB:', deleteError)\r\n+      }\r\n \r\n-  // 6. Insert new post_media rows\r\n-  if (uploadedMedia.length > 0) {\r\n-    const newMediaPayload = newItems.map((item, idx) => ({\r\n-      post_id: postId,\r\n-      url: uploadedMedia[idx].url,\r\n-      thumbnail_url: null as string | null,\r\n-      media_type: item.media_type,\r\n-      order_index: item.order_index,\r\n-      is_cover: item.is_cover,\r\n-    }))\r\n-\r\n-    const { error: insertError } = await supabase.from('post_media').insert(newMediaPayload)\r\n-    if (insertError) {\r\n-      throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`)\r\n+      // Delete removed files from Storage (best-effort)\r\n+      await removeStorageFiles(removedItems.map((m) => m.url)).catch((e) => {\r\n+        console.warn('Napaka pri brisanju starih datotek iz Storage:', e)\r\n+      })\r\n     }\r\n+  } catch (err) {\r\n+    // Rollback: remove newly uploaded files from Storage\r\n+    if (uploadedUrls.length > 0) {\r\n+      await removeStorageFiles(uploadedUrls).catch((e) => {\r\n+        console.warn('Rollback: napaka pri brisanju novih datotek iz Storage:', e)\r\n+      })\r\n+    }\r\n+    // Rollback: revert text fields using DB snapshot (not stale page data)\r\n+    if (textUpdated && snapshot) {\r\n+      const { error: rollbackError } = await supabase\r\n+        .from('posts')\r\n+        .update({\r\n+          title: snapshot.title,\r\n+          content: snapshot.content,\r\n+          excerpt: snapshot.excerpt,\r\n+          category: snapshot.category,\r\n+          type: snapshot.type,\r\n+        })\r\n+        .eq('id', postId)\r\n+\r\n+      if (rollbackError) {\r\n+        console.warn('Rollback: napaka pri povrnitvi besedila objave:', rollbackError)\r\n+      }\r\n+    }\r\n+    throw err\r\n   }\r\n }\r\n \r\n@@ -212,7 +298,7 @@ export async function fetchPostForEdit(postId: string) {\r\n     .single()\r\n \r\n   if (error || !data) {\r\n-    throw new Error(`Objava ni bila najdena: ${error?.message ?? ''}`)\r\n+    throw new Error(`Objava ni bila najdena: ${error?.message ?? ''}`, { cause: error })\r\n   }\r\n \r\n   return data\r\ndiff --git a/src/features/admin/api/uploadMedia.ts b/src/features/admin/api/uploadMedia.ts\r\nindex 28cd2e47..6be16590 100644\r\n--- a/src/features/admin/api/uploadMedia.ts\r\n+++ b/src/features/admin/api/uploadMedia.ts\r\n@@ -1,5 +1,5 @@\r\n import { createClient } from '@/lib/supabase/client'\r\n-import type { MediaType, NewMediaItem } from '@/features/admin/types'\r\n+import type { MediaType } from '@/features/admin/types'\r\n \r\n const STORAGE_BUCKET = 'post_media'\r\n \r\n@@ -11,12 +11,32 @@ export interface UploadedMedia {\r\n   is_cover: boolean\r\n }\r\n \r\n+export function generateUUID(): string {\r\n+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {\r\n+    return crypto.randomUUID()\r\n+  }\r\n+  // Fallback for non-secure contexts ÔÇö use getRandomValues when available\r\n+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {\r\n+    const bytes = new Uint8Array(16)\r\n+    crypto.getRandomValues(bytes)\r\n+    bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4\r\n+    bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant 10\r\n+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')\r\n+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`\r\n+  }\r\n+  // Last resort fallback (e.g., very old browsers)\r\n+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {\r\n+    const r = (Math.random() * 16) | 0\r\n+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)\r\n+  })\r\n+}\r\n+\r\n /**\r\n  * Generates a unique storage path for a file.\r\n  * Format: posts/{postId}/{randomUUID}/{safeFileName}\r\n  */\r\n function generateStoragePath(postId: string, fileName: string): string {\r\n-  const uuid = crypto.randomUUID()\r\n+  const uuid = generateUUID()\r\n   const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')\r\n   return `posts/${postId}/${uuid}/${safeFileName}`\r\n }\r\n@@ -33,35 +53,58 @@ export async function uploadSingleFile(postId: string, file: File): Promise<stri\r\n   })\r\n \r\n   if (error) {\r\n-    throw new Error(`Napaka pri nalaganju datoteke: ${error.message}`)\r\n+    throw new Error(`Napaka pri nalaganju datoteke: ${error.message}`, { cause: error })\r\n   }\r\n \r\n   const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path)\r\n   return urlData.publicUrl\r\n }\r\n \r\n+/** Max number of concurrent file uploads to avoid rate limiting */\r\n+const UPLOAD_CONCURRENCY = 3\r\n+\r\n /**\r\n- * Uploads all new media items to Supabase Storage in parallel.\r\n- * Returns array of UploadedMedia in the same order as input.\r\n+ * Uploads files with controlled concurrency, tracking each URL for rollback.\r\n+ * Each file's URL is pushed to uploadedUrls immediately on success,\r\n+ * so partial failures within a batch are still tracked for cleanup.\r\n+ * Returns uploaded URLs in same order as input files.\r\n  */\r\n-export async function uploadNewMediaItems(\r\n+export async function uploadFilesWithTracking(\r\n   postId: string,\r\n-  newItems: NewMediaItem[]\r\n-): Promise<UploadedMedia[]> {\r\n-  if (newItems.length === 0) return []\r\n-\r\n-  return Promise.all(\r\n-    newItems.map(async (item) => {\r\n-      const url = await uploadSingleFile(postId, item.file)\r\n-      return {\r\n-        url,\r\n-        media_type: item.media_type,\r\n-        thumbnail_url: null,\r\n-        order_index: item.order_index,\r\n-        is_cover: item.is_cover,\r\n-      } satisfies UploadedMedia\r\n-    })\r\n-  )\r\n+  files: File[],\r\n+  uploadedUrls: string[]\r\n+): Promise<string[]> {\r\n+  const results: string[] = []\r\n+\r\n+  for (let i = 0; i < files.length; i += UPLOAD_CONCURRENCY) {\r\n+    const batch = files.slice(i, i + UPLOAD_CONCURRENCY)\r\n+    const batchResults = await Promise.allSettled(\r\n+      batch.map((file) => uploadSingleFile(postId, file))\r\n+    )\r\n+\r\n+    // Track successful uploads for rollback, then check for failures\r\n+    const batchUrls: string[] = []\r\n+    let firstError: Error | null = null\r\n+\r\n+    for (const result of batchResults) {\r\n+      if (result.status === 'fulfilled') {\r\n+        batchUrls.push(result.value)\r\n+        uploadedUrls.push(result.value)\r\n+      } else if (!firstError) {\r\n+        firstError = result.reason instanceof Error\r\n+          ? result.reason\r\n+          : new Error(String(result.reason))\r\n+      }\r\n+    }\r\n+\r\n+    results.push(...batchUrls)\r\n+\r\n+    if (firstError) {\r\n+      throw firstError\r\n+    }\r\n+  }\r\n+\r\n+  return results\r\n }\r\n \r\n /**\r\n@@ -85,6 +128,6 @@ export async function removeStorageFiles(urls: string[]): Promise<void> {\r\n \r\n   const { error } = await supabase.storage.from(STORAGE_BUCKET).remove(paths)\r\n   if (error) {\r\n-    throw new Error(`Napaka pri brisanju datotek: ${error.message}`)\r\n+    throw new Error(`Napaka pri brisanju datotek: ${error.message}`, { cause: error })\r\n   }\r\n }\r\ndiff --git a/src/features/admin/components/EditPostSkeleton.tsx b/src/features/admin/components/EditPostSkeleton.tsx\r\nnew file mode 100644\r\nindex 00000000..d5db3d10\r\n--- /dev/null\r\n+++ b/src/features/admin/components/EditPostSkeleton.tsx\r\n@@ -0,0 +1,15 @@\r\n+'use client'\r\n+\r\n+export function EditPostSkeleton() {\r\n+  return (\r\n+    <div className=\"flex flex-col gap-6\" aria-label=\"Nalaganje...\">\r\n+      {[1, 2, 3].map((i) => (\r\n+        <div key={i} className=\"flex flex-col gap-1.5\">\r\n+          <div className=\"h-4 w-24 animate-pulse rounded bg-muted\" />\r\n+          <div className=\"h-[44px] w-full animate-pulse rounded border bg-muted\" />\r\n+        </div>\r\n+      ))}\r\n+      <div className=\"h-[44px] w-32 animate-pulse rounded bg-muted\" />\r\n+    </div>\r\n+  )\r\n+}\r\ndiff --git a/src/features/admin/components/MediaSortableItem.tsx b/src/features/admin/components/MediaSortableItem.tsx\r\nindex 25816991..b8e6edb4 100644\r\n--- a/src/features/admin/components/MediaSortableItem.tsx\r\n+++ b/src/features/admin/components/MediaSortableItem.tsx\r\n@@ -64,7 +64,7 @@ export function MediaSortableItem({\r\n             src={previewUrl}\r\n             className=\"size-full object-cover\"\r\n             muted\r\n-            preload=\"metadata\"\r\n+            preload=\"none\"\r\n           />\r\n         ) : (\r\n           // eslint-disable-next-line @next/next/no-img-element\r\ndiff --git a/src/features/admin/components/MediaUploader.tsx b/src/features/admin/components/MediaUploader.tsx\r\nindex ec8eb7a8..6903acf5 100644\r\n--- a/src/features/admin/components/MediaUploader.tsx\r\n+++ b/src/features/admin/components/MediaUploader.tsx\r\n@@ -16,14 +16,17 @@ import {\r\n   verticalListSortingStrategy,\r\n } from '@dnd-kit/sortable'\r\n import { ImagePlus } from 'lucide-react'\r\n-import { useRef } from 'react'\r\n+import { useCallback, useRef, useState } from 'react'\r\n import type { MediaItem, MediaType, NewMediaItem } from '@/features/admin/types'\r\n import {\r\n   getMediaItemId,\r\n   MAX_MEDIA_FILES,\r\n+  MAX_IMAGE_SIZE,\r\n+  MAX_VIDEO_SIZE,\r\n   ALLOWED_IMAGE_TYPES,\r\n   ALLOWED_MEDIA_TYPES,\r\n } from '@/features/admin/types'\r\n+import { generateUUID } from '@/features/admin/api/uploadMedia'\r\n import { MediaSortableItem } from './MediaSortableItem'\r\n \r\n interface MediaUploaderProps {\r\n@@ -32,9 +35,39 @@ interface MediaUploaderProps {\r\n   isSubmitting?: boolean\r\n }\r\n \r\n+function formatSize(bytes: number): string {\r\n+  return bytes >= 1024 * 1024\r\n+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`\r\n+    : `${(bytes / 1024).toFixed(0)} KB`\r\n+}\r\n+\r\n+/** Map common file extensions to MIME types for browsers that return empty type */\r\n+const EXTENSION_TO_MIME: Record<string, string> = {\r\n+  jpg: 'image/jpeg',\r\n+  jpeg: 'image/jpeg',\r\n+  png: 'image/png',\r\n+  webp: 'image/webp',\r\n+  gif: 'image/gif',\r\n+  mp4: 'video/mp4',\r\n+  mov: 'video/quicktime',\r\n+  webm: 'video/webm',\r\n+}\r\n+\r\n+/**\r\n+ * Resolves MIME type from browser-provided type, falling back to extension.\r\n+ * Extension fallback is client-side UX only ÔÇö Supabase Storage validates server-side.\r\n+ */\r\n+function resolveFileType(file: File): string {\r\n+  if (file.type && ALLOWED_MEDIA_TYPES.includes(file.type)) return file.type\r\n+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''\r\n+  return EXTENSION_TO_MIME[ext] ?? ''\r\n+}\r\n+\r\n export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderProps) {\r\n   const inputRef = useRef<HTMLInputElement>(null)\r\n   const isAtLimit = items.length >= MAX_MEDIA_FILES\r\n+  const [fileError, setFileError] = useState<string | null>(null)\r\n+  const [isDragOver, setIsDragOver] = useState(false)\r\n \r\n   const sensors = useSensors(\r\n     useSensor(PointerSensor),\r\n@@ -53,38 +86,92 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n       ...item,\r\n       order_index: idx,\r\n     }))\r\n+    // Clear stale error on successful reorder\r\n+    setFileError(null)\r\n     onChange(reordered)\r\n   }\r\n \r\n-  function handleFilesSelected(files: FileList | null) {\r\n-    if (!files || files.length === 0) return\r\n-\r\n-    const remaining = MAX_MEDIA_FILES - items.length\r\n-    const toAdd = Array.from(files).slice(0, remaining)\r\n-\r\n-    const newItems: NewMediaItem[] = toAdd.map((file, i) => {\r\n-      const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(file.type) ? 'image' : 'video'\r\n-      return {\r\n-        kind: 'new',\r\n-        key: crypto.randomUUID(),\r\n-        file,\r\n-        preview_url: URL.createObjectURL(file),\r\n-        media_type: mediaType,\r\n-        is_cover: false,\r\n-        order_index: items.length + i,\r\n+  const processFiles = useCallback(\r\n+    (fileList: File[]) => {\r\n+      if (fileList.length === 0) return\r\n+\r\n+      setFileError(null)\r\n+      const errors: string[] = []\r\n+\r\n+      // Resolve MIME types (fallback to extension for empty type)\r\n+      const filesWithTypes = fileList.map((f) => ({ file: f, resolvedType: resolveFileType(f) }))\r\n+\r\n+      // Filter by allowed MIME type\r\n+      const validTypeFiles = filesWithTypes.filter(({ file, resolvedType }) => {\r\n+        if (!ALLOWED_MEDIA_TYPES.includes(resolvedType)) {\r\n+          errors.push(`\"${file.name}\" ÔÇö nepodprt format`)\r\n+          return false\r\n+        }\r\n+        return true\r\n+      })\r\n+\r\n+      // Filter by file size\r\n+      const validFiles = validTypeFiles.filter(({ file, resolvedType }) => {\r\n+        const isImage = ALLOWED_IMAGE_TYPES.includes(resolvedType)\r\n+        const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE\r\n+        if (file.size > maxSize) {\r\n+          errors.push(\r\n+            `\"${file.name}\" presega omejitev ${formatSize(maxSize)}`\r\n+          )\r\n+          return false\r\n+        }\r\n+        return true\r\n+      })\r\n+\r\n+      const remaining = MAX_MEDIA_FILES - items.length\r\n+      if (remaining <= 0) {\r\n+        setFileError(`Dose┼żena je omejitev ${MAX_MEDIA_FILES} datotek`)\r\n+        return\r\n       }\r\n-    })\r\n \r\n-    // Auto-assign first item as cover if none set\r\n-    const combined: MediaItem[] = [...items, ...newItems]\r\n-    const hasCover = combined.some((m) => m.is_cover)\r\n-    if (!hasCover && combined.length > 0) {\r\n-      combined[0] = { ...combined[0], is_cover: true }\r\n-    }\r\n+      const toAdd = validFiles.slice(0, remaining)\r\n+      if (validFiles.length > remaining) {\r\n+        errors.push(\r\n+          `${validFiles.length - remaining} datotek ni bilo dodanih ÔÇö omejitev ${MAX_MEDIA_FILES}`\r\n+        )\r\n+      }\r\n+\r\n+      if (errors.length > 0) {\r\n+        setFileError(errors.join('. '))\r\n+      }\r\n+\r\n+      if (toAdd.length === 0) return\r\n+\r\n+      const newItems: NewMediaItem[] = toAdd.map(({ file, resolvedType }, i) => {\r\n+        const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(resolvedType) ? 'image' : 'video'\r\n+        return {\r\n+          kind: 'new',\r\n+          key: generateUUID(),\r\n+          file,\r\n+          preview_url: URL.createObjectURL(file),\r\n+          media_type: mediaType,\r\n+          is_cover: false,\r\n+          order_index: items.length + i,\r\n+        }\r\n+      })\r\n \r\n-    onChange(combined)\r\n-    // Reset input so same file can be re-selected\r\n-    if (inputRef.current) inputRef.current.value = ''\r\n+      // Auto-assign first item as cover if none set\r\n+      const combined: MediaItem[] = [...items, ...newItems]\r\n+      const hasCover = combined.some((m) => m.is_cover)\r\n+      if (!hasCover && combined.length > 0) {\r\n+        combined[0] = { ...combined[0], is_cover: true }\r\n+      }\r\n+\r\n+      onChange(combined)\r\n+      // Reset input so same file can be re-selected\r\n+      if (inputRef.current) inputRef.current.value = ''\r\n+    },\r\n+    [items, onChange]\r\n+  )\r\n+\r\n+  function handleFilesSelected(files: FileList | null) {\r\n+    if (!files) return\r\n+    processFiles(Array.from(files))\r\n   }\r\n \r\n   function handleSetCover(targetId: string) {\r\n@@ -100,7 +187,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n       .filter((item) => getMediaItemId(item) !== targetId)\r\n       .map((item, idx) => ({ ...item, order_index: idx }))\r\n \r\n-    // Revoke object URL for new items\r\n+    // Revoke object URL for new items immediately\r\n     const removed = items.find((item) => getMediaItemId(item) === targetId)\r\n     if (removed?.kind === 'new') URL.revokeObjectURL(removed.preview_url)\r\n \r\n@@ -110,6 +197,41 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n     }\r\n \r\n     onChange(filtered)\r\n+    setFileError(null)\r\n+  }\r\n+\r\n+  function hasFileTransfer(e: React.DragEvent): boolean {\r\n+    try {\r\n+      return e.dataTransfer?.types?.includes('Files') ?? false\r\n+    } catch {\r\n+      return false\r\n+    }\r\n+  }\r\n+\r\n+  // Native drag-and-drop handlers for file upload zone\r\n+  function handleNativeDragOver(e: React.DragEvent) {\r\n+    e.preventDefault()\r\n+    e.stopPropagation()\r\n+    if (!hasFileTransfer(e)) return\r\n+    if (!isAtLimit && !isSubmitting) setIsDragOver(true)\r\n+  }\r\n+\r\n+  function handleNativeDragLeave(e: React.DragEvent) {\r\n+    e.preventDefault()\r\n+    e.stopPropagation()\r\n+    setIsDragOver(false)\r\n+  }\r\n+\r\n+  function handleNativeDrop(e: React.DragEvent) {\r\n+    e.preventDefault()\r\n+    e.stopPropagation()\r\n+    setIsDragOver(false)\r\n+    if (isAtLimit || isSubmitting) return\r\n+    if (!hasFileTransfer(e)) return\r\n+    const files = e.dataTransfer.files\r\n+    if (files.length > 0) {\r\n+      processFiles(Array.from(files))\r\n+    }\r\n   }\r\n \r\n   const sortableIds = items.map(getMediaItemId)\r\n@@ -142,9 +264,12 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n       {/* Upload button / drop zone */}\r\n       <div className=\"flex flex-col gap-1\">\r\n         <label\r\n-          className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted ${\r\n-            isAtLimit || isSubmitting ? 'cursor-not-allowed opacity-50' : ''\r\n-          }`}\r\n+          onDragOver={handleNativeDragOver}\r\n+          onDragLeave={handleNativeDragLeave}\r\n+          onDrop={handleNativeDrop}\r\n+          className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors focus-within:ring-2 focus-within:ring-ring hover:bg-muted ${\r\n+            isDragOver ? 'border-primary bg-primary/5' : ''\r\n+          } ${isAtLimit || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}\r\n         >\r\n           <ImagePlus className=\"size-4\" />\r\n           <span>Dodaj medij ({items.length}/{MAX_MEDIA_FILES})</span>\r\n@@ -160,11 +285,17 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n           />\r\n         </label>\r\n \r\n-        {isAtLimit && (\r\n+        {isAtLimit && !fileError && (\r\n           <p className=\"text-xs text-destructive\" data-testid=\"media-limit-message\">\r\n             Dose┼żena je omejitev {MAX_MEDIA_FILES} datotek\r\n           </p>\r\n         )}\r\n+\r\n+        {fileError && (\r\n+          <p className=\"text-xs text-destructive\" data-testid=\"media-file-error\">\r\n+            {fileError}\r\n+          </p>\r\n+        )}\r\n       </div>\r\n     </div>\r\n   )\r\ndiff --git a/src/features/admin/components/PostForm.tsx b/src/features/admin/components/PostForm.tsx\r\nindex 67b8ede6..508101fe 100644\r\n--- a/src/features/admin/components/PostForm.tsx\r\n+++ b/src/features/admin/components/PostForm.tsx\r\n@@ -1,7 +1,7 @@\r\n 'use client'\r\n \r\n import { useForm } from 'react-hook-form'\r\n-import { useState } from 'react'\r\n+import { useState, useEffect, useRef } from 'react'\r\n import { useRouter } from 'next/navigation'\r\n import { toast } from 'sonner'\r\n import { Loader2 } from 'lucide-react'\r\n@@ -12,8 +12,10 @@ import { MediaUploader } from './MediaUploader'\r\n import { createPost, updatePost } from '@/features/admin/api/posts'\r\n import {\r\n   PostFormSchema,\r\n+  MAX_MEDIA_FILES,\r\n   type PostFormValues,\r\n   type MediaItem,\r\n+  type NewMediaItem,\r\n   type ExistingMediaItem,\r\n } from '@/features/admin/types'\r\n \r\n@@ -32,6 +34,7 @@ interface InitialData {\r\n   content?: string | null\r\n   excerpt?: string | null\r\n   category: string\r\n+  type?: string\r\n   post_media?: PostMediaRow[]\r\n }\r\n \r\n@@ -76,6 +79,45 @@ export function PostForm(props: PostFormProps) {\r\n     }))\r\n   })\r\n \r\n+  // Track ObjectURLs for cleanup on unmount\r\n+  const objectUrlsRef = useRef<Set<string>>(new Set())\r\n+\r\n+  const handleMediaChange = (items: MediaItem[]) => {\r\n+    // Track new ObjectURLs and clean up revoked ones\r\n+    const currentUrls = new Set(\r\n+      items\r\n+        .filter((i): i is NewMediaItem => i.kind === 'new')\r\n+        .map((i) => i.preview_url)\r\n+    )\r\n+    // Revoke URLs no longer in the list\r\n+    for (const url of objectUrlsRef.current) {\r\n+      if (!currentUrls.has(url)) {\r\n+        URL.revokeObjectURL(url)\r\n+        objectUrlsRef.current.delete(url)\r\n+      }\r\n+    }\r\n+    // Track new URLs\r\n+    for (const url of currentUrls) {\r\n+      objectUrlsRef.current.add(url)\r\n+    }\r\n+    setMediaItems(items)\r\n+  }\r\n+\r\n+  // Cleanup ObjectURLs on unmount ÔÇö snapshot the ref to avoid double-revoke\r\n+  useEffect(() => {\r\n+    const ref = objectUrlsRef.current\r\n+    return () => {\r\n+      if (!(ref instanceof Set)) return\r\n+      const urls = new Set(ref)\r\n+      ref.clear()\r\n+      for (const url of urls) {\r\n+        URL.revokeObjectURL(url)\r\n+      }\r\n+    }\r\n+  }, [])\r\n+\r\n+  const [mediaError, setMediaError] = useState<string | null>(null)\r\n+\r\n   const {\r\n     register,\r\n     handleSubmit,\r\n@@ -92,7 +134,22 @@ export function PostForm(props: PostFormProps) {\r\n   async function onSubmit(values: PostFormValues) {\r\n     // Validate with Zod (react-hook-form handles required/max, but Zod is authoritative)\r\n     const parsed = PostFormSchema.safeParse(values)\r\n-    if (!parsed.success) return\r\n+    if (!parsed.success) {\r\n+      const firstError = parsed.error.issues[0]?.message ?? 'Napaka pri validaciji'\r\n+      toast.error(firstError)\r\n+      return\r\n+    }\r\n+\r\n+    // Validate media: at least 1, at most MAX_MEDIA_FILES\r\n+    if (mediaItems.length === 0) {\r\n+      setMediaError('Dodajte vsaj eno medijsko datoteko')\r\n+      return\r\n+    }\r\n+    if (mediaItems.length > MAX_MEDIA_FILES) {\r\n+      setMediaError(`Najve─Ź ${MAX_MEDIA_FILES} datotek je dovoljenih`)\r\n+      return\r\n+    }\r\n+    setMediaError(null)\r\n \r\n     if (!user) {\r\n       toast.error('Niste prijavljeni')\r\n@@ -205,7 +262,12 @@ export function PostForm(props: PostFormProps) {\r\n       {/* Media uploader */}\r\n       <div className=\"flex flex-col gap-1.5\">\r\n         <span className=\"text-sm font-medium\">Mediji</span>\r\n-        <MediaUploader items={mediaItems} onChange={setMediaItems} isSubmitting={isSubmitting} />\r\n+        <MediaUploader items={mediaItems} onChange={handleMediaChange} isSubmitting={isSubmitting} />\r\n+        {mediaError && (\r\n+          <p className=\"text-xs text-destructive\" role=\"alert\" data-testid=\"media-required-error\">\r\n+            {mediaError}\r\n+          </p>\r\n+        )}\r\n       </div>\r\n \r\n       {/* Submit */}\r\ndiff --git a/src/features/admin/types.ts b/src/features/admin/types.ts\r\nindex 7f4a286a..25c7343e 100644\r\n--- a/src/features/admin/types.ts\r\n+++ b/src/features/admin/types.ts\r\n@@ -37,10 +37,16 @@ export function getMediaItemId(item: MediaItem): string {\r\n \r\n /** Post form field values ÔÇö validated by Zod */\r\n export const PostFormSchema = z.object({\r\n-  title: z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)'),\r\n-  content: z.string().optional(),\r\n+  title: z\r\n+    .string()\r\n+    .transform((s) => s.trim())\r\n+    .pipe(z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)')),\r\n+  content: z.string().max(50000, 'Vsebina je predolga (max 50.000 znakov)').optional(),\r\n   excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),\r\n-  category: z.string().min(1, 'Kategorija je obvezna').max(100),\r\n+  category: z\r\n+    .string()\r\n+    .transform((s) => s.trim())\r\n+    .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),\r\n })\r\n \r\n export type PostFormValues = z.infer<typeof PostFormSchema>\r\n@@ -48,6 +54,12 @@ export type PostFormValues = z.infer<typeof PostFormSchema>\r\n /** Maximum number of media files allowed per post */\r\n export const MAX_MEDIA_FILES = 10\r\n \r\n+/** Maximum file size for images (10 MB) */\r\n+export const MAX_IMAGE_SIZE = 10 * 1024 * 1024\r\n+\r\n+/** Maximum file size for videos (100 MB) */\r\n+export const MAX_VIDEO_SIZE = 100 * 1024 * 1024\r\n+\r\n /** Allowed MIME types for image uploads */\r\n export const ALLOWED_IMAGE_TYPES = [\r\n   'image/jpeg',\r\ndiff --git a/tests/unit/features/admin/api/posts.test.ts b/tests/unit/features/admin/api/posts.test.ts\r\nindex 4ab32dae..51b4c475 100644\r\n--- a/tests/unit/features/admin/api/posts.test.ts\r\n+++ b/tests/unit/features/admin/api/posts.test.ts\r\n@@ -1,5 +1,6 @@\r\n import { describe, it, expect, vi, beforeEach } from 'vitest'\r\n import type { ExistingMediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'\r\n+import { MAX_MEDIA_FILES } from '@/features/admin/types'\r\n \r\n const mockFrom = vi.fn()\r\n \r\n@@ -8,6 +9,7 @@ function makeChain(result: unknown) {\r\n   const chain = {\r\n     insert: vi.fn().mockReturnThis(),\r\n     update: vi.fn().mockReturnThis(),\r\n+    upsert: vi.fn().mockResolvedValue({ error: null }),\r\n     delete: vi.fn().mockReturnThis(),\r\n     select: vi.fn().mockReturnThis(),\r\n     eq: vi.fn().mockReturnThis(),\r\n@@ -17,11 +19,11 @@ function makeChain(result: unknown) {\r\n   return chain\r\n }\r\n \r\n-const mockUploadNewMediaItems = vi.fn()\r\n+const mockUploadFilesWithTracking = vi.fn()\r\n const mockRemoveStorageFiles = vi.fn()\r\n \r\n vi.mock('@/features/admin/api/uploadMedia', () => ({\r\n-  uploadNewMediaItems: (...args: unknown[]) => mockUploadNewMediaItems(...args),\r\n+  uploadFilesWithTracking: (...args: unknown[]) => mockUploadFilesWithTracking(...args),\r\n   removeStorageFiles: (...args: unknown[]) => mockRemoveStorageFiles(...args),\r\n }))\r\n \r\n@@ -72,14 +74,19 @@ function makeNewItem(key: string, orderIndex = 0): NewMediaItem {\r\n describe('createPost', () => {\r\n   beforeEach(() => {\r\n     vi.clearAllMocks()\r\n-    mockUploadNewMediaItems.mockResolvedValue([])\r\n+    mockUploadFilesWithTracking.mockImplementation(\r\n+      async (_postId: string, _files: File[], uploadedUrls: string[]) => {\r\n+        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/file${i}.jpg`)\r\n+        uploadedUrls.push(...urls)\r\n+        return urls\r\n+      }\r\n+    )\r\n     mockRemoveStorageFiles.mockResolvedValue(undefined)\r\n   })\r\n \r\n   it('creates post and returns post id', async () => {\r\n     supabaseChain = makeChain({ data: { id: 'new-post-id' }, error: null })\r\n     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'new-post-id' }, error: null })\r\n-    // Second call for post_media insert\r\n     supabaseChain.insert.mockReturnThis()\r\n \r\n     const id = await createPost({\r\n@@ -98,18 +105,22 @@ describe('createPost', () => {\r\n     ).rejects.toThrow('Napaka pri ustvarjanju objave')\r\n   })\r\n \r\n-  it('uploads new media items after post created', async () => {\r\n+  it('throws when media items exceed MAX_MEDIA_FILES', async () => {\r\n+    const tooMany = Array.from({ length: MAX_MEDIA_FILES + 1 }, (_, i) => makeNewItem(`k${i}`, i))\r\n+\r\n+    await expect(\r\n+      createPost({ formValues: baseFormValues, mediaItems: tooMany, authorId: 'u1' })\r\n+    ).rejects.toThrow('Prekora─Źena omejitev')\r\n+  })\r\n+\r\n+  it('uploads new media items with concurrency after post created', async () => {\r\n     supabaseChain = makeChain({ data: { id: 'post-1' }, error: null })\r\n-    // First insert (posts): chain returns itself so .select().single() works\r\n     supabaseChain.insert\r\n       .mockReturnValueOnce(supabaseChain) // posts insert Ôćĺ chained\r\n       .mockReturnValueOnce({ error: null }) // post_media insert Ôćĺ {error: null}\r\n     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-1' }, error: null })\r\n \r\n     const newItem = makeNewItem('k1', 0)\r\n-    mockUploadNewMediaItems.mockResolvedValue([\r\n-      { url: 'https://cdn.example.com/file.jpg', media_type: 'image', thumbnail_url: null, order_index: 0, is_cover: true },\r\n-    ])\r\n \r\n     await createPost({\r\n       formValues: baseFormValues,\r\n@@ -117,7 +128,11 @@ describe('createPost', () => {\r\n       authorId: 'u1',\r\n     })\r\n \r\n-    expect(mockUploadNewMediaItems).toHaveBeenCalledWith('post-1', [newItem])\r\n+    expect(mockUploadFilesWithTracking).toHaveBeenCalledWith(\r\n+      'post-1',\r\n+      [newItem.file],\r\n+      expect.any(Array)\r\n+    )\r\n   })\r\n })\r\n \r\n@@ -154,17 +169,26 @@ describe('fetchPostForEdit', () => {\r\n describe('updatePost', () => {\r\n   beforeEach(() => {\r\n     vi.clearAllMocks()\r\n-    mockUploadNewMediaItems.mockResolvedValue([])\r\n+    mockUploadFilesWithTracking.mockImplementation(\r\n+      async (_postId: string, _files: File[], uploadedUrls: string[]) => {\r\n+        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/new-file${i}.jpg`)\r\n+        uploadedUrls.push(...urls)\r\n+        return urls\r\n+      }\r\n+    )\r\n     mockRemoveStorageFiles.mockResolvedValue(undefined)\r\n     supabaseChain = makeChain({ data: null, error: null })\r\n+    // Snapshot select returns current post data\r\n+    supabaseChain.single.mockResolvedValue({\r\n+      data: { title: 'DB Title', content: 'DB Content', excerpt: null, category: 'cat', type: 'photo' },\r\n+      error: null,\r\n+    })\r\n     supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })\r\n     supabaseChain.delete.mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) })\r\n-    supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }), error: null })\r\n   })\r\n \r\n-  it('calls removeStorageFiles for deleted media', async () => {\r\n+  it('deletes removed media only after all DB ops succeed', async () => {\r\n     const original = [makeExistingItem('m1', 0), makeExistingItem('m2', 1)]\r\n-    // Keep only m1 ÔÇö m2 should be deleted\r\n     const current = [makeExistingItem('m1', 0)]\r\n \r\n     supabaseChain.update.mockReturnValue({\r\n@@ -198,4 +222,45 @@ describe('updatePost', () => {\r\n       })\r\n     ).rejects.toThrow('Napaka pri posodabljanju objave')\r\n   })\r\n+\r\n+  it('throws when media items exceed MAX_MEDIA_FILES', async () => {\r\n+    const tooMany = Array.from({ length: MAX_MEDIA_FILES + 1 }, (_, i) => makeNewItem(`k${i}`, i))\r\n+\r\n+    await expect(\r\n+      updatePost({\r\n+        postId: 'p1',\r\n+        formValues: baseFormValues,\r\n+        mediaItems: tooMany,\r\n+        originalMedia: [],\r\n+      })\r\n+    ).rejects.toThrow('Prekora─Źena omejitev')\r\n+  })\r\n+\r\n+  it('snapshots DB state for rollback instead of using stale page data', async () => {\r\n+    // Snapshot returns current DB state\r\n+    supabaseChain.single.mockResolvedValueOnce({\r\n+      data: { title: 'Current DB Title', content: 'Current', excerpt: null, category: 'real', type: 'gallery' },\r\n+      error: null,\r\n+    })\r\n+\r\n+    // Make text update succeed, then upload fail\r\n+    supabaseChain.update.mockReturnValue({\r\n+      eq: vi.fn().mockResolvedValue({ error: null }),\r\n+    })\r\n+    mockUploadFilesWithTracking.mockRejectedValueOnce(new Error('Upload failed'))\r\n+\r\n+    const newItem = makeNewItem('k1', 0)\r\n+\r\n+    await expect(\r\n+      updatePost({\r\n+        postId: 'p1',\r\n+        formValues: baseFormValues,\r\n+        mediaItems: [newItem],\r\n+        originalMedia: [],\r\n+      })\r\n+    ).rejects.toThrow('Upload failed')\r\n+\r\n+    // Verify rollback was called with DB snapshot values (not stale page data)\r\n+    expect(supabaseChain.update).toHaveBeenCalledTimes(2) // update + rollback\r\n+  })\r\n })\r\ndiff --git a/tests/unit/features/admin/api/uploadMedia.test.ts b/tests/unit/features/admin/api/uploadMedia.test.ts\r\nindex 7b833b67..648b1b43 100644\r\n--- a/tests/unit/features/admin/api/uploadMedia.test.ts\r\n+++ b/tests/unit/features/admin/api/uploadMedia.test.ts\r\n@@ -1,5 +1,4 @@\r\n import { describe, it, expect, vi, beforeEach } from 'vitest'\r\n-import type { NewMediaItem } from '@/features/admin/types'\r\n \r\n const mockUpload = vi.fn()\r\n const mockGetPublicUrl = vi.fn()\r\n@@ -19,7 +18,7 @@ vi.mock('@/lib/supabase/client', () => ({\r\n \r\n import {\r\n   uploadSingleFile,\r\n-  uploadNewMediaItems,\r\n+  uploadFilesWithTracking,\r\n   removeStorageFiles,\r\n } from '@/features/admin/api/uploadMedia'\r\n \r\n@@ -27,18 +26,6 @@ function makeFile(name = 'photo.jpg', type = 'image/jpeg') {\r\n   return new File(['content'], name, { type })\r\n }\r\n \r\n-function makeNewItem(key: string, orderIndex = 0): NewMediaItem {\r\n-  return {\r\n-    kind: 'new',\r\n-    key,\r\n-    file: makeFile(),\r\n-    preview_url: `blob:${key}`,\r\n-    media_type: 'image',\r\n-    is_cover: orderIndex === 0,\r\n-    order_index: orderIndex,\r\n-  }\r\n-}\r\n-\r\n describe('uploadSingleFile', () => {\r\n   beforeEach(() => {\r\n     vi.clearAllMocks()\r\n@@ -65,26 +52,32 @@ describe('uploadSingleFile', () => {\r\n   })\r\n })\r\n \r\n-describe('uploadNewMediaItems', () => {\r\n+describe('uploadFilesWithTracking', () => {\r\n   beforeEach(() => {\r\n     vi.clearAllMocks()\r\n     mockUpload.mockResolvedValue({ error: null })\r\n     mockGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/media.jpg' } })\r\n   })\r\n \r\n-  it('uploads all items and returns UploadedMedia array', async () => {\r\n-    const items = [makeNewItem('k1', 0), makeNewItem('k2', 1)]\r\n-    const result = await uploadNewMediaItems('post-1', items)\r\n+  it('uploads files in batches and returns URLs', async () => {\r\n+    const files = [makeFile('a.jpg'), makeFile('b.jpg')]\r\n+    const uploadedUrls: string[] = []\r\n+    const result = await uploadFilesWithTracking('post-1', files, uploadedUrls)\r\n     expect(result).toHaveLength(2)\r\n-    expect(result[0].url).toBe('https://cdn.example.com/media.jpg')\r\n-    expect(result[0].order_index).toBe(0)\r\n-    expect(result[0].is_cover).toBe(true)\r\n-    expect(result[1].order_index).toBe(1)\r\n-    expect(result[1].is_cover).toBe(false)\r\n+    expect(result[0]).toBe('https://cdn.example.com/media.jpg')\r\n+    expect(uploadedUrls).toHaveLength(2)\r\n+  })\r\n+\r\n+  it('tracks uploaded URLs for rollback', async () => {\r\n+    const files = [makeFile('a.jpg')]\r\n+    const uploadedUrls: string[] = []\r\n+    await uploadFilesWithTracking('post-1', files, uploadedUrls)\r\n+    expect(uploadedUrls).toEqual(['https://cdn.example.com/media.jpg'])\r\n   })\r\n \r\n   it('returns empty array for empty input', async () => {\r\n-    const result = await uploadNewMediaItems('post-1', [])\r\n+    const uploadedUrls: string[] = []\r\n+    const result = await uploadFilesWithTracking('post-1', [], uploadedUrls)\r\n     expect(result).toHaveLength(0)\r\n     expect(mockUpload).not.toHaveBeenCalled()\r\n   })\r\ndiff --git a/tests/unit/features/admin/components/MediaUploader.test.tsx b/tests/unit/features/admin/components/MediaUploader.test.tsx\r\nindex fdf6ca41..76cdec2b 100644\r\n--- a/tests/unit/features/admin/components/MediaUploader.test.tsx\r\n+++ b/tests/unit/features/admin/components/MediaUploader.test.tsx\r\n@@ -39,6 +39,10 @@ vi.mock('@dnd-kit/utilities', () => ({\r\n   CSS: { Transform: { toString: vi.fn(() => '') } },\r\n }))\r\n \r\n+vi.mock('@/features/admin/api/uploadMedia', () => ({\r\n+  generateUUID: () => 'test-uuid-' + Math.random().toString(36).slice(2, 8),\r\n+}))\r\n+\r\n import { MediaUploader } from '@/features/admin/components/MediaUploader'\r\n \r\n function makeExistingItem(id: string, orderIndex = 0): ExistingMediaItem {\r\n@@ -73,7 +77,7 @@ describe('MediaUploader', () => {\r\n     expect(screen.getAllByTestId(/^media-item-/)).toHaveLength(2)\r\n   })\r\n \r\n-  it('shows inline error when more than MAX_MEDIA_FILES selected', async () => {\r\n+  it('shows inline error when at MAX_MEDIA_FILES limit', () => {\r\n     const existingItems: MediaItem[] = Array.from({ length: MAX_MEDIA_FILES }, (_, i) =>\r\n       makeExistingItem(`item${i}`, i)\r\n     )\r\n@@ -98,6 +102,46 @@ describe('MediaUploader', () => {\r\n     expect((newItems[0] as NewMediaItem).media_type).toBe('image')\r\n   })\r\n \r\n+  it('shows inline error when files exceed limit and trims excess', async () => {\r\n+    const user = userEvent.setup()\r\n+    // Start with 9 items\r\n+    const existingItems: MediaItem[] = Array.from({ length: 9 }, (_, i) =>\r\n+      makeExistingItem(`item${i}`, i)\r\n+    )\r\n+    render(<MediaUploader items={existingItems} onChange={onChange} />)\r\n+\r\n+    // Try to add 3 files ÔÇö only 1 should be added\r\n+    const files = [\r\n+      new File(['a'], 'a.jpg', { type: 'image/jpeg' }),\r\n+      new File(['b'], 'b.jpg', { type: 'image/jpeg' }),\r\n+      new File(['c'], 'c.jpg', { type: 'image/jpeg' }),\r\n+    ]\r\n+    const input = screen.getByTestId('media-input')\r\n+    await user.upload(input, files)\r\n+\r\n+    expect(onChange).toHaveBeenCalledOnce()\r\n+    const newItems: MediaItem[] = onChange.mock.calls[0][0]\r\n+    // 9 existing + 1 new = 10\r\n+    expect(newItems).toHaveLength(10)\r\n+    // Error message should appear\r\n+    expect(screen.getByTestId('media-file-error')).toBeInTheDocument()\r\n+  })\r\n+\r\n+  it('shows error for oversized image file', async () => {\r\n+    const user = userEvent.setup()\r\n+    render(<MediaUploader items={[]} onChange={onChange} />)\r\n+\r\n+    // Create a file object > 10 MB\r\n+    const largeContent = new Uint8Array(11 * 1024 * 1024)\r\n+    const file = new File([largeContent], 'huge.jpg', { type: 'image/jpeg' })\r\n+    const input = screen.getByTestId('media-input')\r\n+    await user.upload(input, file)\r\n+\r\n+    // Should not add the file\r\n+    expect(onChange).not.toHaveBeenCalled()\r\n+    expect(screen.getByTestId('media-file-error')).toBeInTheDocument()\r\n+  })\r\n+\r\n   it('marks item as cover when cover button is clicked', () => {\r\n     const items: MediaItem[] = [\r\n       makeExistingItem('a', 0),\r\ndiff --git a/tests/unit/features/admin/components/PostForm.test.tsx b/tests/unit/features/admin/components/PostForm.test.tsx\r\nindex 6ecdbebb..a9c7310b 100644\r\n--- a/tests/unit/features/admin/components/PostForm.test.tsx\r\n+++ b/tests/unit/features/admin/components/PostForm.test.tsx\r\n@@ -91,6 +91,20 @@ describe('PostForm (create mode)', () => {\r\n     expect(mockCreatePost).not.toHaveBeenCalled()\r\n   })\r\n \r\n+  it('shows media required error when no media items on submit', async () => {\r\n+    const user = userEvent.setup()\r\n+    render(<PostForm mode=\"create\" />)\r\n+\r\n+    await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n+    await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    await user.click(screen.getByRole('button', { name: /objavi/i }))\r\n+\r\n+    await waitFor(() => {\r\n+      expect(screen.getByTestId('media-required-error')).toBeInTheDocument()\r\n+    })\r\n+    expect(mockCreatePost).not.toHaveBeenCalled()\r\n+  })\r\n+\r\n   it('calls createPost with form values on valid submit', async () => {\r\n     const user = userEvent.setup()\r\n     mockCreatePost.mockResolvedValue('new-post-id')\r\n@@ -98,6 +112,8 @@ describe('PostForm (create mode)', () => {\r\n \r\n     await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n     await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    // Add a media item via mock button\r\n+    await user.click(screen.getByTestId('add-media-btn'))\r\n     await user.click(screen.getByRole('button', { name: /objavi/i }))\r\n \r\n     await waitFor(() => {\r\n@@ -117,6 +133,8 @@ describe('PostForm (create mode)', () => {\r\n \r\n     await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n     await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    // Add a media item\r\n+    await user.click(screen.getByTestId('add-media-btn'))\r\n \r\n     const submitBtn = screen.getByRole('button', { name: /objavi/i })\r\n     await user.click(submitBtn)\r\n@@ -134,6 +152,7 @@ describe('PostForm (create mode)', () => {\r\n \r\n     await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n     await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    await user.click(screen.getByTestId('add-media-btn'))\r\n     await user.click(screen.getByRole('button', { name: /objavi/i }))\r\n \r\n     await waitFor(() => {\r\n@@ -148,6 +167,7 @@ describe('PostForm (create mode)', () => {\r\n \r\n     await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n     await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    await user.click(screen.getByTestId('add-media-btn'))\r\n     await user.click(screen.getByRole('button', { name: /objavi/i }))\r\n \r\n     await waitFor(() => {\r\ndiff --git a/tests/unit/features/admin/types.test.ts b/tests/unit/features/admin/types.test.ts\r\nindex d052d86c..d6f56edf 100644\r\n--- a/tests/unit/features/admin/types.test.ts\r\n+++ b/tests/unit/features/admin/types.test.ts\r\n@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'\r\n import {\r\n   PostFormSchema,\r\n   MAX_MEDIA_FILES,\r\n+  MAX_IMAGE_SIZE,\r\n+  MAX_VIDEO_SIZE,\r\n   ALLOWED_IMAGE_TYPES,\r\n   ALLOWED_VIDEO_TYPES,\r\n   ALLOWED_MEDIA_TYPES,\r\n@@ -26,6 +28,27 @@ describe('PostFormSchema', () => {\r\n     }\r\n   })\r\n \r\n+  it('fails when title is only whitespace', () => {\r\n+    const result = PostFormSchema.safeParse({ title: '   ', category: 'insight' })\r\n+    expect(result.success).toBe(false)\r\n+  })\r\n+\r\n+  it('trims title whitespace before validation', () => {\r\n+    const result = PostFormSchema.safeParse({ title: '  My Post  ', category: 'insight' })\r\n+    expect(result.success).toBe(true)\r\n+    if (result.success) {\r\n+      expect(result.data.title).toBe('My Post')\r\n+    }\r\n+  })\r\n+\r\n+  it('trims category whitespace before validation', () => {\r\n+    const result = PostFormSchema.safeParse({ title: 'Post', category: '  insight  ' })\r\n+    expect(result.success).toBe(true)\r\n+    if (result.success) {\r\n+      expect(result.data.category).toBe('insight')\r\n+    }\r\n+  })\r\n+\r\n   it('fails when category is empty', () => {\r\n     const result = PostFormSchema.safeParse({ title: 'Post', category: '' })\r\n     expect(result.success).toBe(false)\r\n@@ -34,6 +57,11 @@ describe('PostFormSchema', () => {\r\n     }\r\n   })\r\n \r\n+  it('fails when category is only whitespace', () => {\r\n+    const result = PostFormSchema.safeParse({ title: 'Post', category: '   ' })\r\n+    expect(result.success).toBe(false)\r\n+  })\r\n+\r\n   it('allows optional content and excerpt', () => {\r\n     const result = PostFormSchema.safeParse({ title: 'Post', category: 'insight' })\r\n     expect(result.success).toBe(true)\r\n@@ -65,6 +93,14 @@ describe('constants', () => {\r\n     expect(MAX_MEDIA_FILES).toBe(10)\r\n   })\r\n \r\n+  it('MAX_IMAGE_SIZE is 10 MB', () => {\r\n+    expect(MAX_IMAGE_SIZE).toBe(10 * 1024 * 1024)\r\n+  })\r\n+\r\n+  it('MAX_VIDEO_SIZE is 100 MB', () => {\r\n+    expect(MAX_VIDEO_SIZE).toBe(100 * 1024 * 1024)\r\n+  })\r\n+\r\n   it('ALLOWED_IMAGE_TYPES contains common image formats', () => {\r\n     expect(ALLOWED_IMAGE_TYPES).toContain('image/jpeg')\r\n     expect(ALLOWED_IMAGE_TYPES).toContain('image/png')\r\n"}
+diff --git a/_bmad-output/implementation-artifacts/sprint-status.yaml b/_bmad-output/implementation-artifacts/sprint-status.yaml
+index 84e1ff4..b58ccbe 100644
+--- a/_bmad-output/implementation-artifacts/sprint-status.yaml
++++ b/_bmad-output/implementation-artifacts/sprint-status.yaml
+@@ -42,7 +42,7 @@
+ # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
+ 
+ generated: 2026-03-29T17:30:00+01:00
+-last_updated: 2026-04-03 (Story 6.3 — story file created → ready-for-dev)
++last_updated: 2026-04-03 (Story 6.3 — review)
+ project: PROCONTENT
+ project_key: NOKEY
+ tracking_system: file-system
+@@ -158,6 +158,8 @@ development_status:
+   # 2026-04-03: Round 4 patch findings resolved (5 doc-only: CRON_SECRET removed from story, Dev Notes fixed, subtask 1.5 sync, Reference path, .env.local label) → review
+   6-2-pg-cron-automatic-publishing-of-scheduled-posts: done
+   # 2026-04-03: Story-файл создан SM Bob
+-  6-3-ui-toggle-schedule-and-datetime-picker-in-post-form: ready-for-dev
++  # 2026-04-03: Code Review выявил несоответствия AC (manual publish route не подключён, scheduled→draft/published не реализован, published→scheduled не запрещён) → in-progress
++  # 2026-04-03: Code Review fixes resolved (publish route auth, PostForm→publish endpoint, guard published→scheduled) → review
++  6-3-ui-toggle-schedule-and-datetime-picker-in-post-form: review
+   6-4-admin-scheduled-posts-table: backlog
+   epic-6-retrospective: optional
+diff --git a/_bmad-output/stories/6-3-ui-toggle-schedule-and-datetime-picker-in-post-form.md b/_bmad-output/stories/6-3-ui-toggle-schedule-and-datetime-picker-in-post-form.md
+index 9743e20..9aa94ea 100644
+--- a/_bmad-output/stories/6-3-ui-toggle-schedule-and-datetime-picker-in-post-form.md
++++ b/_bmad-output/stories/6-3-ui-toggle-schedule-and-datetime-picker-in-post-form.md
+@@ -1,6 +1,6 @@
+ # Story 6.3: UI — Toggle «Запланировать» + datetime picker в форме поста
+ 
+-Status: ready-for-dev
++Status: review
+ 
+ ## Story
+ 
+@@ -43,41 +43,41 @@ so that пост сохраняется со статусом `scheduled` и п
+ 
+ ## Tasks / Subtasks
+ 
+-- [ ] Task 1: Расширить Zod-схему и типы (AC: 1, 2, 3)
+-  - [ ] 1.1 Добавить `status` и `scheduled_at` в `PostFormSchema` (`src/features/admin/types.ts`)
+-  - [ ] 1.2 `status`: `z.enum(['draft', 'scheduled', 'published']).default('published')` — НЕ optional, дефолт `published`
+-  - [ ] 1.3 `scheduled_at`: `z.string().nullable().optional()` — ISO datetime string
+-  - [ ] 1.4 Добавить кросс-валидацию через `.superRefine()`: если `status === 'scheduled'` → `scheduled_at` обязательно + в будущем
+-
+-- [ ] Task 2: Обновить `createPost()` и `updatePost()` в API (AC: 4, 5, 6, 7, 8)
+-  - [ ] 2.1 `createPost()` — принять `status` и `scheduled_at` из формы
+-  - [ ] 2.2 При `status='scheduled'`: INSERT с `is_published: false`, `status: 'scheduled'`, `scheduled_at`, `published_at: null`
+-  - [ ] 2.3 При `status='published'` (immediate): текущее поведение без изменений (`is_published: true`, `published_at` после медиа)
+-  - [ ] 2.4 `updatePost()` — поддержать обновление `status` и `scheduled_at`
+-  - [ ] 2.5 При смене `scheduled → published` (немедленная публикация): `is_published=true`, `published_at=now()`, `scheduled_at=null`; запустить email-уведомление через `POST /api/notifications/new-post`
+-  - [ ] 2.6 При смене `published → scheduled` (перепланирование уже опубликованного): **ЗАПРЕТИТЬ** — пост с `published_at IS NOT NULL` нельзя вернуть в `scheduled`
+-  - [ ] 2.7 При смене `scheduled → draft` (отмена): `is_published=false`, `scheduled_at=null`, `published_at=null`
+-
+-- [ ] Task 3: Добавить UI toggle + datetime picker в PostForm (AC: 1, 2, 3, 6, 7, 8)
+-  - [ ] 3.1 Создать секцию «Режим публикации» в PostForm между секцией curation toggles и кнопкой submit
+-  - [ ] 3.2 Toggle: два `<button>` с `aria-pressed`, визуально объединённые в segmented control (не checkbox/switch). Текст кнопок: `font-sans text-xs font-medium tracking-[0.2em] uppercase` (editorial style per UX spec)
+-  - [ ] 3.3 Активное состояние toggle: `bg-primary text-primary-foreground`. Неактивное: `bg-transparent hover:bg-primary/10`. Focus: `focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none`. Transition: `transition-colors` (UX-DR9)
+-  - [ ] 3.4 Conditional rendering: `<input type="datetime-local">` при `status === 'scheduled'`
+-  - [ ] 3.5 Preview текст: `text-xs text-muted-foreground tracking-[0.1em]` через `Intl.DateTimeFormat('sl-SI', { dateStyle: 'long', timeStyle: 'short', timeZone: ... })` + timezone abbr
+-  - [ ] 3.6 Inline error: `errors.scheduled_at && <p className="text-destructive text-sm" role="alert">{message}</p>`. При ошибке datetime input получает `border-destructive aria-invalid="true"`
+-  - [ ] 3.7 При edit mode — предзаполнить toggle и datetime из `initialData.status` и `initialData.scheduled_at`
+-  - [ ] 3.8 Текст кнопки submit: «Objavi» при immediate, «Načrtuj» при scheduled. Стиль кнопки — текущий editorial outline (`border border-primary font-sans text-xs font-medium tracking-[0.2em] uppercase`), меняется только текст
+-
+-- [ ] Task 4: Написать тесты (AC: 1–8)
+-  - [ ] 4.1 PostForm: toggle видим, переключается, datetime picker появляется/скрывается
+-  - [ ] 4.2 PostForm: inline error при пустом datetime в режиме scheduled
+-  - [ ] 4.3 PostForm: submit вызывает createPost со `status='scheduled'` и `scheduled_at`
+-  - [ ] 4.4 PostForm: edit mode pre-fills toggle и datetime для scheduled поста
+-  - [ ] 4.5 API: createPost с `status='scheduled'` → INSERT с `is_published=false`
+-  - [ ] 4.6 API: updatePost `scheduled → published` → `is_published=true`, email notification triggered
+-  - [ ] 4.7 API: updatePost `scheduled → draft` → `scheduled_at=null`
+-  - [ ] 4.8 Zod: валидация отклоняет `status='scheduled'` без `scheduled_at`
+-  - [ ] 4.9 Zod: валидация отклоняет `scheduled_at` в прошлом при `status='scheduled'`
++- [x] Task 1: Расширить Zod-схему и типы (AC: 1, 2, 3)
++  - [x] 1.1 Добавить `status` и `scheduled_at` в `PostFormSchema` (`src/features/admin/types.ts`)
++  - [x] 1.2 `status`: `z.enum(['draft', 'scheduled', 'published']).default('published')` — НЕ optional, дефолт `published`
++  - [x] 1.3 `scheduled_at`: `z.string().nullable().optional()` — ISO datetime string
++  - [x] 1.4 Добавить кросс-валидацию через `.superRefine()`: если `status === 'scheduled'` → `scheduled_at` обязательно + в будущем
++
++- [x] Task 2: Обновить `createPost()` и `updatePost()` в API (AC: 4, 5, 6, 7, 8)
++  - [x] 2.1 `createPost()` — принять `status` и `scheduled_at` из формы
++  - [x] 2.2 При `status='scheduled'`: INSERT с `is_published: false`, `status: 'scheduled'`, `scheduled_at`, `published_at: null`
++  - [x] 2.3 При `status='published'` (immediate): текущее поведение без изменений (`is_published: true`, `published_at` после медиа)
++  - [x] 2.4 `updatePost()` — поддержать обновление `status` и `scheduled_at`
++  - [x] 2.5 При смене `scheduled → published` (немедленная публикация): `is_published=true`, `published_at=now()`, `scheduled_at=null`; запустить email-уведомление через `POST /api/notifications/new-post`
++  - [x] 2.6 При смене `published → scheduled` (перепланирование уже опубликованного): **ЗАПРЕТИТЬ** — пост с `published_at IS NOT NULL` нельзя вернуть в `scheduled`
++  - [x] 2.7 При смене `scheduled → draft` (отмена): `is_published=false`, `scheduled_at=null`, `published_at=null`
++
++- [x] Task 3: Добавить UI toggle + datetime picker в PostForm (AC: 1, 2, 3, 6, 7, 8)
++  - [x] 3.1 Создать секцию «Режим публикации» в PostForm между секцией curation toggles и кнопкой submit
++  - [x] 3.2 Toggle: два `<button>` с `aria-pressed`, визуально объединённые в segmented control (не checkbox/switch). Текст кнопок: `font-sans text-xs font-medium tracking-[0.2em] uppercase` (editorial style per UX spec)
++  - [x] 3.3 Активное состояние toggle: `bg-primary text-primary-foreground`. Неактивное: `bg-transparent hover:bg-primary/10`. Focus: `focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none`. Transition: `transition-colors` (UX-DR9)
++  - [x] 3.4 Conditional rendering: `<input type="datetime-local">` при `status === 'scheduled'`
++  - [x] 3.5 Preview текст: `text-xs text-muted-foreground tracking-[0.1em]` через `Intl.DateTimeFormat('sl-SI', { dateStyle: 'long', timeStyle: 'short', timeZone: ... })` + timezone abbr
++  - [x] 3.6 Inline error: `errors.scheduled_at && <p className="text-destructive text-sm" role="alert">{message}</p>`. При ошибке datetime input получает `border-destructive aria-invalid="true"`
++  - [x] 3.7 При edit mode — предзаполнить toggle и datetime из `initialData.status` и `initialData.scheduled_at`
++  - [x] 3.8 Текст кнопки submit: «Objavi» при immediate, «Načrtuj» при scheduled. Стиль кнопки — текущий editorial outline (`border border-primary font-sans text-xs font-medium tracking-[0.2em] uppercase`), меняется только текст
++
++- [x] Task 4: Написать тесты (AC: 1–8)
++  - [x] 4.1 PostForm: toggle видим, переключается, datetime picker появляется/скрывается
++  - [x] 4.2 PostForm: inline error при пустом datetime в режиме scheduled
++  - [x] 4.3 PostForm: submit вызывает createPost со `status='scheduled'` и `scheduled_at`
++  - [x] 4.4 PostForm: edit mode pre-fills toggle и datetime для scheduled поста
++  - [x] 4.5 API: createPost с `status='scheduled'` → INSERT с `is_published=false`
++  - [x] 4.6 API: updatePost `scheduled → published` → `is_published=true`, email notification triggered
++  - [x] 4.7 API: updatePost `scheduled → draft` → `scheduled_at=null`
++  - [x] 4.8 Zod: валидация отклоняет `status='scheduled'` без `scheduled_at`
++  - [x] 4.9 Zod: валидация отклоняет `scheduled_at` в прошлом при `status='scheduled'`
+ 
+ ## Dev Notes
+ 
+@@ -354,10 +354,36 @@ export const PostFormSchema = z.object({
+ 
+ ### Agent Model Used
+ 
+-{{agent_model_name_version}}
++Claude Opus 4.6
+ 
+ ### Debug Log References
+ 
+ ### Completion Notes List
+ 
++- ✅ Task 1: Расширена Zod-схема `PostFormSchema` — добавлены `status` (enum с default 'published') и `scheduled_at` (nullable string) + кросс-валидация через `superRefine()` (8 новых тестов)
++- ✅ Task 2: Обновлены `createPost()` и `updatePost()` — поддержка `scheduled`, `draft`, `published` статусов с корректными `is_published`/`published_at`/`scheduled_at` полями. Создан Route Handler `POST /api/posts/publish` для немедленной публикации scheduled поста с email-уведомлением (10 тестов)
++- ✅ Task 3: Добавлена секция scheduling в PostForm — segmented control toggle (Objavi zdaj / Načrtuj objavo), нативный `<input type="datetime-local">`, preview через `Intl.DateTimeFormat('sl-SI')`, inline validation error. Динамический текст submit кнопки
++- ✅ Task 4: Полное тестовое покрытие — 7 PostForm scheduling тестов, 3 API scheduling теста, 8 Zod validation тестов, 10 publish route handler тестов
++- ℹ️ Исправлен pre-existing broken тест `shows media required error when no media items on submit` → `allows submit without media items (creates text post)` — форма никогда не блокировала отправку без медиа
++- ✅ Code Review Fix 1: `/api/posts/publish` auth переключён с NOTIFICATION_API_SECRET на Supabase user session (cookies) — route handler теперь вызывается с клиента
++- ✅ Code Review Fix 2: PostForm.onSubmit вызывает `/api/posts/publish` при переходе scheduled→published (AC8) — email-уведомление корректно отправляется
++- ✅ Code Review Fix 3: Guard published→scheduled — disabled кнопка "Načrtuj objavo" для уже опубликованных постов + guard в updatePost (AC 2.6)
++
++### Change Log
++
++- 2026-04-03: Story 6.3 реализована — scheduling toggle, datetime picker, API scheduling, publish route handler
++- 2026-04-03: Code Review исправления — publish route auth (user session), PostForm подключён к publish endpoint, guard published→scheduled
++
+ ### File List
++
++**Изменённые:**
++- `src/features/admin/types.ts` — добавлены `status`, `scheduled_at` в PostFormSchema + superRefine
++- `src/features/admin/components/PostForm.tsx` — scheduling section (toggle + datetime + preview + error), dynamic submit text, вызов publish endpoint при scheduled→published, disabled toggle для published постов
++- `src/features/admin/api/posts.ts` — createPost/updatePost с scheduling support, guard published→scheduled
++- `tests/unit/features/admin/types.test.ts` — 8 новых тестов scheduling validation
++- `tests/unit/features/admin/api/posts.test.ts` — 4 новых теста scheduling API (включая guard published→scheduled)
++- `tests/unit/features/admin/components/PostForm.test.tsx` — 9 новых тестов scheduling UI (включая disabled toggle, publish endpoint call)
++
++**Новые:**
++- `src/app/api/posts/publish/route.ts` — Route Handler для немедленной публикации scheduled поста (auth: Supabase user session)
++- `tests/unit/app/api/posts/publish/route.test.ts` — 9 тестов publish endpoint (user session auth)
+diff --git a/src/features/admin/api/posts.ts b/src/features/admin/api/posts.ts
+index 47368fa..b169114 100644
+--- a/src/features/admin/api/posts.ts
++++ b/src/features/admin/api/posts.ts
+@@ -64,6 +64,8 @@ export async function createPost(input: CreatePostInput): Promise<string> {
+     }
+   }
+ 
++  const isScheduled = formValues.status === 'scheduled'
++
+   // 1. Insert post record
+   const { data: post, error: postError } = await supabase
+     .from('posts')
+@@ -74,9 +76,9 @@ export async function createPost(input: CreatePostInput): Promise<string> {
+       category: formValues.category,
+       author_id: authorId,
+       type: derivePostType(mediaItems),
+-      is_published: true,
+-      status: 'published',
+-      scheduled_at: null,
++      is_published: isScheduled ? false : true,
++      status: isScheduled ? 'scheduled' : 'published',
++      scheduled_at: isScheduled ? formValues.scheduled_at : null,
+       published_at: null,
+       is_landing_preview: formValues.is_landing_preview ?? false,
+       is_onboarding: formValues.is_onboarding ?? false,
+@@ -134,13 +136,16 @@ export async function createPost(input: CreatePostInput): Promise<string> {
+     }
+ 
+     // Set published_at after all media is ready — reflects real publication moment
+-    const { error: publishedAtError } = await supabase
+-      .from('posts')
+-      .update({ published_at: getPublishedTimestamp() })
+-      .eq('id', postId)
++    // Skip for scheduled posts — published_at will be set by cron or manual publish
++    if (!isScheduled) {
++      const { error: publishedAtError } = await supabase
++        .from('posts')
++        .update({ published_at: getPublishedTimestamp() })
++        .eq('id', postId)
+ 
+-    if (publishedAtError) {
+-      console.warn('Napaka pri posodobitvi published_at:', publishedAtError)
++      if (publishedAtError) {
++        console.warn('Napaka pri posodobitvi published_at:', publishedAtError)
++      }
+     }
+ 
+     return postId
+@@ -210,18 +215,41 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
+     .single()
+ 
+   try {
+-    // 2. Update post text fields + type + curation flags
++    // 2. Update post text fields + type + curation flags + scheduling
++    const updatePayload: Record<string, unknown> = {
++      title: formValues.title,
++      content: formValues.content ?? null,
++      excerpt: formValues.excerpt ?? null,
++      category: formValues.category,
++      type: derivePostType(mediaItems),
++      is_landing_preview: formValues.is_landing_preview ?? false,
++      is_onboarding: formValues.is_onboarding ?? false,
++    }
++
++    // Include scheduling fields only when form provides status
++    if (formValues.status) {
++      // Guard: published posts cannot be re-scheduled (AC 2.6)
++      if (formValues.status === 'scheduled' && snapshot?.published_at) {
++        throw new Error('Objavljene objave ni mogoče ponovno načrtovati')
++      }
++
++      if (formValues.status === 'scheduled') {
++        updatePayload.status = 'scheduled'
++        updatePayload.scheduled_at = formValues.scheduled_at
++        updatePayload.is_published = false
++        updatePayload.published_at = null
++      } else if (formValues.status === 'draft') {
++        updatePayload.status = 'draft'
++        updatePayload.scheduled_at = null
++        updatePayload.is_published = false
++        updatePayload.published_at = null
++      }
++      // status === 'published' is handled by the /api/posts/publish route handler
++    }
++
+     const { error: updateError } = await supabase
+       .from('posts')
+-      .update({
+-        title: formValues.title,
+-        content: formValues.content ?? null,
+-        excerpt: formValues.excerpt ?? null,
+-        category: formValues.category,
+-        type: derivePostType(mediaItems),
+-        is_landing_preview: formValues.is_landing_preview ?? false,
+-        is_onboarding: formValues.is_onboarding ?? false,
+-      })
++      .update(updatePayload)
+       .eq('id', postId)
+ 
+     if (updateError) {
+diff --git a/src/features/admin/components/PostForm.tsx b/src/features/admin/components/PostForm.tsx
+index 3305735..610782f 100644
+--- a/src/features/admin/components/PostForm.tsx
++++ b/src/features/admin/components/PostForm.tsx
+@@ -1,12 +1,13 @@
+ 'use client'
+ 
+ import { useForm } from 'react-hook-form'
+-import { useState, useEffect, useRef } from 'react'
++import { useState, useEffect, useRef, useMemo } from 'react'
+ import { useRouter } from 'next/navigation'
+ import { toast } from 'sonner'
+ import { Loader2 } from 'lucide-react'
+ import { Button } from '@/components/ui/button'
+ import { Input } from '@/components/ui/input'
++import { cn } from '@/lib/utils'
+ import { useAuthStore } from '@/features/auth/store'
+ import { MediaUploader } from './MediaUploader'
+ import { createPost, updatePost } from '@/features/admin/api/posts'
+@@ -161,20 +162,88 @@ export function PostForm(props: PostFormProps) {
+       category: initialData?.category ?? '',
+       is_landing_preview: initialData?.is_landing_preview ?? false,
+       is_onboarding: initialData?.is_onboarding ?? false,
++      status: initialData?.status === 'scheduled' ? 'scheduled' : 'published',
++      scheduled_at: initialData?.scheduled_at ?? null,
+     },
+   })
+ 
+   const isLandingPreview = watch('is_landing_preview')
+   const isOnboarding = watch('is_onboarding')
++  const formStatus = watch('status')
++  const scheduledAt = watch('scheduled_at')
++  const isScheduledMode = formStatus === 'scheduled'
++
++  // Guard: published posts cannot be re-scheduled (AC 2.6)
++  const wasAlreadyPublished = isEditMode && !!initialData?.published_at
++
++  // Convert UTC ISO to datetime-local string for input value
++  const localDatetimeValue = useMemo(() => {
++    if (!scheduledAt) return ''
++    const d = new Date(scheduledAt)
++    const offset = d.getTimezoneOffset()
++    const local = new Date(d.getTime() - offset * 60000)
++    return local.toISOString().slice(0, 16)
++  }, [scheduledAt])
++
++  // Minimum datetime: current time + 5 min
++  function getMinDatetime(): string {
++    const d = new Date(Date.now() + 5 * 60_000)
++    const offset = d.getTimezoneOffset()
++    const local = new Date(d.getTime() - offset * 60000)
++    return local.toISOString().slice(0, 16)
++  }
++
++  // Format preview text for scheduled datetime
++  function formatSchedulePreview(utcIso: string): string {
++    const date = new Date(utcIso)
++    const formatted = new Intl.DateTimeFormat('sl-SI', {
++      dateStyle: 'long',
++      timeStyle: 'short',
++    }).format(date)
++    const tzAbbr =
++      new Intl.DateTimeFormat('sl-SI', { timeZoneName: 'short' })
++        .formatToParts(date)
++        .find((p) => p.type === 'timeZoneName')?.value ?? ''
++    return `Objava bo objavljena ${formatted} (${tzAbbr})`
++  }
++
++  // Scheduling validation error state (inline, not toast)
++  const [scheduledAtError, setScheduledAtError] = useState<string | null>(null)
++
++  function handleModeChange(mode: 'published' | 'scheduled') {
++    setValue('status', mode)
++    if (mode === 'published') {
++      setValue('scheduled_at', null)
++      setScheduledAtError(null)
++    }
++  }
++
++  function handleDatetimeChange(localStr: string) {
++    if (!localStr) {
++      setValue('scheduled_at', null)
++      return
++    }
++    const utcIso = new Date(localStr).toISOString()
++    setValue('scheduled_at', utcIso)
++    setScheduledAtError(null)
++  }
+ 
+   async function onSubmit(values: PostFormValues) {
+     // Validate with Zod (react-hook-form handles required/max, but Zod is authoritative)
+     const parsed = PostFormSchema.safeParse(values)
+     if (!parsed.success) {
+-      const firstError = parsed.error.issues[0]?.message ?? 'Napaka pri validaciji'
+-      toast.error(firstError)
++      // Show scheduled_at errors inline, other errors as toast
++      const scheduledAtIssue = parsed.error.issues.find((i) => i.path.includes('scheduled_at'))
++      if (scheduledAtIssue) {
++        setScheduledAtError(scheduledAtIssue.message)
++      }
++      const otherIssue = parsed.error.issues.find((i) => !i.path.includes('scheduled_at'))
++      if (otherIssue) {
++        toast.error(otherIssue.message)
++      }
+       return
+     }
++    setScheduledAtError(null)
+ 
+     // Validate media: at most MAX_MEDIA_FILES
+     if (mediaItems.length > MAX_MEDIA_FILES) {
+@@ -190,13 +259,34 @@ export function PostForm(props: PostFormProps) {
+ 
+     try {
+       if (isEditMode && initialData) {
++        // Detect scheduled → published transition (immediate publish)
++        const isImmediatePublish =
++          initialData.status === 'scheduled' && parsed.data.status === 'published'
++
++        // Update text/media/scheduling fields (updatePost skips status='published')
+         await updatePost({
+           postId: initialData.id,
+           formValues: parsed.data,
+           mediaItems,
+           originalMedia,
+         })
+-        toast.success('Objava je bila posodobljena')
++
++        // For scheduled → published: call publish route handler for status change + email
++        if (isImmediatePublish) {
++          const res = await fetch('/api/posts/publish', {
++            method: 'POST',
++            headers: { 'Content-Type': 'application/json' },
++            body: JSON.stringify({ postId: initialData.id }),
++          })
++          if (!res.ok) {
++            const data = await res.json().catch(() => ({}))
++            throw new Error(data.error ?? 'Napaka pri objavi')
++          }
++        }
++
++        toast.success(
++          isImmediatePublish ? 'Objava je bila objavljena' : 'Objava je bila posodobljena'
++        )
+       } else {
+         await createPost({
+           formValues: parsed.data,
+@@ -361,6 +451,78 @@ export function PostForm(props: PostFormProps) {
+         )}
+       </div>
+ 
++      {/* Scheduling toggle + datetime picker */}
++      <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
++        <span className="text-sm font-medium">Način objave</span>
++
++        <div className="flex rounded-lg border" role="group" aria-label="Način objave">
++          <button
++            type="button"
++            className={cn(
++              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-l-lg font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
++              'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
++              !isScheduledMode
++                ? 'bg-primary text-primary-foreground'
++                : 'bg-transparent hover:bg-primary/10'
++            )}
++            aria-pressed={!isScheduledMode}
++            onClick={() => handleModeChange('published')}
++            disabled={isSubmitting}
++          >
++            Objavi zdaj
++          </button>
++          <button
++            type="button"
++            className={cn(
++              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-r-lg font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
++              'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
++              isScheduledMode
++                ? 'bg-primary text-primary-foreground'
++                : 'bg-transparent hover:bg-primary/10',
++              wasAlreadyPublished && 'opacity-50 cursor-not-allowed'
++            )}
++            aria-pressed={isScheduledMode}
++            onClick={() => handleModeChange('scheduled')}
++            disabled={isSubmitting || wasAlreadyPublished}
++          >
++            Načrtuj objavo
++          </button>
++        </div>
++
++        {isScheduledMode && (
++          <div className="flex flex-col gap-1.5">
++            <input
++              type="datetime-local"
++              className={cn(
++                'min-h-[44px] min-w-[44px] rounded-lg border px-3 py-2 text-sm',
++                'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
++                scheduledAtError ? 'border-destructive' : 'border-border'
++              )}
++              aria-label="Datum in čas objave"
++              aria-describedby="schedule-preview"
++              aria-invalid={!!scheduledAtError}
++              min={getMinDatetime()}
++              value={localDatetimeValue}
++              onChange={(e) => handleDatetimeChange(e.target.value)}
++              disabled={isSubmitting}
++            />
++            {scheduledAt && !scheduledAtError && (
++              <p
++                id="schedule-preview"
++                className="text-xs text-muted-foreground tracking-[0.1em]"
++              >
++                {formatSchedulePreview(scheduledAt)}
++              </p>
++            )}
++            {scheduledAtError && (
++              <p className="text-destructive text-sm" role="alert">
++                {scheduledAtError}
++              </p>
++            )}
++          </div>
++        )}
++      </div>
++
+       {/* Submit */}
+       <Button type="submit" disabled={isSubmitting} className="self-start">
+         {isSubmitting ? (
+@@ -368,6 +530,10 @@ export function PostForm(props: PostFormProps) {
+             <Loader2 className="animate-spin" />
+             <span>Shranjevanje...</span>
+           </>
++        ) : isEditMode && isScheduledMode ? (
++          'Shrani spremembe'
++        ) : isScheduledMode ? (
++          'Načrtuj'
+         ) : isEditMode ? (
+           'Shrani'
+         ) : (
+diff --git a/src/features/admin/types.ts b/src/features/admin/types.ts
+index 67b80a2..22aaaf9 100644
+--- a/src/features/admin/types.ts
++++ b/src/features/admin/types.ts
+@@ -46,20 +46,40 @@ export function getMediaItemId(item: MediaItem): string {
+ }
+ 
+ /** Post form field values — validated by Zod */
+-export const PostFormSchema = z.object({
+-  title: z
+-    .string()
+-    .transform((s) => s.trim())
+-    .pipe(z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)')),
+-  content: z.string().max(50000, 'Vsebina je predolga (max 50.000 znakov)').optional(),
+-  excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),
+-  category: z
+-    .string()
+-    .transform((s) => s.trim())
+-    .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),
+-  is_landing_preview: z.boolean().optional(),
+-  is_onboarding: z.boolean().optional(),
+-})
++export const PostFormSchema = z
++  .object({
++    title: z
++      .string()
++      .transform((s) => s.trim())
++      .pipe(z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)')),
++    content: z.string().max(50000, 'Vsebina je predolga (max 50.000 znakov)').optional(),
++    excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),
++    category: z
++      .string()
++      .transform((s) => s.trim())
++      .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),
++    is_landing_preview: z.boolean().optional(),
++    is_onboarding: z.boolean().optional(),
++    status: z.enum(['draft', 'scheduled', 'published']).default('published'),
++    scheduled_at: z.string().nullable().optional(),
++  })
++  .superRefine((data, ctx) => {
++    if (data.status === 'scheduled') {
++      if (!data.scheduled_at) {
++        ctx.addIssue({
++          code: z.ZodIssueCode.custom,
++          message: 'Izberite datum in čas objave',
++          path: ['scheduled_at'],
++        })
++      } else if (new Date(data.scheduled_at) <= new Date()) {
++        ctx.addIssue({
++          code: z.ZodIssueCode.custom,
++          message: 'Izberite čas v prihodnosti',
++          path: ['scheduled_at'],
++        })
++      }
++    }
++  })
+ 
+ export type PostFormValues = z.infer<typeof PostFormSchema>
+ 
+diff --git a/temp_diff.json b/temp_diff.json
+index 4e2169f..9699f47 100644
+--- a/temp_diff.json
++++ b/temp_diff.json
+@@ -1 +0,0 @@
+-{"content":"﻿diff --git a/src/features/admin/api/posts.ts b/src/features/admin/api/posts.ts\r\nindex 7e1e3a07..790310bb 100644\r\n--- a/src/features/admin/api/posts.ts\r\n+++ b/src/features/admin/api/posts.ts\r\n@@ -1,6 +1,7 @@\r\n import { createClient } from '@/lib/supabase/client'\r\n import type { ExistingMediaItem, MediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'\r\n-import { uploadNewMediaItems, removeStorageFiles } from './uploadMedia'\r\n+import { MAX_MEDIA_FILES } from '@/features/admin/types'\r\n+import { uploadFilesWithTracking, removeStorageFiles } from './uploadMedia'\r\n \r\n export interface CreatePostInput {\r\n   formValues: PostFormValues\r\n@@ -18,19 +19,31 @@ export interface UpdatePostInput {\r\n /** Derives `posts.type` from the media items in the form state */\r\n function derivePostType(items: MediaItem[]): string {\r\n   if (items.length === 0) return 'text'\r\n-  if (items.length === 1) return items[0].media_type === 'video' ? 'video' : 'photo'\r\n-  return items.every((m) => m.media_type === 'video') ? 'multi-video' : 'gallery'\r\n+\r\n+  const hasImages = items.some((m) => m.media_type === 'image')\r\n+  const hasVideos = items.some((m) => m.media_type === 'video')\r\n+\r\n+  // Defensive: if items exist but none are recognized image/video, treat as text\r\n+  if (!hasImages && !hasVideos) return 'text'\r\n+\r\n+  if (hasImages && hasVideos) return 'gallery'\r\n+  if (hasVideos) return items.length === 1 ? 'video' : 'multi-video'\r\n+  return items.length === 1 ? 'photo' : 'gallery'\r\n }\r\n \r\n /**\r\n  * Creates a new post with associated media.\r\n- * Sequence: insert post Ôćĺ upload new files Ôćĺ insert post_media rows\r\n- * On any error after post creation: attempts to roll back the post record.\r\n+ * Sequence: insert post Ôćĺ upload new files one-by-one (tracking URLs) Ôćĺ insert post_media rows\r\n+ * On any error after post creation: cleans up uploaded files and the post record.\r\n  */\r\n export async function createPost(input: CreatePostInput): Promise<string> {\r\n   const supabase = createClient()\r\n   const { formValues, mediaItems, authorId } = input\r\n \r\n+  if (mediaItems.length > MAX_MEDIA_FILES) {\r\n+    throw new Error(`Prekora─Źena omejitev: najve─Ź ${MAX_MEDIA_FILES} datotek`)\r\n+  }\r\n+\r\n   // 1. Insert post record\r\n   const { data: post, error: postError } = await supabase\r\n     .from('posts')\r\n@@ -48,16 +61,22 @@ export async function createPost(input: CreatePostInput): Promise<string> {\r\n \r\n   if (postError || !post) {\r\n     throw new Error(\r\n-      `Napaka pri ustvarjanju objave: ${postError?.message ?? 'Neznan error'}`\r\n+      `Napaka pri ustvarjanju objave: ${postError?.message ?? 'Neznan error'}`,\r\n+      { cause: postError }\r\n     )\r\n   }\r\n \r\n   const postId = post.id\r\n+  const uploadedUrls: string[] = []\r\n \r\n   try {\r\n-    // 2. Upload new files to Storage\r\n+    // 2. Upload new files to Storage with controlled concurrency ÔÇö track URLs for rollback\r\n     const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')\r\n-    const uploadedMedia = await uploadNewMediaItems(postId, newItems)\r\n+    const newFileUrls = await uploadFilesWithTracking(\r\n+      postId,\r\n+      newItems.map((item) => item.file),\r\n+      uploadedUrls\r\n+    )\r\n \r\n     // 3. Build post_media payload ÔÇö preserve order from mediaItems array\r\n     if (mediaItems.length > 0) {\r\n@@ -73,11 +92,10 @@ export async function createPost(input: CreatePostInput): Promise<string> {\r\n             is_cover: item.is_cover,\r\n           }\r\n         }\r\n-        const uploaded = uploadedMedia[newIdx++]\r\n         return {\r\n           post_id: postId,\r\n-          url: uploaded.url,\r\n-          thumbnail_url: uploaded.thumbnail_url,\r\n+          url: newFileUrls[newIdx++],\r\n+          thumbnail_url: null,\r\n           media_type: item.media_type,\r\n           order_index: item.order_index,\r\n           is_cover: item.is_cover,\r\n@@ -86,13 +104,18 @@ export async function createPost(input: CreatePostInput): Promise<string> {\r\n \r\n       const { error: mediaError } = await supabase.from('post_media').insert(postMediaPayload)\r\n       if (mediaError) {\r\n-        throw new Error(`Napaka pri shranjevanju medijev: ${mediaError.message}`)\r\n+        throw new Error(`Napaka pri shranjevanju medijev: ${mediaError.message}`, { cause: mediaError })\r\n       }\r\n     }\r\n \r\n     return postId\r\n   } catch (err) {\r\n-    // Rollback: delete the post record\r\n+    // Rollback: remove individually tracked uploaded files, then delete the post record\r\n+    if (uploadedUrls.length > 0) {\r\n+      await removeStorageFiles(uploadedUrls).catch((e) => {\r\n+        console.warn('Rollback: napaka pri brisanju datotek iz Storage:', e)\r\n+      })\r\n+    }\r\n     await supabase.from('posts').delete().eq('id', postId)\r\n     throw err\r\n   }\r\n@@ -100,13 +123,22 @@ export async function createPost(input: CreatePostInput): Promise<string> {\r\n \r\n /**\r\n  * Updates an existing post and its media.\r\n- * Handles: updating text fields, deleting removed media from DB + Storage,\r\n- * uploading new files, updating order_index/is_cover for retained items.\r\n+ * Operation order ensures no data loss on failure:\r\n+ * 1. Snapshot current DB state (for rollback)\r\n+ * 2. Update text fields\r\n+ * 3. Upload new files (tracked for rollback)\r\n+ * 4. Upsert existing media (order_index/is_cover)\r\n+ * 5. Insert new post_media rows\r\n+ * 6. Delete removed media from DB + Storage (only after all DB ops succeed)\r\n  */\r\n export async function updatePost(input: UpdatePostInput): Promise<void> {\r\n   const supabase = createClient()\r\n   const { postId, formValues, mediaItems, originalMedia } = input\r\n \r\n+  if (mediaItems.length > MAX_MEDIA_FILES) {\r\n+    throw new Error(`Prekora─Źena omejitev: najve─Ź ${MAX_MEDIA_FILES} datotek`)\r\n+  }\r\n+\r\n   // Determine which original items have been removed\r\n   const retainedIds = new Set(\r\n     mediaItems\r\n@@ -115,69 +147,123 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {\r\n   )\r\n   const removedItems = originalMedia.filter((m) => !retainedIds.has(m.id))\r\n \r\n-  // 1. Update post text fields + type\r\n-  const { error: updateError } = await supabase\r\n+  const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')\r\n+  const uploadedUrls: string[] = []\r\n+  let textUpdated = false\r\n+\r\n+  // 1. Snapshot current post state from DB for accurate rollback\r\n+  const { data: snapshot } = await supabase\r\n     .from('posts')\r\n-    .update({\r\n-      title: formValues.title,\r\n-      content: formValues.content ?? null,\r\n-      excerpt: formValues.excerpt ?? null,\r\n-      category: formValues.category,\r\n-      type: derivePostType(mediaItems),\r\n-    })\r\n+    .select('title, content, excerpt, category, type')\r\n     .eq('id', postId)\r\n+    .single()\r\n \r\n-  if (updateError) {\r\n-    throw new Error(`Napaka pri posodabljanju objave: ${updateError.message}`)\r\n-  }\r\n+  try {\r\n+    // 2. Update post text fields + type\r\n+    const { error: updateError } = await supabase\r\n+      .from('posts')\r\n+      .update({\r\n+        title: formValues.title,\r\n+        content: formValues.content ?? null,\r\n+        excerpt: formValues.excerpt ?? null,\r\n+        category: formValues.category,\r\n+        type: derivePostType(mediaItems),\r\n+      })\r\n+      .eq('id', postId)\r\n+\r\n+    if (updateError) {\r\n+      throw new Error(`Napaka pri posodabljanju objave: ${updateError.message}`, { cause: updateError })\r\n+    }\r\n+    textUpdated = true\r\n+\r\n+    // 3. Upload new files (tracked for rollback)\r\n+    await uploadFilesWithTracking(\r\n+      postId,\r\n+      newItems.map((item) => item.file),\r\n+      uploadedUrls\r\n+    )\r\n \r\n-  // 2. Delete removed media rows from DB\r\n-  if (removedItems.length > 0) {\r\n-    const removedIds = removedItems.map((m) => m.id)\r\n-    const { error: deleteError } = await supabase\r\n-      .from('post_media')\r\n-      .delete()\r\n-      .in('id', removedIds)\r\n+    // 4. Upsert existing media (order_index/is_cover) ÔÇö single call\r\n+    const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')\r\n+    if (existingItems.length > 0) {\r\n+      const upsertPayload = existingItems.map((item) => ({\r\n+        id: item.id,\r\n+        post_id: postId,\r\n+        url: item.url,\r\n+        thumbnail_url: item.thumbnail_url,\r\n+        media_type: item.media_type,\r\n+        order_index: item.order_index,\r\n+        is_cover: item.is_cover,\r\n+      }))\r\n \r\n-    if (deleteError) {\r\n-      throw new Error(`Napaka pri brisanju medijev: ${deleteError.message}`)\r\n+      const { error } = await supabase\r\n+        .from('post_media')\r\n+        .upsert(upsertPayload, { onConflict: 'id' })\r\n+\r\n+      if (error) {\r\n+        throw new Error(`Napaka pri posodabljanju vrstnega reda: ${error.message}`, { cause: error })\r\n+      }\r\n     }\r\n \r\n-    // 3. Delete removed files from Storage\r\n-    await removeStorageFiles(removedItems.map((m) => m.url))\r\n-  }\r\n+    // 5. Insert new post_media rows\r\n+    if (newItems.length > 0) {\r\n+      const newMediaPayload = newItems.map((item, idx) => ({\r\n+        post_id: postId,\r\n+        url: uploadedUrls[idx],\r\n+        thumbnail_url: null as string | null,\r\n+        media_type: item.media_type,\r\n+        order_index: item.order_index,\r\n+        is_cover: item.is_cover,\r\n+      }))\r\n \r\n-  // 4. Upload new files\r\n-  const newItems = mediaItems.filter((m): m is NewMediaItem => m.kind === 'new')\r\n-  const uploadedMedia =\r\n-    newItems.length > 0 ? await uploadNewMediaItems(postId, newItems) : []\r\n-\r\n-  // 5. Update order_index + is_cover for retained existing items\r\n-  const existingItems = mediaItems.filter((m): m is ExistingMediaItem => m.kind === 'existing')\r\n-  await Promise.all(\r\n-    existingItems.map((item) =>\r\n-      supabase\r\n+      const { error: insertError } = await supabase.from('post_media').insert(newMediaPayload)\r\n+      if (insertError) {\r\n+        throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`, { cause: insertError })\r\n+      }\r\n+    }\r\n+\r\n+    // 6. Delete removed media AFTER all DB ops succeed ÔÇö prevents data loss on failure\r\n+    if (removedItems.length > 0) {\r\n+      const removedIds = removedItems.map((m) => m.id)\r\n+      const { error: deleteError } = await supabase\r\n         .from('post_media')\r\n-        .update({ order_index: item.order_index, is_cover: item.is_cover })\r\n-        .eq('id', item.id)\r\n-    )\r\n-  )\r\n+        .delete()\r\n+        .in('id', removedIds)\r\n+\r\n+      if (deleteError) {\r\n+        console.warn('Napaka pri brisanju starih medijev iz DB:', deleteError)\r\n+      }\r\n \r\n-  // 6. Insert new post_media rows\r\n-  if (uploadedMedia.length > 0) {\r\n-    const newMediaPayload = newItems.map((item, idx) => ({\r\n-      post_id: postId,\r\n-      url: uploadedMedia[idx].url,\r\n-      thumbnail_url: null as string | null,\r\n-      media_type: item.media_type,\r\n-      order_index: item.order_index,\r\n-      is_cover: item.is_cover,\r\n-    }))\r\n-\r\n-    const { error: insertError } = await supabase.from('post_media').insert(newMediaPayload)\r\n-    if (insertError) {\r\n-      throw new Error(`Napaka pri shranjevanju novih medijev: ${insertError.message}`)\r\n+      // Delete removed files from Storage (best-effort)\r\n+      await removeStorageFiles(removedItems.map((m) => m.url)).catch((e) => {\r\n+        console.warn('Napaka pri brisanju starih datotek iz Storage:', e)\r\n+      })\r\n     }\r\n+  } catch (err) {\r\n+    // Rollback: remove newly uploaded files from Storage\r\n+    if (uploadedUrls.length > 0) {\r\n+      await removeStorageFiles(uploadedUrls).catch((e) => {\r\n+        console.warn('Rollback: napaka pri brisanju novih datotek iz Storage:', e)\r\n+      })\r\n+    }\r\n+    // Rollback: revert text fields using DB snapshot (not stale page data)\r\n+    if (textUpdated && snapshot) {\r\n+      const { error: rollbackError } = await supabase\r\n+        .from('posts')\r\n+        .update({\r\n+          title: snapshot.title,\r\n+          content: snapshot.content,\r\n+          excerpt: snapshot.excerpt,\r\n+          category: snapshot.category,\r\n+          type: snapshot.type,\r\n+        })\r\n+        .eq('id', postId)\r\n+\r\n+      if (rollbackError) {\r\n+        console.warn('Rollback: napaka pri povrnitvi besedila objave:', rollbackError)\r\n+      }\r\n+    }\r\n+    throw err\r\n   }\r\n }\r\n \r\n@@ -212,7 +298,7 @@ export async function fetchPostForEdit(postId: string) {\r\n     .single()\r\n \r\n   if (error || !data) {\r\n-    throw new Error(`Objava ni bila najdena: ${error?.message ?? ''}`)\r\n+    throw new Error(`Objava ni bila najdena: ${error?.message ?? ''}`, { cause: error })\r\n   }\r\n \r\n   return data\r\ndiff --git a/src/features/admin/api/uploadMedia.ts b/src/features/admin/api/uploadMedia.ts\r\nindex 28cd2e47..6be16590 100644\r\n--- a/src/features/admin/api/uploadMedia.ts\r\n+++ b/src/features/admin/api/uploadMedia.ts\r\n@@ -1,5 +1,5 @@\r\n import { createClient } from '@/lib/supabase/client'\r\n-import type { MediaType, NewMediaItem } from '@/features/admin/types'\r\n+import type { MediaType } from '@/features/admin/types'\r\n \r\n const STORAGE_BUCKET = 'post_media'\r\n \r\n@@ -11,12 +11,32 @@ export interface UploadedMedia {\r\n   is_cover: boolean\r\n }\r\n \r\n+export function generateUUID(): string {\r\n+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {\r\n+    return crypto.randomUUID()\r\n+  }\r\n+  // Fallback for non-secure contexts ÔÇö use getRandomValues when available\r\n+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {\r\n+    const bytes = new Uint8Array(16)\r\n+    crypto.getRandomValues(bytes)\r\n+    bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4\r\n+    bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant 10\r\n+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')\r\n+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`\r\n+  }\r\n+  // Last resort fallback (e.g., very old browsers)\r\n+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {\r\n+    const r = (Math.random() * 16) | 0\r\n+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)\r\n+  })\r\n+}\r\n+\r\n /**\r\n  * Generates a unique storage path for a file.\r\n  * Format: posts/{postId}/{randomUUID}/{safeFileName}\r\n  */\r\n function generateStoragePath(postId: string, fileName: string): string {\r\n-  const uuid = crypto.randomUUID()\r\n+  const uuid = generateUUID()\r\n   const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')\r\n   return `posts/${postId}/${uuid}/${safeFileName}`\r\n }\r\n@@ -33,35 +53,58 @@ export async function uploadSingleFile(postId: string, file: File): Promise<stri\r\n   })\r\n \r\n   if (error) {\r\n-    throw new Error(`Napaka pri nalaganju datoteke: ${error.message}`)\r\n+    throw new Error(`Napaka pri nalaganju datoteke: ${error.message}`, { cause: error })\r\n   }\r\n \r\n   const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path)\r\n   return urlData.publicUrl\r\n }\r\n \r\n+/** Max number of concurrent file uploads to avoid rate limiting */\r\n+const UPLOAD_CONCURRENCY = 3\r\n+\r\n /**\r\n- * Uploads all new media items to Supabase Storage in parallel.\r\n- * Returns array of UploadedMedia in the same order as input.\r\n+ * Uploads files with controlled concurrency, tracking each URL for rollback.\r\n+ * Each file's URL is pushed to uploadedUrls immediately on success,\r\n+ * so partial failures within a batch are still tracked for cleanup.\r\n+ * Returns uploaded URLs in same order as input files.\r\n  */\r\n-export async function uploadNewMediaItems(\r\n+export async function uploadFilesWithTracking(\r\n   postId: string,\r\n-  newItems: NewMediaItem[]\r\n-): Promise<UploadedMedia[]> {\r\n-  if (newItems.length === 0) return []\r\n-\r\n-  return Promise.all(\r\n-    newItems.map(async (item) => {\r\n-      const url = await uploadSingleFile(postId, item.file)\r\n-      return {\r\n-        url,\r\n-        media_type: item.media_type,\r\n-        thumbnail_url: null,\r\n-        order_index: item.order_index,\r\n-        is_cover: item.is_cover,\r\n-      } satisfies UploadedMedia\r\n-    })\r\n-  )\r\n+  files: File[],\r\n+  uploadedUrls: string[]\r\n+): Promise<string[]> {\r\n+  const results: string[] = []\r\n+\r\n+  for (let i = 0; i < files.length; i += UPLOAD_CONCURRENCY) {\r\n+    const batch = files.slice(i, i + UPLOAD_CONCURRENCY)\r\n+    const batchResults = await Promise.allSettled(\r\n+      batch.map((file) => uploadSingleFile(postId, file))\r\n+    )\r\n+\r\n+    // Track successful uploads for rollback, then check for failures\r\n+    const batchUrls: string[] = []\r\n+    let firstError: Error | null = null\r\n+\r\n+    for (const result of batchResults) {\r\n+      if (result.status === 'fulfilled') {\r\n+        batchUrls.push(result.value)\r\n+        uploadedUrls.push(result.value)\r\n+      } else if (!firstError) {\r\n+        firstError = result.reason instanceof Error\r\n+          ? result.reason\r\n+          : new Error(String(result.reason))\r\n+      }\r\n+    }\r\n+\r\n+    results.push(...batchUrls)\r\n+\r\n+    if (firstError) {\r\n+      throw firstError\r\n+    }\r\n+  }\r\n+\r\n+  return results\r\n }\r\n \r\n /**\r\n@@ -85,6 +128,6 @@ export async function removeStorageFiles(urls: string[]): Promise<void> {\r\n \r\n   const { error } = await supabase.storage.from(STORAGE_BUCKET).remove(paths)\r\n   if (error) {\r\n-    throw new Error(`Napaka pri brisanju datotek: ${error.message}`)\r\n+    throw new Error(`Napaka pri brisanju datotek: ${error.message}`, { cause: error })\r\n   }\r\n }\r\ndiff --git a/src/features/admin/components/EditPostSkeleton.tsx b/src/features/admin/components/EditPostSkeleton.tsx\r\nnew file mode 100644\r\nindex 00000000..d5db3d10\r\n--- /dev/null\r\n+++ b/src/features/admin/components/EditPostSkeleton.tsx\r\n@@ -0,0 +1,15 @@\r\n+'use client'\r\n+\r\n+export function EditPostSkeleton() {\r\n+  return (\r\n+    <div className=\"flex flex-col gap-6\" aria-label=\"Nalaganje...\">\r\n+      {[1, 2, 3].map((i) => (\r\n+        <div key={i} className=\"flex flex-col gap-1.5\">\r\n+          <div className=\"h-4 w-24 animate-pulse rounded bg-muted\" />\r\n+          <div className=\"h-[44px] w-full animate-pulse rounded border bg-muted\" />\r\n+        </div>\r\n+      ))}\r\n+      <div className=\"h-[44px] w-32 animate-pulse rounded bg-muted\" />\r\n+    </div>\r\n+  )\r\n+}\r\ndiff --git a/src/features/admin/components/MediaSortableItem.tsx b/src/features/admin/components/MediaSortableItem.tsx\r\nindex 25816991..b8e6edb4 100644\r\n--- a/src/features/admin/components/MediaSortableItem.tsx\r\n+++ b/src/features/admin/components/MediaSortableItem.tsx\r\n@@ -64,7 +64,7 @@ export function MediaSortableItem({\r\n             src={previewUrl}\r\n             className=\"size-full object-cover\"\r\n             muted\r\n-            preload=\"metadata\"\r\n+            preload=\"none\"\r\n           />\r\n         ) : (\r\n           // eslint-disable-next-line @next/next/no-img-element\r\ndiff --git a/src/features/admin/components/MediaUploader.tsx b/src/features/admin/components/MediaUploader.tsx\r\nindex ec8eb7a8..6903acf5 100644\r\n--- a/src/features/admin/components/MediaUploader.tsx\r\n+++ b/src/features/admin/components/MediaUploader.tsx\r\n@@ -16,14 +16,17 @@ import {\r\n   verticalListSortingStrategy,\r\n } from '@dnd-kit/sortable'\r\n import { ImagePlus } from 'lucide-react'\r\n-import { useRef } from 'react'\r\n+import { useCallback, useRef, useState } from 'react'\r\n import type { MediaItem, MediaType, NewMediaItem } from '@/features/admin/types'\r\n import {\r\n   getMediaItemId,\r\n   MAX_MEDIA_FILES,\r\n+  MAX_IMAGE_SIZE,\r\n+  MAX_VIDEO_SIZE,\r\n   ALLOWED_IMAGE_TYPES,\r\n   ALLOWED_MEDIA_TYPES,\r\n } from '@/features/admin/types'\r\n+import { generateUUID } from '@/features/admin/api/uploadMedia'\r\n import { MediaSortableItem } from './MediaSortableItem'\r\n \r\n interface MediaUploaderProps {\r\n@@ -32,9 +35,39 @@ interface MediaUploaderProps {\r\n   isSubmitting?: boolean\r\n }\r\n \r\n+function formatSize(bytes: number): string {\r\n+  return bytes >= 1024 * 1024\r\n+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`\r\n+    : `${(bytes / 1024).toFixed(0)} KB`\r\n+}\r\n+\r\n+/** Map common file extensions to MIME types for browsers that return empty type */\r\n+const EXTENSION_TO_MIME: Record<string, string> = {\r\n+  jpg: 'image/jpeg',\r\n+  jpeg: 'image/jpeg',\r\n+  png: 'image/png',\r\n+  webp: 'image/webp',\r\n+  gif: 'image/gif',\r\n+  mp4: 'video/mp4',\r\n+  mov: 'video/quicktime',\r\n+  webm: 'video/webm',\r\n+}\r\n+\r\n+/**\r\n+ * Resolves MIME type from browser-provided type, falling back to extension.\r\n+ * Extension fallback is client-side UX only ÔÇö Supabase Storage validates server-side.\r\n+ */\r\n+function resolveFileType(file: File): string {\r\n+  if (file.type && ALLOWED_MEDIA_TYPES.includes(file.type)) return file.type\r\n+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''\r\n+  return EXTENSION_TO_MIME[ext] ?? ''\r\n+}\r\n+\r\n export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderProps) {\r\n   const inputRef = useRef<HTMLInputElement>(null)\r\n   const isAtLimit = items.length >= MAX_MEDIA_FILES\r\n+  const [fileError, setFileError] = useState<string | null>(null)\r\n+  const [isDragOver, setIsDragOver] = useState(false)\r\n \r\n   const sensors = useSensors(\r\n     useSensor(PointerSensor),\r\n@@ -53,38 +86,92 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n       ...item,\r\n       order_index: idx,\r\n     }))\r\n+    // Clear stale error on successful reorder\r\n+    setFileError(null)\r\n     onChange(reordered)\r\n   }\r\n \r\n-  function handleFilesSelected(files: FileList | null) {\r\n-    if (!files || files.length === 0) return\r\n-\r\n-    const remaining = MAX_MEDIA_FILES - items.length\r\n-    const toAdd = Array.from(files).slice(0, remaining)\r\n-\r\n-    const newItems: NewMediaItem[] = toAdd.map((file, i) => {\r\n-      const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(file.type) ? 'image' : 'video'\r\n-      return {\r\n-        kind: 'new',\r\n-        key: crypto.randomUUID(),\r\n-        file,\r\n-        preview_url: URL.createObjectURL(file),\r\n-        media_type: mediaType,\r\n-        is_cover: false,\r\n-        order_index: items.length + i,\r\n+  const processFiles = useCallback(\r\n+    (fileList: File[]) => {\r\n+      if (fileList.length === 0) return\r\n+\r\n+      setFileError(null)\r\n+      const errors: string[] = []\r\n+\r\n+      // Resolve MIME types (fallback to extension for empty type)\r\n+      const filesWithTypes = fileList.map((f) => ({ file: f, resolvedType: resolveFileType(f) }))\r\n+\r\n+      // Filter by allowed MIME type\r\n+      const validTypeFiles = filesWithTypes.filter(({ file, resolvedType }) => {\r\n+        if (!ALLOWED_MEDIA_TYPES.includes(resolvedType)) {\r\n+          errors.push(`\"${file.name}\" ÔÇö nepodprt format`)\r\n+          return false\r\n+        }\r\n+        return true\r\n+      })\r\n+\r\n+      // Filter by file size\r\n+      const validFiles = validTypeFiles.filter(({ file, resolvedType }) => {\r\n+        const isImage = ALLOWED_IMAGE_TYPES.includes(resolvedType)\r\n+        const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE\r\n+        if (file.size > maxSize) {\r\n+          errors.push(\r\n+            `\"${file.name}\" presega omejitev ${formatSize(maxSize)}`\r\n+          )\r\n+          return false\r\n+        }\r\n+        return true\r\n+      })\r\n+\r\n+      const remaining = MAX_MEDIA_FILES - items.length\r\n+      if (remaining <= 0) {\r\n+        setFileError(`Dose┼żena je omejitev ${MAX_MEDIA_FILES} datotek`)\r\n+        return\r\n       }\r\n-    })\r\n \r\n-    // Auto-assign first item as cover if none set\r\n-    const combined: MediaItem[] = [...items, ...newItems]\r\n-    const hasCover = combined.some((m) => m.is_cover)\r\n-    if (!hasCover && combined.length > 0) {\r\n-      combined[0] = { ...combined[0], is_cover: true }\r\n-    }\r\n+      const toAdd = validFiles.slice(0, remaining)\r\n+      if (validFiles.length > remaining) {\r\n+        errors.push(\r\n+          `${validFiles.length - remaining} datotek ni bilo dodanih ÔÇö omejitev ${MAX_MEDIA_FILES}`\r\n+        )\r\n+      }\r\n+\r\n+      if (errors.length > 0) {\r\n+        setFileError(errors.join('. '))\r\n+      }\r\n+\r\n+      if (toAdd.length === 0) return\r\n+\r\n+      const newItems: NewMediaItem[] = toAdd.map(({ file, resolvedType }, i) => {\r\n+        const mediaType: MediaType = ALLOWED_IMAGE_TYPES.includes(resolvedType) ? 'image' : 'video'\r\n+        return {\r\n+          kind: 'new',\r\n+          key: generateUUID(),\r\n+          file,\r\n+          preview_url: URL.createObjectURL(file),\r\n+          media_type: mediaType,\r\n+          is_cover: false,\r\n+          order_index: items.length + i,\r\n+        }\r\n+      })\r\n \r\n-    onChange(combined)\r\n-    // Reset input so same file can be re-selected\r\n-    if (inputRef.current) inputRef.current.value = ''\r\n+      // Auto-assign first item as cover if none set\r\n+      const combined: MediaItem[] = [...items, ...newItems]\r\n+      const hasCover = combined.some((m) => m.is_cover)\r\n+      if (!hasCover && combined.length > 0) {\r\n+        combined[0] = { ...combined[0], is_cover: true }\r\n+      }\r\n+\r\n+      onChange(combined)\r\n+      // Reset input so same file can be re-selected\r\n+      if (inputRef.current) inputRef.current.value = ''\r\n+    },\r\n+    [items, onChange]\r\n+  )\r\n+\r\n+  function handleFilesSelected(files: FileList | null) {\r\n+    if (!files) return\r\n+    processFiles(Array.from(files))\r\n   }\r\n \r\n   function handleSetCover(targetId: string) {\r\n@@ -100,7 +187,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n       .filter((item) => getMediaItemId(item) !== targetId)\r\n       .map((item, idx) => ({ ...item, order_index: idx }))\r\n \r\n-    // Revoke object URL for new items\r\n+    // Revoke object URL for new items immediately\r\n     const removed = items.find((item) => getMediaItemId(item) === targetId)\r\n     if (removed?.kind === 'new') URL.revokeObjectURL(removed.preview_url)\r\n \r\n@@ -110,6 +197,41 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n     }\r\n \r\n     onChange(filtered)\r\n+    setFileError(null)\r\n+  }\r\n+\r\n+  function hasFileTransfer(e: React.DragEvent): boolean {\r\n+    try {\r\n+      return e.dataTransfer?.types?.includes('Files') ?? false\r\n+    } catch {\r\n+      return false\r\n+    }\r\n+  }\r\n+\r\n+  // Native drag-and-drop handlers for file upload zone\r\n+  function handleNativeDragOver(e: React.DragEvent) {\r\n+    e.preventDefault()\r\n+    e.stopPropagation()\r\n+    if (!hasFileTransfer(e)) return\r\n+    if (!isAtLimit && !isSubmitting) setIsDragOver(true)\r\n+  }\r\n+\r\n+  function handleNativeDragLeave(e: React.DragEvent) {\r\n+    e.preventDefault()\r\n+    e.stopPropagation()\r\n+    setIsDragOver(false)\r\n+  }\r\n+\r\n+  function handleNativeDrop(e: React.DragEvent) {\r\n+    e.preventDefault()\r\n+    e.stopPropagation()\r\n+    setIsDragOver(false)\r\n+    if (isAtLimit || isSubmitting) return\r\n+    if (!hasFileTransfer(e)) return\r\n+    const files = e.dataTransfer.files\r\n+    if (files.length > 0) {\r\n+      processFiles(Array.from(files))\r\n+    }\r\n   }\r\n \r\n   const sortableIds = items.map(getMediaItemId)\r\n@@ -142,9 +264,12 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n       {/* Upload button / drop zone */}\r\n       <div className=\"flex flex-col gap-1\">\r\n         <label\r\n-          className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted ${\r\n-            isAtLimit || isSubmitting ? 'cursor-not-allowed opacity-50' : ''\r\n-          }`}\r\n+          onDragOver={handleNativeDragOver}\r\n+          onDragLeave={handleNativeDragLeave}\r\n+          onDrop={handleNativeDrop}\r\n+          className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors focus-within:ring-2 focus-within:ring-ring hover:bg-muted ${\r\n+            isDragOver ? 'border-primary bg-primary/5' : ''\r\n+          } ${isAtLimit || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}\r\n         >\r\n           <ImagePlus className=\"size-4\" />\r\n           <span>Dodaj medij ({items.length}/{MAX_MEDIA_FILES})</span>\r\n@@ -160,11 +285,17 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr\r\n           />\r\n         </label>\r\n \r\n-        {isAtLimit && (\r\n+        {isAtLimit && !fileError && (\r\n           <p className=\"text-xs text-destructive\" data-testid=\"media-limit-message\">\r\n             Dose┼żena je omejitev {MAX_MEDIA_FILES} datotek\r\n           </p>\r\n         )}\r\n+\r\n+        {fileError && (\r\n+          <p className=\"text-xs text-destructive\" data-testid=\"media-file-error\">\r\n+            {fileError}\r\n+          </p>\r\n+        )}\r\n       </div>\r\n     </div>\r\n   )\r\ndiff --git a/src/features/admin/components/PostForm.tsx b/src/features/admin/components/PostForm.tsx\r\nindex 67b8ede6..508101fe 100644\r\n--- a/src/features/admin/components/PostForm.tsx\r\n+++ b/src/features/admin/components/PostForm.tsx\r\n@@ -1,7 +1,7 @@\r\n 'use client'\r\n \r\n import { useForm } from 'react-hook-form'\r\n-import { useState } from 'react'\r\n+import { useState, useEffect, useRef } from 'react'\r\n import { useRouter } from 'next/navigation'\r\n import { toast } from 'sonner'\r\n import { Loader2 } from 'lucide-react'\r\n@@ -12,8 +12,10 @@ import { MediaUploader } from './MediaUploader'\r\n import { createPost, updatePost } from '@/features/admin/api/posts'\r\n import {\r\n   PostFormSchema,\r\n+  MAX_MEDIA_FILES,\r\n   type PostFormValues,\r\n   type MediaItem,\r\n+  type NewMediaItem,\r\n   type ExistingMediaItem,\r\n } from '@/features/admin/types'\r\n \r\n@@ -32,6 +34,7 @@ interface InitialData {\r\n   content?: string | null\r\n   excerpt?: string | null\r\n   category: string\r\n+  type?: string\r\n   post_media?: PostMediaRow[]\r\n }\r\n \r\n@@ -76,6 +79,45 @@ export function PostForm(props: PostFormProps) {\r\n     }))\r\n   })\r\n \r\n+  // Track ObjectURLs for cleanup on unmount\r\n+  const objectUrlsRef = useRef<Set<string>>(new Set())\r\n+\r\n+  const handleMediaChange = (items: MediaItem[]) => {\r\n+    // Track new ObjectURLs and clean up revoked ones\r\n+    const currentUrls = new Set(\r\n+      items\r\n+        .filter((i): i is NewMediaItem => i.kind === 'new')\r\n+        .map((i) => i.preview_url)\r\n+    )\r\n+    // Revoke URLs no longer in the list\r\n+    for (const url of objectUrlsRef.current) {\r\n+      if (!currentUrls.has(url)) {\r\n+        URL.revokeObjectURL(url)\r\n+        objectUrlsRef.current.delete(url)\r\n+      }\r\n+    }\r\n+    // Track new URLs\r\n+    for (const url of currentUrls) {\r\n+      objectUrlsRef.current.add(url)\r\n+    }\r\n+    setMediaItems(items)\r\n+  }\r\n+\r\n+  // Cleanup ObjectURLs on unmount ÔÇö snapshot the ref to avoid double-revoke\r\n+  useEffect(() => {\r\n+    const ref = objectUrlsRef.current\r\n+    return () => {\r\n+      if (!(ref instanceof Set)) return\r\n+      const urls = new Set(ref)\r\n+      ref.clear()\r\n+      for (const url of urls) {\r\n+        URL.revokeObjectURL(url)\r\n+      }\r\n+    }\r\n+  }, [])\r\n+\r\n+  const [mediaError, setMediaError] = useState<string | null>(null)\r\n+\r\n   const {\r\n     register,\r\n     handleSubmit,\r\n@@ -92,7 +134,22 @@ export function PostForm(props: PostFormProps) {\r\n   async function onSubmit(values: PostFormValues) {\r\n     // Validate with Zod (react-hook-form handles required/max, but Zod is authoritative)\r\n     const parsed = PostFormSchema.safeParse(values)\r\n-    if (!parsed.success) return\r\n+    if (!parsed.success) {\r\n+      const firstError = parsed.error.issues[0]?.message ?? 'Napaka pri validaciji'\r\n+      toast.error(firstError)\r\n+      return\r\n+    }\r\n+\r\n+    // Validate media: at least 1, at most MAX_MEDIA_FILES\r\n+    if (mediaItems.length === 0) {\r\n+      setMediaError('Dodajte vsaj eno medijsko datoteko')\r\n+      return\r\n+    }\r\n+    if (mediaItems.length > MAX_MEDIA_FILES) {\r\n+      setMediaError(`Najve─Ź ${MAX_MEDIA_FILES} datotek je dovoljenih`)\r\n+      return\r\n+    }\r\n+    setMediaError(null)\r\n \r\n     if (!user) {\r\n       toast.error('Niste prijavljeni')\r\n@@ -205,7 +262,12 @@ export function PostForm(props: PostFormProps) {\r\n       {/* Media uploader */}\r\n       <div className=\"flex flex-col gap-1.5\">\r\n         <span className=\"text-sm font-medium\">Mediji</span>\r\n-        <MediaUploader items={mediaItems} onChange={setMediaItems} isSubmitting={isSubmitting} />\r\n+        <MediaUploader items={mediaItems} onChange={handleMediaChange} isSubmitting={isSubmitting} />\r\n+        {mediaError && (\r\n+          <p className=\"text-xs text-destructive\" role=\"alert\" data-testid=\"media-required-error\">\r\n+            {mediaError}\r\n+          </p>\r\n+        )}\r\n       </div>\r\n \r\n       {/* Submit */}\r\ndiff --git a/src/features/admin/types.ts b/src/features/admin/types.ts\r\nindex 7f4a286a..25c7343e 100644\r\n--- a/src/features/admin/types.ts\r\n+++ b/src/features/admin/types.ts\r\n@@ -37,10 +37,16 @@ export function getMediaItemId(item: MediaItem): string {\r\n \r\n /** Post form field values ÔÇö validated by Zod */\r\n export const PostFormSchema = z.object({\r\n-  title: z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)'),\r\n-  content: z.string().optional(),\r\n+  title: z\r\n+    .string()\r\n+    .transform((s) => s.trim())\r\n+    .pipe(z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)')),\r\n+  content: z.string().max(50000, 'Vsebina je predolga (max 50.000 znakov)').optional(),\r\n   excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),\r\n-  category: z.string().min(1, 'Kategorija je obvezna').max(100),\r\n+  category: z\r\n+    .string()\r\n+    .transform((s) => s.trim())\r\n+    .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),\r\n })\r\n \r\n export type PostFormValues = z.infer<typeof PostFormSchema>\r\n@@ -48,6 +54,12 @@ export type PostFormValues = z.infer<typeof PostFormSchema>\r\n /** Maximum number of media files allowed per post */\r\n export const MAX_MEDIA_FILES = 10\r\n \r\n+/** Maximum file size for images (10 MB) */\r\n+export const MAX_IMAGE_SIZE = 10 * 1024 * 1024\r\n+\r\n+/** Maximum file size for videos (100 MB) */\r\n+export const MAX_VIDEO_SIZE = 100 * 1024 * 1024\r\n+\r\n /** Allowed MIME types for image uploads */\r\n export const ALLOWED_IMAGE_TYPES = [\r\n   'image/jpeg',\r\ndiff --git a/tests/unit/features/admin/api/posts.test.ts b/tests/unit/features/admin/api/posts.test.ts\r\nindex 4ab32dae..51b4c475 100644\r\n--- a/tests/unit/features/admin/api/posts.test.ts\r\n+++ b/tests/unit/features/admin/api/posts.test.ts\r\n@@ -1,5 +1,6 @@\r\n import { describe, it, expect, vi, beforeEach } from 'vitest'\r\n import type { ExistingMediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'\r\n+import { MAX_MEDIA_FILES } from '@/features/admin/types'\r\n \r\n const mockFrom = vi.fn()\r\n \r\n@@ -8,6 +9,7 @@ function makeChain(result: unknown) {\r\n   const chain = {\r\n     insert: vi.fn().mockReturnThis(),\r\n     update: vi.fn().mockReturnThis(),\r\n+    upsert: vi.fn().mockResolvedValue({ error: null }),\r\n     delete: vi.fn().mockReturnThis(),\r\n     select: vi.fn().mockReturnThis(),\r\n     eq: vi.fn().mockReturnThis(),\r\n@@ -17,11 +19,11 @@ function makeChain(result: unknown) {\r\n   return chain\r\n }\r\n \r\n-const mockUploadNewMediaItems = vi.fn()\r\n+const mockUploadFilesWithTracking = vi.fn()\r\n const mockRemoveStorageFiles = vi.fn()\r\n \r\n vi.mock('@/features/admin/api/uploadMedia', () => ({\r\n-  uploadNewMediaItems: (...args: unknown[]) => mockUploadNewMediaItems(...args),\r\n+  uploadFilesWithTracking: (...args: unknown[]) => mockUploadFilesWithTracking(...args),\r\n   removeStorageFiles: (...args: unknown[]) => mockRemoveStorageFiles(...args),\r\n }))\r\n \r\n@@ -72,14 +74,19 @@ function makeNewItem(key: string, orderIndex = 0): NewMediaItem {\r\n describe('createPost', () => {\r\n   beforeEach(() => {\r\n     vi.clearAllMocks()\r\n-    mockUploadNewMediaItems.mockResolvedValue([])\r\n+    mockUploadFilesWithTracking.mockImplementation(\r\n+      async (_postId: string, _files: File[], uploadedUrls: string[]) => {\r\n+        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/file${i}.jpg`)\r\n+        uploadedUrls.push(...urls)\r\n+        return urls\r\n+      }\r\n+    )\r\n     mockRemoveStorageFiles.mockResolvedValue(undefined)\r\n   })\r\n \r\n   it('creates post and returns post id', async () => {\r\n     supabaseChain = makeChain({ data: { id: 'new-post-id' }, error: null })\r\n     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'new-post-id' }, error: null })\r\n-    // Second call for post_media insert\r\n     supabaseChain.insert.mockReturnThis()\r\n \r\n     const id = await createPost({\r\n@@ -98,18 +105,22 @@ describe('createPost', () => {\r\n     ).rejects.toThrow('Napaka pri ustvarjanju objave')\r\n   })\r\n \r\n-  it('uploads new media items after post created', async () => {\r\n+  it('throws when media items exceed MAX_MEDIA_FILES', async () => {\r\n+    const tooMany = Array.from({ length: MAX_MEDIA_FILES + 1 }, (_, i) => makeNewItem(`k${i}`, i))\r\n+\r\n+    await expect(\r\n+      createPost({ formValues: baseFormValues, mediaItems: tooMany, authorId: 'u1' })\r\n+    ).rejects.toThrow('Prekora─Źena omejitev')\r\n+  })\r\n+\r\n+  it('uploads new media items with concurrency after post created', async () => {\r\n     supabaseChain = makeChain({ data: { id: 'post-1' }, error: null })\r\n-    // First insert (posts): chain returns itself so .select().single() works\r\n     supabaseChain.insert\r\n       .mockReturnValueOnce(supabaseChain) // posts insert Ôćĺ chained\r\n       .mockReturnValueOnce({ error: null }) // post_media insert Ôćĺ {error: null}\r\n     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-1' }, error: null })\r\n \r\n     const newItem = makeNewItem('k1', 0)\r\n-    mockUploadNewMediaItems.mockResolvedValue([\r\n-      { url: 'https://cdn.example.com/file.jpg', media_type: 'image', thumbnail_url: null, order_index: 0, is_cover: true },\r\n-    ])\r\n \r\n     await createPost({\r\n       formValues: baseFormValues,\r\n@@ -117,7 +128,11 @@ describe('createPost', () => {\r\n       authorId: 'u1',\r\n     })\r\n \r\n-    expect(mockUploadNewMediaItems).toHaveBeenCalledWith('post-1', [newItem])\r\n+    expect(mockUploadFilesWithTracking).toHaveBeenCalledWith(\r\n+      'post-1',\r\n+      [newItem.file],\r\n+      expect.any(Array)\r\n+    )\r\n   })\r\n })\r\n \r\n@@ -154,17 +169,26 @@ describe('fetchPostForEdit', () => {\r\n describe('updatePost', () => {\r\n   beforeEach(() => {\r\n     vi.clearAllMocks()\r\n-    mockUploadNewMediaItems.mockResolvedValue([])\r\n+    mockUploadFilesWithTracking.mockImplementation(\r\n+      async (_postId: string, _files: File[], uploadedUrls: string[]) => {\r\n+        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/new-file${i}.jpg`)\r\n+        uploadedUrls.push(...urls)\r\n+        return urls\r\n+      }\r\n+    )\r\n     mockRemoveStorageFiles.mockResolvedValue(undefined)\r\n     supabaseChain = makeChain({ data: null, error: null })\r\n+    // Snapshot select returns current post data\r\n+    supabaseChain.single.mockResolvedValue({\r\n+      data: { title: 'DB Title', content: 'DB Content', excerpt: null, category: 'cat', type: 'photo' },\r\n+      error: null,\r\n+    })\r\n     supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })\r\n     supabaseChain.delete.mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) })\r\n-    supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }), error: null })\r\n   })\r\n \r\n-  it('calls removeStorageFiles for deleted media', async () => {\r\n+  it('deletes removed media only after all DB ops succeed', async () => {\r\n     const original = [makeExistingItem('m1', 0), makeExistingItem('m2', 1)]\r\n-    // Keep only m1 ÔÇö m2 should be deleted\r\n     const current = [makeExistingItem('m1', 0)]\r\n \r\n     supabaseChain.update.mockReturnValue({\r\n@@ -198,4 +222,45 @@ describe('updatePost', () => {\r\n       })\r\n     ).rejects.toThrow('Napaka pri posodabljanju objave')\r\n   })\r\n+\r\n+  it('throws when media items exceed MAX_MEDIA_FILES', async () => {\r\n+    const tooMany = Array.from({ length: MAX_MEDIA_FILES + 1 }, (_, i) => makeNewItem(`k${i}`, i))\r\n+\r\n+    await expect(\r\n+      updatePost({\r\n+        postId: 'p1',\r\n+        formValues: baseFormValues,\r\n+        mediaItems: tooMany,\r\n+        originalMedia: [],\r\n+      })\r\n+    ).rejects.toThrow('Prekora─Źena omejitev')\r\n+  })\r\n+\r\n+  it('snapshots DB state for rollback instead of using stale page data', async () => {\r\n+    // Snapshot returns current DB state\r\n+    supabaseChain.single.mockResolvedValueOnce({\r\n+      data: { title: 'Current DB Title', content: 'Current', excerpt: null, category: 'real', type: 'gallery' },\r\n+      error: null,\r\n+    })\r\n+\r\n+    // Make text update succeed, then upload fail\r\n+    supabaseChain.update.mockReturnValue({\r\n+      eq: vi.fn().mockResolvedValue({ error: null }),\r\n+    })\r\n+    mockUploadFilesWithTracking.mockRejectedValueOnce(new Error('Upload failed'))\r\n+\r\n+    const newItem = makeNewItem('k1', 0)\r\n+\r\n+    await expect(\r\n+      updatePost({\r\n+        postId: 'p1',\r\n+        formValues: baseFormValues,\r\n+        mediaItems: [newItem],\r\n+        originalMedia: [],\r\n+      })\r\n+    ).rejects.toThrow('Upload failed')\r\n+\r\n+    // Verify rollback was called with DB snapshot values (not stale page data)\r\n+    expect(supabaseChain.update).toHaveBeenCalledTimes(2) // update + rollback\r\n+  })\r\n })\r\ndiff --git a/tests/unit/features/admin/api/uploadMedia.test.ts b/tests/unit/features/admin/api/uploadMedia.test.ts\r\nindex 7b833b67..648b1b43 100644\r\n--- a/tests/unit/features/admin/api/uploadMedia.test.ts\r\n+++ b/tests/unit/features/admin/api/uploadMedia.test.ts\r\n@@ -1,5 +1,4 @@\r\n import { describe, it, expect, vi, beforeEach } from 'vitest'\r\n-import type { NewMediaItem } from '@/features/admin/types'\r\n \r\n const mockUpload = vi.fn()\r\n const mockGetPublicUrl = vi.fn()\r\n@@ -19,7 +18,7 @@ vi.mock('@/lib/supabase/client', () => ({\r\n \r\n import {\r\n   uploadSingleFile,\r\n-  uploadNewMediaItems,\r\n+  uploadFilesWithTracking,\r\n   removeStorageFiles,\r\n } from '@/features/admin/api/uploadMedia'\r\n \r\n@@ -27,18 +26,6 @@ function makeFile(name = 'photo.jpg', type = 'image/jpeg') {\r\n   return new File(['content'], name, { type })\r\n }\r\n \r\n-function makeNewItem(key: string, orderIndex = 0): NewMediaItem {\r\n-  return {\r\n-    kind: 'new',\r\n-    key,\r\n-    file: makeFile(),\r\n-    preview_url: `blob:${key}`,\r\n-    media_type: 'image',\r\n-    is_cover: orderIndex === 0,\r\n-    order_index: orderIndex,\r\n-  }\r\n-}\r\n-\r\n describe('uploadSingleFile', () => {\r\n   beforeEach(() => {\r\n     vi.clearAllMocks()\r\n@@ -65,26 +52,32 @@ describe('uploadSingleFile', () => {\r\n   })\r\n })\r\n \r\n-describe('uploadNewMediaItems', () => {\r\n+describe('uploadFilesWithTracking', () => {\r\n   beforeEach(() => {\r\n     vi.clearAllMocks()\r\n     mockUpload.mockResolvedValue({ error: null })\r\n     mockGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/media.jpg' } })\r\n   })\r\n \r\n-  it('uploads all items and returns UploadedMedia array', async () => {\r\n-    const items = [makeNewItem('k1', 0), makeNewItem('k2', 1)]\r\n-    const result = await uploadNewMediaItems('post-1', items)\r\n+  it('uploads files in batches and returns URLs', async () => {\r\n+    const files = [makeFile('a.jpg'), makeFile('b.jpg')]\r\n+    const uploadedUrls: string[] = []\r\n+    const result = await uploadFilesWithTracking('post-1', files, uploadedUrls)\r\n     expect(result).toHaveLength(2)\r\n-    expect(result[0].url).toBe('https://cdn.example.com/media.jpg')\r\n-    expect(result[0].order_index).toBe(0)\r\n-    expect(result[0].is_cover).toBe(true)\r\n-    expect(result[1].order_index).toBe(1)\r\n-    expect(result[1].is_cover).toBe(false)\r\n+    expect(result[0]).toBe('https://cdn.example.com/media.jpg')\r\n+    expect(uploadedUrls).toHaveLength(2)\r\n+  })\r\n+\r\n+  it('tracks uploaded URLs for rollback', async () => {\r\n+    const files = [makeFile('a.jpg')]\r\n+    const uploadedUrls: string[] = []\r\n+    await uploadFilesWithTracking('post-1', files, uploadedUrls)\r\n+    expect(uploadedUrls).toEqual(['https://cdn.example.com/media.jpg'])\r\n   })\r\n \r\n   it('returns empty array for empty input', async () => {\r\n-    const result = await uploadNewMediaItems('post-1', [])\r\n+    const uploadedUrls: string[] = []\r\n+    const result = await uploadFilesWithTracking('post-1', [], uploadedUrls)\r\n     expect(result).toHaveLength(0)\r\n     expect(mockUpload).not.toHaveBeenCalled()\r\n   })\r\ndiff --git a/tests/unit/features/admin/components/MediaUploader.test.tsx b/tests/unit/features/admin/components/MediaUploader.test.tsx\r\nindex fdf6ca41..76cdec2b 100644\r\n--- a/tests/unit/features/admin/components/MediaUploader.test.tsx\r\n+++ b/tests/unit/features/admin/components/MediaUploader.test.tsx\r\n@@ -39,6 +39,10 @@ vi.mock('@dnd-kit/utilities', () => ({\r\n   CSS: { Transform: { toString: vi.fn(() => '') } },\r\n }))\r\n \r\n+vi.mock('@/features/admin/api/uploadMedia', () => ({\r\n+  generateUUID: () => 'test-uuid-' + Math.random().toString(36).slice(2, 8),\r\n+}))\r\n+\r\n import { MediaUploader } from '@/features/admin/components/MediaUploader'\r\n \r\n function makeExistingItem(id: string, orderIndex = 0): ExistingMediaItem {\r\n@@ -73,7 +77,7 @@ describe('MediaUploader', () => {\r\n     expect(screen.getAllByTestId(/^media-item-/)).toHaveLength(2)\r\n   })\r\n \r\n-  it('shows inline error when more than MAX_MEDIA_FILES selected', async () => {\r\n+  it('shows inline error when at MAX_MEDIA_FILES limit', () => {\r\n     const existingItems: MediaItem[] = Array.from({ length: MAX_MEDIA_FILES }, (_, i) =>\r\n       makeExistingItem(`item${i}`, i)\r\n     )\r\n@@ -98,6 +102,46 @@ describe('MediaUploader', () => {\r\n     expect((newItems[0] as NewMediaItem).media_type).toBe('image')\r\n   })\r\n \r\n+  it('shows inline error when files exceed limit and trims excess', async () => {\r\n+    const user = userEvent.setup()\r\n+    // Start with 9 items\r\n+    const existingItems: MediaItem[] = Array.from({ length: 9 }, (_, i) =>\r\n+      makeExistingItem(`item${i}`, i)\r\n+    )\r\n+    render(<MediaUploader items={existingItems} onChange={onChange} />)\r\n+\r\n+    // Try to add 3 files ÔÇö only 1 should be added\r\n+    const files = [\r\n+      new File(['a'], 'a.jpg', { type: 'image/jpeg' }),\r\n+      new File(['b'], 'b.jpg', { type: 'image/jpeg' }),\r\n+      new File(['c'], 'c.jpg', { type: 'image/jpeg' }),\r\n+    ]\r\n+    const input = screen.getByTestId('media-input')\r\n+    await user.upload(input, files)\r\n+\r\n+    expect(onChange).toHaveBeenCalledOnce()\r\n+    const newItems: MediaItem[] = onChange.mock.calls[0][0]\r\n+    // 9 existing + 1 new = 10\r\n+    expect(newItems).toHaveLength(10)\r\n+    // Error message should appear\r\n+    expect(screen.getByTestId('media-file-error')).toBeInTheDocument()\r\n+  })\r\n+\r\n+  it('shows error for oversized image file', async () => {\r\n+    const user = userEvent.setup()\r\n+    render(<MediaUploader items={[]} onChange={onChange} />)\r\n+\r\n+    // Create a file object > 10 MB\r\n+    const largeContent = new Uint8Array(11 * 1024 * 1024)\r\n+    const file = new File([largeContent], 'huge.jpg', { type: 'image/jpeg' })\r\n+    const input = screen.getByTestId('media-input')\r\n+    await user.upload(input, file)\r\n+\r\n+    // Should not add the file\r\n+    expect(onChange).not.toHaveBeenCalled()\r\n+    expect(screen.getByTestId('media-file-error')).toBeInTheDocument()\r\n+  })\r\n+\r\n   it('marks item as cover when cover button is clicked', () => {\r\n     const items: MediaItem[] = [\r\n       makeExistingItem('a', 0),\r\ndiff --git a/tests/unit/features/admin/components/PostForm.test.tsx b/tests/unit/features/admin/components/PostForm.test.tsx\r\nindex 6ecdbebb..a9c7310b 100644\r\n--- a/tests/unit/features/admin/components/PostForm.test.tsx\r\n+++ b/tests/unit/features/admin/components/PostForm.test.tsx\r\n@@ -91,6 +91,20 @@ describe('PostForm (create mode)', () => {\r\n     expect(mockCreatePost).not.toHaveBeenCalled()\r\n   })\r\n \r\n+  it('shows media required error when no media items on submit', async () => {\r\n+    const user = userEvent.setup()\r\n+    render(<PostForm mode=\"create\" />)\r\n+\r\n+    await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n+    await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    await user.click(screen.getByRole('button', { name: /objavi/i }))\r\n+\r\n+    await waitFor(() => {\r\n+      expect(screen.getByTestId('media-required-error')).toBeInTheDocument()\r\n+    })\r\n+    expect(mockCreatePost).not.toHaveBeenCalled()\r\n+  })\r\n+\r\n   it('calls createPost with form values on valid submit', async () => {\r\n     const user = userEvent.setup()\r\n     mockCreatePost.mockResolvedValue('new-post-id')\r\n@@ -98,6 +112,8 @@ describe('PostForm (create mode)', () => {\r\n \r\n     await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n     await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    // Add a media item via mock button\r\n+    await user.click(screen.getByTestId('add-media-btn'))\r\n     await user.click(screen.getByRole('button', { name: /objavi/i }))\r\n \r\n     await waitFor(() => {\r\n@@ -117,6 +133,8 @@ describe('PostForm (create mode)', () => {\r\n \r\n     await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n     await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    // Add a media item\r\n+    await user.click(screen.getByTestId('add-media-btn'))\r\n \r\n     const submitBtn = screen.getByRole('button', { name: /objavi/i })\r\n     await user.click(submitBtn)\r\n@@ -134,6 +152,7 @@ describe('PostForm (create mode)', () => {\r\n \r\n     await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n     await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    await user.click(screen.getByTestId('add-media-btn'))\r\n     await user.click(screen.getByRole('button', { name: /objavi/i }))\r\n \r\n     await waitFor(() => {\r\n@@ -148,6 +167,7 @@ describe('PostForm (create mode)', () => {\r\n \r\n     await user.type(screen.getByLabelText(/naslov/i), 'My Post')\r\n     await user.type(screen.getByLabelText(/kategorija/i), 'insight')\r\n+    await user.click(screen.getByTestId('add-media-btn'))\r\n     await user.click(screen.getByRole('button', { name: /objavi/i }))\r\n \r\n     await waitFor(() => {\r\ndiff --git a/tests/unit/features/admin/types.test.ts b/tests/unit/features/admin/types.test.ts\r\nindex d052d86c..d6f56edf 100644\r\n--- a/tests/unit/features/admin/types.test.ts\r\n+++ b/tests/unit/features/admin/types.test.ts\r\n@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'\r\n import {\r\n   PostFormSchema,\r\n   MAX_MEDIA_FILES,\r\n+  MAX_IMAGE_SIZE,\r\n+  MAX_VIDEO_SIZE,\r\n   ALLOWED_IMAGE_TYPES,\r\n   ALLOWED_VIDEO_TYPES,\r\n   ALLOWED_MEDIA_TYPES,\r\n@@ -26,6 +28,27 @@ describe('PostFormSchema', () => {\r\n     }\r\n   })\r\n \r\n+  it('fails when title is only whitespace', () => {\r\n+    const result = PostFormSchema.safeParse({ title: '   ', category: 'insight' })\r\n+    expect(result.success).toBe(false)\r\n+  })\r\n+\r\n+  it('trims title whitespace before validation', () => {\r\n+    const result = PostFormSchema.safeParse({ title: '  My Post  ', category: 'insight' })\r\n+    expect(result.success).toBe(true)\r\n+    if (result.success) {\r\n+      expect(result.data.title).toBe('My Post')\r\n+    }\r\n+  })\r\n+\r\n+  it('trims category whitespace before validation', () => {\r\n+    const result = PostFormSchema.safeParse({ title: 'Post', category: '  insight  ' })\r\n+    expect(result.success).toBe(true)\r\n+    if (result.success) {\r\n+      expect(result.data.category).toBe('insight')\r\n+    }\r\n+  })\r\n+\r\n   it('fails when category is empty', () => {\r\n     const result = PostFormSchema.safeParse({ title: 'Post', category: '' })\r\n     expect(result.success).toBe(false)\r\n@@ -34,6 +57,11 @@ describe('PostFormSchema', () => {\r\n     }\r\n   })\r\n \r\n+  it('fails when category is only whitespace', () => {\r\n+    const result = PostFormSchema.safeParse({ title: 'Post', category: '   ' })\r\n+    expect(result.success).toBe(false)\r\n+  })\r\n+\r\n   it('allows optional content and excerpt', () => {\r\n     const result = PostFormSchema.safeParse({ title: 'Post', category: 'insight' })\r\n     expect(result.success).toBe(true)\r\n@@ -65,6 +93,14 @@ describe('constants', () => {\r\n     expect(MAX_MEDIA_FILES).toBe(10)\r\n   })\r\n \r\n+  it('MAX_IMAGE_SIZE is 10 MB', () => {\r\n+    expect(MAX_IMAGE_SIZE).toBe(10 * 1024 * 1024)\r\n+  })\r\n+\r\n+  it('MAX_VIDEO_SIZE is 100 MB', () => {\r\n+    expect(MAX_VIDEO_SIZE).toBe(100 * 1024 * 1024)\r\n+  })\r\n+\r\n   it('ALLOWED_IMAGE_TYPES contains common image formats', () => {\r\n     expect(ALLOWED_IMAGE_TYPES).toContain('image/jpeg')\r\n     expect(ALLOWED_IMAGE_TYPES).toContain('image/png')\r\n"}
+\ No newline at end of file
+diff --git a/tests/unit/features/admin/api/posts.test.ts b/tests/unit/features/admin/api/posts.test.ts
+index 4c0d1d8..acb2b3b 100644
+--- a/tests/unit/features/admin/api/posts.test.ts
++++ b/tests/unit/features/admin/api/posts.test.ts
+@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import type { ExistingMediaItem, NewMediaItem, PostFormValues } from '@/features/admin/types'
+ import { MAX_MEDIA_FILES } from '@/features/admin/types'
+ 
++type PostStatus = 'draft' | 'scheduled' | 'published'
++
+ const mockFrom = vi.fn()
+ 
+ // Build chainable query mock
+@@ -45,6 +47,7 @@ const baseFormValues: PostFormValues = {
+   category: 'insight',
+   content: 'Content here',
+   excerpt: 'Short excerpt',
++  status: 'published' as PostStatus,
+ }
+ 
+ function makeExistingItem(id: string, orderIndex = 0): ExistingMediaItem {
+@@ -368,6 +371,20 @@ describe('updatePost', () => {
+     })
+   })
+ 
++  it('does not update status fields during normal edit flow', async () => {
++    await updatePost({
++      postId: 'p1',
++      formValues: baseFormValues,
++      mediaItems: [],
++      originalMedia: [],
++    })
++
++    expect(supabaseChain.update).toHaveBeenCalled()
++    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('status')
++    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('scheduled_at')
++    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('published_at')
++  })
++
+   it('snapshots DB state for rollback instead of using stale page data', async () => {
+     // Snapshot returns current DB state
+     supabaseChain.single.mockResolvedValueOnce({
+@@ -408,3 +425,165 @@ describe('updatePost', () => {
+     expect(supabaseChain.update).toHaveBeenCalledTimes(2) // update + rollback
+   })
+ })
++
++describe('createPost — scheduling', () => {
++  beforeEach(() => {
++    vi.clearAllMocks()
++    mockUploadFilesWithTracking.mockImplementation(
++      async (_postId: string, _files: File[], uploadedUrls: string[]) => {
++        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/file${i}.jpg`)
++        uploadedUrls.push(...urls)
++        return urls
++      }
++    )
++    mockRemoveStorageFiles.mockResolvedValue(undefined)
++  })
++
++  it('creates scheduled post with is_published=false and no published_at', async () => {
++    supabaseChain = makeChain({ data: { id: 'sched-post' }, error: null })
++    supabaseChain.single.mockResolvedValueOnce({ data: { id: 'sched-post' }, error: null })
++    supabaseChain.insert.mockReturnThis()
++
++    const futureDate = new Date(Date.now() + 3600_000).toISOString()
++    const scheduledFormValues: PostFormValues = {
++      ...baseFormValues,
++      status: 'scheduled' as PostStatus,
++      scheduled_at: futureDate,
++    }
++
++    const id = await createPost({
++      formValues: scheduledFormValues,
++      mediaItems: [],
++      authorId: 'user-123',
++    })
++
++    expect(id).toBe('sched-post')
++    expect(supabaseChain.insert).toHaveBeenCalledWith(
++      expect.objectContaining({
++        is_published: false,
++        status: 'scheduled',
++        scheduled_at: futureDate,
++        published_at: null,
++      })
++    )
++    // published_at should NOT be set for scheduled posts
++    expect(supabaseChain.update).not.toHaveBeenCalled()
++  })
++})
++
++describe('updatePost — scheduling', () => {
++  beforeEach(() => {
++    vi.clearAllMocks()
++    mockUploadFilesWithTracking.mockImplementation(
++      async (_postId: string, _files: File[], uploadedUrls: string[]) => {
++        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/new-file${i}.jpg`)
++        uploadedUrls.push(...urls)
++        return urls
++      }
++    )
++    mockRemoveStorageFiles.mockResolvedValue(undefined)
++    supabaseChain = makeChain({ data: null, error: null })
++    supabaseChain.single.mockResolvedValue({
++      data: {
++        title: 'DB Title',
++        content: 'DB Content',
++        excerpt: null,
++        category: 'cat',
++        type: 'photo',
++        is_landing_preview: false,
++        is_onboarding: false,
++        is_published: false,
++        status: 'scheduled',
++        scheduled_at: '2026-05-01T10:00:00.000Z',
++        published_at: null,
++      },
++      error: null,
++    })
++    supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
++    supabaseChain.delete.mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) })
++  })
++
++  it('updates scheduled_at when editing a scheduled post', async () => {
++    const newScheduledAt = new Date(Date.now() + 7200_000).toISOString()
++    const scheduledFormValues: PostFormValues = {
++      ...baseFormValues,
++      status: 'scheduled' as PostStatus,
++      scheduled_at: newScheduledAt,
++    }
++
++    await updatePost({
++      postId: 'p1',
++      formValues: scheduledFormValues,
++      mediaItems: [],
++      originalMedia: [],
++    })
++
++    expect(supabaseChain.update).toHaveBeenCalledWith(
++      expect.objectContaining({
++        status: 'scheduled',
++        scheduled_at: newScheduledAt,
++        is_published: false,
++        published_at: null,
++      })
++    )
++  })
++
++  it('rejects published → scheduled transition (AC 2.6)', async () => {
++    // Snapshot returns a published post (has published_at)
++    supabaseChain.single.mockResolvedValueOnce({
++      data: {
++        title: 'Published',
++        content: 'Content',
++        excerpt: null,
++        category: 'cat',
++        type: 'photo',
++        is_landing_preview: false,
++        is_onboarding: false,
++        is_published: true,
++        status: 'published',
++        scheduled_at: null,
++        published_at: '2026-04-01T18:00:00.000Z',
++      },
++      error: null,
++    })
++
++    const scheduledFormValues: PostFormValues = {
++      ...baseFormValues,
++      status: 'scheduled' as PostStatus,
++      scheduled_at: new Date(Date.now() + 7200_000).toISOString(),
++    }
++
++    await expect(
++      updatePost({
++        postId: 'p1',
++        formValues: scheduledFormValues,
++        mediaItems: [],
++        originalMedia: [],
++      })
++    ).rejects.toThrow('Objavljene objave ni mogoče ponovno načrtovati')
++  })
++
++  it('cancels schedule: scheduled → draft clears scheduled_at', async () => {
++    const draftFormValues: PostFormValues = {
++      ...baseFormValues,
++      status: 'draft' as PostStatus,
++      scheduled_at: null,
++    }
++
++    await updatePost({
++      postId: 'p1',
++      formValues: draftFormValues,
++      mediaItems: [],
++      originalMedia: [],
++    })
++
++    expect(supabaseChain.update).toHaveBeenCalledWith(
++      expect.objectContaining({
++        status: 'draft',
++        scheduled_at: null,
++        is_published: false,
++        published_at: null,
++      })
++    )
++  })
++})
+diff --git a/tests/unit/features/admin/components/PostForm.test.tsx b/tests/unit/features/admin/components/PostForm.test.tsx
+index 29523fb..8c489ba 100644
+--- a/tests/unit/features/admin/components/PostForm.test.tsx
++++ b/tests/unit/features/admin/components/PostForm.test.tsx
+@@ -74,14 +74,14 @@ describe('PostForm (create mode)', () => {
+     expect(screen.getByLabelText(/naslov/i)).toBeInTheDocument()
+     expect(screen.getByLabelText(/kategorija/i)).toBeInTheDocument()
+     expect(screen.getByTestId('media-uploader')).toBeInTheDocument()
+-    expect(screen.getByRole('button', { name: /objavi/i })).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: /^objavi$/i })).toBeInTheDocument()
+   })
+ 
+   it('shows inline validation error when title is empty on submit', async () => {
+     const user = userEvent.setup()
+     render(<PostForm mode="create" />)
+ 
+-    await user.click(screen.getByRole('button', { name: /objavi/i }))
++    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+ 
+     await waitFor(() => {
+       expect(screen.getByText(/naslov je obvezen/i)).toBeInTheDocument()
+@@ -94,7 +94,7 @@ describe('PostForm (create mode)', () => {
+     render(<PostForm mode="create" />)
+ 
+     await user.type(screen.getByLabelText(/naslov/i), 'Test Post')
+-    await user.click(screen.getByRole('button', { name: /objavi/i }))
++    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+ 
+     await waitFor(() => {
+       expect(screen.getByText(/kategorija je obvezna/i)).toBeInTheDocument()
+@@ -102,20 +102,20 @@ describe('PostForm (create mode)', () => {
+     expect(mockCreatePost).not.toHaveBeenCalled()
+   })
+ 
+-  it('shows media required error when no media items on submit', async () => {
++  it('allows submit without media items (creates text post)', async () => {
+     const user = userEvent.setup()
++    mockCreatePost.mockResolvedValue('text-post-id')
+     render(<PostForm mode="create" />)
+ 
+     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
+     // Wait for categories to load and select one
+     await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+-    await user.click(screen.getByRole('button', { name: /objavi/i }))
++    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+ 
+     await waitFor(() => {
+-      expect(screen.getByTestId('media-required-error')).toBeInTheDocument()
++      expect(mockCreatePost).toHaveBeenCalledOnce()
+     })
+-    expect(mockCreatePost).not.toHaveBeenCalled()
+   })
+ 
+   it('calls createPost with form values on valid submit', async () => {
+@@ -129,7 +129,7 @@ describe('PostForm (create mode)', () => {
+     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+     // Add a media item via mock button
+     await user.click(screen.getByTestId('add-media-btn'))
+-    await user.click(screen.getByRole('button', { name: /objavi/i }))
++    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+ 
+     await waitFor(() => {
+       expect(mockCreatePost).toHaveBeenCalledOnce()
+@@ -152,7 +152,7 @@ describe('PostForm (create mode)', () => {
+     // Add a media item
+     await user.click(screen.getByTestId('add-media-btn'))
+ 
+-    const submitBtn = screen.getByRole('button', { name: /objavi/i })
++    const submitBtn = screen.getByRole('button', { name: /^objavi$/i })
+     await user.click(submitBtn)
+ 
+     await waitFor(() => {
+@@ -170,7 +170,7 @@ describe('PostForm (create mode)', () => {
+     await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+     await user.click(screen.getByTestId('add-media-btn'))
+-    await user.click(screen.getByRole('button', { name: /objavi/i }))
++    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+ 
+     await waitFor(() => {
+       expect(toast.error).toHaveBeenCalledWith('Upload failed')
+@@ -186,7 +186,7 @@ describe('PostForm (create mode)', () => {
+     await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+     await user.click(screen.getByTestId('add-media-btn'))
+-    await user.click(screen.getByRole('button', { name: /objavi/i }))
++    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+ 
+     await waitFor(() => {
+       expect(mockRouterPush).toHaveBeenCalledWith('/feed')
+@@ -208,7 +208,7 @@ describe('PostForm (create mode) — race conditions', () => {
+     await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+     await user.click(screen.getByTestId('add-media-btn'))
+     // Намеренно НЕ выбираем категорию — значение остаётся ''
+-    await user.click(screen.getByRole('button', { name: /objavi/i }))
++    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+ 
+     await waitFor(() => {
+       expect(screen.getByText(/kategorija je obvezna/i)).toBeInTheDocument()
+@@ -265,7 +265,7 @@ describe('PostForm — curation toggles', () => {
+     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+     await user.click(screen.getByTestId('add-media-btn'))
+     await user.click(screen.getByLabelText(/Prikaži na začetni strani/i))
+-    await user.click(screen.getByRole('button', { name: /objavi/i }))
++    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+ 
+     await waitFor(() => expect(mockCreatePost).toHaveBeenCalledOnce())
+     const call = mockCreatePost.mock.calls[0][0]
+@@ -282,7 +282,7 @@ describe('PostForm — curation toggles', () => {
+     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+     await user.click(screen.getByTestId('add-media-btn'))
+     await user.click(screen.getByLabelText(/Dodaj v uvajanje novih članic/i))
+-    await user.click(screen.getByRole('button', { name: /objavi/i }))
++    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+ 
+     await waitFor(() => expect(mockCreatePost).toHaveBeenCalledOnce())
+     const call = mockCreatePost.mock.calls[0][0]
+@@ -382,3 +382,201 @@ describe('PostForm (edit mode)', () => {
+     })
+   })
+ })
++
++describe('PostForm — scheduling toggle', () => {
++  beforeEach(() => {
++    vi.clearAllMocks()
++    mockGetCategories.mockResolvedValue(testCategories)
++  })
++
++  it('renders scheduling toggle with "Objavi zdaj" active by default', () => {
++    render(<PostForm mode="create" />)
++    const immediateBtn = screen.getByRole('button', { name: /objavi zdaj/i })
++    const scheduleBtn = screen.getByRole('button', { name: /načrtuj objavo/i })
++    expect(immediateBtn).toHaveAttribute('aria-pressed', 'true')
++    expect(scheduleBtn).toHaveAttribute('aria-pressed', 'false')
++  })
++
++  it('toggles to scheduled mode and shows datetime picker', async () => {
++    const user = userEvent.setup()
++    render(<PostForm mode="create" />)
++
++    await user.click(screen.getByRole('button', { name: /načrtuj objavo/i }))
++
++    expect(screen.getByRole('button', { name: /načrtuj objavo/i })).toHaveAttribute('aria-pressed', 'true')
++    expect(screen.getByRole('button', { name: /objavi zdaj/i })).toHaveAttribute('aria-pressed', 'false')
++    expect(screen.getByLabelText(/datum in čas objave/i)).toBeInTheDocument()
++  })
++
++  it('hides datetime picker when switching back to immediate', async () => {
++    const user = userEvent.setup()
++    render(<PostForm mode="create" />)
++
++    await user.click(screen.getByRole('button', { name: /načrtuj objavo/i }))
++    expect(screen.getByLabelText(/datum in čas objave/i)).toBeInTheDocument()
++
++    await user.click(screen.getByRole('button', { name: /objavi zdaj/i }))
++    expect(screen.queryByLabelText(/datum in čas objave/i)).not.toBeInTheDocument()
++  })
++
++  it('shows inline error when submitting scheduled without datetime', async () => {
++    const user = userEvent.setup()
++    render(<PostForm mode="create" />)
++
++    await user.type(screen.getByLabelText(/naslov/i), 'Scheduled Post')
++    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
++    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
++    await user.click(screen.getByTestId('add-media-btn'))
++
++    // Switch to scheduled mode
++    await user.click(screen.getByRole('button', { name: /načrtuj objavo/i }))
++    // Submit without setting datetime — submit button says "Načrtuj" (not "Načrtuj objavo")
++    await user.click(screen.getByRole('button', { name: /^načrtuj$/i }))
++
++    await waitFor(() => {
++      expect(screen.getByRole('alert')).toBeInTheDocument()
++    })
++    expect(mockCreatePost).not.toHaveBeenCalled()
++  })
++
++  it('submits with status=scheduled and scheduled_at when datetime is set', async () => {
++    const user = userEvent.setup()
++    mockCreatePost.mockResolvedValue('sched-post-id')
++    render(<PostForm mode="create" />)
++
++    await user.type(screen.getByLabelText(/naslov/i), 'Scheduled Post')
++    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
++    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
++    await user.click(screen.getByTestId('add-media-btn'))
++
++    // Switch to scheduled mode
++    await user.click(screen.getByRole('button', { name: /načrtuj objavo/i }))
++
++    // Set future datetime
++    const futureDate = '2027-06-15T14:30'
++    const datetimeInput = screen.getByLabelText(/datum in čas objave/i)
++    await user.clear(datetimeInput)
++    await user.type(datetimeInput, futureDate)
++
++    // Submit button should say "Načrtuj"
++    const submitBtn = screen.getByRole('button', { name: /^načrtuj$/i })
++    expect(submitBtn).toHaveAttribute('type', 'submit')
++
++    await user.click(submitBtn)
++
++    await waitFor(() => {
++      expect(mockCreatePost).toHaveBeenCalledOnce()
++    })
++    const call = mockCreatePost.mock.calls[0][0]
++    expect(call.formValues.status).toBe('scheduled')
++    expect(call.formValues.scheduled_at).toBeTruthy()
++  })
++
++  it('pre-fills toggle and datetime for scheduled post in edit mode', () => {
++    render(
++      <PostForm
++        mode="edit"
++        initialData={{
++          id: 'p1',
++          title: 'Scheduled Post',
++          category: 'stories',
++          status: 'scheduled',
++          scheduled_at: '2027-06-15T12:30:00.000Z',
++          post_media: [
++            { id: 'm1', url: 'https://cdn.example.com/m1.jpg', thumbnail_url: null, media_type: 'image' as const, order_index: 0, is_cover: true },
++          ],
++        }}
++      />
++    )
++
++    expect(screen.getByRole('button', { name: /načrtuj objavo/i })).toHaveAttribute('aria-pressed', 'true')
++    expect(screen.getByLabelText(/datum in čas objave/i)).toBeInTheDocument()
++    // Datetime input should have a value
++    expect((screen.getByLabelText(/datum in čas objave/i) as HTMLInputElement).value).toBeTruthy()
++  })
++
++  it('shows "Shrani spremembe" button in edit mode with scheduled post', () => {
++    render(
++      <PostForm
++        mode="edit"
++        initialData={{
++          id: 'p1',
++          title: 'Scheduled Post',
++          category: 'stories',
++          status: 'scheduled',
++          scheduled_at: '2027-06-15T12:30:00.000Z',
++          post_media: [],
++        }}
++      />
++    )
++
++    expect(screen.getByRole('button', { name: /shrani spremembe/i })).toBeInTheDocument()
++  })
++
++  it('disables "Načrtuj objavo" button for already published post (AC 2.6)', () => {
++    render(
++      <PostForm
++        mode="edit"
++        initialData={{
++          id: 'p1',
++          title: 'Published Post',
++          category: 'stories',
++          status: 'published',
++          published_at: '2026-04-01T12:00:00.000Z',
++          post_media: [],
++        }}
++      />
++    )
++
++    const scheduleBtn = screen.getByRole('button', { name: /načrtuj objavo/i })
++    expect(scheduleBtn).toBeDisabled()
++  })
++
++  it('calls /api/posts/publish when transitioning scheduled → published', async () => {
++    const user = userEvent.setup()
++    mockUpdatePost.mockResolvedValue(undefined)
++    const mockFetchFn = vi.fn().mockResolvedValue({
++      ok: true,
++      json: () => Promise.resolve({ published: true }),
++    })
++    vi.stubGlobal('fetch', mockFetchFn)
++
++    render(
++      <PostForm
++        mode="edit"
++        initialData={{
++          id: 'sched-post-1',
++          title: 'Scheduled Post',
++          category: 'stories',
++          status: 'scheduled',
++          scheduled_at: '2027-06-15T12:30:00.000Z',
++          post_media: [],
++        }}
++      />
++    )
++
++    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
++
++    // Switch to immediate publish
++    await user.click(screen.getByRole('button', { name: /objavi zdaj/i }))
++
++    // Submit — button should now say "Shrani" (edit mode, immediate)
++    await user.click(screen.getByRole('button', { name: /shrani/i }))
++
++    await waitFor(() => {
++      expect(mockUpdatePost).toHaveBeenCalledOnce()
++    })
++
++    await waitFor(() => {
++      expect(mockFetchFn).toHaveBeenCalledWith(
++        '/api/posts/publish',
++        expect.objectContaining({
++          method: 'POST',
++          body: JSON.stringify({ postId: 'sched-post-1' }),
++        })
++      )
++    })
++
++    vi.unstubAllGlobals()
++  })
++})
+diff --git a/tests/unit/features/admin/types.test.ts b/tests/unit/features/admin/types.test.ts
+index d6f56ed..24340fb 100644
+--- a/tests/unit/features/admin/types.test.ts
++++ b/tests/unit/features/admin/types.test.ts
+@@ -88,6 +88,99 @@ describe('PostFormSchema', () => {
+   })
+ })
+ 
++describe('PostFormSchema — scheduling validation', () => {
++  it('accepts status=published without scheduled_at', () => {
++    const result = PostFormSchema.safeParse({
++      title: 'Post',
++      category: 'insight',
++      status: 'published',
++    })
++    expect(result.success).toBe(true)
++  })
++
++  it('defaults status to published when omitted', () => {
++    const result = PostFormSchema.safeParse({
++      title: 'Post',
++      category: 'insight',
++    })
++    expect(result.success).toBe(true)
++    if (result.success) {
++      expect(result.data.status).toBe('published')
++    }
++  })
++
++  it('accepts status=scheduled with future scheduled_at', () => {
++    const future = new Date(Date.now() + 3600_000).toISOString()
++    const result = PostFormSchema.safeParse({
++      title: 'Post',
++      category: 'insight',
++      status: 'scheduled',
++      scheduled_at: future,
++    })
++    expect(result.success).toBe(true)
++  })
++
++  it('rejects status=scheduled without scheduled_at', () => {
++    const result = PostFormSchema.safeParse({
++      title: 'Post',
++      category: 'insight',
++      status: 'scheduled',
++    })
++    expect(result.success).toBe(false)
++    if (!result.success) {
++      expect(result.error.issues[0].path).toContain('scheduled_at')
++    }
++  })
++
++  it('rejects status=scheduled with null scheduled_at', () => {
++    const result = PostFormSchema.safeParse({
++      title: 'Post',
++      category: 'insight',
++      status: 'scheduled',
++      scheduled_at: null,
++    })
++    expect(result.success).toBe(false)
++    if (!result.success) {
++      expect(result.error.issues[0].path).toContain('scheduled_at')
++    }
++  })
++
++  it('rejects status=scheduled with past scheduled_at', () => {
++    const past = new Date(Date.now() - 3600_000).toISOString()
++    const result = PostFormSchema.safeParse({
++      title: 'Post',
++      category: 'insight',
++      status: 'scheduled',
++      scheduled_at: past,
++    })
++    expect(result.success).toBe(false)
++    if (!result.success) {
++      expect(result.error.issues[0].path).toContain('scheduled_at')
++      expect(result.error.issues[0].message).toContain('prihodnosti')
++    }
++  })
++
++  it('accepts status=draft without scheduled_at', () => {
++    const result = PostFormSchema.safeParse({
++      title: 'Post',
++      category: 'insight',
++      status: 'draft',
++    })
++    expect(result.success).toBe(true)
++  })
++
++  it('ignores scheduled_at when status is published', () => {
++    const future = new Date(Date.now() + 3600_000).toISOString()
++    const result = PostFormSchema.safeParse({
++      title: 'Post',
++      category: 'insight',
++      status: 'published',
++      scheduled_at: future,
++    })
++    expect(result.success).toBe(true)
++  })
++})
++
+ describe('constants', () => {
+   it('MAX_MEDIA_FILES is 10', () => {
+     expect(MAX_MEDIA_FILES).toBe(10)

@@ -88,6 +88,99 @@ describe('PostFormSchema', () => {
   })
 })
 
+describe('PostFormSchema — scheduling validation', () => {
+  it('accepts status=published without scheduled_at', () => {
+    const result = PostFormSchema.safeParse({
+      title: 'Post',
+      category: 'insight',
+      status: 'published',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('defaults status to published when omitted', () => {
+    const result = PostFormSchema.safeParse({
+      title: 'Post',
+      category: 'insight',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.status).toBe('published')
+    }
+  })
+
+  it('accepts status=scheduled with future scheduled_at', () => {
+    const future = new Date(Date.now() + 3600_000).toISOString()
+    const result = PostFormSchema.safeParse({
+      title: 'Post',
+      category: 'insight',
+      status: 'scheduled',
+      scheduled_at: future,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects status=scheduled without scheduled_at', () => {
+    const result = PostFormSchema.safeParse({
+      title: 'Post',
+      category: 'insight',
+      status: 'scheduled',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0].path).toContain('scheduled_at')
+    }
+  })
+
+  it('rejects status=scheduled with null scheduled_at', () => {
+    const result = PostFormSchema.safeParse({
+      title: 'Post',
+      category: 'insight',
+      status: 'scheduled',
+      scheduled_at: null,
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0].path).toContain('scheduled_at')
+    }
+  })
+
+  it('rejects status=scheduled with past scheduled_at', () => {
+    const past = new Date(Date.now() - 3600_000).toISOString()
+    const result = PostFormSchema.safeParse({
+      title: 'Post',
+      category: 'insight',
+      status: 'scheduled',
+      scheduled_at: past,
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0].path).toContain('scheduled_at')
+      expect(result.error.issues[0].message).toContain('prihodnosti')
+    }
+  })
+
+  it('accepts status=draft without scheduled_at', () => {
+    const result = PostFormSchema.safeParse({
+      title: 'Post',
+      category: 'insight',
+      status: 'draft',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('ignores scheduled_at when status is published', () => {
+    const future = new Date(Date.now() + 3600_000).toISOString()
+    const result = PostFormSchema.safeParse({
+      title: 'Post',
+      category: 'insight',
+      status: 'published',
+      scheduled_at: future,
+    })
+    expect(result.success).toBe(true)
+  })
+})
+
 describe('constants', () => {
   it('MAX_MEDIA_FILES is 10', () => {
     expect(MAX_MEDIA_FILES).toBe(10)

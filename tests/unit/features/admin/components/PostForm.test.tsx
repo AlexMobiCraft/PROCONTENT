@@ -74,14 +74,14 @@ describe('PostForm (create mode)', () => {
     expect(screen.getByLabelText(/naslov/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/kategorija/i)).toBeInTheDocument()
     expect(screen.getByTestId('media-uploader')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /objavi/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^objavi$/i })).toBeInTheDocument()
   })
 
   it('shows inline validation error when title is empty on submit', async () => {
     const user = userEvent.setup()
     render(<PostForm mode="create" />)
 
-    await user.click(screen.getByRole('button', { name: /objavi/i }))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => {
       expect(screen.getByText(/naslov je obvezen/i)).toBeInTheDocument()
@@ -94,7 +94,7 @@ describe('PostForm (create mode)', () => {
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'Test Post')
-    await user.click(screen.getByRole('button', { name: /objavi/i }))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => {
       expect(screen.getByText(/kategorija je obvezna/i)).toBeInTheDocument()
@@ -102,20 +102,20 @@ describe('PostForm (create mode)', () => {
     expect(mockCreatePost).not.toHaveBeenCalled()
   })
 
-  it('shows media required error when no media items on submit', async () => {
+  it('allows submit without media items (creates text post)', async () => {
     const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('text-post-id')
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
     // Wait for categories to load and select one
     await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
-    await user.click(screen.getByRole('button', { name: /objavi/i }))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('media-required-error')).toBeInTheDocument()
+      expect(mockCreatePost).toHaveBeenCalledOnce()
     })
-    expect(mockCreatePost).not.toHaveBeenCalled()
   })
 
   it('calls createPost with form values on valid submit', async () => {
@@ -129,7 +129,7 @@ describe('PostForm (create mode)', () => {
     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     // Add a media item via mock button
     await user.click(screen.getByTestId('add-media-btn'))
-    await user.click(screen.getByRole('button', { name: /objavi/i }))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => {
       expect(mockCreatePost).toHaveBeenCalledOnce()
@@ -152,7 +152,7 @@ describe('PostForm (create mode)', () => {
     // Add a media item
     await user.click(screen.getByTestId('add-media-btn'))
 
-    const submitBtn = screen.getByRole('button', { name: /objavi/i })
+    const submitBtn = screen.getByRole('button', { name: /^objavi$/i })
     await user.click(submitBtn)
 
     await waitFor(() => {
@@ -170,7 +170,7 @@ describe('PostForm (create mode)', () => {
     await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     await user.click(screen.getByTestId('add-media-btn'))
-    await user.click(screen.getByRole('button', { name: /objavi/i }))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Upload failed')
@@ -186,7 +186,7 @@ describe('PostForm (create mode)', () => {
     await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     await user.click(screen.getByTestId('add-media-btn'))
-    await user.click(screen.getByRole('button', { name: /objavi/i }))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => {
       expect(mockRouterPush).toHaveBeenCalledWith('/feed')
@@ -208,7 +208,7 @@ describe('PostForm (create mode) — race conditions', () => {
     await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
     await user.click(screen.getByTestId('add-media-btn'))
     // Намеренно НЕ выбираем категорию — значение остаётся ''
-    await user.click(screen.getByRole('button', { name: /objavi/i }))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => {
       expect(screen.getByText(/kategorija je obvezna/i)).toBeInTheDocument()
@@ -265,7 +265,7 @@ describe('PostForm — curation toggles', () => {
     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     await user.click(screen.getByTestId('add-media-btn'))
     await user.click(screen.getByLabelText(/Prikaži na začetni strani/i))
-    await user.click(screen.getByRole('button', { name: /objavi/i }))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => expect(mockCreatePost).toHaveBeenCalledOnce())
     const call = mockCreatePost.mock.calls[0][0]
@@ -282,7 +282,7 @@ describe('PostForm — curation toggles', () => {
     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     await user.click(screen.getByTestId('add-media-btn'))
     await user.click(screen.getByLabelText(/Dodaj v uvajanje novih članic/i))
-    await user.click(screen.getByRole('button', { name: /objavi/i }))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => expect(mockCreatePost).toHaveBeenCalledOnce())
     const call = mockCreatePost.mock.calls[0][0]
@@ -380,5 +380,209 @@ describe('PostForm (edit mode)', () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/kategorija/i)).toHaveValue('stories')
     })
+  })
+})
+
+describe('PostForm — scheduling toggle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetCategories.mockResolvedValue(testCategories)
+  })
+
+  it('renders scheduling toggle with "Objavi zdaj" active by default', () => {
+    render(<PostForm mode="create" />)
+    const immediateBtn = screen.getByRole('button', { name: /objavi zdaj/i })
+    const scheduleBtn = screen.getByRole('button', { name: /načrtuj objavo/i })
+    expect(immediateBtn).toHaveAttribute('aria-pressed', 'true')
+    expect(scheduleBtn).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('toggles to scheduled mode and shows datetime picker', async () => {
+    const user = userEvent.setup()
+    render(<PostForm mode="create" />)
+
+    await user.click(screen.getByRole('button', { name: /načrtuj objavo/i }))
+
+    expect(screen.getByRole('button', { name: /načrtuj objavo/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /objavi zdaj/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByLabelText(/datum in čas objave/i)).toBeInTheDocument()
+  })
+
+  it('hides datetime picker when switching back to immediate', async () => {
+    const user = userEvent.setup()
+    render(<PostForm mode="create" />)
+
+    await user.click(screen.getByRole('button', { name: /načrtuj objavo/i }))
+    expect(screen.getByLabelText(/datum in čas objave/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /objavi zdaj/i }))
+    expect(screen.queryByLabelText(/datum in čas objave/i)).not.toBeInTheDocument()
+  })
+
+  it('shows inline error when submitting scheduled without datetime', async () => {
+    const user = userEvent.setup()
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Scheduled Post')
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
+
+    // Switch to scheduled mode
+    await user.click(screen.getByRole('button', { name: /načrtuj objavo/i }))
+    // Submit without setting datetime — submit button says "Načrtuj" (not "Načrtuj objavo")
+    await user.click(screen.getByRole('button', { name: /^načrtuj$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    })
+    expect(mockCreatePost).not.toHaveBeenCalled()
+  })
+
+  it('submits with status=scheduled and scheduled_at when datetime is set', async () => {
+    const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('sched-post-id')
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Scheduled Post')
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
+
+    // Switch to scheduled mode
+    await user.click(screen.getByRole('button', { name: /načrtuj objavo/i }))
+
+    // Set future datetime
+    const futureDate = '2027-06-15T14:30'
+    const datetimeInput = screen.getByLabelText(/datum in čas objave/i)
+    await user.clear(datetimeInput)
+    await user.type(datetimeInput, futureDate)
+
+    // Submit button should say "Načrtuj"
+    const submitBtn = screen.getByRole('button', { name: /^načrtuj$/i })
+    expect(submitBtn).toHaveAttribute('type', 'submit')
+
+    await user.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreatePost).toHaveBeenCalledOnce()
+    })
+    const call = mockCreatePost.mock.calls[0][0]
+    expect(call.formValues.status).toBe('scheduled')
+    expect(call.formValues.scheduled_at).toBeTruthy()
+  })
+
+  it('pre-fills toggle and datetime for scheduled post in edit mode', async () => {
+    render(
+      <PostForm
+        mode="edit"
+        initialData={{
+          id: 'p1',
+          title: 'Scheduled Post',
+          category: 'stories',
+          status: 'scheduled',
+          scheduled_at: '2027-06-15T12:30:00.000Z',
+          post_media: [
+            { id: 'm1', url: 'https://cdn.example.com/m1.jpg', thumbnail_url: null, media_type: 'image' as const, order_index: 0, is_cover: true },
+          ],
+        }}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+
+    expect(screen.getByRole('button', { name: /načrtuj objavo/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText(/datum in čas objave/i)).toBeInTheDocument()
+    // Datetime input should have a value
+    expect((screen.getByLabelText(/datum in čas objave/i) as HTMLInputElement).value).toBeTruthy()
+  })
+
+  it('shows "Shrani spremembe" button in edit mode with scheduled post', async () => {
+    render(
+      <PostForm
+        mode="edit"
+        initialData={{
+          id: 'p1',
+          title: 'Scheduled Post',
+          category: 'stories',
+          status: 'scheduled',
+          scheduled_at: '2027-06-15T12:30:00.000Z',
+          post_media: [],
+        }}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+
+    expect(screen.getByRole('button', { name: /shrani spremembe/i })).toBeInTheDocument()
+  })
+
+  it('disables "Načrtuj objavo" button for already published post (AC 2.6)', async () => {
+    render(
+      <PostForm
+        mode="edit"
+        initialData={{
+          id: 'p1',
+          title: 'Published Post',
+          category: 'stories',
+          status: 'published',
+          published_at: '2026-04-01T12:00:00.000Z',
+          post_media: [],
+        }}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+
+    const scheduleBtn = screen.getByRole('button', { name: /načrtuj objavo/i })
+    expect(scheduleBtn).toBeDisabled()
+  })
+
+  it('calls /api/posts/publish when transitioning scheduled → published', async () => {
+    const user = userEvent.setup()
+    mockUpdatePost.mockResolvedValue(undefined)
+    const mockFetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ published: true }),
+    })
+    vi.stubGlobal('fetch', mockFetchFn)
+
+    render(
+      <PostForm
+        mode="edit"
+        initialData={{
+          id: 'sched-post-1',
+          title: 'Scheduled Post',
+          category: 'stories',
+          status: 'scheduled',
+          scheduled_at: '2027-06-15T12:30:00.000Z',
+          post_media: [],
+        }}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled())
+
+    // Switch to immediate publish
+    await user.click(screen.getByRole('button', { name: /objavi zdaj/i }))
+
+    // Submit — button should now say "Shrani" (edit mode, immediate)
+    await user.click(screen.getByRole('button', { name: /shrani/i }))
+
+    await waitFor(() => {
+      expect(mockUpdatePost).toHaveBeenCalledOnce()
+    })
+
+    await waitFor(() => {
+      expect(mockFetchFn).toHaveBeenCalledWith(
+        '/api/posts/publish',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ postId: 'sched-post-1' }),
+        })
+      )
+    })
+
+    vi.unstubAllGlobals()
   })
 })

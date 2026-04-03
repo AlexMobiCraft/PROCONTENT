@@ -46,20 +46,40 @@ export function getMediaItemId(item: MediaItem): string {
 }
 
 /** Post form field values — validated by Zod */
-export const PostFormSchema = z.object({
-  title: z
-    .string()
-    .transform((s) => s.trim())
-    .pipe(z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)')),
-  content: z.string().max(50000, 'Vsebina je predolga (max 50.000 znakov)').optional(),
-  excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),
-  category: z
-    .string()
-    .transform((s) => s.trim())
-    .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),
-  is_landing_preview: z.boolean().optional(),
-  is_onboarding: z.boolean().optional(),
-})
+export const PostFormSchema = z
+  .object({
+    title: z
+      .string()
+      .transform((s) => s.trim())
+      .pipe(z.string().min(1, 'Naslov je obvezen').max(255, 'Naslov je predolg (max 255 znakov)')),
+    content: z.string().max(50000, 'Vsebina je predolga (max 50.000 znakov)').optional(),
+    excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),
+    category: z
+      .string()
+      .transform((s) => s.trim())
+      .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),
+    is_landing_preview: z.boolean().optional(),
+    is_onboarding: z.boolean().optional(),
+    status: z.enum(['draft', 'scheduled', 'published']).default('published'),
+    scheduled_at: z.string().nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.status === 'scheduled') {
+      if (!data.scheduled_at) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Izberite datum in čas objave',
+          path: ['scheduled_at'],
+        })
+      } else if (new Date(data.scheduled_at) <= new Date()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Izberite čas v prihodnosti',
+          path: ['scheduled_at'],
+        })
+      }
+    }
+  })
 
 export type PostFormValues = z.infer<typeof PostFormSchema>
 
