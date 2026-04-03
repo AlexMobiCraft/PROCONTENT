@@ -233,7 +233,9 @@ export type Database = {
           display_name: string | null
           email: string
           email_notifications_enabled: boolean
+          first_name: string
           id: string
+          last_name: string | null
           role: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
@@ -246,7 +248,9 @@ export type Database = {
           display_name?: string | null
           email: string
           email_notifications_enabled?: boolean
+          first_name: string
           id: string
+          last_name?: string | null
           role?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -259,7 +263,9 @@ export type Database = {
           display_name?: string | null
           email?: string
           email_notifications_enabled?: boolean
+          first_name?: string
           id?: string
+          last_name?: string | null
           role?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
