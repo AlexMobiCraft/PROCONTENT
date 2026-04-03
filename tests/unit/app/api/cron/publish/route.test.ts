@@ -69,8 +69,12 @@ describe('POST /api/cron/publish', () => {
     mockIs.mockReturnValue({ select: mockSelect })
     mockSelect.mockResolvedValue({ data: PUBLISHED_POSTS, error: null })
 
-    // Дефолтный мок fetch: успешный ответ notifications endpoint
-    mockFetch.mockResolvedValue({ ok: true, status: 200 })
+    // Дефолтный мок fetch: успешный ответ notifications endpoint (с body для тестирования body.cancel())
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: { cancel: vi.fn().mockResolvedValue(undefined) },
+    })
   })
 
   // --- AC1: Авторизация ---
@@ -183,7 +187,11 @@ describe('POST /api/cron/publish', () => {
   it('сбой email одного поста не прерывает остальные, emailErrors содержит ошибку', async () => {
     // Первый fetch бросает исключение, второй успешен
     mockFetch.mockRejectedValueOnce(new Error('Network error'))
-    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 })
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: { cancel: vi.fn().mockResolvedValue(undefined) },
+    })
 
     const req = makeAuthorizedRequest()
     const res = await POST(req)
@@ -201,8 +209,13 @@ describe('POST /api/cron/publish', () => {
   })
 
   it('HTTP 4xx/5xx от notifications endpoint добавляется в emailErrors', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 })
-    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 })
+    const mockCancel = vi.fn().mockResolvedValue(undefined)
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, body: { cancel: mockCancel } })
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: { cancel: vi.fn().mockResolvedValue(undefined) },
+    })
 
     const req = makeAuthorizedRequest()
     const res = await POST(req)
@@ -214,6 +227,8 @@ describe('POST /api/cron/publish', () => {
     expect(body.emailErrors[0].postId).toBe(PUBLISHED_POSTS[0].id)
     expect(body.emailErrors[0].error).toContain('HTTP 401')
     expect(mockFetch).toHaveBeenCalledTimes(2)
+    // Проверяем что body.cancel() был вызван для потребления response body
+    expect(mockCancel).toHaveBeenCalledTimes(1)
   })
 
   it('при отсутствии NEXT_PUBLIC_SITE_URL все посты попадают в emailErrors', async () => {
@@ -245,7 +260,11 @@ describe('POST /api/cron/publish', () => {
   it('timeout fetch (AbortError) добавляется в emailErrors', async () => {
     const abortError = new DOMException('The operation was aborted.', 'AbortError')
     mockFetch.mockRejectedValueOnce(abortError)
-    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 })
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: { cancel: vi.fn().mockResolvedValue(undefined) },
+    })
 
     const req = makeAuthorizedRequest()
     const res = await POST(req)
