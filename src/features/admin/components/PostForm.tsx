@@ -337,7 +337,7 @@ export function PostForm(props: PostFormProps) {
           {...register('category', { required: 'Kategorija je obvezna' })}
           disabled={isSubmitting || isCategoriesLoading}
           aria-invalid={!!errors.category}
-          className="flex w-full rounded-xl border border-border bg-muted/50 px-3 py-3 text-sm text-foreground transition-colors focus-visible:border-primary focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:opacity-50 min-h-[44px]"
+          className="flex w-full rounded-lg border border-border bg-muted/50 px-3 py-3 text-sm text-foreground transition-colors focus-visible:border-primary focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:opacity-50 min-h-[44px]"
         >
           <option value="">
             {isCategoriesLoading ? 'Nalaganje...' : 'Izberite kategorijo'}
@@ -387,7 +387,7 @@ export function PostForm(props: PostFormProps) {
           {...register('content')}
           disabled={isSubmitting}
           rows={8}
-          className="min-h-[44px] w-full rounded border border-input bg-background px-3 py-2 text-sm outline-none ring-ring focus-visible:ring-2 disabled:opacity-50"
+          className="min-h-[44px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm outline-none ring-ring focus-visible:ring-2 disabled:opacity-50"
         />
       </div>
 
@@ -403,7 +403,7 @@ export function PostForm(props: PostFormProps) {
       </div>
 
       {/* Curation toggles */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
         <span className="text-sm font-medium">Upravljanje vsebine</span>
 
         <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
@@ -452,18 +452,18 @@ export function PostForm(props: PostFormProps) {
       </div>
 
       {/* Scheduling toggle + datetime picker */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
         <span className="text-sm font-medium">Način objave</span>
 
-        <div className="flex rounded-lg border" role="group" aria-label="Način objave">
+        <div className="flex rounded-none border overflow-hidden" role="group" aria-label="Način objave">
           <button
             type="button"
             className={cn(
-              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-l-lg font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
+              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-none font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
               'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
               !isScheduledMode
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-transparent hover:bg-primary/10'
+                : 'text-muted-foreground hover:bg-muted'
             )}
             aria-pressed={!isScheduledMode}
             onClick={() => handleModeChange('published')}
@@ -474,11 +474,11 @@ export function PostForm(props: PostFormProps) {
           <button
             type="button"
             className={cn(
-              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-r-lg font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
+              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-none font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors border-l',
               'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
               isScheduledMode
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-transparent hover:bg-primary/10',
+                : 'text-muted-foreground hover:bg-muted',
               wasAlreadyPublished && 'opacity-50 cursor-not-allowed'
             )}
             aria-pressed={isScheduledMode}
