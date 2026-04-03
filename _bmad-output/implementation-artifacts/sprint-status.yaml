@@ -161,5 +161,6 @@ development_status:
   # 2026-04-03: Code Review выявил несоответствия AC (manual publish route не подключён, scheduled→draft/published не реализован, published→scheduled не запрещён) → in-progress
   # 2026-04-03: Code Review fixes resolved (publish route auth, PostForm→publish endpoint, guard published→scheduled) → review
   6-3-ui-toggle-schedule-and-datetime-picker-in-post-form: done
-  6-4-admin-scheduled-posts-table: ready-for-dev
+  # 2026-04-03: Story реализована — ScheduledPostsTable/Container + postsServer.ts + cancelScheduledPost + Sidebar nav + 46 тестов → review
+  6-4-admin-scheduled-posts-table: review
   epic-6-retrospective: optional

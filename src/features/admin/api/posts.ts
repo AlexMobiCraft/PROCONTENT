@@ -385,6 +385,17 @@ export async function deletePost(postId: string): Promise<void> {
  * Fetches a post with its media for pre-filling the edit form.
  * Uses client-side Supabase (called from 'use client' component).
  */
+export async function cancelScheduledPost(postId: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('posts')
+    .update({ status: 'draft', scheduled_at: null })
+    .eq('id', postId)
+  if (error) {
+    throw new Error(`Napaka pri preklicu objave: ${error.message}`, { cause: error })
+  }
+}
+
 export async function fetchPostForEdit(postId: string) {
   const supabase = createClient()
 

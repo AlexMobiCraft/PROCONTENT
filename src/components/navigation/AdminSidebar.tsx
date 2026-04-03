@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   ADMIN_POSTS_CREATE_PATH,
+  ADMIN_SCHEDULED_POSTS_PATH,
   ADMIN_CATEGORIES_PATH,
   ADMIN_MEMBERS_PATH,
   ADMIN_SETTINGS_PATH,
@@ -35,6 +36,36 @@ const adminNavItems = [
     iconActive: (
       <svg className="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
         <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32L19.513 8.2z" />
+      </svg>
+    ),
+  },
+  {
+    href: ADMIN_SCHEDULED_POSTS_PATH,
+    label: 'Načrtovane objave',
+    ariaLabel: 'Načrtovane objave',
+    icon: (
+      <svg
+        className="size-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        aria-hidden
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+        />
+      </svg>
+    ),
+    iconActive: (
+      <svg className="size-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+        <path
+          fillRule="evenodd"
+          d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3A.75.75 0 0118 3v1.5h.75a3 3 0 013 3v11.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zm13.5 9a1.5 1.5 0 00-1.5-1.5H5.25a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5v-7.5z"
+          clipRule="evenodd"
+        />
       </svg>
     ),
   },

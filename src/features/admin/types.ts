@@ -10,6 +10,15 @@ export interface MemberProfile {
   stripe_customer_id: string | null
 }
 
+export type ScheduledPost = {
+  id: string
+  title: string
+  category: string
+  status: string
+  scheduled_at: string | null
+  created_at: string
+}
+
 // Media type union — aligned with DB CHECK constraint
 export type MediaType = 'image' | 'video'
 

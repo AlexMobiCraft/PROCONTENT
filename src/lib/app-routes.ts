@@ -4,6 +4,7 @@ export const INACTIVE_PATH = '/inactive'
 export const DEFAULT_AUTH_REDIRECT_PATH = '/feed'
 export const ONBOARDING_PATH = '/onboarding'
 export const ADMIN_POSTS_CREATE_PATH = '/posts/create'
+export const ADMIN_SCHEDULED_POSTS_PATH = '/posts/scheduled'
 export const getAdminPostEditPath = (postId: string) => `/posts/${postId}/edit`
 export const ADMIN_CATEGORIES_PATH = '/categories'
 export const ADMIN_MEMBERS_PATH = '/members'

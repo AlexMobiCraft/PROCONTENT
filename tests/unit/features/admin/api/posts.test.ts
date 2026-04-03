@@ -40,7 +40,7 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
-import { createPost, updatePost, fetchPostForEdit } from '@/features/admin/api/posts'
+import { createPost, updatePost, fetchPostForEdit, cancelScheduledPost } from '@/features/admin/api/posts'
 
 const baseFormValues: PostFormValues = {
   title: 'Test Post',
@@ -585,5 +585,30 @@ describe('updatePost — scheduling', () => {
         published_at: null,
       })
     )
+  })
+})
+
+describe('cancelScheduledPost', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    supabaseChain = makeChain({ data: null, error: null })
+    supabaseChain.update = vi.fn().mockReturnThis()
+    supabaseChain.eq = vi.fn().mockResolvedValue({ error: null })
+  })
+
+  it('вызывает update с status=draft, scheduled_at=null и eq с postId', async () => {
+    await cancelScheduledPost('p1')
+    expect(mockFrom).toHaveBeenCalledWith('posts')
+    expect(supabaseChain.update).toHaveBeenCalledWith({ status: 'draft', scheduled_at: null })
+    expect(supabaseChain.eq).toHaveBeenCalledWith('id', 'p1')
+  })
+
+  it('бросает ошибку при error от Supabase', async () => {
+    supabaseChain.eq = vi.fn().mockResolvedValue({ error: { message: 'DB error' } })
+    await expect(cancelScheduledPost('p1')).rejects.toThrow('DB error')
+  })
+
+  it('не бросает при успешном обновлении', async () => {
+    await expect(cancelScheduledPost('p1')).resolves.toBeUndefined()
   })
 })
