@@ -15,11 +15,11 @@ interface ScheduledPostsContainerProps {
 export function ScheduledPostsContainer({ initialPosts }: ScheduledPostsContainerProps) {
   const router = useRouter()
   const [posts, setPosts] = useState<ScheduledPost[]>(initialPosts)
-  const [actionInProgress, setActionInProgress] = useState<string | null>(null)
+  const [actingIds, setActingIds] = useState<string[]>([])
 
   async function handleCancel(id: string) {
     const snapshot = posts
-    setActionInProgress(id)
+    setActingIds((prev) => [...prev, id])
     setPosts((prev) => prev.filter((p) => p.id !== id))
 
     try {
@@ -29,13 +29,13 @@ export function ScheduledPostsContainer({ initialPosts }: ScheduledPostsContaine
       const message = err instanceof Error ? err.message : 'Prišlo je do napake pri preklicu'
       toast.error(message)
     } finally {
-      setActionInProgress(null)
+      setActingIds((prev) => prev.filter((actingId) => actingId !== id))
     }
   }
 
   async function handlePublishNow(id: string) {
     const snapshot = posts
-    setActionInProgress(id)
+    setActingIds((prev) => [...prev, id])
     setPosts((prev) => prev.filter((p) => p.id !== id))
 
     try {
@@ -53,7 +53,7 @@ export function ScheduledPostsContainer({ initialPosts }: ScheduledPostsContaine
       const message = err instanceof Error ? err.message : 'Prišlo je do napake pri objavi'
       toast.error(message)
     } finally {
-      setActionInProgress(null)
+      setActingIds((prev) => prev.filter((actingId) => actingId !== id))
     }
   }
 
@@ -65,7 +65,7 @@ export function ScheduledPostsContainer({ initialPosts }: ScheduledPostsContaine
     <ScheduledPostsTable
       posts={posts}
       isLoading={false}
-      actionInProgress={actionInProgress}
+      actingIds={actingIds}
       onCancel={handleCancel}
       onEdit={handleEdit}
       onPublishNow={handlePublishNow}

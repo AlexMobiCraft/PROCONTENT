@@ -5,15 +5,20 @@ import type { ScheduledPost } from '../types'
 interface ScheduledPostsTableProps {
   posts: ScheduledPost[]
   isLoading: boolean
-  actionInProgress: string | null
+  actingIds: string[]
   onCancel: (id: string) => void
   onEdit: (id: string) => void
   onPublishNow: (id: string) => void
 }
 
 const dateFormatter = new Intl.DateTimeFormat('sl-SI', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZoneName: 'short',
+  timeZone: 'Europe/Ljubljana',
 })
 
 function formatScheduledAt(value: string | null): string {
@@ -47,7 +52,7 @@ function SkeletonRow() {
 export function ScheduledPostsTable({
   posts,
   isLoading,
-  actionInProgress,
+  actingIds,
   onCancel,
   onEdit,
   onPublishNow,
@@ -91,7 +96,7 @@ export function ScheduledPostsTable({
             </tr>
           ) : (
             posts.map((post) => {
-              const isActing = actionInProgress === post.id
+              const isActing = actingIds.includes(post.id)
               return (
                 <tr key={post.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-3 font-medium">{post.title}</td>

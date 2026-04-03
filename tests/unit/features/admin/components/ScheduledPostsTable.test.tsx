@@ -25,7 +25,7 @@ const post2: ScheduledPost = {
 const defaultProps = {
   posts: [post1],
   isLoading: false,
-  actionInProgress: null,
+  actingIds: [],
   onCancel: vi.fn(),
   onEdit: vi.fn(),
   onPublishNow: vi.fn(),
@@ -81,24 +81,32 @@ describe('ScheduledPostsTable', () => {
     expect(onCancel).toHaveBeenCalledWith('p1')
   })
 
-  it('кнопки disabled при actionInProgress === post.id', () => {
-    render(<ScheduledPostsTable {...defaultProps} actionInProgress="p1" />)
+  it('кнопки disabled при id в actingIds', () => {
+    render(<ScheduledPostsTable {...defaultProps} actingIds={['p1']} />)
     expect(screen.getByRole('button', { name: /Uredi objavo/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /Objavi zdaj|Objavljanje/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /Prekliči|Preklic/i })).toBeDisabled()
   })
 
-  it('показывает loading-текст на кнопках при actionInProgress === post.id', () => {
-    render(<ScheduledPostsTable {...defaultProps} actionInProgress="p1" />)
+  it('показывает loading-текст на кнопках при id в actingIds', () => {
+    render(<ScheduledPostsTable {...defaultProps} actingIds={['p1']} />)
     expect(screen.getByText('Objavljanje...')).toBeInTheDocument()
     expect(screen.getByText('Preklic...')).toBeInTheDocument()
   })
 
-  it('кнопки другого поста не disabled при actionInProgress другого id', () => {
-    render(<ScheduledPostsTable {...defaultProps} posts={[post1, post2]} actionInProgress="p2" />)
+  it('кнопки другого поста не disabled при другом id в actingIds', () => {
+    render(<ScheduledPostsTable {...defaultProps} posts={[post1, post2]} actingIds={['p2']} />)
     const editBtns = screen.getAllByRole('button', { name: /Uredi objavo/i })
     expect(editBtns[0]).not.toBeDisabled()
     expect(editBtns[1]).toBeDisabled()
+  })
+
+  it('поддерживает несколько одновременных actingIds', () => {
+    render(<ScheduledPostsTable {...defaultProps} posts={[post1, post2]} actingIds={['p1', 'p2']} />)
+    const editBtns = screen.getAllByRole('button', { name: /Uredi objavo/i })
+    expect(editBtns[0]).toBeDisabled()
+    expect(editBtns[1]).toBeDisabled()
+    expect(screen.getAllByText('Objavljanje...')).toHaveLength(2)
   })
 
   it('кнопки имеют min-h-[44px] touch target', () => {
