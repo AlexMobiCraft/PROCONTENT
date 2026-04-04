@@ -3,20 +3,10 @@
 import { cn } from '@/lib/utils'
 import { useFeedStore } from '@/features/feed/store'
 
-const topics = [
-  { id: 'stories', label: 'Stories' },
-  { id: 'estetski-kadri', label: 'Estetski kadri in feed' },
-  { id: 'snemanje', label: 'Snemanje videov' },
-  { id: 'izrezi', label: 'Izrezi (framingi)' },
-  { id: 'komercialni', label: 'Komercialni profili' },
-  { id: 'ugc', label: 'UGC' },
-  { id: 'objavljanje', label: 'Objavljanje in reels' },
-  { id: 'drugo', label: 'Drugo' },
-]
-
 export function TopicsPanel() {
   const activeCategory = useFeedStore((s) => s.activeCategory)
   const changeCategory = useFeedStore((s) => s.changeCategory)
+  const categories = useFeedStore((s) => s.categories)
 
   return (
     <div className="flex flex-col">
@@ -26,13 +16,13 @@ export function TopicsPanel() {
         </h2>
       </div>
       <nav aria-label="Filter po temah" className="flex flex-col gap-1 p-3">
-        {topics.map((topic) => {
-          const isActive = activeCategory === topic.id
+        {categories.map((topic) => {
+          const isActive = activeCategory === topic.slug
           return (
             <button
               key={topic.id}
               type="button"
-              onClick={() => changeCategory(topic.id)}
+              onClick={() => changeCategory(topic.slug)}
               aria-pressed={isActive}
               className={cn(
                 'flex min-h-[44px] w-full items-center rounded-lg px-4 text-left text-sm font-medium transition-colors',
@@ -41,10 +31,15 @@ export function TopicsPanel() {
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              {topic.label}
+              {topic.name}
             </button>
           )
         })}
+        {categories.length === 0 && (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground italic">
+            Никто еще не создал тем
+          </div>
+        )}
       </nav>
     </div>
   )

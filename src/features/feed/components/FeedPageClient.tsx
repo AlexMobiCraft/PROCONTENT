@@ -1,9 +1,11 @@
 'use client'
 
+import { useEffect } from 'react'
 import { CategoryScroll } from '@/components/feed/CategoryScroll'
 import { FeedContainer } from '@/features/feed/components/FeedContainer'
 import { TopicsPanel } from '@/features/feed/components/TopicsPanel'
 import { useFeedStore } from '@/features/feed/store'
+import { getCategories } from '@/features/admin/api/categories'
 import type { FeedPage } from '../types'
 
 // initialData пробрасывается напрямую в FeedContainer как проп —
@@ -24,6 +26,18 @@ export function FeedPageClient({
   // activeCategory или changeCategory, а не при любом изменении store.
   const activeCategory = useFeedStore((s) => s.activeCategory)
   const changeCategory = useFeedStore((s) => s.changeCategory)
+  const setCategories = useFeedStore((s) => s.setCategories)
+
+  useEffect(() => {
+    // Загружаем список категорий из БД для фильтров и сайдбара
+    getCategories()
+      .then((data) => {
+        setCategories(data)
+      })
+      .catch((err) => {
+        console.error('Failed to fetch categories:', err)
+      })
+  }, [setCategories])
 
   return (
     <main className="flex min-h-screen flex-col pb-[60px] md:flex-row md:pb-0">

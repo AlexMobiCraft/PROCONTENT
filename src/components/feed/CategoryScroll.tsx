@@ -2,22 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { useFeedStore } from '@/features/feed/store'
 
 const categories = [
   { id: 'all', label: 'VSE' },
   { id: 'tema', label: 'Tema meseca' },
   { id: 'zacetek', label: 'Začetek' },
-]
-
-const topics = [
-  { id: 'stories', label: 'Stories' },
-  { id: 'estetski-kadri', label: 'Estetski kadri in feed' },
-  { id: 'snemanje', label: 'Snemanje videov' },
-  { id: 'izrezi', label: 'Izrezi (framingi)' },
-  { id: 'komercialni', label: 'Komercialni profili' },
-  { id: 'ugc', label: 'UGC' },
-  { id: 'objavljanje', label: 'Objavljanje in reels' },
-  { id: 'drugo', label: 'Drugo' },
 ]
 
 const FilterIcon = () => (
@@ -48,6 +38,9 @@ export function CategoryScroll({
 }: CategoryScrollProps) {
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  
+  // Получаем динамические категории из стора
+  const dbCategories = useFeedStore((s) => s.categories)
 
   // Закрываем дропдаун при клике вне
   useEffect(() => {
@@ -61,7 +54,7 @@ export function CategoryScroll({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  const isTopicActive = topics.some((t) => t.id === activeCategory)
+  const isTopicActive = dbCategories.some((t) => t.slug === activeCategory)
 
   return (
     <nav aria-label="Filter po rubrikah" className="flex w-full items-center gap-2">
@@ -111,15 +104,15 @@ export function CategoryScroll({
         {open && (
           <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-border bg-background shadow-lg">
             <ul role="menu" className="flex flex-col p-1">
-              {topics.map((topic) => {
-                const isActive = activeCategory === topic.id
+              {dbCategories.map((topic) => {
+                const isActive = activeCategory === topic.slug
                 return (
                   <li key={topic.id} role="none">
                     <button
                       type="button"
                       role="menuitem"
                       onClick={() => {
-                        onCategoryChange(topic.id)
+                        onCategoryChange(topic.slug)
                         setOpen(false)
                       }}
                       className={cn(
@@ -129,11 +122,16 @@ export function CategoryScroll({
                           : 'text-foreground hover:bg-muted'
                       )}
                     >
-                      {topic.label}
+                      {topic.name}
                     </button>
                   </li>
                 )
               })}
+              {dbCategories.length === 0 && (
+                <li className="px-4 py-4 text-center text-xs text-muted-foreground italic">
+                  Тем не найдено
+                </li>
+              )}
             </ul>
           </div>
         )}

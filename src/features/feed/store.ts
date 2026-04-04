@@ -15,11 +15,14 @@ interface FeedState {
   pendingLikes: string[]
   /** ID активного воспроизводимого видео. null = нет активного. NFR4.1 */
   activeVideoId: string | null
+  /** Список категорий из БД */
+  categories: { id: string; name: string; slug: string }[]
   setActiveVideo: (id: string | null) => void
   setPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   appendPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   removePost: (postId: string) => void
   setActiveCategory: (category: string) => void
+  setCategories: (categories: { id: string; name: string; slug: string }[]) => void
   setLoading: (loading: boolean) => void
   setLoadingMore: (loading: boolean) => void
   setError: (error: string | null) => void
@@ -43,6 +46,7 @@ const initialState = {
   activeCategory: 'all',
   pendingLikes: [] as string[],
   activeVideoId: null as string | null,
+  categories: [] as { id: string; name: string; slug: string }[],
 }
 
 export const useFeedStore = create<FeedState>((set) => ({
@@ -69,6 +73,9 @@ export const useFeedStore = create<FeedState>((set) => ({
 
   setActiveCategory: (category) =>
     set({ activeCategory: category }),
+
+  setCategories: (categories) =>
+    set({ categories }),
 
   setLoading: (isLoading) => set({ isLoading }),
 
