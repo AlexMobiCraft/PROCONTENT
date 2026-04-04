@@ -17,12 +17,14 @@ interface FeedState {
   activeVideoId: string | null
   /** Список категорий из БД */
   categories: { id: string; name: string; slug: string }[]
+  isCategoriesLoading: boolean
   setActiveVideo: (id: string | null) => void
   setPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   appendPosts: (posts: Post[], cursor: string | null, hasMore: boolean) => void
   removePost: (postId: string) => void
   setActiveCategory: (category: string) => void
   setCategories: (categories: { id: string; name: string; slug: string }[]) => void
+  setCategoriesLoading: (loading: boolean) => void
   setLoading: (loading: boolean) => void
   setLoadingMore: (loading: boolean) => void
   setError: (error: string | null) => void
@@ -47,6 +49,7 @@ const initialState = {
   pendingLikes: [] as string[],
   activeVideoId: null as string | null,
   categories: [] as { id: string; name: string; slug: string }[],
+  isCategoriesLoading: true,
 }
 
 export const useFeedStore = create<FeedState>((set) => ({
@@ -75,7 +78,9 @@ export const useFeedStore = create<FeedState>((set) => ({
     set({ activeCategory: category }),
 
   setCategories: (categories) =>
-    set({ categories }),
+    set({ categories, isCategoriesLoading: false }),
+
+  setCategoriesLoading: (isCategoriesLoading) => set({ isCategoriesLoading }),
 
   setLoading: (isLoading) => set({ isLoading }),
 

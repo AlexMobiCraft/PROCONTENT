@@ -27,17 +27,34 @@ export function FeedPageClient({
   const activeCategory = useFeedStore((s) => s.activeCategory)
   const changeCategory = useFeedStore((s) => s.changeCategory)
   const setCategories = useFeedStore((s) => s.setCategories)
+  const setCategoriesLoading = useFeedStore((s) => s.setCategoriesLoading)
 
   useEffect(() => {
+    let isMounted = true
+
     // Загружаем список категорий из БД для фильтров и сайдбара
+    setCategoriesLoading(true)
+    
     getCategories()
       .then((data) => {
-        setCategories(data)
+        if (isMounted) {
+          setCategories(data)
+        }
       })
       .catch((err) => {
         console.error('Failed to fetch categories:', err)
+        if (isMounted) {
+          setCategoriesLoading(false)
+          import('sonner').then(({ toast }) => {
+            toast.error('Napaka pri nalaganju tem')
+          })
+        }
       })
-  }, [setCategories])
+
+    return () => {
+      isMounted = false
+    }
+  }, [setCategories, setCategoriesLoading])
 
   return (
     <main className="flex min-h-screen flex-col pb-[60px] md:flex-row md:pb-0">

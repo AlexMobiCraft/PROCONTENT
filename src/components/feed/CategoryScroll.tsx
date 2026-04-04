@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useFeedStore } from '@/features/feed/store'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const categories = [
   { id: 'all', label: 'VSE' },
@@ -41,6 +42,10 @@ export function CategoryScroll({
   
   // Получаем динамические категории из стора
   const dbCategories = useFeedStore((s) => s.categories)
+  const isCategoriesLoading = useFeedStore((s) => s.isCategoriesLoading)
+
+  // Исключаем конфликтный слаг 'all' и дубли системных категорий
+  const filteredDB = dbCategories.filter((c) => c.slug !== 'all')
 
   // Закрываем дропдаун при клике вне
   useEffect(() => {
@@ -54,7 +59,7 @@ export function CategoryScroll({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  const isTopicActive = dbCategories.some((t) => t.slug === activeCategory)
+  const isTopicActive = activeCategory !== 'all' && filteredDB.some((t) => t.slug === activeCategory)
 
   return (
     <nav aria-label="Filter po rubrikah" className="flex w-full items-center gap-2">
@@ -82,6 +87,33 @@ export function CategoryScroll({
             </button>
           )
         })}
+        {isCategoriesLoading ? (
+          <>
+            <Skeleton className="h-9 w-24 shrink-0 rounded-full" />
+            <Skeleton className="h-9 w-20 shrink-0 rounded-full" />
+            <Skeleton className="h-9 w-28 shrink-0 rounded-full" />
+          </>
+        ) : (
+          filteredDB.map((cat) => {
+            const isActive = activeCategory === cat.slug
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => onCategoryChange(cat.slug)}
+                aria-pressed={isActive}
+                className={cn(
+                  'inline-flex shrink-0 items-center rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[44px]',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                )}
+              >
+                {cat.name}
+              </button>
+            )
+          })
+        )}
       </div>
 
       {/* Кнопка фильтра (только mobile) */}
@@ -104,30 +136,38 @@ export function CategoryScroll({
         {open && (
           <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-border bg-background shadow-lg">
             <ul role="menu" className="flex flex-col p-1">
-              {dbCategories.map((topic) => {
-                const isActive = activeCategory === topic.slug
-                return (
-                  <li key={topic.id} role="none">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        onCategoryChange(topic.slug)
-                        setOpen(false)
-                      }}
-                      className={cn(
-                        'flex min-h-[44px] w-full items-center rounded-lg px-4 text-left text-sm font-medium transition-colors',
-                        isActive
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-foreground hover:bg-muted'
-                      )}
-                    >
-                      {topic.name}
-                    </button>
-                  </li>
-                )
-              })}
-              {dbCategories.length === 0 && (
+              {isCategoriesLoading ? (
+                <div className="flex flex-col gap-1 p-2">
+                  <Skeleton className="h-11 w-full rounded-lg" />
+                  <Skeleton className="h-11 w-full rounded-lg" />
+                  <Skeleton className="h-11 w-full rounded-lg" />
+                </div>
+              ) : (
+                filteredDB.map((topic) => {
+                  const isActive = activeCategory === topic.slug
+                  return (
+                    <li key={topic.id} role="none">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          onCategoryChange(topic.slug)
+                          setOpen(false)
+                        }}
+                        className={cn(
+                          'flex min-h-[44px] w-full items-center rounded-lg px-4 text-left text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-foreground hover:bg-muted'
+                        )}
+                      >
+                        {topic.name}
+                      </button>
+                    </li>
+                  )
+                })
+              )}
+              {!isCategoriesLoading && filteredDB.length === 0 && (
                 <li className="px-4 py-4 text-center text-xs text-muted-foreground italic">
                   Тем не найдено
                 </li>
