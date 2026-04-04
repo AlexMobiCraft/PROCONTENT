@@ -161,11 +161,30 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       
       const { data: profile } = await supabase
         .from('profiles')
-        .select('subscription_status')
+        .select('subscription_status, role')
         .eq('id', user.id)
         .maybeSingle()
       
       let status = profile?.subscription_status
+      const role = profile?.role
+      
+      // Админы всегда перенаправляются с /inactive на feed
+      if (role === 'admin') {
+        console.log('[middleware] Admin on /inactive, redirecting to feed')
+        const url = request.nextUrl.clone()
+        url.pathname = getAuthSuccessRedirectPath()
+        const redirectResponse = redirectWithCookies(url, supabaseResponse)
+        
+        const token = await createCacheToken(user.id, 'active')
+        if (token) {
+          redirectResponse.cookies.set(
+            SUBSCRIPTION_CACHE_COOKIE,
+            token,
+            getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
+          )
+        }
+        return redirectResponse
+      }
 
       if (status !== 'active' && status !== 'trialing' && user.email) {
         console.log('[middleware] Status is not active, checking Stripe for email:', user.email)
@@ -259,7 +278,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
 
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('subscription_status')
+        .select('subscription_status, role')
         .eq('id', user.id)
         .maybeSingle()
       
@@ -270,6 +289,22 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       }
 
       const status = profile?.subscription_status
+      const role = profile?.role
+      
+      // Админы имеют доступ независимо от статуса подписки
+      if (role === 'admin') {
+        console.log('[middleware] Admin access granted for:', user.email)
+        const token = await createCacheToken(user.id, 'active') // Админам всегда active
+        if (token) {
+          supabaseResponse.cookies.set(
+            SUBSCRIPTION_CACHE_COOKIE,
+            token,
+            getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
+          )
+        }
+        return supabaseResponse
+      }
+      
       if (status !== 'active' && status !== 'trialing') {
         const url = request.nextUrl.clone()
         url.pathname = INACTIVE_PATH
