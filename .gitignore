@@ -46,3 +46,4 @@ supabase/seed_gallery_test_2_4.sql
 # Claude
 .claude/settings.local.json
 .claude/settings.json
+.claude/settings.local.*.json
