@@ -21,20 +21,52 @@ export const ImageUpload = Image.extend({
       ...this.parent?.(),
       caption: {
         default: '',
+        parseHTML: (element) => {
+          const figcaption = element.querySelector('figcaption')
+          return figcaption?.textContent ?? ''
+        },
       },
       align: {
         default: 'center',
+        parseHTML: (element) => element.getAttribute('data-align') ?? 'center',
       },
       uploadId: {
         default: null,
+        parseHTML: (element) => element.getAttribute('data-upload-id'),
       },
       uploadStatus: {
         default: 'ready',
+        parseHTML: (element) => element.getAttribute('data-upload-status') ?? 'ready',
       },
       storageBucket: {
         default: null,
+        parseHTML: (element) => element.getAttribute('data-storage-bucket'),
       },
     }
+  },
+
+  addParseRules() {
+    return [
+      {
+        tag: 'figure[data-type="inline-image"]',
+        getAttrs: (node: HTMLElement | string) => {
+          if (!(node instanceof HTMLElement)) return false
+          const img = node.querySelector('img')
+          if (!img) return false
+          return {
+            src: img.getAttribute('src'),
+            alt: img.getAttribute('alt') ?? '',
+            title: img.getAttribute('title') ?? null,
+            caption: node.querySelector('figcaption')?.textContent ?? '',
+            align: node.getAttribute('data-align') ?? 'center',
+            uploadId: node.getAttribute('data-upload-id'),
+            uploadStatus: node.getAttribute('data-upload-status') ?? 'ready',
+            storageBucket: node.getAttribute('data-storage-bucket'),
+          }
+        },
+        node: 'image',
+      },
+    ]
   },
 
   renderHTML({ HTMLAttributes }) {
