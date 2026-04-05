@@ -7,6 +7,10 @@ import {
   ALLOWED_IMAGE_TYPES,
   ALLOWED_VIDEO_TYPES,
   ALLOWED_MEDIA_TYPES,
+  countInlineImages,
+  createPostMetaState,
+  getCompositionWarning,
+  normalizeEditorContent,
 } from '@/features/admin/types'
 
 describe('PostFormSchema', () => {
@@ -207,5 +211,53 @@ describe('constants', () => {
 
   it('ALLOWED_MEDIA_TYPES combines images and videos', () => {
     expect(ALLOWED_MEDIA_TYPES).toEqual([...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES])
+  })
+})
+
+describe('rich editor helpers', () => {
+  it('normalizes empty editor content', () => {
+    expect(normalizeEditorContent(null)).toEqual({
+      html: '',
+      json: {
+        type: 'doc',
+        content: [{ type: 'paragraph' }],
+      },
+      inline_images_count: 0,
+    })
+  })
+
+  it('counts inline images from html content', () => {
+    expect(countInlineImages('<p>A</p><img src="/1.jpg" /><img src="/2.jpg" />')).toBe(2)
+  })
+
+  it('creates meta state from form values', () => {
+    expect(
+      createPostMetaState({
+        title: 'Post',
+        category: 'insight',
+        excerpt: 'Excerpt',
+        content: '<p>Body</p>',
+        is_landing_preview: true,
+        is_onboarding: false,
+        status: 'scheduled',
+        scheduled_at: '2027-01-01T10:00:00.000Z',
+      })
+    ).toEqual({
+      title: 'Post',
+      category: 'insight',
+      excerpt: 'Excerpt',
+      is_landing_preview: true,
+      is_onboarding: false,
+      status: 'scheduled',
+      scheduled_at: '2027-01-01T10:00:00.000Z',
+    })
+  })
+
+  it('returns overload warning for large gallery and inline-heavy content', () => {
+    expect(getCompositionWarning(6, 4)).toMatch(/veliko galerijo/i)
+  })
+
+  it('returns null when composition stays balanced', () => {
+    expect(getCompositionWarning(3, 2)).toBeNull()
   })
 })

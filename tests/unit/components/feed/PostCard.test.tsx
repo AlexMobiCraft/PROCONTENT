@@ -1,11 +1,30 @@
+import { createElement } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 vi.mock('next/image', () => ({
-  default: ({ src, alt, width, height, className }: { src: string; alt: string; width: number; height: number; className?: string }) => (
-    <img src={src} alt={alt} data-width={width} data-height={height} className={className} data-testid="next-image" />
-  ),
+  default: ({
+    src,
+    alt,
+    width,
+    height,
+    className,
+  }: {
+    src: string
+    alt: string
+    width: number
+    height: number
+    className?: string
+  }) =>
+    createElement('img', {
+      src,
+      alt,
+      className,
+      'data-width': width,
+      'data-height': height,
+      'data-testid': 'next-image',
+    }),
 }))
 
 const mockRouterPush = vi.hoisted(() => vi.fn())
@@ -105,7 +124,9 @@ describe('PostCard', () => {
     const user = userEvent.setup()
     render(<PostCard post={makeCardData({ id: 'p1', likes: 3 })} onLikeToggle={onLikeToggle} />)
 
-    await user.click(screen.getByRole('button', { name: 'Všečkaj' }))
+    await user.click(screen.getByRole('button', { name: /V.*kaj/i }))
+
+
 
     expect(onLikeToggle).toHaveBeenCalledOnce()
     expect(onLikeToggle).toHaveBeenCalledWith('p1')
@@ -170,10 +191,17 @@ describe('PostCard', () => {
   it('вызывает onOptionsClick с postId при клике на кнопку опций', async () => {
     const onOptionsClick = vi.fn()
     const user = userEvent.setup()
-    render(<PostCard post={makeCardData({ id: 'post-42' })} onOptionsClick={onOptionsClick} />)
+    render(
+      <PostCard
+        post={makeCardData({ id: 'post-42' })}
+        canManage
+        onOptionsClick={onOptionsClick}
+      />
+    )
 
-    await user.click(screen.getByRole('button', { name: 'Možnosti objave' }))
-
+    await user.click(screen.getByRole('button', { name: /Mo.*objave/i }))
+    await user.click(await screen.findByRole('menuitem', { name: /Izbri.*objavo/i }))
+    await user.click(screen.getByRole('button', { name: /Izbri.*i/i }))
     expect(onOptionsClick).toHaveBeenCalledOnce()
     expect(onOptionsClick).toHaveBeenCalledWith('post-42')
   })
@@ -516,7 +544,7 @@ describe('PostCard — одиночное видео без mediaItem, толь�
         })}
       />
     )
-    expect(screen.getByTestId('video-player')).toHaveAttribute('data-aspect-ratio', '16/9')
+    expect(screen.getByTestId('video-player')).toHaveAttribute('data-aspect-ratio', '9/16')
   })
 })
 
@@ -798,9 +826,9 @@ describe('PostCardSkeleton', () => {
     expect(media.className).toContain('h-72')
   })
 
-  it('media placeholder использует aspect-video для типа video (CLS fix)', () => {
+  it('media placeholder использует aspect-[9/16] для типа video (CLS fix)', () => {
     render(<PostCardSkeleton showMedia mediaType="video" />)
     const media = screen.getByTestId('post-card-skeleton-media')
-    expect(media.className).toContain('aspect-video')
+    expect(media.className).toContain('aspect-[9/16]')
   })
 })

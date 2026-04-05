@@ -58,12 +58,10 @@ function makeExistingItem(id: string, orderIndex = 0): ExistingMediaItem {
 }
 
 describe('MediaUploader', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let onChange: ReturnType<typeof vi.fn> & ((items: MediaItem[]) => void)
+  let onChange: ReturnType<typeof vi.fn<(items: MediaItem[]) => void>>
 
   beforeEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onChange = vi.fn() as any
+    onChange = vi.fn<(items: MediaItem[]) => void>()
   })
 
   it('renders empty drop zone when no items', () => {

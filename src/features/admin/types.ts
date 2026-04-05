@@ -19,6 +19,37 @@ export type ScheduledPost = {
   created_at: string
 }
 
+export type EditorImageAlignment = 'left' | 'center' | 'right'
+
+export type EditorJsonContent = {
+  type: string
+  attrs?: Record<string, unknown>
+  content?: EditorJsonContent[]
+  text?: string
+}
+
+export interface EditorContentValue {
+  html: string
+  json: EditorJsonContent
+  inline_images_count: number
+}
+
+export interface PostMetaState {
+  title: string
+  category: string
+  excerpt: string
+  is_landing_preview: boolean
+  is_onboarding: boolean
+  status: 'draft' | 'scheduled' | 'published'
+  scheduled_at: string | null
+}
+
+export interface RichPostSubmitPayload {
+  meta: PostMetaState
+  gallery: MediaItem[]
+  editor: EditorContentValue
+}
+
 // Media type union — aligned with DB CHECK constraint
 export type MediaType = 'image' | 'video'
 
@@ -91,6 +122,70 @@ export const PostFormSchema = z
   })
 
 export type PostFormValues = z.infer<typeof PostFormSchema>
+
+export const EMPTY_EDITOR_DOC: EditorJsonContent = {
+  type: 'doc',
+  content: [{ type: 'paragraph' }],
+}
+
+export function createEmptyEditorContent(): EditorContentValue {
+  return {
+    html: '',
+    json: EMPTY_EDITOR_DOC,
+    inline_images_count: 0,
+  }
+}
+
+export function normalizeEditorContent(content?: string | null): EditorContentValue {
+  const trimmed = content?.trim() ?? ''
+  if (!trimmed) {
+    return createEmptyEditorContent()
+  }
+
+  return {
+    html: content ?? '',
+    json: EMPTY_EDITOR_DOC,
+    inline_images_count: countInlineImages(content ?? ''),
+  }
+}
+
+export function countInlineImages(content: string): number {
+  return (content.match(/<img\b/gi) ?? []).length
+}
+
+export function createPostMetaState(values: PostFormValues): PostMetaState {
+  return {
+    title: values.title,
+    category: values.category,
+    excerpt: values.excerpt ?? '',
+    is_landing_preview: values.is_landing_preview ?? false,
+    is_onboarding: values.is_onboarding ?? false,
+    status: values.status ?? 'published',
+    scheduled_at: values.scheduled_at ?? null,
+  }
+}
+
+export function getCompositionWarning(
+  galleryCount: number,
+  inlineImagesCount: number
+): string | null {
+  const hasLargeGallery = galleryCount >= 6
+  const hasInlineHeavyContent = inlineImagesCount >= 4
+
+  if (hasLargeGallery && hasInlineHeavyContent) {
+    return 'Objava vsebuje veliko galerijo in veliko slik v besedilu. Preverite, ali ostaja kompozicija pregledna.'
+  }
+
+  if (hasLargeGallery) {
+    return 'Galerija objave je obsežna. Preverite, ali je vrstni red medijev še vedno pregleden.'
+  }
+
+  if (hasInlineHeavyContent) {
+    return 'Besedilo vsebuje veliko slik. Preverite, ali vsebina ostaja berljiva.'
+  }
+
+  return null
+}
 
 /** Maximum number of media files allowed per post */
 export const MAX_MEDIA_FILES = 10

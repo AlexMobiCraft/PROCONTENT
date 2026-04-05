@@ -215,10 +215,11 @@ describe('ProfileScreen', () => {
     expect(screen.getByText('Administracija')).toBeInTheDocument()
   })
 
-  it('при isAdmin=true показывает 3 admin-ссылки', () => {
+  it('?????????? 4 admin-??????', () => {
     render(<ProfileScreen {...defaultProps} isAdmin={true} />)
     expect(screen.getByText('Nova objava')).toBeInTheDocument()
     expect(screen.getByText('Kategorije')).toBeInTheDocument()
+    expect(screen.getByText(/Udele.*enke/i)).toBeInTheDocument()
     expect(screen.getByText('Nastavitve')).toBeInTheDocument()
   })
 
@@ -226,6 +227,7 @@ describe('ProfileScreen', () => {
     render(<ProfileScreen {...defaultProps} isAdmin={true} />)
     expect(screen.getByRole('link', { name: 'Nova objava' })).toHaveAttribute('href', '/posts/create')
     expect(screen.getByRole('link', { name: 'Kategorije' })).toHaveAttribute('href', '/categories')
+    expect(screen.getByRole('link', { name: /Udele.*enke/i })).toHaveAttribute('href', '/members')
     expect(screen.getByRole('link', { name: 'Nastavitve administracije' })).toHaveAttribute('href', '/settings')
   })
 

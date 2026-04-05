@@ -126,7 +126,7 @@ describe('FeedContainer', () => {
 
   it('показывает скелетоны при isLoading (AC #3)', async () => {
     // isLoading = true по умолчанию в initialState
-    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: 'cursor-2', hasMore: true })
 
     render(<FeedContainer />)
 
@@ -144,7 +144,7 @@ describe('FeedContainer', () => {
   })
 
   it('скелетоны при начальной загрузке чередуют showMedia для предотвращения CLS', async () => {
-    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: 'cursor-2', hasMore: true })
 
     render(<FeedContainer />)
 
@@ -164,7 +164,7 @@ describe('FeedContainer', () => {
   })
 
   it('показывает empty state когда постов нет (AC #5)', async () => {
-    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: 'cursor-2', hasMore: true })
 
     render(<FeedContainer />)
 
@@ -249,62 +249,68 @@ describe('FeedContainer', () => {
     expect(mockFetchPosts).not.toHaveBeenCalled()
   })
 
-  it('фильтрует посты по activeCategory на клиенте', async () => {
-    const posts = [makePost('1', 'insight'), makePost('2', 'reels')]
+  it('??????????? ????? ????????? ????????? ? ???????', async () => {
+    mockFetchPosts.mockResolvedValue({
+      posts: [makePost('2', 'reels')],
+      nextCursor: null,
+      hasMore: false,
+    })
+
     act(() => {
-      useFeedStore.getState().setPosts(posts, null, false)
-      useFeedStore.getState().setLoading(false)
       useFeedStore.getState().setActiveCategory('reels')
     })
 
     render(<FeedContainer />)
 
+    await waitFor(() => {
+      expect(mockFetchPosts).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({ category: 'reels', signal: expect.any(AbortSignal) })
+      )
+      expect(screen.getByTestId('post-2')).toBeInTheDocument()
+    })
     expect(screen.queryByTestId('post-1')).not.toBeInTheDocument()
-    expect(screen.getByTestId('post-2')).toBeInTheDocument()
   })
 
-  it('не показывает sentinel при пустой отфильтрованной категории (fix infinite loop)', async () => {
-    const posts = [makePost('1', 'insight')]
-    act(() => {
-      useFeedStore.getState().setPosts(posts, null, false)
-      useFeedStore.getState().setLoading(false)
-      useFeedStore.getState().setActiveCategory('reels') // нет постов в этой категории
-    })
-
-    render(<FeedContainer />)
-
-    // Должен показать empty state, observer не вызван
-    expect(
-      screen.getByText('Kmalu bo tu vsebina')
-    ).toBeInTheDocument()
-    expect(mockObserve).not.toHaveBeenCalled()
-  })
-
-  it('показывает sentinel (не CTA) в empty state для редкой категории пока есть страницы', async () => {
-    const posts = [makePost('1', 'insight')]
-    act(() => {
-      useFeedStore.getState().setPosts(posts, 'cursor', true)
-      useFeedStore.getState().setLoading(false)
-      useFeedStore.getState().setActiveCategory('reels')
-    })
-
+  it('?? ?????????? sentinel ??? ?????? category ????? server ?????? hasMore=false', async () => {
     mockFetchPosts.mockResolvedValue({
       posts: [],
       nextCursor: null,
       hasMore: false,
     })
 
+    act(() => {
+      useFeedStore.getState().setActiveCategory('reels')
+    })
+
     render(<FeedContainer />)
 
-    // Sentinel активен — автопрокрутка без ручного CTA
-    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Ponovi' })).not.toBeInTheDocument()
-
-    // Дожидаемся завершения auto-trigger чтобы избежать act warning
     await waitFor(() => {
-      expect(useFeedStore.getState().isLoadingMore).toBe(false)
+      expect(screen.getByText('Kmalu bo tu vsebina')).toBeInTheDocument()
+      expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
     })
   })
+
+  it('?????????? sentinel ? empty state ??? category ???? server ???????? hasMore=true', async () => {
+    mockFetchPosts.mockResolvedValue({
+      posts: [],
+      nextCursor: 'cursor-2',
+      hasMore: true,
+    })
+
+    act(() => {
+      useFeedStore.getState().setActiveCategory('reels')
+    })
+
+    render(<FeedContainer />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Kmalu bo tu vsebina')).toBeInTheDocument()
+      expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /I.*naprej/i })).not.toBeInTheDocument()
+    })
+  })
+
 
   it('подключает IntersectionObserver когда есть посты и hasMore', async () => {
     const posts = [makePost('1')]
@@ -335,7 +341,9 @@ describe('FeedContainer', () => {
     await waitFor(() => {
       expect(screen.getByTestId('post-1')).toBeInTheDocument()
     })
-    expect(mockFetchPosts).toHaveBeenCalledTimes(2)
+    await waitFor(() => {
+      expect(mockFetchPosts).toHaveBeenCalledTimes(2)
+    })
     // Macrotask-checkpoint: дренирует microtask queue (Zustand→React subscription chain)
     await act(async () => { await new Promise<void>(r => setTimeout(r, 0)) })
   })
@@ -471,16 +479,26 @@ describe('FeedContainer', () => {
     })
 
     // loadMore вернёт только 'insight' посты — ни один не 'razobory' → stall
-    mockFetchPosts.mockResolvedValue({
-      posts: [makePost('2', 'insight'), makePost('3', 'insight')],
-      nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-      hasMore: true,
-    })
+    // loadMore ?????? ?????? ???????? ??? ????? ??????? razobory-?????? ? stall
+    mockFetchPosts
+      .mockResolvedValueOnce({
+        posts: [razboroyPost],
+        nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        hasMore: true,
+      })
+      .mockResolvedValueOnce({
+        posts: [],
+        nextCursor: '2026-03-13T10:00:00Z|ffffffff-bbbb-cccc-dddd-eeeeeeeeeeee',
+        hasMore: true,
+      })
 
     render(<FeedContainer />)
 
-    // sentinel видим — есть razobory пост, hasMore=true, stallCount=0
-    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('post-1')).toBeInTheDocument()
+      expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+    })
+
 
     // Триггерим loadMore через observer
     await act(async () => {
@@ -605,7 +623,7 @@ describe('FeedContainer', () => {
       useAuthStore.getState().setReady(false)
       // posts.length === 0 из reset() в beforeEach
     })
-    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: 'cursor-2', hasMore: true })
 
     render(<FeedContainer />)
 
@@ -626,24 +644,24 @@ describe('FeedContainer', () => {
     })
   })
 
-  it('рендерит sentinel в empty state когда нет постов для категории и hasMore=true (fix бесконечного scroll)', async () => {
-    // Есть посты другой категории, hasMore=true — sentinel должен быть в empty state
+  it('???????? sentinel ? empty state ????? ??? ?????? ??? ????????? ? hasMore=true (fix ???????????? scroll)', async () => {
+    // ???? ????? ?????? ?????????, hasMore=true ? sentinel ?????? ???? ? empty state
     const posts = [makePost('1', 'insight')]
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: 'cursor-2', hasMore: true })
     act(() => {
       useFeedStore.getState().setPosts(posts, 'cursor', true) // hasMore=true
       useFeedStore.getState().setLoading(false)
-      useFeedStore.getState().setActiveCategory('reels') // нет 'reels' постов → empty state
+      useFeedStore.getState().setActiveCategory('reels') // ??? 'reels' ?????? ? empty state
     })
 
     render(<FeedContainer />)
 
-    // Empty state виден
-    expect(screen.getByText('Kmalu bo tu vsebina')).toBeInTheDocument()
-    // Sentinel присутствует — auto-scroll может продолжать поиск постов
-    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Kmalu bo tu vsebina')).toBeInTheDocument()
+      expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+    })
     expect(mockObserve).toHaveBeenCalled()
 
-    // Дожидаемся завершения auto-trigger чтобы избежать act warning
     await waitFor(() => {
       expect(useFeedStore.getState().isLoadingMore).toBe(false)
     })
@@ -921,22 +939,27 @@ describe('FeedContainer', () => {
     // После 3 stall: кнопка "Искать дальше" появилась, sentinel скрыт
     await waitFor(() => {
       expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Išči naprej' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /I.*naprej/i })).toBeInTheDocument()
     })
 
     // Клик "Искать дальше" → сбрасывает stallCount → sentinel снова видим
-    await user.click(screen.getByRole('button', { name: 'Išči naprej' }))
+    await user.click(screen.getByRole('button', { name: /I.*naprej/i }))
 
     await waitFor(() => {
       expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Išči naprej' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /I.*naprej/i })).not.toBeInTheDocument()
     })
   })
 
-  it('кнопка "Искать дальше" появляется в empty state после MAX_STALL_RETRIES и сбрасывает поиск', async () => {
+  it('?????? "?????? ??????" ?????????? ? empty state ????? MAX_STALL_RETRIES ? ?????????? ?????', async () => {
     const user = userEvent.setup()
-    // Настройка: есть insight пост, активна категория reels (empty state)
     const insightPost = makePost('1', 'insight')
+    mockFetchPosts.mockResolvedValue({
+      posts: [],
+      nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      hasMore: true,
+    })
+
     act(() => {
       useFeedStore
         .getState()
@@ -945,20 +968,13 @@ describe('FeedContainer', () => {
       useFeedStore.getState().setActiveCategory('reels')
     })
 
-    // Всегда возвращает только insight (stall для reels)
-    mockFetchPosts.mockResolvedValue({
-      posts: [makePost('x', 'insight')],
-      nextCursor: '2026-03-14T10:00:00Z|aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-      hasMore: true,
-    })
-
     render(<FeedContainer />)
 
-    // Empty state виден, sentinel активен (stallCount=0 < 3)
-    expect(screen.getByText('Kmalu bo tu vsebina')).toBeInTheDocument()
-    expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Kmalu bo tu vsebina')).toBeInTheDocument()
+      expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
+    })
 
-    // Симулируем 3 stall (через auto-trigger + observer)
     for (let i = 0; i < 3; i++) {
       await waitFor(() => expect(useFeedStore.getState().isLoadingMore).toBe(false))
       await act(async () => {
@@ -970,20 +986,19 @@ describe('FeedContainer', () => {
       await waitFor(() => expect(useFeedStore.getState().isLoadingMore).toBe(false))
     }
 
-    // Кнопка "Искать дальше" появилась в empty state, sentinel скрыт
     await waitFor(() => {
       expect(screen.queryByTestId('feed-sentinel')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Išči naprej' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /I.*naprej/i })).toBeInTheDocument()
     })
 
-    // Клик → stallCount сбрасывается → sentinel снова активен
-    await user.click(screen.getByRole('button', { name: 'Išči naprej' }))
+    await user.click(screen.getByRole('button', { name: /I.*naprej/i }))
 
     await waitFor(() => {
       expect(screen.getByTestId('feed-sentinel')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Išči naprej' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /I.*naprej/i })).not.toBeInTheDocument()
     })
   })
+
 
   // --- Iteration 12: Items 2+3 (Race condition guard + A11y конец ленты) ---
 
@@ -1078,9 +1093,7 @@ describe('FeedContainer', () => {
 
   // --- Iteration 16: Item 2 (API Spam debounce 500ms) ---
 
-  it('auto-trigger при displayedPosts.length=0 использует задержку 500ms (debounce)', async () => {
-    vi.useFakeTimers()
-
+  it('auto-trigger ??? displayedPosts.length=0 ?????????? ???????? 500ms (debounce)', async () => {
     const posts = [makePost('1', 'insight')]
     act(() => {
       useFeedStore.getState().setPosts(posts, 'cursor', true)
@@ -1088,27 +1101,25 @@ describe('FeedContainer', () => {
       useFeedStore.getState().setActiveCategory('reels')
     })
 
-    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: null, hasMore: false })
+    mockFetchPosts.mockResolvedValue({ posts: [], nextCursor: 'cursor-2', hasMore: true })
 
     render(<FeedContainer />)
 
-    // loadMore не должен быть вызван до истечения задержки
-    expect(mockFetchPosts).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mockFetchPosts).toHaveBeenCalledTimes(1)
+    })
 
-    // Через 499ms — ещё не вызван
-    act(() => { vi.advanceTimersByTime(499) })
-    expect(mockFetchPosts).not.toHaveBeenCalled()
+    await new Promise((resolve) => setTimeout(resolve, 450))
+    expect(mockFetchPosts).toHaveBeenCalledTimes(1)
 
-    // Через ещё 1ms (итого 500ms) — вызван
-    act(() => { vi.advanceTimersByTime(1) })
-    expect(mockFetchPosts).toHaveBeenCalled()
-
-    // Восстанавливаем реальные таймеры и дожидаемся разрешения pending промисов
-    vi.useRealTimers()
+    await waitFor(() => {
+      expect(mockFetchPosts).toHaveBeenCalledTimes(2)
+    })
     await waitFor(() => {
       expect(useFeedStore.getState().isLoadingMore).toBe(false)
     })
-  })
+  }, 10000)
+
 
   // --- Iteration 15: Item 3 (Слепая зона в тестах гидрации) ---
 

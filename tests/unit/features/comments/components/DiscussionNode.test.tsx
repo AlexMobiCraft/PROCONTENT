@@ -1,3 +1,4 @@
+import { createElement } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -17,16 +18,15 @@ vi.mock('next/image', () => ({
     width: number
     height: number
     className?: string
-  }) => (
-    <img
-      src={src}
-      alt={alt}
-      data-width={width}
-      data-height={height}
-      className={className}
-      data-testid="next-image"
-    />
-  ),
+  }) =>
+    createElement('img', {
+      src,
+      alt,
+      className,
+      'data-width': width,
+      'data-height': height,
+      'data-testid': 'next-image',
+    }),
 }))
 
 function makeComment(overrides: Partial<CommentWithStatus> = {}): CommentWithStatus {

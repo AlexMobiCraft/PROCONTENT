@@ -16,11 +16,10 @@ export function RegisterContainer({ email }: RegisterContainerProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // eslint-disable-next-line camelcase
   async function handleRegisterSubmit({
     password,
-    first_name,
-    last_name,
+    first_name: firstName,
+    last_name: lastName,
   }: {
     password: string
     first_name: string
@@ -39,14 +38,12 @@ export function RegisterContainer({ email }: RegisterContainerProps) {
 
     if (data?.user) {
       // Fix #4: trim перед сохранением в профиль
-      // eslint-disable-next-line camelcase
-      const trimmedFirstName = first_name.trim()
-      const trimmedLastName = last_name.trim()
+      const trimmedFirstName = firstName.trim()
+      const trimmedLastName = lastName.trim()
 
       const supabase = createClient()
       const { error: updateError } = await supabase
         .from('profiles')
-        // eslint-disable-next-line camelcase
         .update({ first_name: trimmedFirstName, last_name: trimmedLastName || null })
         .eq('id', data.user.id)
 

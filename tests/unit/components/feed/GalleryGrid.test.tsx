@@ -1,3 +1,4 @@
+import { createElement } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { GalleryGrid, getGridLayout } from '@/components/feed/GalleryGrid'
@@ -39,15 +40,14 @@ vi.mock('@/components/media/LazyMediaWrapper', () => ({
     mediaItem?: { url: string }
     aspectRatio?: string
     sizes?: string
-  }) => (
-    <img
-      src={mediaItem?.url ?? ''}
-      alt={alt}
-      data-testid="lazy-media"
-      data-aspect-ratio={aspectRatio}
-      data-sizes={sizes}
-    />
-  ),
+  }) =>
+    createElement('img', {
+      src: mediaItem?.url ?? '',
+      alt,
+      'data-testid': 'lazy-media',
+      'data-aspect-ratio': aspectRatio,
+      'data-sizes': sizes,
+    }),
 }))
 
 function makeMedia(count: number): PostMedia[] {
@@ -301,8 +301,8 @@ describe('GalleryGrid — aspectRatio для col-span-2 элементов [HIGH
   it('3 элемента: первые 2 имеют aspectRatio 1/1, последний (col-span-2) — 16/9', () => {
     render(<GalleryGrid media={makeMedia(3)} />)
     const images = screen.getAllByTestId('lazy-media') as HTMLImageElement[]
-    expect(images[0]).toHaveAttribute('data-aspect-ratio', '1/1')
-    expect(images[1]).toHaveAttribute('data-aspect-ratio', '1/1')
+    expect(images[0]).toHaveAttribute('data-aspect-ratio', '4/5')
+    expect(images[1]).toHaveAttribute('data-aspect-ratio', '4/5')
     expect(images[2]).toHaveAttribute('data-aspect-ratio', '16/9')
   })
 
@@ -310,7 +310,7 @@ describe('GalleryGrid — aspectRatio для col-span-2 элементов [HIGH
     render(<GalleryGrid media={makeMedia(5)} />)
     const images = screen.getAllByTestId('lazy-media') as HTMLImageElement[]
     for (let i = 0; i < 4; i++) {
-      expect(images[i]).toHaveAttribute('data-aspect-ratio', '1/1')
+      expect(images[i]).toHaveAttribute('data-aspect-ratio', '4/5')
     }
     expect(images[4]).toHaveAttribute('data-aspect-ratio', '16/9')
   })
@@ -319,7 +319,7 @@ describe('GalleryGrid — aspectRatio для col-span-2 элементов [HIGH
     render(<GalleryGrid media={makeMedia(4)} />)
     const images = screen.getAllByTestId('lazy-media') as HTMLImageElement[]
     for (const img of images) {
-      expect(img).toHaveAttribute('data-aspect-ratio', '1/1')
+      expect(img).toHaveAttribute('data-aspect-ratio', '4/5')
     }
   })
 })

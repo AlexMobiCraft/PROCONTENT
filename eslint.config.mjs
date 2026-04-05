@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "everything-claude-code/**",
   ]),
   {
     // Disable camelcase rule for Supabase DB type compatibility (snake_case fields)

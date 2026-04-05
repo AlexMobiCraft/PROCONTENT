@@ -48,16 +48,14 @@ interface ProfileRightPanelProps {
   email: string
   displayName: string | null
   subscriptionStatus: string | null
-  // eslint-disable-next-line camelcase
-  avatar_url?: string | null
+  'avatar_url'?: string | null
 }
 
 export function ProfileRightPanel({
   email,
   displayName,
   subscriptionStatus,
-  // eslint-disable-next-line camelcase
-  avatar_url,
+  avatar_url: avatarUrl,
 }: ProfileRightPanelProps) {
   const initials = getInitials(displayName, email)
   const { label: statusLabel, active } = getStatusBadge(subscriptionStatus)
@@ -75,9 +73,9 @@ export function ProfileRightPanel({
         {/* Аватар + имя + статус */}
         <div className="flex flex-col items-center gap-3">
           <div className="flex size-20 items-center justify-center rounded-full bg-primary/10 text-2xl font-semibold text-primary overflow-hidden">
-            {avatar_url ? (
+            {avatarUrl ? (
               <Image
-                src={avatar_url}
+                src={avatarUrl}
                 alt={displayName || email}
                 width={80}
                 height={80}

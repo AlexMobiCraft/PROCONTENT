@@ -1,21 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const {
-  mockSingle,
-  mockEq,
-  mockSelect,
-  mockUpdate,
-  mockFrom,
-  mockCreateAdminClient,
-} = vi.hoisted(() => {
+const { mockFrom, mockCreateAdminClient } = vi.hoisted(() => {
   const mockSingle = vi.fn()
-  const mockSelect = vi.fn(() => ({ eq: vi.fn(() => ({ single: mockSingle })) }))
-  const mockEq = vi.fn(() => ({ select: mockSelect }))
-  const mockUpdate = vi.fn(() => ({ eq: mockEq }))
   const mockFrom = vi.fn()
   const mockCreateAdminClient = vi.fn(() => ({ from: mockFrom }))
-  return { mockSingle, mockEq, mockSelect, mockUpdate, mockFrom, mockCreateAdminClient }
+  return { mockSingle, mockFrom, mockCreateAdminClient }
 })
 
 vi.mock('@supabase/supabase-js', () => ({

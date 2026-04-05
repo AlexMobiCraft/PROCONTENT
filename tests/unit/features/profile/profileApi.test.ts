@@ -51,8 +51,8 @@ describe('uploadAvatar', () => {
     await expect(uploadAvatar('user-1', file)).rejects.toThrow('Datoteka ne sme biti prazna')
   })
 
-  it('throws error when file exceeds 5MB', async () => {
-    const file = makeFile('big.jpg', 5 * 1024 * 1024 + 1, 'image/jpeg')
+  it('throws error when file exceeds 256KB', async () => {
+    const file = makeFile('big.jpg', 256 * 1024 + 1, 'image/jpeg')
     await expect(uploadAvatar('user-1', file)).rejects.toThrow('Datoteka je prevelika')
   })
 
@@ -70,8 +70,8 @@ describe('uploadAvatar', () => {
     )
   })
 
-  it('accepts valid JPEG file at exactly 5MB', async () => {
-    const file = makeFile('avatar.jpg', 5 * 1024 * 1024, 'image/jpeg')
+  it('accepts valid JPEG file at exactly 256KB', async () => {
+    const file = makeFile('avatar.jpg', 256 * 1024, 'image/jpeg')
     const url = await uploadAvatar('user-1', file)
     expect(url).toContain('avatars')
     expect(mockUpload).toHaveBeenCalledTimes(1)

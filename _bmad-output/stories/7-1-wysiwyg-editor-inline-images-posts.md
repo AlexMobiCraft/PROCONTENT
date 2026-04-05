@@ -1,6 +1,6 @@
 # Story 7.1: WYSIWYG-редактор для инлайн-изображений в постах
 
-Status: ready-for-dev
+Status: in-progress
 
 ## Story
 
@@ -74,38 +74,38 @@ so that я могу собирать rich content без смешивания ga
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Декомпозировать `PostForm` под rich-content authoring architecture (AC: 1, 2, 8)
-  - [ ] 1.1 Выделить в `PostForm` отдельные домены состояния: `meta`, `gallery`, `editor`
-  - [ ] 1.2 Убрать прямую зависимость поля `content` от plain textarea и подготовить integration point для `TiptapEditor`
-  - [ ] 1.3 Добавить типы rich editor state и payload contracts в `src/features/admin/types.ts`
-  - [ ] 1.4 Сохранить совместимость create/edit flow, scheduling section и curation toggles
+- [x] Task 1: Декомпозировать `PostForm` под rich-content authoring architecture (AC: 1, 2, 8)
+  - [x] 1.1 Выделить в `PostForm` отдельные домены состояния: `meta`, `gallery`, `editor`
+  - [x] 1.2 Убрать прямую зависимость поля `content` от plain textarea и подготовить integration point для `TiptapEditor`
+  - [x] 1.3 Добавить типы rich editor state и payload contracts в `src/features/admin/types.ts`
+  - [x] 1.4 Сохранить совместимость create/edit flow, scheduling section и curation toggles
 
-- [ ] Task 2: Внедрить feature slice редактора (AC: 2, 3, 4, 5, 6)
-  - [ ] 2.1 Создать `src/features/editor/components/TiptapEditor.tsx` как `'use client'` dumb/UI-компонент с `value` и `onChange`
-  - [ ] 2.2 Создать `src/features/editor/extensions/ImageUpload.ts` для image node / upload command
-  - [ ] 2.3 Создать `src/features/editor/lib/uploadInlineImage.ts` с загрузкой в `supabase.storage.from('inline-images')`
-  - [ ] 2.4 Поддержать insert-at-cursor для toolbar action, drag and drop и paste
-  - [ ] 2.5 Реализовать действия над image block: replace, caption, align, remove
+- [x] Task 2: Внедрить feature slice редактора (AC: 2, 3, 4, 5, 6)
+  - [x] 2.1 Создать `src/features/editor/components/TiptapEditor.tsx` как `'use client'` dumb/UI-компонент с `value` и `onChange`
+  - [x] 2.2 Создать `src/features/editor/extensions/ImageUpload.ts` для image node / upload command
+  - [x] 2.3 Создать `src/features/editor/lib/uploadInlineImage.ts` с загрузкой в `supabase.storage.from('inline-images')`
+  - [x] 2.4 Поддержать insert-at-cursor для toolbar action, drag and drop и paste
+  - [x] 2.5 Реализовать действия над image block: replace, caption, align, remove
 
-- [ ] Task 3: Сохранить и изолировать gallery flow (AC: 1, 2, 7, 8)
-  - [ ] 3.1 Оставить `MediaUploader` и `MediaSortableItem` в роли отдельного верхнего gallery блока
-  - [ ] 3.2 Явно зафиксировать, что gallery использует существующий `post_media` pipeline и bucket `gallery-media`
-  - [ ] 3.3 Не допустить смешивания gallery items и inline images в одном клиентском массиве media
-  - [ ] 3.4 Проверить, что cover-selection работает только для gallery items
+- [x] Task 3: Сохранить и изолировать gallery flow (AC: 1, 2, 7, 8)
+  - [x] 3.1 Оставить `MediaUploader` и `MediaSortableItem` в роли отдельного верхнего gallery блока
+  - [x] 3.2 Явно зафиксировать, что gallery использует существующий `post_media` pipeline и bucket `gallery-media`
+  - [x] 3.3 Не допустить смешивания gallery items и inline images в одном клиентском массиве media
+  - [x] 3.4 Проверить, что cover-selection работает только для gallery items
 
-- [ ] Task 4: Собрать preview и submit integration (AC: 2, 6, 7, 8)
-  - [ ] 4.1 Добавить/выделить preview-компонент для порядка `gallery above text`
-  - [ ] 4.2 Сериализовать editor content перед submit в формат, согласованный с текущей колонкой `posts.content`
-  - [ ] 4.3 Обновить `createPost()` и `updatePost()` так, чтобы они принимали новый editor payload без ломки текущего gallery flow
-  - [ ] 4.4 Добавить composition warnings для inline-heavy, large-gallery и dual-overload сценариев
+- [x] Task 4: Собрать preview и submit integration (AC: 2, 6, 7, 8)
+  - [x] 4.1 Добавить/выделить preview-компонент для порядка `gallery above text`
+  - [x] 4.2 Сериализовать editor content перед submit в формат, согласованный с текущей колонкой `posts.content`
+  - [x] 4.3 Обновить `createPost()` и `updatePost()` так, чтобы они принимали новый editor payload без ломки текущего gallery flow
+  - [x] 4.4 Добавить composition warnings для inline-heavy, large-gallery и dual-overload сценариев
 
-- [ ] Task 5: Покрыть regression и edge-case tests (AC: 1-8)
-  - [ ] 5.1 Unit tests для разделения `gallery` и `editor` state
-  - [ ] 5.2 Unit tests для insert/remove/replace/update inline image nodes
-  - [ ] 5.3 Component tests для `/posts/create` rich authoring flow
-  - [ ] 5.4 Preview tests на порядок `gallery` над `article body`
-  - [ ] 5.5 Regression tests, подтверждающие, что Story 4.1 gallery behavior не сломан
-  - [ ] 5.6 Edge-case tests: inline-heavy article, large gallery, dual overload, upload failure isolation, edit hydration
+- [x] Task 5: Покрыть regression и edge-case tests (AC: 1-8)
+  - [x] 5.1 Unit tests для разделения `gallery` и `editor` state
+  - [x] 5.2 Unit tests для insert/remove/replace/update inline image nodes
+  - [x] 5.3 Component tests для `/posts/create` rich authoring flow
+  - [x] 5.4 Preview tests на порядок `gallery` над `article body`
+  - [x] 5.5 Regression tests, подтверждающие, что Story 4.1 gallery behavior не сломан
+  - [x] 5.6 Edge-case tests: inline-heavy article, large gallery, dual overload, upload failure isolation, edit hydration
 
 ## Dev Notes
 
@@ -223,6 +223,14 @@ so that я могу собирать rich content без смешивания ga
 
 ## Dev Agent Record
 
+### Review Findings
+
+- [ ] [Review][Patch] Manjkajoč `aria-label` na zunanjem kontejnerju editorja — [src/features/editor/components/TiptapEditor.tsx]
+- [ ] [Review][Patch] Trdo kodirano sporočilo napake `Napaka pri nalaganju slike` v `onUploadError` — [src/features/editor/components/TiptapEditor.tsx]
+- [ ] [Review][Patch] Manjkajoče preverjanje v `removeSelectedImage` ali je slika res izbrana pred brisanjem — [src/features/editor/components/TiptapEditor.tsx]
+- [ ] [Review][Patch] Manjkajoče `aria-live` oznake ob preklapljanju vrste objave (Objavi zdaj/Načrtuj objavo) ali izguba fokusa — [src/features/admin/components/PostForm.tsx]
+- [ ] [Review][Patch] Manjkajoči testi za odstranitev inline slike (AC 5) in izolacijo napake pri nalaganju (AC 6) — [tests/unit/features/admin/components/PostForm.test.tsx]
+
 ### Agent Model Used
 
 GPT-5
@@ -237,3 +245,4 @@ GPT-5
 ### Change Log
 
 - 2026-04-05: Создана story 7.1 для Epic 7 на основе `epics.md`, project context и SM brief по rich content authoring.
+

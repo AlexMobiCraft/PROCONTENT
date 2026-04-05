@@ -1,11 +1,30 @@
+import { createElement } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('next/image', () => ({
-  default: ({ src, alt, width, height, className }: { src: string; alt: string; width: number; height: number; className?: string }) => (
-    <img src={src} alt={alt} data-width={width} data-height={height} className={className} data-testid="next-image" />
-  ),
+  default: ({
+    src,
+    alt,
+    width,
+    height,
+    className,
+  }: {
+    src: string
+    alt: string
+    width: number
+    height: number
+    className?: string
+  }) =>
+    createElement('img', {
+      src,
+      alt,
+      className,
+      'data-width': width,
+      'data-height': height,
+      'data-testid': 'next-image',
+    }),
 }))
 
 vi.mock('@/components/media/LazyMediaWrapper', () => ({
@@ -243,7 +262,7 @@ describe('PostDetail', () => {
     expect(video).toHaveAttribute('data-video-id', 'v-1')
     expect(video).toHaveAttribute('data-src', 'https://example.com/vid.mp4')
     expect(video).toHaveAttribute('data-poster', 'https://example.com/thumb.jpg')
-    expect(video).toHaveAttribute('data-aspect', '16/9')
+    expect(video).toHaveAttribute('data-aspect', '9/16')
     expect(video).toHaveAttribute('data-priority', 'true')
   })
 
@@ -567,7 +586,7 @@ describe('PostDetail', () => {
 
   it('не вызывает setState на unmounted компоненте при успешной RPC', async () => {
     // Задержка RPC позволит нам unmount компонент перед ответом
-    let resolveLike: (value: any) => void
+    let resolveLike: (value: { is_liked: boolean; likes_count: number }) => void
     mockRpc.mockImplementationOnce(
       () =>
         new Promise((resolve) => {

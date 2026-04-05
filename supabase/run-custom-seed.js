@@ -11,7 +11,6 @@ const __dirname = path.dirname(__filename)
 // ── Конфигурация (копия из apply-migrations.js) ──────────────────────────────
 const envLocalPath = path.join(__dirname, '../.env.local');
 let password = 'ProContent2026'; // fallback
-let source = 'fallback';
 
 if (fs.existsSync(envLocalPath)) {
   const envContent = fs.readFileSync(envLocalPath, 'utf-8');
@@ -19,7 +18,6 @@ if (fs.existsSync(envLocalPath)) {
   const passMatch = envContent.match(/Database password\s*-\s*([^\s\r\n]+)/i);
   if (passMatch) {
     password = passMatch[1].trim();
-    source = '.env.local';
   }
 }
 
@@ -39,7 +37,7 @@ async function main() {
   console.log(`🚀 Подключаюсь к ${dbHost}:${dbPort}...`);
   
   try {
-    const res = await pool.query('SELECT NOW()');
+    await pool.query('SELECT NOW()');
     console.log(`✅ Подключение успешно!`);
 
     const sql = fs.readFileSync(seedFile, 'utf-8');

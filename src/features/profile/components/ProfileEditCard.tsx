@@ -6,25 +6,26 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { updateProfile, uploadAvatar, deleteAvatarFile } from '@/features/profile/api/profileApi'
 
-// eslint-disable-next-line camelcase
 interface ProfileEditCardProps {
   userId: string
-  first_name: string
-  avatar_url: string | null
-  // eslint-disable-next-line camelcase
-  onProfileUpdate?: (updates: { first_name?: string; avatar_url?: string | null }) => void
+  'first_name': string
+  'avatar_url': string | null
+  onProfileUpdate?: (updates: {
+    first_name?: string
+    avatar_url?: string | null
+  }) => void
 }
 
 export function ProfileEditCard({
   userId,
-  first_name,
-  avatar_url,
+  first_name: firstName,
+  avatar_url: avatarUrl,
   onProfileUpdate,
 }: ProfileEditCardProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const [editedName, setEditedName] = useState(first_name)
+  const [editedName, setEditedName] = useState(firstName)
   const [isLoading, setIsLoading] = useState(false)
-  const [currentAvatarUrl, setCurrentAvatarUrl] = useState(avatar_url)
+  const [currentAvatarUrl, setCurrentAvatarUrl] = useState(avatarUrl)
   const [validationError, setValidationError] = useState<string | null>(null)
 
   async function handleSaveName() {
@@ -44,14 +45,12 @@ export function ProfileEditCard({
     setValidationError(null)
 
     try {
-      // eslint-disable-next-line camelcase
       await updateProfile(userId, { first_name: trimmed })
       toast.success('Ime je bilo posodobljeno')
       setIsEditing(false)
-      // eslint-disable-next-line camelcase
       onProfileUpdate?.({ first_name: trimmed })
     } catch (error) {
-      setEditedName(first_name) // Rollback
+      setEditedName(firstName)
       toast.error(error instanceof Error ? error.message : 'Napaka pri posodobitvi imena')
     } finally {
       setIsLoading(false)
@@ -59,7 +58,7 @@ export function ProfileEditCard({
   }
 
   async function handleCancel() {
-    setEditedName(first_name)
+    setEditedName(firstName)
     setValidationError(null)
     setIsEditing(false)
   }
@@ -158,8 +157,7 @@ export function ProfileEditCard({
 
         {!isEditing ? (
           <div className="flex items-center justify-between">
-            {/* eslint-disable-next-line camelcase */}
-            <p className="text-sm text-foreground">{first_name}</p>
+            <p className="text-sm text-foreground">{firstName}</p>
             <button
               type="button"
               onClick={() => setIsEditing(true)}
