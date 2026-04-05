@@ -5,7 +5,12 @@ import { toast } from 'sonner'
 
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ADMIN_POSTS_CREATE_PATH, ADMIN_CATEGORIES_PATH, ADMIN_SETTINGS_PATH } from '@/lib/app-routes'
+import {
+  ADMIN_POSTS_CREATE_PATH,
+  ADMIN_CATEGORIES_PATH,
+  ADMIN_MEMBERS_PATH,
+  ADMIN_SETTINGS_PATH,
+} from '@/lib/app-routes'
 import { useFeedStore } from '@/features/feed/store'
 import { EmailPreferencesCard } from './EmailPreferencesCard'
 import { SubscriptionCard } from './SubscriptionCard'
@@ -62,7 +67,9 @@ export function ProfileScreen({
       return
     }
     toast.success(
-      enabled ? 'E-poštna obvestila so vklopljena' : 'E-poštna obvestila so izklopljena'
+      enabled
+        ? 'E-poštna obvestila so vklopljena'
+        : 'E-poštna obvestila so izklopljena'
     )
     setIsEmailSaving(false)
   }
@@ -85,12 +92,54 @@ export function ProfileScreen({
   return (
     <main className="flex min-h-screen flex-col pb-[60px] md:flex-row md:pb-0">
       {/* Центральная колонка: аккаунт + подписка */}
-      <div className="flex min-w-0 flex-1 flex-col md:border-r md:border-border">
-        <div className="sticky top-0 z-10 flex h-[var(--header-height)] shrink-0 items-center border-b border-border bg-background/95 px-6 backdrop-blur-sm">
-          <h1 className="font-heading text-lg font-semibold text-foreground">Profil</h1>
+      <div className="md:border-border flex min-w-0 flex-1 flex-col md:border-r">
+        <div className="border-border bg-background/95 sticky top-0 z-10 flex h-[var(--header-height)] shrink-0 items-center border-b px-6 backdrop-blur-sm">
+          <h1 className="font-heading text-foreground text-lg font-semibold">
+            Profil
+          </h1>
         </div>
 
-        {/* Kartica člana — только mobile, до основного контента */}
+        {isAdmin && (
+          <section
+            aria-label="Administracija"
+            className="border-border bg-card space-y-3 border-b p-6"
+          >
+            <h2 className="text-muted-foreground font-sans text-xs font-semibold tracking-[0.2em] uppercase">
+              Administracija
+            </h2>
+            <div className="space-y-1">
+              <Link
+                href={ADMIN_POSTS_CREATE_PATH}
+                aria-label="Nova objava"
+                className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
+              >
+                Nova objava
+              </Link>
+              <Link
+                href={ADMIN_CATEGORIES_PATH}
+                aria-label="Kategorije"
+                className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
+              >
+                Kategorije
+              </Link>
+              <Link
+                href={ADMIN_MEMBERS_PATH}
+                aria-label="Udeleženke"
+                className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
+              >
+                Udeleženke
+              </Link>
+              <Link
+                href={ADMIN_SETTINGS_PATH}
+                aria-label="Nastavitve administracije"
+                className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
+              >
+                Nastavitve
+              </Link>
+            </div>
+          </section>
+        )}
+
         <div className="md:hidden">
           <ProfileRightPanel
             email={email}
@@ -101,10 +150,52 @@ export function ProfileScreen({
         </div>
 
         <div className="space-y-4 p-6">
-          <div className="space-y-2 border border-border p-6">
-            <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Račun</p>
-            {displayName && <p className="font-medium text-foreground">{displayName}</p>}
-            <p className="text-sm text-muted-foreground">{email}</p>
+          <div className="border-border space-y-2 border p-6">
+            <p className="text-muted-foreground text-xs tracking-[0.15em] uppercase">
+              Račun
+            </p>
+            {displayName && (
+              <p className="text-foreground font-medium">{displayName}</p>
+            )}
+            <p className="text-muted-foreground text-sm">{email}</p>
+          </div>
+
+          {userId && (
+            <ProfileEditCard
+              userId={userId}
+              first_name={currentFirstName}
+              avatar_url={currentAvatarUrl}
+              onProfileUpdate={handleProfileUpdate}
+            />
+          )}
+
+          <SubscriptionCard
+            subscriptionStatus={subscriptionStatus}
+            currentPeriodEnd={currentPeriodEnd}
+            hasStripeCustomer={hasStripeCustomer}
+          />
+
+          {canManageEmailPreferences && (
+            <EmailPreferencesCard
+              id="email-preferences"
+              emailNotificationsEnabled={emailEnabled}
+              onToggle={handleEmailToggle}
+              isLoading={isEmailSaving}
+            />
+          )}
+
+          <PasswordResetCard email={email} />
+        </div>
+
+        <div className="space-y-4 p-6">
+          <div className="border-border space-y-2 border p-6">
+            <p className="text-muted-foreground text-xs tracking-[0.15em] uppercase">
+              Račun
+            </p>
+            {displayName && (
+              <p className="text-foreground font-medium">{displayName}</p>
+            )}
+            <p className="text-muted-foreground text-sm">{email}</p>
           </div>
 
           {userId && (
@@ -136,30 +227,30 @@ export function ProfileScreen({
           {isAdmin && (
             <section
               aria-label="Administracija"
-              className="border border-border bg-card p-6 space-y-3"
+              className="border-border bg-card space-y-3 border p-6"
             >
-              <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              <h2 className="text-muted-foreground font-sans text-xs font-semibold tracking-[0.2em] uppercase">
                 Administracija
               </h2>
               <div className="space-y-1">
                 <Link
                   href={ADMIN_POSTS_CREATE_PATH}
                   aria-label="Nova objava"
-                  className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                  className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
                 >
                   Nova objava
                 </Link>
                 <Link
                   href={ADMIN_CATEGORIES_PATH}
                   aria-label="Kategorije"
-                  className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                  className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
                 >
                   Kategorije
                 </Link>
                 <Link
                   href={ADMIN_SETTINGS_PATH}
                   aria-label="Nastavitve administracije"
-                  className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                  className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
                 >
                   Nastavitve
                 </Link>
