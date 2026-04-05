@@ -206,6 +206,15 @@
   .rich-content img {
     @apply h-auto max-w-full;
   }
+
+  /* Highlight selected inline image in Tiptap editor */
+  .ProseMirror-selectednode[data-type="inline-image"] {
+    @apply rounded-lg ring-2 ring-primary;
+  }
+
+  .ProseMirror-selectednode[data-type="inline-image"] figcaption {
+    @apply text-muted-foreground;
+  }
 }
 
 .scrollbar-hide::-webkit-scrollbar {
