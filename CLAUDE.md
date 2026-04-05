@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+- **IMPORTANT**: When running terminal commands in PowerShell, NEVER use `&&` or `||` operators, as they are not supported in the current PowerShell version. Run commands sequentially (one by one) or use `;` as a statement separator.
+
 ```bash
 npm run dev        # Start dev server (Next.js)
 npm run build      # Production build
