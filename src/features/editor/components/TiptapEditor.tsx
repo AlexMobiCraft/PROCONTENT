@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { EditorContent, useEditor } from '@tiptap/react'
+import { useEffect, useRef, useState } from 'react'
+import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Heading from '@tiptap/extension-heading'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -49,6 +49,16 @@ interface TiptapEditorProps {
   disabled?: boolean
 }
 
+type SelectedImageState = {
+  isSelected: boolean
+  attrs: {
+    src?: string
+    alt?: string
+    caption?: string
+    align?: EditorImageAlignment
+  }
+}
+
 function createUploadId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -65,6 +75,20 @@ function getUploadErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Pri nalaganju slike je prišlo do napake'
 }
 
+function getSelectedImageState(editor: Editor | null): SelectedImageState {
+  if (!editor || !editor.isActive('image')) {
+    return {
+      isSelected: false,
+      attrs: {},
+    }
+  }
+
+  return {
+    isSelected: true,
+    attrs: editor.getAttributes('image') as SelectedImageState['attrs'],
+  }
+}
+
 export function TiptapEditor({
   value,
   onChange,
@@ -75,6 +99,10 @@ export function TiptapEditor({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const replaceInputRef = useRef<HTMLInputElement>(null)
   const replaceTargetUploadIdRef = useRef<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<SelectedImageState>({
+    isSelected: false,
+    attrs: {},
+  })
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -155,6 +183,23 @@ export function TiptapEditor({
     if (!editor) return
     editor.setEditable(!disabled)
   }, [disabled, editor])
+
+  useEffect(() => {
+    if (!editor) return
+
+    const syncSelectedImage = () => {
+      setSelectedImage(getSelectedImageState(editor))
+    }
+
+    syncSelectedImage()
+    editor.on('selectionUpdate', syncSelectedImage)
+    editor.on('update', syncSelectedImage)
+
+    return () => {
+      editor.off('selectionUpdate', syncSelectedImage)
+      editor.off('update', syncSelectedImage)
+    }
+  }, [editor])
 
   async function handleFiles(files: File[]) {
     if (!editor) return
@@ -251,13 +296,6 @@ export function TiptapEditor({
     )
   }
 
-  const activeImageAttrs = editor.getAttributes('image') as {
-    src?: string
-    alt?: string
-    caption?: string
-    align?: EditorImageAlignment
-  }
-  const isImageSelected = editor.isActive('image')
   const isRelaxedSpacing = isRelaxedSpacingActive()
 
   return (
@@ -414,13 +452,13 @@ export function TiptapEditor({
         )}
       />
 
-      {isImageSelected && (
+      {selectedImage.isSelected && (
         <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
           <div className="flex items-center gap-3">
-            {activeImageAttrs.src && (
+            {selectedImage.attrs.src && (
               <img
-                src={activeImageAttrs.src}
-                alt={activeImageAttrs.alt ?? 'Izbrana slika'}
+                src={selectedImage.attrs.src}
+                alt={selectedImage.attrs.alt ?? 'Izbrana slika'}
                 className="size-12 shrink-0 rounded border border-border object-cover"
               />
             )}
@@ -432,7 +470,7 @@ export function TiptapEditor({
             <Button
               type="button"
               size="icon-xs"
-              variant={activeImageAttrs.align === 'left' ? 'secondary' : 'outline'}
+              variant={selectedImage.attrs.align === 'left' ? 'secondary' : 'outline'}
               onMouseDown={keepSelection}
               onClick={() => setImageAlignment('left')}
               aria-label="Poravnaj sliko levo"
@@ -442,7 +480,7 @@ export function TiptapEditor({
             <Button
               type="button"
               size="icon-xs"
-              variant={activeImageAttrs.align === 'center' ? 'secondary' : 'outline'}
+              variant={selectedImage.attrs.align === 'center' ? 'secondary' : 'outline'}
               onMouseDown={keepSelection}
               onClick={() => setImageAlignment('center')}
               aria-label="Poravnaj sliko sredinsko"
@@ -452,7 +490,7 @@ export function TiptapEditor({
             <Button
               type="button"
               size="icon-xs"
-              variant={activeImageAttrs.align === 'right' ? 'secondary' : 'outline'}
+              variant={selectedImage.attrs.align === 'right' ? 'secondary' : 'outline'}
               onMouseDown={keepSelection}
               onClick={() => setImageAlignment('right')}
               aria-label="Poravnaj sliko desno"
@@ -485,7 +523,7 @@ export function TiptapEditor({
             <span className="text-xs font-medium text-muted-foreground">Podnapis slike</span>
             <input
               type="text"
-              value={activeImageAttrs.caption ?? ''}
+              value={selectedImage.attrs.caption ?? ''}
               onChange={(event) => updateCaption(event.target.value)}
               placeholder="Vnesite podnapis slike..."
               className="min-h-[44px] rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"

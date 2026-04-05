@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,6 +44,7 @@ function createEditorMock(overrides?: {
   activeLineHeight?: string | null
   activeMarks?: string[]
 }) {
+  const listeners = new Map<string, Set<() => void>>()
   const run = vi.fn().mockReturnValue(true)
   const updateAttributes = vi.fn().mockReturnValue({ run })
   const deleteSelection = vi.fn().mockReturnValue({ run })
@@ -122,6 +123,14 @@ function createEditorMock(overrides?: {
       return overrides?.activeMarks?.includes(name) ?? false
     }),
     chain,
+    on: vi.fn((event: string, callback: () => void) => {
+      const callbacks = listeners.get(event) ?? new Set<() => void>()
+      callbacks.add(callback)
+      listeners.set(event, callbacks)
+    }),
+    off: vi.fn((event: string, callback: () => void) => {
+      listeners.get(event)?.delete(callback)
+    }),
     commands: {
       setContent: vi.fn(),
     },
@@ -137,6 +146,9 @@ function createEditorMock(overrides?: {
       setLineHeight,
       unsetLineHeight,
       run,
+      emit: (event: string) => {
+        listeners.get(event)?.forEach((callback) => callback())
+      },
     },
   }
 }
@@ -288,5 +300,44 @@ describe('TiptapEditor', () => {
     await user.click(screen.getByRole('button', { name: /dodaj sliko/i }))
 
     expect(editor.__mocks.deleteSelection).not.toHaveBeenCalled()
+  })
+
+  it('shows image settings when image selection changes without content update', () => {
+    const editor = createEditorMock({ isImageSelected: false })
+    mockUseEditor.mockReturnValue(editor)
+
+    render(
+      <TiptapEditor
+        value={{ html: '<p>Body</p>', json: { type: 'doc', content: [] }, inline_images_count: 0 }}
+        onChange={vi.fn()}
+        onInlineImageUpload={vi.fn()}
+        onUploadError={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByText(/nastavitve slike/i)
+    ).not.toBeInTheDocument()
+
+    editor.isActive.mockImplementation((name: string) => name === 'image')
+    editor.getAttributes.mockImplementation((name: string) => {
+      if (name === 'image') {
+        return {
+          src: 'https://cdn.example.com/image.jpg',
+          alt: 'Opis',
+          caption: 'Podnapis',
+          align: 'center',
+        }
+      }
+
+      return {}
+    })
+
+    act(() => {
+      editor.__mocks.emit('selectionUpdate')
+    })
+
+    expect(screen.getByText(/nastavitve slike/i)).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Podnapis')).toBeInTheDocument()
   })
 })
