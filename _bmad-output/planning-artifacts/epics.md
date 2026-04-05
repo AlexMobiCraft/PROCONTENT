@@ -1,12 +1,14 @@
 ---
 stepsCompleted: ["step-01-validate-prerequisites", "step-02-design-epics", "step-03-create-stories", "step-04-final-validation", "epic6-step-01-validate-prerequisites", "epic6-step-02-design-epics", "epic6-step-03-create-stories", "epic6-step-04-final-validation"]
 inputDocuments: ["_bmad-output/planning-artifacts/prd.md", "_bmad-output/planning-artifacts/architecture.md", "_bmad-output/planning-artifacts/ux-design-specification.md", "_bmad-output/planning-artifacts/prd-scheduled-publishing.md"]
-lastEdited: '2026-04-01'
+lastEdited: '2026-04-05'
 editHistory:
   - date: '2026-03-22'
     changes: 'Обновлены эпики и стори на основании обновлённых PRD, Architecture и двух брифов (architect-brief-multimedia-posts, sm-brief-multimedia-posts): добавлена нормализация БД (post_media), RBAC/RLS, GalleryGrid, видеоконтроллер, NFR SLAs, обновлена Telegram-миграция (Exponential Backoff, медиагруппы как галереи), обновлены Acceptance Criteria'
   - date: '2026-04-01'
     changes: 'Epic 6 (Scheduled Publishing): добавлены FR6.1–FR6.18 (18 FRs), NFR6.1–NFR6.9 (9 NFRs), дополнительные технические требования (pg_cron, схема БД, cron endpoint) и UX-DR1–UX-DR9. Step-01 validate prerequisites завершён.'
+  - date: '2026-04-05'
+    changes: 'Добавлен Epic 7 (Rich Content Experience): Story 7.1 (FR19.1: WYSIWYG-редактор с инлайн-изображениями, Tiptap + inline-images bucket) и Story 7.2 (FR16.2, NFR4.2: Markdown-рендеринг, комбинированный layout, DOMPurify). Обновлены FR Coverage Map и Epic List.'
 ---
 
 # PROCONTENT - Epic Breakdown
@@ -111,8 +113,10 @@ NFR24: Telegram-архив после импорта является иммут
 - FR6–FR9: Epic 1 - Лендинг и превью
 - FR10–FR13: Epic 1 - Онбординг и WhatsApp
 - FR14–FR16, FR16.1: Epic 2 - Лента, фильтры, просмотр контента и мультимедиа-галереи
+- FR16.2: Epic 7 / Story 7.2 - Markdown-рендеринг с инлайн-изображениями и комбинированный layout
 - FR17–FR18: Epic 2 - Поиск и архив
 - FR19–FR22: Epic 4 - Создание мультимедийных постов и управление контентом
+- FR19.1: Epic 7 / Story 7.1 - WYSIWYG-редактор для инлайн-изображений
 - FR23–FR26: Epic 3 - Комментарии
 - FR27–FR28: Epic 3 - Email-уведомления
 - FR29–FR31: Epic 5 - Миграция из Telegram (включая интеллектуальную группировку медиагрупп)
@@ -208,6 +212,11 @@ UX-DR9: Дизайн-токены design system — `--primary` (Muted Terracott
 Автор может подготовить посты заранее, назначить время публикации через toggle + datetime picker в стандартной форме создания/редактирования поста, и они выйдут автоматически в назначенный момент с email-рассылкой участникам — без присутствия автора онлайн. Раздел «Запланировано» в admin-панели даёт полный контроль над расписанием: просмотр, редактирование и отмена запланированных постов.
 **FRs covered:** FR6.1–FR6.18
 **Stories:** 6.1 (Schema Migration) → 6.2 (pg_cron Automation) → 6.3 (UI Form Extension) → 6.4 (Admin Scheduled Table)
+
+### Epic 7: Rich Content Experience (Markdown Editor & Inline Media)
+Автор создаёт посты с форматированным Markdown-текстом и встроенными инлайн-изображениями через WYSIWYG-редактор; участницы видят корректно скомпонованный контент с Markdown-рендерингом, lazy loading изображений и правильным комбинированным layout (текст + галерея).
+**FRs covered:** FR19.1, FR16.2, NFR4.2
+**Stories:** 7.1 (WYSIWYG Editor) → 7.2 (Markdown Renderer & Combined Layout)
 
 ## Epic 1: Growth & Conversion (Landing, Subscriptions & Onboarding)
 
@@ -791,3 +800,107 @@ So that я могу контролировать расписание публи
 **Then** `status` поста меняется на `published`, `published_at=now()`, запускается стандартная email-рассылка участникам (FR6.9)
 **And** строка исчезает из таблицы «Запланировано»
 **And** при ошибке — отображается Toast с сообщением об ошибке, состояние таблицы не изменяется
+
+---
+
+## Epic 7: Rich Content Experience (Markdown Editor & Inline Media)
+
+Автор создаёт посты с форматированным Markdown-текстом и встроенными инлайн-изображениями через WYSIWYG-редактор; участницы видят корректно скомпонованный контент с Markdown-рендерингом, lazy loading изображений и правильным комбинированным layout (текст + галерея).
+
+**FRs covered:** FR19.1, FR16.2, NFR4.2
+**Stories:** 7.1 (WYSIWYG Editor) → 7.2 (Markdown Renderer & Combined Layout)
+**Зависимости:** после Epic 4 (форма создания поста существует, поле `content` в таблице `posts`)
+
+---
+
+### Story 7.1: WYSIWYG-редактор для инлайн-изображений в постах (FR19.1)
+
+As a автор,
+I want загружать изображения прямо в тело текста поста через редактор,
+So that я могла создавать богатый Markdown-контент с инлайн-иллюстрациями без ручного копирования ссылок.
+
+**Acceptance Criteria:**
+
+**Given** автор открыл форму создания или редактирования поста
+**When** просматривает текстовое поле
+**Then** вместо обычного `<textarea>` отображается WYSIWYG-редактор на базе Tiptap (`'use client'` компонент в `src/features/editor/components/TiptapEditor.tsx`)
+**And** редактор поддерживает базовое форматирование: жирный, курсив, заголовки (H2–H4), списки, блок кода
+**And** редактор отображает сериализованный Markdown-контент существующего поста при редактировании
+
+**Given** автор перетаскивает (drag & drop) изображение в область редактора
+**When** файл отпускается
+**Then** изображение загружается в Supabase Storage bucket `inline-images` (не в `gallery-media`)
+**And** во время загрузки в месте вставки отображается inline-индикатор загрузки
+**And** после успешной загрузки в тело поста автоматически вставляется `![имя файла](public_url)` в позицию курсора
+
+**Given** автор вставляет (paste) изображение из буфера обмена в редактор
+**When** срабатывает событие paste
+**Then** изображение загружается в bucket `inline-images` с тем же флоу, что и drag & drop
+**And** URL автоматически вставляется в контент в виде Markdown-изображения
+
+**Given** загрузка изображения завершилась ошибкой (сеть, превышение размера, неверный формат)
+**When** upload API возвращает ошибку
+**Then** placeholder удаляется из редактора
+**And** отображается Toast с описанием ошибки («Файл слишком большой. Максимум 10 МБ» / «Неверный формат. Разрешены: JPG, PNG, WebP»)
+**And** курсор возвращается в позицию до попытки вставки
+
+**Given** автор завершил редактирование и нажимает «Сохранить» / «Опубликовать»
+**When** форма отправляется
+**Then** редактор сериализует содержимое в Markdown-строку и передаёт в поле `content` таблицы `posts`
+**And** загруженные инлайн-изображения в bucket `inline-images` сохраняются (orphaned-очистка — вне этой истории)
+
+**Given** компонент `TiptapEditor` реализован
+**When** разработчик инспектирует код
+**Then** `TiptapEditor` находится в `src/features/editor/components/`
+**And** кастомное Tiptap-расширение для загрузки изображений — в `src/features/editor/extensions/ImageUpload.ts`
+**And** upload-хелпер — в `src/features/editor/lib/uploadInlineImage.ts`, использует `supabase.storage.from('inline-images').upload(...)`
+**And** `TiptapEditor` принимает `value: string` (начальный Markdown) и `onChange: (markdown: string) => void` через props — не импортирует Zustand store напрямую
+
+**Given** автор использует keyboard-only навигацию
+**When** перемещается по редактору
+**Then** Tiptap-редактор полностью доступен с клавиатуры (WCAG 2.1 AA)
+**And** область редактора имеет `aria-label="Текст поста"` и `role="textbox"`
+
+**FRs covered:** FR19.1
+
+---
+
+### Story 7.2: Markdown-рендеринг постов с инлайн-изображениями и комбинированным layout (FR16.2, NFR4.2)
+
+As a участница,
+I want видеть посты с форматированным текстом, встроенными изображениями и галереей в правильной компоновке,
+So that я могла удобно читать богатый контент без визуальных артефактов.
+
+**Acceptance Criteria:**
+
+**Given** пост содержит только Markdown-текст (без галереи)
+**When** участница открывает страницу поста
+**Then** компонент `MarkdownRenderer` рендерит текст с поддержкой полного GFM-синтаксиса (заголовки, списки, жирный, курсив, блоки кода)
+**And** все `<img>` внутри Markdown-тела имеют атрибут `loading="lazy"` (NFR4.2)
+**And** проверка lazy loading подтверждается через Lighthouse audit (не блокирует LCP)
+
+**Given** пост содержит Markdown-текст со встроенными инлайн-изображениями (`![alt](url)`)
+**When** участница открывает страницу поста
+**Then** инлайн-изображения отображаются внутри текстового блока в правильном месте согласно разметке
+**And** каждое инлайн-изображение имеет `loading="lazy"` и `alt`-атрибут из Markdown-синтаксиса (NFR16)
+**And** изображения адаптивны: `max-width: 100%`, не выходят за ширину контентного блока
+
+**Given** пост содержит и Markdown-текст с инлайн-изображениями, и галерею (`post_media` с 2+ записями)
+**When** участница открывает страницу поста
+**Then** блок `MarkdownRenderer` (текст + инлайн-изображения) отображается **ниже** блока `GalleryGrid`
+**And** между двумя блоками есть визуальный разделитель (отступ `gap` согласно design tokens)
+**And** компонент `PostDetail` (Dumb UI) принимает отдельные пропы: `content: string` (Markdown) и `media: PostMedia[]` (для галереи) — рендерит их независимо
+
+**Given** Markdown-контент поста содержит потенциально опасный HTML
+**When** `MarkdownRenderer` парсит и рендерит контент
+**Then** HTML санитизируется через DOMPurify до рендеринга (защита от XSS)
+**And** разрешены только безопасные теги: `p`, `strong`, `em`, `ul`, `ol`, `li`, `h2`–`h4`, `img`, `code`, `pre`, `blockquote`
+
+**Given** компонент `MarkdownRenderer` реализован
+**When** разработчик инспектирует код
+**Then** `MarkdownRenderer` — Dumb UI компонент в `src/features/feed/components/`, принимает `content: string` через props, не импортирует Supabase напрямую
+**And** используется `react-markdown` с плагином `remark-gfm` и кастомным компонентом `img` с `loading="lazy"`
+**And** компонент покрыт unit-тестом: рендеринг заголовков, списков, инлайн-изображений с `loading="lazy"`
+**And** конфигурация react-markdown вынесена в `src/lib/markdown.ts`
+
+**FRs covered:** FR16.2, NFR4.2
