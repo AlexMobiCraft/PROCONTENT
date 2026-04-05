@@ -196,6 +196,10 @@ export function TiptapEditor({
     editor.chain().focus().updateAttributes('image', { caption }).run()
   }
 
+  function keepSelection(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault()
+  }
+
   if (!editor) {
     const normalized = value.html ? value : normalizeEditorContent(value.html)
     const fallback = normalized.html ? normalized.html : createEmptyEditorContent().html
@@ -216,28 +220,89 @@ export function TiptapEditor({
   return (
     <div className="flex flex-col gap-3" role="group" aria-label="Vsebina objave">
       <div className="flex flex-wrap gap-2 rounded-lg border border-border p-3">
-        <Button type="button" size="xs" variant={editor.isActive('heading', { level: 2 }) ? 'secondary' : 'outline'} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} disabled={disabled}>
+        <Button
+          type="button"
+          size="xs"
+          variant={editor.isActive('heading', { level: 2 }) ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          disabled={disabled}
+        >
           H2
         </Button>
-        <Button type="button" size="xs" variant={editor.isActive('heading', { level: 3 }) ? 'secondary' : 'outline'} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} disabled={disabled}>
+        <Button
+          type="button"
+          size="xs"
+          variant={editor.isActive('heading', { level: 3 }) ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          disabled={disabled}
+        >
           H3
         </Button>
-        <Button type="button" size="xs" variant={editor.isActive('heading', { level: 4 }) ? 'secondary' : 'outline'} onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()} disabled={disabled}>
+        <Button
+          type="button"
+          size="xs"
+          variant={editor.isActive('heading', { level: 4 }) ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
+          disabled={disabled}
+        >
           H4
         </Button>
-        <Button type="button" size="icon-xs" variant={editor.isActive('bulletList') ? 'secondary' : 'outline'} onClick={() => editor.chain().focus().toggleBulletList().run()} disabled={disabled} aria-label="Seznam z oznakami">
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={editor.isActive('bulletList') ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          disabled={disabled}
+          aria-label="Seznam z oznakami"
+        >
           <List className="size-4" />
         </Button>
-        <Button type="button" size="icon-xs" variant={editor.isActive('orderedList') ? 'secondary' : 'outline'} onClick={() => editor.chain().focus().toggleOrderedList().run()} disabled={disabled} aria-label="Oštevilčen seznam">
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={editor.isActive('orderedList') ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          disabled={disabled}
+          aria-label="Oštevilčen seznam"
+        >
           <ListOrdered className="size-4" />
         </Button>
-        <Button type="button" size="icon-xs" variant={editor.isActive('blockquote') ? 'secondary' : 'outline'} onClick={() => editor.chain().focus().toggleBlockquote().run()} disabled={disabled} aria-label="Citat">
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={editor.isActive('blockquote') ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          disabled={disabled}
+          aria-label="Citat"
+        >
           <Quote className="size-4" />
         </Button>
-        <Button type="button" size="icon-xs" variant={editor.isActive('codeBlock') ? 'secondary' : 'outline'} onClick={() => editor.chain().focus().toggleCodeBlock().run()} disabled={disabled} aria-label="Kodni blok">
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={editor.isActive('codeBlock') ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          disabled={disabled}
+          aria-label="Kodni blok"
+        >
           <Code2 className="size-4" />
         </Button>
-        <Button type="button" size="icon-xs" variant="outline" onClick={triggerImageUpload} disabled={disabled} aria-label="Dodaj sliko">
+        <Button
+          type="button"
+          size="icon-xs"
+          variant="outline"
+          onMouseDown={keepSelection}
+          onClick={triggerImageUpload}
+          disabled={disabled}
+          aria-label="Dodaj sliko"
+        >
           <ImagePlus className="size-4" />
         </Button>
       </div>
@@ -253,20 +318,53 @@ export function TiptapEditor({
       {isImageSelected && (
         <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="icon-xs" variant={activeImageAttrs.align === 'left' ? 'secondary' : 'outline'} onClick={() => setImageAlignment('left')} aria-label="Poravnaj levo">
+            <Button
+              type="button"
+              size="icon-xs"
+              variant={activeImageAttrs.align === 'left' ? 'secondary' : 'outline'}
+              onMouseDown={keepSelection}
+              onClick={() => setImageAlignment('left')}
+              aria-label="Poravnaj levo"
+            >
               <AlignLeft className="size-4" />
             </Button>
-            <Button type="button" size="icon-xs" variant={activeImageAttrs.align === 'center' ? 'secondary' : 'outline'} onClick={() => setImageAlignment('center')} aria-label="Poravnaj sredinsko">
+            <Button
+              type="button"
+              size="icon-xs"
+              variant={activeImageAttrs.align === 'center' ? 'secondary' : 'outline'}
+              onMouseDown={keepSelection}
+              onClick={() => setImageAlignment('center')}
+              aria-label="Poravnaj sredinsko"
+            >
               <AlignCenter className="size-4" />
             </Button>
-            <Button type="button" size="icon-xs" variant={activeImageAttrs.align === 'right' ? 'secondary' : 'outline'} onClick={() => setImageAlignment('right')} aria-label="Poravnaj desno">
+            <Button
+              type="button"
+              size="icon-xs"
+              variant={activeImageAttrs.align === 'right' ? 'secondary' : 'outline'}
+              onMouseDown={keepSelection}
+              onClick={() => setImageAlignment('right')}
+              aria-label="Poravnaj desno"
+            >
               <AlignRight className="size-4" />
             </Button>
-            <Button type="button" size="xs" variant="outline" onClick={triggerReplaceImage}>
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              onMouseDown={keepSelection}
+              onClick={triggerReplaceImage}
+            >
               <Replace className="size-4" />
               Zamenjaj sliko
             </Button>
-            <Button type="button" size="xs" variant="destructive" onClick={removeSelectedImage}>
+            <Button
+              type="button"
+              size="xs"
+              variant="destructive"
+              onMouseDown={keepSelection}
+              onClick={removeSelectedImage}
+            >
               <Trash2 className="size-4" />
               Odstrani blok
             </Button>
@@ -310,11 +408,15 @@ export function TiptapEditor({
 
           try {
             const uploaded = await onInlineImageUpload(file)
-            editor.chain().focus().updateAttributes('image', {
-              src: uploaded.url,
-              alt: file.name,
-              storageBucket: uploaded.storage_bucket,
-            }).run()
+            editor
+              .chain()
+              .focus()
+              .updateAttributes('image', {
+                src: uploaded.url,
+                alt: file.name,
+                storageBucket: uploaded.storage_bucket,
+              })
+              .run()
           } catch (error) {
             onUploadError(getUploadErrorMessage(error))
           } finally {

@@ -216,6 +216,38 @@ describe('PostDetail', () => {
     expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
   })
 
+  it('text: интерпретирует сохранённый HTML контента, а не выводит его как plain text', () => {
+    render(
+      <PostDetail
+        post={makePost({
+          type: 'text',
+          content: '<h2>Naslov odstavka</h2><p><strong>Poudarjeno</strong> besedilo</p>',
+        })}
+      />
+    )
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Naslov odstavka' })).toBeInTheDocument()
+    expect(screen.getByText('Poudarjeno')).toBeInTheDocument()
+    expect(
+      screen.queryByText('<h2>Naslov odstavka</h2><p><strong>Poudarjeno</strong> besedilo</p>')
+    ).not.toBeInTheDocument()
+  })
+
+  it('text: рендерит inline image из сохранённого editor HTML', () => {
+    render(
+      <PostDetail
+        post={makePost({
+          type: 'text',
+          content:
+            '<p>Uvod</p><figure data-type="inline-image" data-align="center"><img src="https://cdn.example.com/inline-1.jpg" alt="Inline 1" /></figure>',
+        })}
+      />
+    )
+
+    const inlineImage = screen.getByRole('img', { name: 'Inline 1' })
+    expect(inlineImage).toHaveAttribute('src', 'https://cdn.example.com/inline-1.jpg')
+  })
+
   it('text: рендерит excerpt если content=null', () => {
     render(<PostDetail post={makePost({ type: 'text', content: null, excerpt: 'Kratek opis' })} />)
     expect(screen.getByText('Kratek opis')).toBeInTheDocument()

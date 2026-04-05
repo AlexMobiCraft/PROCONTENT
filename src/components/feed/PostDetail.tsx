@@ -296,9 +296,13 @@ export function PostDetail({
       )}
 
       {/* Content */}
-      <div className="prose prose-sm max-w-none text-foreground mt-4">
+      <div className="prose prose-sm mt-4 max-w-none text-foreground [&_figure[data-align='center']]:mx-auto [&_figure[data-align='left']]:mr-auto [&_figure[data-align='right']]:ml-auto [&_figure[data-type='inline-image']]:my-4 [&_figure[data-type='inline-image']]:space-y-2 [&_figure[data-type='inline-image']_img]:rounded-lg [&_figure[data-type='inline-image']_img]:border [&_figure[data-type='inline-image']_img]:border-border">
         {post.content !== null ? (
-          <p className="whitespace-pre-wrap leading-relaxed">{post.content}</p>
+          <div
+            dangerouslySetInnerHTML={{
+              __html: post.content || '<p></p>',
+            }}
+          />
         ) : (
           <p className="leading-relaxed text-muted-foreground">{post.excerpt}</p>
         )}

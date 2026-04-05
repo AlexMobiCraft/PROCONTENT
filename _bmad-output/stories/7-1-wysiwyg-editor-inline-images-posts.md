@@ -246,13 +246,18 @@ GPT-5
 - 2026-04-05: Добавлены regression tests на удаление inline image без влияния на gallery state и на upload failure isolation без потери meta/gallery данных.
 - 2026-04-05: Подтверждены targeted тесты для PostForm, TiptapEditor, ImageUpload и uploadInlineImage; npm run lint и npm run typecheck проходят успешно.
 - 2026-04-05: Исправлены baseline assertions в tests/unit/features/profile/components/ProfileScreen.test.tsx; полный npm run test теперь проходит успешно.
+- 2026-04-05: Post-fix по regression после ручной проверки: toolbar `TiptapEditor` теперь сохраняет selection при клике по formatting actions, поэтому block-formatting реально применяется к текущему выделению/позиции курсора.
+- 2026-04-05: `PostDetail` переведён на rich HTML rendering для `posts.content`, поэтому сохранённые inline images и editor formatting отображаются в теле поста, а не как plain text.
+- 2026-04-05: Добавлены targeted regression tests на `mouseDown` selection preservation в editor toolbar и на rendering HTML/inline image в `PostDetail`; `npm run lint`, `npm run typecheck`, `tests/unit/features/editor/TiptapEditor.test.tsx` и `tests/unit/components/feed/PostDetail.test.tsx` проходят успешно.
 
 ## File List
 
 - src/features/admin/components/PostForm.tsx
 - src/features/editor/components/TiptapEditor.tsx
+- src/components/feed/PostDetail.tsx
 - tests/unit/features/admin/components/PostForm.test.tsx
 - tests/unit/features/editor/TiptapEditor.test.tsx
+- tests/unit/components/feed/PostDetail.test.tsx
 - tests/unit/features/profile/components/ProfileScreen.test.tsx
 
 ### Change Log
@@ -261,6 +266,7 @@ GPT-5
 - [x] [Review][Patch] Лишний вызов `focus()` в `PostForm.tsx` — [src/features/admin/components/PostForm.tsx]
 - 2026-04-05: Удалён лишний вызов `focus()` в `PostForm.tsx` (Edge Case Hunter patch), история переведена в статус `done`.
 - 2026-04-05: Обновлены baseline тесты ProfileScreen под дублирующийся mobile/desktop admin layout; full regression suite подтверждён зелёным.
+- 2026-04-05: Исправлен post-implementation regression в Story 7.1: toolbar TiptapEditor больше не теряет selection при клике, а `PostDetail` теперь рендерит сохранённый rich HTML и inline images из `posts.content`.
 
 
 

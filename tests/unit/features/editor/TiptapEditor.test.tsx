@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,15 +45,33 @@ function createEditorMock(overrides?: {
   const run = vi.fn().mockReturnValue(true)
   const updateAttributes = vi.fn().mockReturnValue({ run })
   const deleteSelection = vi.fn().mockReturnValue({ run })
+  const toggleHeading = vi.fn().mockReturnValue({ run })
+  const toggleBulletList = vi.fn().mockReturnValue({ run })
+  const toggleOrderedList = vi.fn().mockReturnValue({ run })
+  const toggleBlockquote = vi.fn().mockReturnValue({ run })
+  const toggleCodeBlock = vi.fn().mockReturnValue({ run })
+  const setTextSelection = vi.fn().mockReturnValue({ run })
   const focus = vi.fn().mockReturnValue({
     updateAttributes,
     deleteSelection,
+    toggleHeading,
+    toggleBulletList,
+    toggleOrderedList,
+    toggleBlockquote,
+    toggleCodeBlock,
+    setTextSelection,
     run,
   })
   const chain = vi.fn().mockReturnValue({
     focus,
     updateAttributes,
     deleteSelection,
+    toggleHeading,
+    toggleBulletList,
+    toggleOrderedList,
+    toggleBlockquote,
+    toggleCodeBlock,
+    setTextSelection,
     run,
   })
 
@@ -75,6 +93,7 @@ function createEditorMock(overrides?: {
     __mocks: {
       deleteSelection,
       updateAttributes,
+      toggleHeading,
       run,
     },
   }
@@ -100,6 +119,25 @@ describe('TiptapEditor', () => {
     expect(
       screen.getByRole('group', { name: /vsebina objave/i })
     ).toBeInTheDocument()
+  })
+
+  it('prevents default on toolbar mouse down to preserve editor selection', () => {
+    mockUseEditor.mockReturnValue(createEditorMock())
+
+    render(
+      <TiptapEditor
+        value={{ html: '<p>Body</p>', json: { type: 'doc', content: [] }, inline_images_count: 0 }}
+        onChange={vi.fn()}
+        onInlineImageUpload={vi.fn()}
+        onUploadError={vi.fn()}
+      />
+    )
+
+    const headingButton = screen.getByRole('button', { name: 'H2' })
+    const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    fireEvent(headingButton, event)
+
+    expect(event.defaultPrevented).toBe(true)
   })
 
   it('does not delete selection when no image block is selected', async () => {
