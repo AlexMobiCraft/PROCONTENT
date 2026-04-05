@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core'
 
-export const RELAXED_LINE_HEIGHT = '2.1'
+export const RELAXED_LINE_HEIGHT = '2.35'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {

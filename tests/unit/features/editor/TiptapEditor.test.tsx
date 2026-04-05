@@ -240,13 +240,13 @@ describe('TiptapEditor', () => {
       screen.getByRole('button', { name: /večji razmik med vrsticami/i })
     )
 
-    expect(editor.__mocks.setLineHeight).toHaveBeenCalledWith('2.1')
+    expect(editor.__mocks.setLineHeight).toHaveBeenCalledWith('2.35')
     expect(editor.__mocks.unsetLineHeight).not.toHaveBeenCalled()
   })
 
   it('removes relaxed line spacing when it is already active', async () => {
     const user = userEvent.setup()
-    const editor = createEditorMock({ activeLineHeight: '2.1' })
+    const editor = createEditorMock({ activeLineHeight: '2.35' })
     mockUseEditor.mockReturnValue(editor)
 
     render(
