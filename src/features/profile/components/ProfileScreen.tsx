@@ -89,15 +89,59 @@ export function ProfileScreen({
     }
   }
 
+  function renderAdminSection(extraClass: string) {
+    return (
+      <section
+        aria-label="Administracija"
+        className={`border-border space-y-3 ${extraClass}`}
+      >
+        <h2 className="text-muted-foreground text-xs font-semibold tracking-[0.15em] uppercase">
+          Administracija
+        </h2>
+        <div className="space-y-1">
+          <Link
+            href={ADMIN_POSTS_CREATE_PATH}
+            aria-label="Nova objava"
+            className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
+          >
+            Nova objava
+          </Link>
+          <Link
+            href={ADMIN_CATEGORIES_PATH}
+            aria-label="Kategorije"
+            className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
+          >
+            Kategorije
+          </Link>
+          <Link
+            href={ADMIN_MEMBERS_PATH}
+            aria-label="Udeleženke"
+            className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
+          >
+            Udeleženke
+          </Link>
+          <Link
+            href={ADMIN_SETTINGS_PATH}
+            aria-label="Nastavitve administracije"
+            className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
+          >
+            Nastavitve
+          </Link>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <main className="flex min-h-screen flex-col pb-[60px] md:flex-row md:pb-0">
-      {/* Центральная колонка: аккаунт + подписка */}
       <div className="md:border-border flex min-w-0 flex-1 flex-col md:border-r">
         <div className="border-border bg-background/95 sticky top-0 z-10 flex h-[var(--header-height)] shrink-0 items-center border-b px-6 backdrop-blur-sm">
           <h1 className="font-heading text-foreground text-lg font-semibold">
             Profil
           </h1>
         </div>
+
+        {isAdmin && renderAdminSection('md:hidden border-b p-6')}
 
         <div className="md:hidden">
           <ProfileRightPanel
@@ -109,46 +153,7 @@ export function ProfileScreen({
         </div>
 
         <div className="space-y-4 p-6">
-          {isAdmin && (
-            <section
-              aria-label="Administracija"
-              className="border-border space-y-3 border p-6"
-            >
-              <h2 className="text-muted-foreground text-xs font-semibold tracking-[0.15em] uppercase">
-                Administracija
-              </h2>
-              <div className="space-y-1">
-                <Link
-                  href={ADMIN_POSTS_CREATE_PATH}
-                  aria-label="Nova objava"
-                  className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
-                >
-                  Nova objava
-                </Link>
-                <Link
-                  href={ADMIN_CATEGORIES_PATH}
-                  aria-label="Kategorije"
-                  className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
-                >
-                  Kategorije
-                </Link>
-                <Link
-                  href={ADMIN_MEMBERS_PATH}
-                  aria-label="Udeleženke"
-                  className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
-                >
-                  Udeleženke
-                </Link>
-                <Link
-                  href={ADMIN_SETTINGS_PATH}
-                  aria-label="Nastavitve administracije"
-                  className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
-                >
-                  Nastavitve
-                </Link>
-              </div>
-            </section>
-          )}
+          {isAdmin && renderAdminSection('hidden md:block border p-6')}
 
           <div className="border-border space-y-2 border p-6">
             <p className="text-muted-foreground text-xs tracking-[0.15em] uppercase">
