@@ -1,6 +1,6 @@
-# Story 7.1: WYSIWYG-редактор для инлайн-изображений в постах
+﻿# Story 7.1: WYSIWYG-редактор для инлайн-изображений в постах
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -225,11 +225,11 @@ so that я могу собирать rich content без смешивания ga
 
 ### Review Findings
 
-- [ ] [Review][Patch] Manjkajoč `aria-label` na zunanjem kontejnerju editorja — [src/features/editor/components/TiptapEditor.tsx]
-- [ ] [Review][Patch] Trdo kodirano sporočilo napake `Napaka pri nalaganju slike` v `onUploadError` — [src/features/editor/components/TiptapEditor.tsx]
-- [ ] [Review][Patch] Manjkajoče preverjanje v `removeSelectedImage` ali je slika res izbrana pred brisanjem — [src/features/editor/components/TiptapEditor.tsx]
-- [ ] [Review][Patch] Manjkajoče `aria-live` oznake ob preklapljanju vrste objave (Objavi zdaj/Načrtuj objavo) ali izguba fokusa — [src/features/admin/components/PostForm.tsx]
-- [ ] [Review][Patch] Manjkajoči testi za odstranitev inline slike (AC 5) in izolacijo napake pri nalaganju (AC 6) — [tests/unit/features/admin/components/PostForm.test.tsx]
+- [x] [Review][Patch] Manjkajoč `aria-label` na zunanjem kontejnerju editorja — [src/features/editor/components/TiptapEditor.tsx]
+- [x] [Review][Patch] Trdo kodirano sporočilo napake `Napaka pri nalaganju slike` v `onUploadError` — [src/features/editor/components/TiptapEditor.tsx]
+- [x] [Review][Patch] Manjkajoče preverjanje v `removeSelectedImage` ali je slika res izbrana pred brisanjem — [src/features/editor/components/TiptapEditor.tsx]
+- [x] [Review][Patch] Manjkajoče `aria-live` oznake ob preklapljanju vrste objave (Objavi zdaj/Načrtuj objavo) ali izguba fokusa — [src/features/admin/components/PostForm.tsx]
+- [x] [Review][Patch] Manjkajoči testi za odstranitev inline slike (AC 5) in izolacijo napake pri nalaganju (AC 6) — [tests/unit/features/admin/components/PostForm.test.tsx]
 
 ### Agent Model Used
 
@@ -240,9 +240,26 @@ GPT-5
 - Story 7.1 сформирована как самостоятельная brownfield-safe implementation story для Senior SWE.
 - Scope уточнён: story покрывает authoring flow и preview composition, но не full consumer-side renderer rewrite.
 - В story зафиксировано обязательное разделение gallery и inline media на уровне UI, state и submit payload.
-- Добавлены конкретные touchpoints по текущему коду, чтобы избежать greenfield-реализации поверх существующего `PostForm` flow.
+- Добавлены конкретные touchpoints по текущему коду, чтобы избежать greenfield-реализации поверх существующего PostForm flow.
+- 2026-04-05: Закрыты review-поправки по accessibility и error handling в TiptapEditor: внешний aria-label, единый fallback для upload error и guard перед удалением выбранного image block.
+- 2026-04-05: В PostForm добавлены aria-live announcement и предсказуемый handoff фокуса при переключении между Objavi zdaj и Načrtuj objavo.
+- 2026-04-05: Добавлены regression tests на удаление inline image без влияния на gallery state и на upload failure isolation без потери meta/gallery данных.
+- 2026-04-05: Подтверждены targeted тесты для PostForm, TiptapEditor, ImageUpload и uploadInlineImage; npm run lint и npm run typecheck проходят успешно.
+- 2026-04-05: Исправлены baseline assertions в tests/unit/features/profile/components/ProfileScreen.test.tsx; полный npm run test теперь проходит успешно.
+
+## File List
+
+- src/features/admin/components/PostForm.tsx
+- src/features/editor/components/TiptapEditor.tsx
+- tests/unit/features/admin/components/PostForm.test.tsx
+- tests/unit/features/editor/TiptapEditor.test.tsx
+- tests/unit/features/profile/components/ProfileScreen.test.tsx
 
 ### Change Log
 
-- 2026-04-05: Создана story 7.1 для Epic 7 на основе `epics.md`, project context и SM brief по rich content authoring.
+- 2026-04-05: Создана story 7.1 для Epic 7 на основе epics.md, project context и SM brief по rich content authoring.
+- 2026-04-05: Закрыты review follow-up правки для TiptapEditor и PostForm, добавлены тесты для AC 5/AC 6, story переведена в review.
+- 2026-04-05: Обновлены baseline тесты ProfileScreen под дублирующийся mobile/desktop admin layout; full regression suite подтверждён зелёным.
+
+
 

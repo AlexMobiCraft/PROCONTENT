@@ -212,23 +212,23 @@ describe('ProfileScreen', () => {
 
   it('показывает admin-секцию при isAdmin=true', () => {
     render(<ProfileScreen {...defaultProps} isAdmin={true} />)
-    expect(screen.getByText('Administracija')).toBeInTheDocument()
+    expect(screen.getAllByText('Administracija')).toHaveLength(2)
   })
 
   it('?????????? 4 admin-??????', () => {
     render(<ProfileScreen {...defaultProps} isAdmin={true} />)
-    expect(screen.getByText('Nova objava')).toBeInTheDocument()
-    expect(screen.getByText('Kategorije')).toBeInTheDocument()
-    expect(screen.getByText(/Udele.*enke/i)).toBeInTheDocument()
-    expect(screen.getByText('Nastavitve')).toBeInTheDocument()
+    expect(screen.getAllByText('Nova objava')).toHaveLength(2)
+    expect(screen.getAllByText('Kategorije')).toHaveLength(2)
+    expect(screen.getAllByText(/Udele.*enke/i)).toHaveLength(2)
+    expect(screen.getAllByText('Nastavitve')).toHaveLength(2)
   })
 
   it('admin-ссылки ведут на правильные пути', () => {
     render(<ProfileScreen {...defaultProps} isAdmin={true} />)
-    expect(screen.getByRole('link', { name: 'Nova objava' })).toHaveAttribute('href', '/posts/create')
-    expect(screen.getByRole('link', { name: 'Kategorije' })).toHaveAttribute('href', '/categories')
-    expect(screen.getByRole('link', { name: /Udele.*enke/i })).toHaveAttribute('href', '/members')
-    expect(screen.getByRole('link', { name: 'Nastavitve administracije' })).toHaveAttribute('href', '/settings')
+    expect(screen.getAllByRole('link', { name: 'Nova objava' }).every((link) => link.getAttribute('href') === '/posts/create')).toBe(true)
+    expect(screen.getAllByRole('link', { name: 'Kategorije' }).every((link) => link.getAttribute('href') === '/categories')).toBe(true)
+    expect(screen.getAllByRole('link', { name: /Udele.*enke/i }).every((link) => link.getAttribute('href') === '/members')).toBe(true)
+    expect(screen.getAllByRole('link', { name: 'Nastavitve administracije' }).every((link) => link.getAttribute('href') === '/settings')).toBe(true)
   })
 
   it('не вызывает Supabase если userId не передан', async () => {

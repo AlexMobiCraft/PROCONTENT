@@ -68,6 +68,7 @@ vi.mock('@/features/editor/components/TiptapEditor', () => ({
   TiptapEditor: ({
     value,
     onChange,
+    onUploadError,
     disabled,
   }: {
     value: { html: string }
@@ -76,6 +77,7 @@ vi.mock('@/features/editor/components/TiptapEditor', () => ({
       json: { type: string; content: unknown[] }
       inline_images_count: number
     }) => void
+    onUploadError: (message: string) => void
     disabled?: boolean
   }) => (
     <div
@@ -95,6 +97,39 @@ vi.mock('@/features/editor/components/TiptapEditor', () => ({
         }
       >
         Set editor content
+      </button>
+      <button
+        type="button"
+        data-testid="set-inline-heavy-content-btn"
+        onClick={() =>
+          onChange({
+            html: '<p>Rich editor body</p><img src="https://cdn.example.com/inline-1.jpg" alt="Inline 1" />',
+            json: { type: 'doc', content: [] },
+            inline_images_count: 1,
+          })
+        }
+      >
+        Set inline image
+      </button>
+      <button
+        type="button"
+        data-testid="remove-inline-image-btn"
+        onClick={() =>
+          onChange({
+            html: '<p>Rich editor body</p>',
+            json: { type: 'doc', content: [] },
+            inline_images_count: 0,
+          })
+        }
+      >
+        Remove inline image
+      </button>
+      <button
+        type="button"
+        data-testid="trigger-upload-error-btn"
+        onClick={() => onUploadError('Pri nalaganju slike je prišlo do napake')}
+      >
+        Trigger upload error
       </button>
     </div>
   ),
@@ -319,6 +354,59 @@ describe('PostForm (create mode)', () => {
     await waitFor(() => {
       expect(mockRouterPush).toHaveBeenCalledWith('/feed')
     })
+  })
+
+  it('keeps gallery state intact when inline image is removed before submit', async () => {
+    const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('post-inline-removed')
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'My Post')
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
+    await user.click(screen.getByTestId('set-inline-heavy-content-btn'))
+    await user.click(screen.getByTestId('remove-inline-image-btn'))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+
+    await waitFor(() => {
+      expect(mockCreatePost).toHaveBeenCalledOnce()
+    })
+
+    const call = mockCreatePost.mock.calls[0][0]
+    expect(call.gallery).toHaveLength(1)
+    expect(call.editor.html).toBe('<p>Rich editor body</p>')
+    expect(call.editor.inline_images_count).toBe(0)
+  })
+
+  it('shows upload error toast without resetting typed meta or gallery state', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Stable title')
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
+    await user.click(screen.getByTestId('set-editor-content-btn'))
+    await user.click(screen.getByTestId('trigger-upload-error-btn'))
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'Pri nalaganju slike je prišlo do napake'
+    )
+    expect(screen.getByLabelText(/naslov/i)).toHaveValue('Stable title')
+    expect(screen.getByLabelText(/kategorija/i)).toHaveValue('insight')
+    expect(screen.getByTestId('media-uploader')).toHaveAttribute(
+      'data-count',
+      '1'
+    )
+    expect(screen.getByTestId('tiptap-html')).toHaveTextContent(
+      '<p>Rich editor body</p>'
+    )
   })
 })
 
@@ -573,6 +661,8 @@ describe('PostForm scheduling toggle', () => {
     expect(scheduleButton).toHaveAttribute('aria-pressed', 'true')
     expect(immediateButton).toHaveAttribute('aria-pressed', 'false')
     expect(getDatetimeInput()).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/načrtovanje/i)
+    expect(getDatetimeInput()).toHaveFocus()
   })
 
   it('hides datetime picker when switching back to immediate', async () => {
@@ -585,6 +675,8 @@ describe('PostForm scheduling toggle', () => {
 
     await user.click(immediateButton)
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent(/takojšnjo objavo/i)
+    expect(immediateButton).toHaveFocus()
   })
 
   it('shows inline error when submitting scheduled without datetime', async () => {

@@ -168,6 +168,6 @@ development_status:
   # EPIC 7: Rich Content Experience (Markdown Editor & Inline Media)
   epic-7: in-progress
   # 2026-04-05: Story file created by SM Bob
-  "7-1-wysiwyg-editor-inline-images-posts": "in-progress"
+  "7-1-wysiwyg-editor-inline-images-posts": "review"
   7-2-markdown-rendering-posts-inline-images-and-combined-layout: backlog
   epic-7-retrospective: optional

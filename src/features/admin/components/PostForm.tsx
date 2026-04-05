@@ -75,6 +75,9 @@ export function PostForm(props: PostFormProps) {
 
   const objectUrlsRef = useRef<Set<string>>(new Set())
   const hasSetCategoryRef = useRef(false)
+  const scheduleAnnouncementRef = useRef<HTMLParagraphElement>(null)
+  const immediateModeButtonRef = useRef<HTMLButtonElement>(null)
+  const scheduleDatetimeInputRef = useRef<HTMLInputElement>(null)
 
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
     if (!initialData?.post_media) return []
@@ -138,6 +141,9 @@ export function PostForm(props: PostFormProps) {
     mediaItems.length,
     editorValue.inline_images_count
   )
+  const scheduleAnnouncement = isScheduledMode
+    ? 'Način objave je nastavljen na načrtovanje. Izberite datum in čas objave.'
+    : 'Način objave je nastavljen na takojšnjo objavo.'
 
   useEffect(() => {
     getCategories()
@@ -171,6 +177,15 @@ export function PostForm(props: PostFormProps) {
     hasSetCategoryRef.current = true
     setValue('category', initialData.category)
   }, [categories.length, initialData?.category, isEditMode, setValue])
+
+  useEffect(() => {
+    if (isScheduledMode) {
+      scheduleDatetimeInputRef.current?.focus()
+      return
+    }
+
+    immediateModeButtonRef.current?.focus()
+  }, [isScheduledMode])
 
   const localDatetimeValue = useMemo(() => {
     if (!scheduledAt) return ''
@@ -496,6 +511,7 @@ export function PostForm(props: PostFormProps) {
           aria-label="Način objave"
         >
           <button
+            ref={immediateModeButtonRef}
             type="button"
             className={cn(
               'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-none font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
@@ -531,6 +547,7 @@ export function PostForm(props: PostFormProps) {
         {isScheduledMode ? (
           <div className="flex flex-col gap-1.5">
             <input
+              ref={scheduleDatetimeInputRef}
               type="datetime-local"
               className={cn(
                 'min-h-[44px] min-w-[44px] rounded-lg border px-3 py-2 text-sm',
@@ -560,6 +577,16 @@ export function PostForm(props: PostFormProps) {
             ) : null}
           </div>
         ) : null}
+
+        <p
+          ref={scheduleAnnouncementRef}
+          role="status"
+          aria-live="polite"
+          tabIndex={-1}
+          className="sr-only"
+        >
+          {scheduleAnnouncement}
+        </p>
 
         {isLandingPreview || isOnboarding ? (
           <p className="text-xs text-muted-foreground">

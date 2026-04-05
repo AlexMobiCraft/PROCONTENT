@@ -52,6 +52,10 @@ function countInlineImagesFromHtml(html: string) {
   return (html.match(/<img\b/gi) ?? []).length
 }
 
+function getUploadErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Pri nalaganju slike je prišlo do napake'
+}
+
 export function TiptapEditor({
   value,
   onChange,
@@ -159,7 +163,7 @@ export function TiptapEditor({
         })
       } catch (error) {
         removePlaceholderImage(editor, uploadId)
-        onUploadError(error instanceof Error ? error.message : 'Napaka pri nalaganju slike')
+        onUploadError(getUploadErrorMessage(error))
       } finally {
         URL.revokeObjectURL(previewUrl)
       }
@@ -183,7 +187,7 @@ export function TiptapEditor({
   }
 
   function removeSelectedImage() {
-    if (!editor) return
+    if (!editor || !editor.isActive('image')) return
     editor.chain().focus().deleteSelection().run()
   }
 
@@ -210,7 +214,7 @@ export function TiptapEditor({
   const isImageSelected = editor.isActive('image')
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" role="group" aria-label="Vsebina objave">
       <div className="flex flex-wrap gap-2 rounded-lg border border-border p-3">
         <Button type="button" size="xs" variant={editor.isActive('heading', { level: 2 }) ? 'secondary' : 'outline'} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} disabled={disabled}>
           H2
@@ -312,7 +316,7 @@ export function TiptapEditor({
               storageBucket: uploaded.storage_bucket,
             }).run()
           } catch (error) {
-            onUploadError(error instanceof Error ? error.message : 'Napaka pri nalaganju slike')
+            onUploadError(getUploadErrorMessage(error))
           } finally {
             replaceTargetUploadIdRef.current = null
           }
