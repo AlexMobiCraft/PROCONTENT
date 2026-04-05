@@ -1,6 +1,6 @@
 ﻿# Story 7.1: WYSIWYG-редактор для инлайн-изображений в постах
 
-Status: review
+Status: done
 
 ## Story
 
@@ -258,7 +258,8 @@ GPT-5
 ### Change Log
 
 - 2026-04-05: Создана story 7.1 для Epic 7 на основе epics.md, project context и SM brief по rich content authoring.
-- 2026-04-05: Закрыты review follow-up правки для TiptapEditor и PostForm, добавлены тесты для AC 5/AC 6, story переведена в review.
+- [x] [Review][Patch] Лишний вызов `focus()` в `PostForm.tsx` — [src/features/admin/components/PostForm.tsx]
+- 2026-04-05: Удалён лишний вызов `focus()` в `PostForm.tsx` (Edge Case Hunter patch), история переведена в статус `done`.
 - 2026-04-05: Обновлены baseline тесты ProfileScreen под дублирующийся mobile/desktop admin layout; full regression suite подтверждён зелёным.
 
 
