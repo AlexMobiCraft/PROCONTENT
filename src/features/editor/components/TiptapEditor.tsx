@@ -247,11 +247,6 @@ export function TiptapEditor({
     editor.chain().focus().deleteSelection().run()
   }
 
-  function updateCaption(caption: string) {
-    if (!editor) return
-    editor.chain().focus().updateAttributes('image', { caption }).run()
-  }
-
   function keepSelection(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault()
   }
@@ -518,17 +513,6 @@ export function TiptapEditor({
               Odstrani blok
             </Button>
           </div>
-          <div className="border-t border-border" />
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="text-xs font-medium text-muted-foreground">Podnapis slike</span>
-            <input
-              type="text"
-              value={selectedImage.attrs.caption ?? ''}
-              onChange={(event) => updateCaption(event.target.value)}
-              placeholder="Vnesite podnapis slike..."
-              className="min-h-[44px] rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </label>
         </div>
       )}
 

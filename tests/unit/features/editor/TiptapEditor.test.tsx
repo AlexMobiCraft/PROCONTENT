@@ -338,6 +338,8 @@ describe('TiptapEditor', () => {
     })
 
     expect(screen.getByText(/nastavitve slike/i)).toBeInTheDocument()
-    expect(screen.getByDisplayValue('Podnapis')).toBeInTheDocument()
+    expect(
+      screen.queryByDisplayValue('Podnapis')
+    ).not.toBeInTheDocument()
   })
 })
