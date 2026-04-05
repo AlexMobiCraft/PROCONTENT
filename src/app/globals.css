@@ -135,7 +135,7 @@
 /* Скрытие скроллбара для горизонтального скролла (CategoryScroll) */
 @layer components {
   .rich-content {
-    @apply max-w-none text-sm leading-6 text-foreground;
+    @apply max-w-none text-sm leading-3 text-foreground;
   }
 
   .rich-content h2 {
@@ -151,7 +151,7 @@
   }
 
   .rich-content p {
-    @apply my-0 text-sm leading-6;
+    @apply my-0 text-sm leading-3;
   }
 
   .rich-content ul {
