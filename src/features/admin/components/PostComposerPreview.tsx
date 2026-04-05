@@ -71,7 +71,7 @@ export function PostComposerPreview({
         ) : null}
 
         <article
-          className="prose prose-sm max-w-none"
+          className="rich-content"
           data-testid="preview-article"
           dangerouslySetInnerHTML={{
             __html: editor.html || '<p class="text-muted-foreground">Besedilo objave bo prikazano tukaj.</p>',

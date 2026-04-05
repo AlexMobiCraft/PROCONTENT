@@ -121,6 +121,21 @@ describe('TiptapEditor', () => {
     ).toBeInTheDocument()
   })
 
+  it('applies rich-content class to editor surface', () => {
+    mockUseEditor.mockReturnValue(createEditorMock())
+
+    render(
+      <TiptapEditor
+        value={{ html: '<p>Body</p>', json: { type: 'doc', content: [] }, inline_images_count: 0 }}
+        onChange={vi.fn()}
+        onInlineImageUpload={vi.fn()}
+        onUploadError={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('editor-content')).toHaveClass('rich-content')
+  })
+
   it('prevents default on toolbar mouse down to preserve editor selection', () => {
     mockUseEditor.mockReturnValue(createEditorMock())
 

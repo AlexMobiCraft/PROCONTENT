@@ -133,6 +133,72 @@
 }
 
 /* Скрытие скроллбара для горизонтального скролла (CategoryScroll) */
+@layer components {
+  .rich-content {
+    @apply max-w-none text-sm leading-7 text-foreground;
+  }
+
+  .rich-content h2 {
+    @apply mt-8 mb-4 font-heading text-3xl font-semibold leading-tight text-foreground;
+  }
+
+  .rich-content h3 {
+    @apply mt-7 mb-3 font-heading text-2xl font-semibold leading-tight text-foreground;
+  }
+
+  .rich-content h4 {
+    @apply mt-6 mb-3 font-heading text-xl font-semibold leading-tight text-foreground;
+  }
+
+  .rich-content p {
+    @apply my-4 text-sm leading-7;
+  }
+
+  .rich-content ul {
+    @apply my-4 ml-6 list-disc space-y-2;
+  }
+
+  .rich-content ol {
+    @apply my-4 ml-6 list-decimal space-y-2;
+  }
+
+  .rich-content li {
+    @apply pl-1;
+  }
+
+  .rich-content blockquote {
+    @apply my-6 border-l-2 border-primary pl-4 font-heading text-lg italic text-foreground;
+  }
+
+  .rich-content pre {
+    @apply my-6 overflow-x-auto rounded-lg border border-border bg-foreground px-4 py-3 text-sm text-background;
+  }
+
+  .rich-content code {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em];
+  }
+
+  .rich-content pre code {
+    @apply bg-transparent p-0 text-inherit;
+  }
+
+  .rich-content strong {
+    @apply font-semibold text-foreground;
+  }
+
+  .rich-content em {
+    @apply italic;
+  }
+
+  .rich-content a {
+    @apply underline decoration-primary underline-offset-4;
+  }
+
+  .rich-content img {
+    @apply h-auto max-w-full;
+  }
+}
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }

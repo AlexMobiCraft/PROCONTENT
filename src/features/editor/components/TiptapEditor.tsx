@@ -87,7 +87,7 @@ export function TiptapEditor({
       attributes: {
         'aria-label': 'Vsebina objave',
         class:
-          'min-h-[240px] rounded-lg border border-input bg-muted/30 px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring prose prose-sm max-w-none',
+          'rich-content min-h-[240px] rounded-lg border border-input bg-muted/30 px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring',
       },
       handlePaste: (_view, event) => {
         const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
@@ -310,6 +310,7 @@ export function TiptapEditor({
       <EditorContent
         editor={editor}
         className={cn(
+          'rich-content',
           '[&_figure[data-type="inline-image"]]:my-4 [&_figure[data-type="inline-image"]]:space-y-2 [&_figure[data-type="inline-image"]_img]:rounded-lg [&_figure[data-type="inline-image"]_img]:border [&_figure[data-type="inline-image"]_img]:border-border',
           '[&_figure[data-align="left"]]:mr-auto [&_figure[data-align="center"]]:mx-auto [&_figure[data-align="right"]]:ml-auto'
         )}

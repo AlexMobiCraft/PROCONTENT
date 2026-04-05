@@ -44,6 +44,7 @@ describe('PostComposerPreview', () => {
     const position = gallery.compareDocumentPosition(article)
 
     expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(article).toHaveClass('rich-content')
     expect(article).toHaveTextContent('Besedilo članka')
   })
 

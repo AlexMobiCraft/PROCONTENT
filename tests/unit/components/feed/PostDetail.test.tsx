@@ -228,6 +228,7 @@ describe('PostDetail', () => {
 
     expect(screen.getByRole('heading', { level: 2, name: 'Naslov odstavka' })).toBeInTheDocument()
     expect(screen.getByText('Poudarjeno')).toBeInTheDocument()
+    expect(document.querySelector('.rich-content')).toBeInTheDocument()
     expect(
       screen.queryByText('<h2>Naslov odstavka</h2><p><strong>Poudarjeno</strong> besedilo</p>')
     ).not.toBeInTheDocument()
@@ -258,7 +259,7 @@ describe('PostDetail', () => {
     // Пустая строка — валидный контент, не должна быть заменена на excerpt
     expect(screen.queryByText('Kratek opis')).not.toBeInTheDocument()
     // Проверяем что рендерится пустой абзац контента (первый <p> в .prose секции)
-    const proseSection = document.querySelector('.prose')
+    const proseSection = document.querySelector('.rich-content')
     const contentParagraph = proseSection?.querySelector('p')
     expect(contentParagraph?.textContent).toBe('')
   })
