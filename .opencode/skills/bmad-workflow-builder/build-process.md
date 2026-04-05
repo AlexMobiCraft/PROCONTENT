@@ -93,7 +93,7 @@ Confirm with user: phase-name, after (dependencies), before (downstream), is-req
 **Path conventions (CRITICAL):**
 
 - Skill-internal: `./references/`, `./scripts/`
-- Project `_bmad` paths: `{project-root}/_bmad/...`
+- Project-scope paths: `{project-root}/...` (any path relative to project root)
 - Config variables used directly — they already contain `{project-root}`
 
 ## Phase 4: Draft & Refine

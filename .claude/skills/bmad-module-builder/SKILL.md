@@ -10,10 +10,10 @@ description: Plans, creates, and validates BMad modules. Use when the user reque
 This skill helps you bring BMad modules to life — from the first spark of an idea to a fully scaffolded, installable module. It offers three paths:
 
 - **Ideate Module (IM)** — A creative brainstorming session that helps you imagine what your module could be, decide on the right architecture (agent vs. workflow vs. both), and produce a detailed plan document. The plan then guides you through building each piece with the Agent Builder and Workflow Builder.
-- **Create Module (CM)** — Takes an existing folder of built skills and scaffolds the setup infrastructure (module.yaml, module-help.csv, setup skill) that makes it a proper installable BMad module. Supports `--headless` / `-H`.
-- **Validate Module (VM)** — Checks that a module's setup skill is complete and correct — every skill has its capabilities registered, entries are accurate and well-crafted, and structural integrity is sound.
+- **Create Module (CM)** — Takes an existing folder of built skills (or a single skill) and scaffolds the module infrastructure that makes it installable. For multi-skill modules, generates a dedicated `-setup` skill. For single skills, embeds self-registration directly into the skill. Supports `--headless` / `-H`.
+- **Validate Module (VM)** — Checks that a module's structure is complete and correct — every skill has its capabilities registered, entries are accurate and well-crafted, and structural integrity is sound. Handles both multi-skill and standalone modules. Supports `--headless` / `-H`.
 
-**Args:** Accepts `--headless` / `-H` for CM path only, an initial description for IM, or a path to a skills folder for CM/VM.
+**Args:** Accepts `--headless` / `-H` for CM and VM paths, an initial description for IM, or a path to a skills folder or single SKILL.md file for CM/VM.
 
 ## On Activation
 
@@ -22,7 +22,7 @@ Load available config from `{project-root}/_bmad/config.yaml` and `{project-root
 Detect user's intent:
 
 - **Ideate / Plan** keywords or no path argument → Load `./references/ideate-module.md`
-- **Create / Scaffold** keywords or a folder path → Load `./references/create-module.md`
+- **Create / Scaffold** keywords, a folder path, or a path to a single SKILL.md file → Load `./references/create-module.md`
 - **Validate / Check** keywords → Load `./references/validate-module.md`
 - **Unclear** → Present options:
   - **Ideate Module (IM)** — "I have an idea for a module and want to brainstorm and plan it"

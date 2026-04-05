@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-04-03 (Story 6.4 — ready-for-dev)
+last_updated: 2026-04-05 (Story 7.1 — ready-for-dev)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -164,3 +164,10 @@ development_status:
   # 2026-04-03: Story реализована — ScheduledPostsTable/Container + postsServer.ts + cancelScheduledPost + Sidebar nav + 46 тестов → review
   6-4-admin-scheduled-posts-table: done
   epic-6-retrospective: optional
+ 
+  # EPIC 7: Rich Content Experience (Markdown Editor & Inline Media)
+  epic-7: in-progress
+  # 2026-04-05: Story file created by SM Bob
+  7-1-wysiwyg-editor-inline-images-posts: ready-for-dev
+  7-2-markdown-rendering-posts-inline-images-and-combined-layout: backlog
+  epic-7-retrospective: optional

@@ -45,7 +45,7 @@ Default to conservative triggering. See `./references/standard-fields.md` for fu
 
 ## 6. Path Construction
 
-Only use `{project-root}` for `_bmad` paths. Config variables used directly — they already contain `{project-root}`.
+Use `{project-root}` for any project-scope path. Use `./` for skill-internal paths. Config variables used directly — they already contain `{project-root}`.
 
 See `./references/standard-fields.md` for correct/incorrect patterns.
 

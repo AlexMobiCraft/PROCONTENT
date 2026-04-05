@@ -3,6 +3,7 @@ title: 'Module Plan'
 status: 'ideation'
 module_name: ''
 module_code: ''
+module_description: ''
 architecture: ''
 standalone: true
 expands_module: ''
@@ -18,44 +19,75 @@ updated: ''
 
 <!-- What this module does, who it's for, and why it matters -->
 
-## Architecture Decision
+## Architecture
 
-<!-- Agent-centric / workflow-centric / hybrid — and the reasoning behind the choice -->
+<!-- Architecture decision and rationale -->
+<!-- Options: single agent with capabilities, multiple agents, hybrid, orchestrator pattern -->
+<!-- Document WHY this architecture was chosen — future builders need the reasoning -->
 
-## User Experience
+### Memory Architecture
 
-<!-- Who uses this module and what their journey looks like -->
+<!-- Which pattern: personal sidecars only, personal + shared, or single module sidecar? -->
+<!-- If single sidecar: include the full folder structure -->
+<!-- If shared memory: define the memory contract below -->
+
+### Memory Contract
+
+<!-- For each curated file in the sidecar, document: -->
+<!-- - Filename and purpose -->
+<!-- - What agents read it -->
+<!-- - What agents write to it -->
+<!-- - Key content/structure -->
+
+### Cross-Agent Patterns
+
+<!-- How do agents hand off work to each other? -->
+<!-- Is the user the router? Is there an orchestrator? Service-layer relationships? -->
+<!-- How does shared memory enable cross-domain awareness? -->
 
 ## Skills
 
-<!-- For each planned skill, copy this block: -->
+<!-- For each planned skill, create a self-contained brief below. -->
+<!-- Each brief should be usable by the Agent Builder or Workflow Builder WITHOUT conversation context. -->
 
 ### {skill-name}
 
 **Type:** {agent | workflow}
-**Purpose:**
+
+**Persona:** <!-- For agents: who is this? Communication style, expertise, personality -->
+
+**Core Outcome:** <!-- What does success look like? -->
+
+**The Non-Negotiable:** <!-- The one thing this skill must get right -->
 
 **Capabilities:**
 
-| Display Name | Menu Code | Description | Action | Args | Phase | After | Before | Required | Output Location | Outputs |
-| ------------ | --------- | ----------- | ------ | ---- | ----- | ----- | ------ | -------- | --------------- | ------- |
-|              |           |             |        |      |       |       |        |          |                 |         |
+| Capability | Outcome | Inputs | Outputs |
+| ---------- | ------- | ------ | ------- |
+|            |         |        |         |
 
-**Design Notes:**
+<!-- For outputs: note where HTML reports, dashboards, or structured artifacts would add value -->
 
-## Memory Architecture
+**Memory:** <!-- What does this agent read on activation? Write to? Daily log tag? -->
 
-<!-- For multi-agent modules: personal sidecars only, personal + shared module sidecar, or shared only? -->
-<!-- What shared context should agents contribute to? (user style, content history, project assets, etc.) -->
-<!-- If shared only — consider whether a single agent is the better design -->
+**Init Responsibility:** <!-- What happens on first run? Shared sidecar creation? Domain onboarding? -->
+
+**Activation Modes:** <!-- Interactive, headless, or both? -->
+
+**Tool Dependencies:** <!-- External tools with technical specifics -->
+
+**Design Notes:** <!-- Non-obvious considerations, the "why" behind decisions -->
+
+---
 
 ## Configuration
+
+<!-- Module-level config variables for the setup skill. -->
+<!-- If none needed, explicitly state: "This module requires no custom configuration beyond core BMad settings." -->
 
 | Variable | Prompt | Default | Result Template | User Setting |
 | -------- | ------ | ------- | --------------- | ------------ |
 |          |        |         |                 |              |
-
-<!-- Reminder: skills should have sensible fallbacks if config hasn't been set, or ask at runtime for values they need -->
 
 ## External Dependencies
 
@@ -84,10 +116,11 @@ updated: ''
 ## Ideas Captured
 
 <!-- Raw ideas from brainstorming — preserved for context even if not all made it into the plan -->
+<!-- Write here freely during phases 1-2. Don't write structured sections until phase 3+. -->
 
 ## Build Roadmap
 
-<!-- Recommended build order for skills -->
+<!-- Recommended build order with rationale for why each skill should be built in that order -->
 
 **Next steps:**
 

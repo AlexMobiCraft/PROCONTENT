@@ -2,10 +2,14 @@
 # /// script
 # requires-python = ">=3.10"
 # ///
-"""Validate a BMad module's setup skill structure and help CSV integrity.
+"""Validate a BMad module's structure and help CSV integrity.
+
+Supports two module types:
+- Multi-skill modules with a dedicated setup skill (bmad-*-setup directory)
+- Standalone single-skill modules with self-registration (assets/module-setup.md)
 
 Performs deterministic structural checks:
-- Setup skill exists with required files (SKILL.md, assets/module.yaml, assets/module-help.csv)
+- Required files exist (setup skill or standalone structure)
 - All skill folders have at least one capability entry in the CSV
 - No orphan CSV entries pointing to nonexistent skills
 - Menu codes are unique
@@ -37,13 +41,26 @@ def find_setup_skill(module_dir: Path) -> Path | None:
     return None
 
 
-def find_skill_folders(module_dir: Path, setup_name: str) -> list[str]:
-    """Find all skill folders (directories with SKILL.md), excluding the setup skill."""
+def find_skill_folders(module_dir: Path, exclude_name: str = "") -> list[str]:
+    """Find all skill folders (directories with SKILL.md), optionally excluding one."""
     skills = []
     for d in module_dir.iterdir():
-        if d.is_dir() and d.name != setup_name and (d / "SKILL.md").is_file():
+        if d.is_dir() and d.name != exclude_name and (d / "SKILL.md").is_file():
             skills.append(d.name)
     return sorted(skills)
+
+
+def detect_standalone_module(module_dir: Path) -> Path | None:
+    """Detect a standalone module: single skill folder with assets/module.yaml."""
+    skill_dirs = [
+        d for d in module_dir.iterdir()
+        if d.is_dir() and (d / "SKILL.md").is_file()
+    ]
+    if len(skill_dirs) == 1:
+        candidate = skill_dirs[0]
+        if (candidate / "assets" / "module.yaml").is_file():
+            return candidate
+    return None
 
 
 def parse_yaml_minimal(text: str) -> dict[str, str]:
@@ -81,29 +98,61 @@ def validate(module_dir: Path, verbose: bool = False) -> dict:
             "detail": detail,
         })
 
-    # 1. Find setup skill
+    # 1. Find setup skill or detect standalone module
     setup_dir = find_setup_skill(module_dir)
+    standalone_dir = None
+
     if not setup_dir:
-        finding("critical", "structure", "No setup skill found (bmad-*-setup directory)")
-        return {"status": "fail", "findings": findings, "info": info}
+        standalone_dir = detect_standalone_module(module_dir)
+        if not standalone_dir:
+            finding("critical", "structure",
+                    "No setup skill found (bmad-*-setup directory) and no standalone module detected")
+            return {"status": "fail", "findings": findings, "info": info}
 
-    info["setup_skill"] = setup_dir.name
+    # Branch: standalone vs multi-skill
+    if standalone_dir:
+        info["standalone"] = True
+        info["skill_dir"] = standalone_dir.name
+        skill_dir = standalone_dir
 
-    # 2. Check required files in setup skill
-    required_files = {
-        "SKILL.md": setup_dir / "SKILL.md",
-        "assets/module.yaml": setup_dir / "assets" / "module.yaml",
-        "assets/module-help.csv": setup_dir / "assets" / "module-help.csv",
-    }
-    for label, path in required_files.items():
-        if not path.is_file():
-            finding("critical", "structure", f"Missing required file: {label}")
+        # 2s. Check required files for standalone module
+        required_files = {
+            "assets/module.yaml": skill_dir / "assets" / "module.yaml",
+            "assets/module-help.csv": skill_dir / "assets" / "module-help.csv",
+            "assets/module-setup.md": skill_dir / "assets" / "module-setup.md",
+            "scripts/merge-config.py": skill_dir / "scripts" / "merge-config.py",
+            "scripts/merge-help-csv.py": skill_dir / "scripts" / "merge-help-csv.py",
+        }
+        for label, path in required_files.items():
+            if not path.is_file():
+                finding("critical", "structure", f"Missing required file: {label}")
 
-    if not all(p.is_file() for p in required_files.values()):
-        return {"status": "fail", "findings": findings, "info": info}
+        if not all(p.is_file() for p in required_files.values()):
+            return {"status": "fail", "findings": findings, "info": info}
+
+        yaml_dir = skill_dir
+        csv_dir = skill_dir
+    else:
+        info["setup_skill"] = setup_dir.name
+
+        # 2. Check required files in setup skill
+        required_files = {
+            "SKILL.md": setup_dir / "SKILL.md",
+            "assets/module.yaml": setup_dir / "assets" / "module.yaml",
+            "assets/module-help.csv": setup_dir / "assets" / "module-help.csv",
+        }
+        for label, path in required_files.items():
+            if not path.is_file():
+                finding("critical", "structure", f"Missing required file: {label}")
+
+        if not all(p.is_file() for p in required_files.values()):
+            return {"status": "fail", "findings": findings, "info": info}
+
+        yaml_dir = setup_dir
+        csv_dir = setup_dir
 
     # 3. Validate module.yaml
-    yaml_text = (setup_dir / "assets" / "module.yaml").read_text(encoding="utf-8")
+    yaml_text = (yaml_dir / "assets" / "module.yaml").read_text(encoding="utf-8")
     yaml_data = parse_yaml_minimal(yaml_text)
     info["module_code"] = yaml_data.get("code", "")
     info["module_name"] = yaml_data.get("name", "")
@@ -113,7 +162,7 @@ def validate(module_dir: Path, verbose: bool = False) -> dict:
             finding("high", "yaml", f"module.yaml missing or empty required field: {field}")
 
     # 4. Parse and validate CSV
-    csv_text = (setup_dir / "assets" / "module-help.csv").read_text(encoding="utf-8")
+    csv_text = (csv_dir / "assets" / "module-help.csv").read_text(encoding="utf-8")
     header, rows = parse_csv_rows(csv_text)
 
     # Check header
@@ -142,7 +191,8 @@ def validate(module_dir: Path, verbose: bool = False) -> dict:
 
     # 6. Collect skills from CSV and filesystem
     csv_skills = {row.get("skill", "") for row in rows}
-    skill_folders = find_skill_folders(module_dir, setup_dir.name)
+    exclude_name = setup_dir.name if setup_dir else ""
+    skill_folders = find_skill_folders(module_dir, exclude_name)
     info["skill_folders"] = skill_folders
     info["csv_skills"] = sorted(csv_skills)
 
@@ -152,8 +202,9 @@ def validate(module_dir: Path, verbose: bool = False) -> dict:
             finding("high", "missing-entry", f"Skill '{skill}' has no capability entries in the CSV")
 
     # 8. Orphan CSV entries
+    setup_name = setup_dir.name if setup_dir else ""
     for skill in csv_skills:
-        if skill not in skill_folders and skill != setup_dir.name:
+        if skill not in skill_folders and skill != setup_name:
             # Check if it's the setup skill itself (valid)
             if not (module_dir / skill / "SKILL.md").is_file():
                 finding("high", "orphan-entry", f"CSV references skill '{skill}' which does not exist in the module folder")

@@ -26,20 +26,18 @@ from pathlib import Path
 # CSV header for module-help.csv
 HEADER = [
     "module",
-    "agent-name",
-    "skill-name",
+    "skill",
     "display-name",
     "menu-code",
-    "capability",
-    "args",
     "description",
+    "action",
+    "args",
     "phase",
     "after",
     "before",
     "required",
     "output-location",
     "outputs",
-    "",  # trailing empty column from trailing comma
 ]
 
 

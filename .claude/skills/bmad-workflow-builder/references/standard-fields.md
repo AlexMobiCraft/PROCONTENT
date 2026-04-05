@@ -124,11 +124,12 @@ All references to files within the skill use `./` prefix:
 
 This distinguishes skill-internal files from `{project-root}` paths — without the `./` prefix the LLM may confuse them.
 
-### Project `_bmad` Paths
+### Project-Scope Paths
 
-Use `{project-root}/_bmad/...`:
+Use `{project-root}/...` for any path relative to the project root:
 
 - `{project-root}/_bmad/planning/prd.md`
+- `{project-root}/docs/report.md`
 
 ### Config Variables
 

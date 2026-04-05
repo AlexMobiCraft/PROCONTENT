@@ -75,6 +75,13 @@ Always use `{project-root}` prefix: `{project-root}/_bmad/memory/{skillName}-sid
 
 The sidecar `index.md` is the single entry point to the agent's memory system — it tells the agent what else to load (boundaries, logs, references, etc.). Load it once on activation; don't duplicate load instructions for individual memory files.
 
+### Project-Scope Paths
+
+Use `{project-root}/...` for any path relative to the project root:
+
+- `{project-root}/_bmad/planning/prd.md`
+- `{project-root}/docs/report.md`
+
 ### Config Variables
 
 Use directly — they already contain `{project-root}` in their resolved values:

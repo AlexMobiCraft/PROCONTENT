@@ -68,7 +68,7 @@ Key structural context:
 **Path conventions (CRITICAL):**
 
 - Memory: `{project-root}/_bmad/memory/{skillName}-sidecar/`
-- Project artifacts: `{project-root}/_bmad/...`
+- Project-scope paths: `{project-root}/...` (any path relative to project root)
 - Skill-internal: `./references/`, `./scripts/`
 - Config variables used directly — they already contain full paths (no `{project-root}` prefix)
 
