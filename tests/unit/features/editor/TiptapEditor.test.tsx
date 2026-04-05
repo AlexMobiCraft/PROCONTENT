@@ -41,25 +41,39 @@ import { TiptapEditor } from '@/features/editor/components/TiptapEditor'
 function createEditorMock(overrides?: {
   isImageSelected?: boolean
   activeImageAlign?: 'left' | 'center' | 'right'
+  activeLineHeight?: string | null
+  activeMarks?: string[]
 }) {
   const run = vi.fn().mockReturnValue(true)
   const updateAttributes = vi.fn().mockReturnValue({ run })
   const deleteSelection = vi.fn().mockReturnValue({ run })
   const toggleHeading = vi.fn().mockReturnValue({ run })
+  const toggleBold = vi.fn().mockReturnValue({ run })
+  const toggleItalic = vi.fn().mockReturnValue({ run })
+  const toggleUnderline = vi.fn().mockReturnValue({ run })
+  const toggleStrike = vi.fn().mockReturnValue({ run })
   const toggleBulletList = vi.fn().mockReturnValue({ run })
   const toggleOrderedList = vi.fn().mockReturnValue({ run })
   const toggleBlockquote = vi.fn().mockReturnValue({ run })
   const toggleCodeBlock = vi.fn().mockReturnValue({ run })
   const setTextSelection = vi.fn().mockReturnValue({ run })
+  const setLineHeight = vi.fn().mockReturnValue({ run })
+  const unsetLineHeight = vi.fn().mockReturnValue({ run })
   const focus = vi.fn().mockReturnValue({
     updateAttributes,
     deleteSelection,
     toggleHeading,
+    toggleBold,
+    toggleItalic,
+    toggleUnderline,
+    toggleStrike,
     toggleBulletList,
     toggleOrderedList,
     toggleBlockquote,
     toggleCodeBlock,
     setTextSelection,
+    setLineHeight,
+    unsetLineHeight,
     run,
   })
   const chain = vi.fn().mockReturnValue({
@@ -67,24 +81,46 @@ function createEditorMock(overrides?: {
     updateAttributes,
     deleteSelection,
     toggleHeading,
+    toggleBold,
+    toggleItalic,
+    toggleUnderline,
+    toggleStrike,
     toggleBulletList,
     toggleOrderedList,
     toggleBlockquote,
     toggleCodeBlock,
     setTextSelection,
+    setLineHeight,
+    unsetLineHeight,
     run,
   })
 
   return {
     getHTML: vi.fn().mockReturnValue('<p>Body</p>'),
     getJSON: vi.fn().mockReturnValue({ type: 'doc', content: [] }),
-    getAttributes: vi.fn().mockReturnValue({
-      caption: '',
-      align: overrides?.activeImageAlign ?? 'center',
+    getAttributes: vi.fn((name: string) => {
+      if (name === 'image') {
+        return {
+          caption: '',
+          align: overrides?.activeImageAlign ?? 'center',
+        }
+      }
+
+      if (name === 'paragraph' || name === 'heading') {
+        return {
+          lineHeight: overrides?.activeLineHeight ?? null,
+        }
+      }
+
+      return {}
     }),
-    isActive: vi.fn((name: string) =>
-      name === 'image' ? Boolean(overrides?.isImageSelected) : false
-    ),
+    isActive: vi.fn((name: string) => {
+      if (name === 'image') {
+        return Boolean(overrides?.isImageSelected)
+      }
+
+      return overrides?.activeMarks?.includes(name) ?? false
+    }),
     chain,
     commands: {
       setContent: vi.fn(),
@@ -94,6 +130,12 @@ function createEditorMock(overrides?: {
       deleteSelection,
       updateAttributes,
       toggleHeading,
+      toggleBold,
+      toggleItalic,
+      toggleUnderline,
+      toggleStrike,
+      setLineHeight,
+      unsetLineHeight,
       run,
     },
   }
@@ -153,6 +195,75 @@ describe('TiptapEditor', () => {
     fireEvent(headingButton, event)
 
     expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('applies inline formatting actions from the toolbar', async () => {
+    const user = userEvent.setup()
+    const editor = createEditorMock()
+    mockUseEditor.mockReturnValue(editor)
+
+    render(
+      <TiptapEditor
+        value={{ html: '<p>Body</p>', json: { type: 'doc', content: [] }, inline_images_count: 0 }}
+        onChange={vi.fn()}
+        onInlineImageUpload={vi.fn()}
+        onUploadError={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /krepko besedilo/i }))
+    await user.click(screen.getByRole('button', { name: /ležeče besedilo/i }))
+    await user.click(screen.getByRole('button', { name: /podčrtano besedilo/i }))
+    await user.click(screen.getByRole('button', { name: /prečrtano besedilo/i }))
+
+    expect(editor.__mocks.toggleBold).toHaveBeenCalled()
+    expect(editor.__mocks.toggleItalic).toHaveBeenCalled()
+    expect(editor.__mocks.toggleUnderline).toHaveBeenCalled()
+    expect(editor.__mocks.toggleStrike).toHaveBeenCalled()
+  })
+
+  it('toggles relaxed line spacing from the toolbar', async () => {
+    const user = userEvent.setup()
+    const editor = createEditorMock()
+    mockUseEditor.mockReturnValue(editor)
+
+    render(
+      <TiptapEditor
+        value={{ html: '<p>Body</p>', json: { type: 'doc', content: [] }, inline_images_count: 0 }}
+        onChange={vi.fn()}
+        onInlineImageUpload={vi.fn()}
+        onUploadError={vi.fn()}
+      />
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: /večji razmik med vrsticami/i })
+    )
+
+    expect(editor.__mocks.setLineHeight).toHaveBeenCalledWith('2.1')
+    expect(editor.__mocks.unsetLineHeight).not.toHaveBeenCalled()
+  })
+
+  it('removes relaxed line spacing when it is already active', async () => {
+    const user = userEvent.setup()
+    const editor = createEditorMock({ activeLineHeight: '2.1' })
+    mockUseEditor.mockReturnValue(editor)
+
+    render(
+      <TiptapEditor
+        value={{ html: '<p>Body</p>', json: { type: 'doc', content: [] }, inline_images_count: 0 }}
+        onChange={vi.fn()}
+        onInlineImageUpload={vi.fn()}
+        onUploadError={vi.fn()}
+      />
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: /večji razmik med vrsticami/i })
+    )
+
+    expect(editor.__mocks.unsetLineHeight).toHaveBeenCalled()
+    expect(editor.__mocks.setLineHeight).not.toHaveBeenCalled()
   })
 
   it('does not delete selection when no image block is selected', async () => {

@@ -190,6 +190,15 @@
     @apply italic;
   }
 
+  .rich-content u {
+    @apply underline decoration-primary underline-offset-4;
+  }
+
+  .rich-content s,
+  .rich-content del {
+    @apply decoration-primary/70;
+  }
+
   .rich-content a {
     @apply underline decoration-primary underline-offset-4;
   }

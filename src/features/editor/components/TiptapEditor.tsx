@@ -9,13 +9,17 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Bold,
+  Italic,
   ImagePlus,
   List,
   ListOrdered,
   Quote,
   Code2,
+  Strikethrough,
   Trash2,
   Replace,
+  Underline as UnderlineIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -30,6 +34,11 @@ import {
   removePlaceholderImage,
   replacePlaceholderImage,
 } from '@/features/editor/extensions/ImageUpload'
+import {
+  LineHeight,
+  RELAXED_LINE_HEIGHT,
+} from '@/features/editor/extensions/LineHeight'
+import { Underline } from '@/features/editor/extensions/Underline'
 import type { UploadedInlineImage } from '@/features/editor/lib/uploadInlineImage'
 
 interface TiptapEditorProps {
@@ -80,6 +89,8 @@ export function TiptapEditor({
       Placeholder.configure({
         placeholder: 'Vnesite vsebino objave',
       }),
+      Underline,
+      LineHeight,
       ImageUpload,
     ],
     content: value.html || '<p></p>',
@@ -200,6 +211,35 @@ export function TiptapEditor({
     event.preventDefault()
   }
 
+  function isRelaxedSpacingActive() {
+    if (!editor) return false
+
+    const paragraphAttrs = editor.getAttributes('paragraph') as {
+      lineHeight?: string | null
+    }
+    const headingAttrs = editor.getAttributes('heading') as {
+      lineHeight?: string | null
+    }
+
+    return (
+      paragraphAttrs.lineHeight === RELAXED_LINE_HEIGHT ||
+      headingAttrs.lineHeight === RELAXED_LINE_HEIGHT
+    )
+  }
+
+  function toggleLineSpacing() {
+    if (!editor) return
+
+    const chain = editor.chain().focus()
+
+    if (isRelaxedSpacingActive()) {
+      chain.unsetLineHeight().run()
+      return
+    }
+
+    chain.setLineHeight(RELAXED_LINE_HEIGHT).run()
+  }
+
   if (!editor) {
     const normalized = value.html ? value : normalizeEditorContent(value.html)
     const fallback = normalized.html ? normalized.html : createEmptyEditorContent().html
@@ -216,10 +256,66 @@ export function TiptapEditor({
     align?: EditorImageAlignment
   }
   const isImageSelected = editor.isActive('image')
+  const isRelaxedSpacing = isRelaxedSpacingActive()
 
   return (
     <div className="flex flex-col gap-3" role="group" aria-label="Vsebina objave">
       <div className="flex flex-wrap gap-2 rounded-lg border border-border p-3">
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={editor.isActive('bold') ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          disabled={disabled}
+          aria-label="Krepko besedilo"
+        >
+          <Bold className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={editor.isActive('italic') ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          disabled={disabled}
+          aria-label="Ležeče besedilo"
+        >
+          <Italic className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={editor.isActive('underline') ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          disabled={disabled}
+          aria-label="Podčrtano besedilo"
+        >
+          <UnderlineIcon className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={editor.isActive('strike') ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          disabled={disabled}
+          aria-label="Prečrtano besedilo"
+        >
+          <Strikethrough className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          size="xs"
+          variant={isRelaxedSpacing ? 'secondary' : 'outline'}
+          onMouseDown={keepSelection}
+          onClick={toggleLineSpacing}
+          disabled={disabled}
+          aria-label="Večji razmik med vrsticami"
+        >
+          Razmik
+        </Button>
         <Button
           type="button"
           size="xs"
