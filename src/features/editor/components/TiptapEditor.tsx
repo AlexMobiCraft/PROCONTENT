@@ -252,6 +252,8 @@ export function TiptapEditor({
   }
 
   const activeImageAttrs = editor.getAttributes('image') as {
+    src?: string
+    alt?: string
     caption?: string
     align?: EditorImageAlignment
   }
@@ -408,12 +410,25 @@ export function TiptapEditor({
         className={cn(
           'rich-content',
           '[&_figure[data-type="inline-image"]]:my-4 [&_figure[data-type="inline-image"]]:space-y-2 [&_figure[data-type="inline-image"]_img]:rounded-lg [&_figure[data-type="inline-image"]_img]:border [&_figure[data-type="inline-image"]_img]:border-border',
-          '[&_figure[data-align="left"]]:mr-auto [&_figure[data-align="center"]]:mx-auto [&_figure[data-align="right"]]:ml-auto'
+          '[&_figure[data-align="left"]]:mr-auto [&_figure[data-align="center"]]:mx-auto [&_figure[data-align="right"]]:ml-auto',
+          '[&_.ProseMirror-selectednode_figcaption]:text-muted-foreground [&&_.ProseMirror-selectednode]:ring-2 [&&_.ProseMirror-selectednode]:ring-primary [&&_.ProseMirror-selectednode]:rounded-lg'
         )}
       />
 
       {isImageSelected && (
         <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+          <div className="flex items-center gap-3">
+            {activeImageAttrs.src && (
+              <img
+                src={activeImageAttrs.src}
+                alt={activeImageAttrs.alt ?? 'Izbrana slika'}
+                className="size-12 shrink-0 rounded border border-border object-cover"
+              />
+            )}
+            <span className="text-xs font-medium text-muted-foreground">
+              Nastavitve slike
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -421,7 +436,7 @@ export function TiptapEditor({
               variant={activeImageAttrs.align === 'left' ? 'secondary' : 'outline'}
               onMouseDown={keepSelection}
               onClick={() => setImageAlignment('left')}
-              aria-label="Poravnaj levo"
+              aria-label="Poravnaj sliko levo"
             >
               <AlignLeft className="size-4" />
             </Button>
@@ -431,7 +446,7 @@ export function TiptapEditor({
               variant={activeImageAttrs.align === 'center' ? 'secondary' : 'outline'}
               onMouseDown={keepSelection}
               onClick={() => setImageAlignment('center')}
-              aria-label="Poravnaj sredinsko"
+              aria-label="Poravnaj sliko sredinsko"
             >
               <AlignCenter className="size-4" />
             </Button>
@@ -441,7 +456,7 @@ export function TiptapEditor({
               variant={activeImageAttrs.align === 'right' ? 'secondary' : 'outline'}
               onMouseDown={keepSelection}
               onClick={() => setImageAlignment('right')}
-              aria-label="Poravnaj desno"
+              aria-label="Poravnaj sliko desno"
             >
               <AlignRight className="size-4" />
             </Button>
@@ -466,12 +481,14 @@ export function TiptapEditor({
               Odstrani blok
             </Button>
           </div>
+          <div className="border-t border-border" />
           <label className="flex flex-col gap-1.5 text-sm">
-            <span>Podnapis slike</span>
+            <span className="text-xs font-medium text-muted-foreground">Podnapis slike</span>
             <input
               type="text"
               value={activeImageAttrs.caption ?? ''}
               onChange={(event) => updateCaption(event.target.value)}
+              placeholder="Vnesite podnapis slike..."
               className="min-h-[44px] rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
