@@ -527,7 +527,18 @@ describe('PostDetail', () => {
   // --- Счётчик комментариев ---
 
   it('показывает счётчик комментариев', () => {
-    render(<PostDetail post={makePost({ comments: 12 })} />)
+    const comments = Array.from({ length: 12 }, (_, i) => ({
+      id: `comment-${i}`,
+      post_id: 'post-1',
+      user_id: 'user-1',
+      parent_id: null,
+      content: `Komentar ${i + 1}`,
+      created_at: '2026-03-15T12:00:00Z',
+      updated_at: '2026-03-15T12:00:00Z',
+      profiles: { id: 'user-1', display_name: 'Ana Ivanova', avatar_url: null, role: null },
+      replies: [],
+    }))
+    render(<PostDetail post={makePost({ comments: 12 })} initialComments={comments} />)
     expect(screen.getByText('12')).toBeInTheDocument()
   })
 

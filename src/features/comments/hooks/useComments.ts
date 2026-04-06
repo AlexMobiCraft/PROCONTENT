@@ -105,6 +105,12 @@ export function useComments({
     () => initialComments as OptimisticComment[]
   )
 
+  // Считаем все корневые + ответы (оптимистичный счётчик)
+  const commentCount = comments.reduce(
+    (acc, root) => acc + 1 + (root.replies?.length ?? 0),
+    0
+  )
+
   /** Оптимистично добавляет комментарий, затем сохраняет в Supabase. */
   const addComment = useCallback(
     async (content: string, parentId?: string | null) => {
@@ -176,5 +182,5 @@ export function useComments({
     }
   }, [])
 
-  return { comments, addComment, retryComment, deleteComment }
+  return { comments, commentCount, addComment, retryComment, deleteComment }
 }

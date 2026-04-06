@@ -66,7 +66,7 @@ export function PostDetail({
   // Предотвращает утечку памяти: не вызываем setState на unmounted компоненте
   const isMountedRef = useRef(true)
 
-  const { comments, addComment, retryComment, deleteComment } = useComments({
+  const { comments, commentCount, addComment, retryComment, deleteComment } = useComments({
     postId: post.id,
     initialComments,
     currentUserProfile,
@@ -327,7 +327,7 @@ export function PostDetail({
         {/* Comment count — статичный */}
         <span className="flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-2 text-sm text-muted-foreground">
           <CommentIcon />
-          <span>{post.comments}</span>
+          <span>{commentCount}</span>
         </span>
       </footer>
 
