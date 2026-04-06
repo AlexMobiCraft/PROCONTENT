@@ -258,10 +258,9 @@ describe('PostDetail', () => {
     render(<PostDetail post={makePost({ type: 'text', content: '', excerpt: 'Kratek opis' })} />)
     // Пустая строка — валидный контент, не должна быть заменена на excerpt
     expect(screen.queryByText('Kratek opis')).not.toBeInTheDocument()
-    // Проверяем что рендерится пустой абзац контента (первый <p> в .prose секции)
+    // MarkdownRenderer рендерится (rich-content присутствует в DOM)
     const proseSection = document.querySelector('.rich-content')
-    const contentParagraph = proseSection?.querySelector('p')
-    expect(contentParagraph?.textContent).toBe('')
+    expect(proseSection).toBeInTheDocument()
   })
 
   it('photo: рендерит LazyMediaWrapper с aspectRatio 4/5', () => {

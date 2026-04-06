@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useFeedStore } from '@/features/feed/store'
 import { CommentsList } from '@/features/comments/components/CommentsList'
 import { CommentForm } from '@/features/comments/components/CommentForm'
+import { MarkdownRenderer } from '@/features/feed/components/MarkdownRenderer'
 import { useComments } from '@/features/comments/hooks/useComments'
 import { cn } from '@/lib/utils'
 import type { PostDetail as PostDetailData, ToggleLikeResponse } from '@/features/feed/types'
@@ -296,13 +297,9 @@ export function PostDetail({
       )}
 
       {/* Content */}
-      <div className="rich-content mt-4 [&_figure[data-align='center']]:mx-auto [&_figure[data-align='left']]:mr-auto [&_figure[data-align='right']]:ml-auto [&_figure[data-type='inline-image']]:my-4 [&_figure[data-type='inline-image']]:space-y-2 [&_figure[data-type='inline-image']_img]:rounded-lg [&_figure[data-type='inline-image']_img]:border [&_figure[data-type='inline-image']_img]:border-border">
+      <div className="mt-6">
         {post.content !== null ? (
-          <div
-            dangerouslySetInnerHTML={{
-              __html: post.content || '<p></p>',
-            }}
-          />
+          <MarkdownRenderer content={post.content || ''} />
         ) : (
           <p className="leading-relaxed text-muted-foreground">{post.excerpt}</p>
         )}

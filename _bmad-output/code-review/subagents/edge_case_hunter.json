@@ -1,0 +1,20 @@
+[
+  {
+    "location": "src/lib/markdown.ts:43",
+    "trigger_condition": "typeof window === 'undefined'",
+    "guard_snippet": "if (typeof window === 'undefined') return ''",
+    "potential_consequence": "Next.js SSR will render an empty string. When React hydrates on the client, it will see full sanitized HTML, causing a React Hydration Error. Additionally, SEO bots might only see the empty SSR content."
+  },
+  {
+    "location": "src/features/feed/components/MarkdownRenderer.tsx:10",
+    "trigger_condition": "content is extremely large (e.g., 500kb of HTML)",
+    "guard_snippet": "const sanitized = sanitizeHtml(content)",
+    "potential_consequence": "Sanitization blocks the main thread during render, causing UI jank. Needs useMemo."
+  },
+  {
+    "location": "src/lib/markdown.ts:47",
+    "trigger_condition": "DOMPurify returns valid HTML but document.createElement fails or image traversal throws",
+    "guard_snippet": "container.innerHTML = clean",
+    "potential_consequence": "Component crashes without a fallback. Try/catch could prevent full page crash."
+  }
+]
