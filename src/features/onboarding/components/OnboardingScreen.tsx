@@ -37,11 +37,23 @@ export function OnboardingScreen({ posts, whatsappUrl }: OnboardingScreenProps) 
             className="font-heading font-light uppercase leading-none text-foreground"
             style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)' }}
           >
-            Pozdravljena, zdaj si del PROCONTENT!
+            Vesela sem, da si z nami 🫶🏼
           </h1>
-          <p className="mt-4 font-sans text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
-            Veseli nas, da si tu. Tukaj je, od kje začeti:
-          </p>
+          <div className="mt-6 space-y-4 font-sans text-sm leading-relaxed text-muted-foreground">
+            <p>
+              Tukaj sem zate pripravila objave, s katerimi lahko začneš in te bodo korak za korakom
+              vodile skozi osnove.
+            </p>
+            <p>
+              Zelo bom vesela vsakega komentarja pod objavo, še posebej pa tvojih vprašanj in dilem,
+              povezanih s temo objave.
+            </p>
+            <p>
+              Preden začneš, te lepo vabim, da se pridružiš naši WhatsApp skupini. Ustvarjena je
+              zato, da se bližje spoznaš z ostalimi članicami kluba, vprašaš karkoli te zanima in
+              preprosto poklepetamo s podobno mislečimi.
+            </p>
+          </div>
         </section>
 
         {/* WhatsApp CTA */}
