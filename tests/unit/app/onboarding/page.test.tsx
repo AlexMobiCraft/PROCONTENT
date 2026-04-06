@@ -29,7 +29,7 @@ describe('OnboardingPage (Server Component)', () => {
     const jsx = await OnboardingPage({ searchParams: Promise.resolve({}) })
     render(jsx)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Pozdravljena, zdaj si del PROCONTENT!'
+      'Vesela sem, da si z nami'
     )
   })
 

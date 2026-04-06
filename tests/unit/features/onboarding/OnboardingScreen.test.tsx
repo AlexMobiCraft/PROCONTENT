@@ -18,14 +18,14 @@ describe('OnboardingScreen', () => {
   it('рендерит приветственный заголовок', () => {
     render(<OnboardingScreen {...defaultProps} />)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Pozdravljena, zdaj si del PROCONTENT!'
+      'Vesela sem, da si z nami'
     )
   })
 
   it('рендерит подзаголовок', () => {
     render(<OnboardingScreen {...defaultProps} />)
     expect(
-      screen.getByText('Veseli nas, da si tu. Tukaj je, od kje začeti:')
+      screen.getByText('Tukaj sem zate pripravila objave, s katerimi lahko začneš in te bodo korak za korakom vodile skozi osnove.')
     ).toBeInTheDocument()
   })
 
