@@ -70,6 +70,10 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
     onLikeToggle?.(post.id)
   }
 
+  function saveScrollY() {
+    sessionStorage.setItem('feed:scrollY', String(window.scrollY))
+  }
+
   function handleCardClick(e: React.MouseEvent) {
     const target = e.target as HTMLElement
     // Ignore clicks on buttons, links, or specific interactive elements
@@ -81,6 +85,7 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
     if (selection) {
       return
     }
+    saveScrollY()
     router.push(`/feed/${post.id}?from=feed`)
   }
 
@@ -88,6 +93,12 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
     <article
       className="border-b border-border bg-background px-4 py-5 cursor-pointer transition-colors hover:bg-muted/50"
       onClick={handleCardClick}
+      onClickCapture={(e) => {
+        const anchor = (e.target as HTMLElement).closest('a')
+        if (anchor?.getAttribute('href')?.includes(`/feed/${post.id}`)) {
+          saveScrollY()
+        }
+      }}
       aria-label={`Objava uporabnika ${post.author.name}`}
     >
       {/* Header */}
@@ -169,11 +180,13 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
             const target = e.target as HTMLElement
             if (target.closest('button') || target.tagName === 'VIDEO') return
             e.stopPropagation()
+            saveScrollY()
             router.push(`/feed/${post.id}?from=feed`)
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()
+              saveScrollY()
               router.push(`/feed/${post.id}?from=feed`)
             }
           }}

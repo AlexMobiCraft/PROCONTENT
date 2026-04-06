@@ -8,9 +8,11 @@ multi_agent = true
 [profiles.strict]
 approval_policy = "on-request"
 sandbox_mode = "read-only"
-web_search = "cached"
+web_search = "live"
+network_access = true
 
 [profiles.yolo]
 approval_policy = "never"
 sandbox_mode = "workspace-write"
 web_search = "live"
+network_access = true

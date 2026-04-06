@@ -30,6 +30,14 @@ export function FeedPageClient({
   const setCategoriesLoading = useFeedStore((s) => s.setCategoriesLoading)
 
   useEffect(() => {
+    const savedY = sessionStorage.getItem('feed:scrollY')
+    if (savedY !== null) {
+      sessionStorage.removeItem('feed:scrollY')
+      requestAnimationFrame(() => window.scrollTo(0, parseInt(savedY, 10)))
+    }
+  }, [])
+
+  useEffect(() => {
     let isMounted = true
 
     // Загружаем список категорий из БД для фильтров и сайдбара
