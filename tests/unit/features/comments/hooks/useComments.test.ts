@@ -7,6 +7,14 @@ vi.mock('@/features/comments/api/clientComments', () => ({
   deletePostComment: vi.fn(),
 }))
 
+vi.mock('@/features/feed/store', () => ({
+  useFeedStore: {
+    getState: vi.fn(() => ({
+      updatePost: vi.fn(),
+    })),
+  },
+}))
+
 function makeComment(id: string, parentId: string | null = null): Comment {
   return {
     id,

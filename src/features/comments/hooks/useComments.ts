@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { insertPostComment, deletePostComment } from '../api/clientComments'
+import { useFeedStore } from '@/features/feed/store'
 import type {
   Comment,
   CommentWithStatus,
@@ -129,6 +130,9 @@ export function useComments({
         _status: 'pending',
       }
 
+      // Оптимистично обновляем счётчик в store ленты
+      useFeedStore.getState().updatePost(postId, { comments_count: commentCount + 1 })
+
       setComments((prev) => addToTree(prev, optimistic, parentId ?? null))
 
       try {
@@ -140,9 +144,11 @@ export function useComments({
         setComments((prev) => replaceInTree(prev, tempId, { ...saved, _status: undefined }))
       } catch {
         setComments((prev) => updateStatusInTree(prev, tempId, 'error'))
+        // Откат счётчика
+        useFeedStore.getState().updatePost(postId, { comments_count: commentCount })
       }
     },
-    [postId, currentUserProfile]
+    [postId, currentUserProfile, commentCount]
   )
 
   /** Повторяет отправку комментария с ошибкой. */
@@ -157,17 +163,21 @@ export function useComments({
           content: comment.content,
           parent_id: comment.parent_id,
         })
+        useFeedStore.getState().updatePost(postId, { comments_count: commentCount + 1 })
         setComments((prev) => replaceInTree(prev, tempId, { ...saved, _status: undefined }))
       } catch {
         setComments((prev) => updateStatusInTree(prev, tempId, 'error'))
       }
     },
-    [postId]
+    [postId, commentCount]
   )
 
   /** Оптимистично удаляет комментарий, затем подтверждает в Supabase. При ошибке откатывает. */
   const deleteComment = useCallback(async (commentId: string) => {
     let prevComments: OptimisticComment[] | null = null
+    const prevCount = commentCount
+    // Оптимистично уменьшаем счётчик в store ленты
+    useFeedStore.getState().updatePost(postId, { comments_count: Math.max(commentCount - 1, 0) })
     setComments((prev) => {
       prevComments = prev
       return removeFromTree(prev, commentId)
@@ -177,10 +187,12 @@ export function useComments({
     } catch (err) {
       if (prevComments !== null) {
         setComments(prevComments)
+        // Откат счётчика
+        useFeedStore.getState().updatePost(postId, { comments_count: prevCount })
       }
       throw err
     }
-  }, [])
+  }, [postId, commentCount])
 
   return { comments, commentCount, addComment, retryComment, deleteComment }
 }
