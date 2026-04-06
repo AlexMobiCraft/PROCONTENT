@@ -154,6 +154,10 @@
     @apply my-0 text-sm leading-4;
   }
 
+  .rich-content p:empty::before {
+    content: "\00a0";
+  }
+
   .rich-content ul {
     @apply my-4 ml-6 list-disc space-y-2;
   }
