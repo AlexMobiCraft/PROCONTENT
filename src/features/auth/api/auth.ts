@@ -12,11 +12,14 @@ export async function signInWithPassword({ email, password }: { email: string, p
 
 export async function signUp({ email, password }: { email: string; password: string }) {
   const supabase = createClient()
+  const confirmUrl = new URL('/auth/confirm', window.location.origin)
+  confirmUrl.searchParams.set('next', '/onboarding')
+
   return supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/confirm`,
+      emailRedirectTo: confirmUrl.toString(),
     },
   })
 }
