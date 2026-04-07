@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
   ADMIN_POSTS_CREATE_PATH,
+  ADMIN_SCHEDULED_POSTS_PATH,
   ADMIN_CATEGORIES_PATH,
   ADMIN_MEMBERS_PATH,
   ADMIN_SETTINGS_PATH,
@@ -105,6 +106,13 @@ export function ProfileScreen({
             className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
           >
             Nova objava
+          </Link>
+          <Link
+            href={ADMIN_SCHEDULED_POSTS_PATH}
+            aria-label="Načrtovane objave"
+            className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors"
+          >
+            Načrtovane objave
           </Link>
           <Link
             href={ADMIN_CATEGORIES_PATH}
