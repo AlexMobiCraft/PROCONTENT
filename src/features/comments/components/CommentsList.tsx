@@ -28,7 +28,7 @@ export function CommentsList({
 }: CommentsListProps) {
   if (comments.length === 0) {
     return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
+      <p className="py-8 text-center text-base text-muted-foreground">
         Še ni komentarjev. Bodite prvi!
       </p>
     )

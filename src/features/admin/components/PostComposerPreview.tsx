@@ -21,8 +21,8 @@ export function PostComposerPreview({
   return (
     <section className="flex flex-col gap-4 rounded-lg border border-border p-4">
       <div className="flex flex-col gap-1">
-        <h2 className="text-sm font-medium">Predogled objave</h2>
-        <p className="text-xs text-muted-foreground">
+        <h2 className="text-base font-medium">Predogled objave</h2>
+        <p className="text-sm text-muted-foreground">
           Galerija je vedno prikazana nad vsebino članka.
         </p>
       </div>
@@ -38,8 +38,8 @@ export function PostComposerPreview({
 
       <div className="flex flex-col gap-4 rounded-lg bg-muted/30 p-4">
         <div className="flex flex-col gap-2">
-          <h3 className="font-heading text-xl font-semibold">{title || 'Naslov objave'}</h3>
-          {excerpt ? <p className="text-sm text-muted-foreground">{excerpt}</p> : null}
+          <h3 className="font-heading text-2xl font-semibold">{title || 'Naslov objave'}</h3>
+          {excerpt ? <p className="text-base text-muted-foreground">{excerpt}</p> : null}
         </div>
 
         {gallery.length > 0 ? (

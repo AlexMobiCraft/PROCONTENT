@@ -126,7 +126,7 @@ export function TiptapEditor({
       attributes: {
         'aria-label': 'Vsebina objave',
         class:
-          'rich-content min-h-[240px] rounded-lg border border-input bg-muted/30 px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'rich-content min-h-[240px] rounded-lg border border-input bg-muted/30 px-4 py-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring',
       },
       handlePaste: (_view, event) => {
         const files = Array.from(event.clipboardData?.files ?? []).filter((file) =>
@@ -285,7 +285,7 @@ export function TiptapEditor({
     const fallback = normalized.html ? normalized.html : createEmptyEditorContent().html
 
     return (
-      <div className="flex min-h-[240px] items-center rounded-lg border border-input bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+      <div className="flex min-h-[240px] items-center rounded-lg border border-input bg-muted/30 px-4 py-3 text-base text-muted-foreground">
         {fallback || 'Nalaganje urejevalnika...'}
       </div>
     )
@@ -457,7 +457,7 @@ export function TiptapEditor({
                 className="size-12 shrink-0 rounded border border-border object-cover"
               />
             )}
-            <span className="text-xs font-medium text-muted-foreground">
+            <span className="text-sm font-medium text-muted-foreground">
               Nastavitve slike
             </span>
           </div>

@@ -354,7 +354,7 @@ export function PostForm(props: PostFormProps) {
       className="flex flex-col gap-6"
     >
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="title" className="text-sm font-medium">
+        <label htmlFor="title" className="text-base font-medium">
           Naslov
         </label>
         <Input
@@ -371,14 +371,14 @@ export function PostForm(props: PostFormProps) {
           aria-invalid={Boolean(errors.title)}
         />
         {errors.title ? (
-          <p className="text-xs text-destructive" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {errors.title.message}
           </p>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="category" className="text-sm font-medium">
+        <label htmlFor="category" className="text-base font-medium">
           Kategorija
         </label>
         <select
@@ -387,7 +387,7 @@ export function PostForm(props: PostFormProps) {
           {...register('category', { required: 'Kategorija je obvezna' })}
           disabled={isSubmitting || isCategoriesLoading}
           aria-invalid={Boolean(errors.category)}
-          className="min-h-[44px] w-full rounded-lg border border-border bg-muted/50 px-3 py-3 text-sm text-foreground transition-colors focus-visible:border-primary focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:opacity-50"
+          className="min-h-[44px] w-full rounded-lg border border-border bg-muted/50 px-3 py-3 text-base text-foreground transition-colors focus-visible:border-primary focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:opacity-50"
         >
           <option value="">
             {isCategoriesLoading ? 'Nalaganje...' : 'Izberite kategorijo'}
@@ -399,14 +399,14 @@ export function PostForm(props: PostFormProps) {
           ))}
         </select>
         {errors.category ? (
-          <p className="text-xs text-destructive" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {errors.category.message}
           </p>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="excerpt" className="text-sm font-medium">
+        <label htmlFor="excerpt" className="text-base font-medium">
           Povzetek
         </label>
         <Input
@@ -422,14 +422,14 @@ export function PostForm(props: PostFormProps) {
           aria-invalid={Boolean(errors.excerpt)}
         />
         {errors.excerpt ? (
-          <p className="text-xs text-destructive" role="alert">
+          <p className="text-sm text-destructive" role="alert">
             {errors.excerpt.message}
           </p>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Galerija objave</span>
+        <span className="text-base font-medium">Galerija objave</span>
         <MediaUploader
           items={mediaItems}
           onChange={handleMediaChange}
@@ -437,7 +437,7 @@ export function PostForm(props: PostFormProps) {
         />
         {mediaError ? (
           <p
-            className="text-xs text-destructive"
+            className="text-sm text-destructive"
             role="alert"
             data-testid="media-required-error"
           >
@@ -447,7 +447,7 @@ export function PostForm(props: PostFormProps) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="content" className="text-sm font-medium">
+        <label htmlFor="content" className="text-base font-medium">
           Vsebina objave
         </label>
         <input
@@ -469,7 +469,7 @@ export function PostForm(props: PostFormProps) {
       </div>
 
       <section className="flex flex-col gap-3 rounded-lg border border-border p-4">
-        <span className="text-sm font-medium">Nastavitve objave</span>
+        <span className="text-base font-medium">Nastavitve objave</span>
 
         <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
           <input
@@ -480,8 +480,8 @@ export function PostForm(props: PostFormProps) {
             className="h-4 w-4 accent-primary"
           />
           <div className="flex flex-col">
-            <span className="text-sm">Predogled na začetni strani</span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-base">Predogled na začetni strani</span>
+            <span className="text-sm text-muted-foreground">
               Največ {MAX_LANDING_PREVIEW} objave hkrati
             </span>
           </div>
@@ -496,10 +496,10 @@ export function PostForm(props: PostFormProps) {
             className="h-4 w-4 accent-primary"
           />
           <div className="flex flex-col">
-            <span className="text-sm">
+            <span className="text-base">
               Uvajanje novih članic (Top-{MAX_ONBOARDING_POSTS})
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               Največ {MAX_ONBOARDING_POSTS} objav hkrati
             </span>
           </div>
@@ -514,7 +514,7 @@ export function PostForm(props: PostFormProps) {
             ref={immediateModeButtonRef}
             type="button"
             className={cn(
-              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-none font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
+              'flex-1 min-h-[44px] min-w-[44px] px-4 rounded-none font-sans text-sm font-medium tracking-[0.2em] uppercase transition-colors',
               'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
               !isScheduledMode
                 ? 'bg-primary text-primary-foreground'
@@ -529,7 +529,7 @@ export function PostForm(props: PostFormProps) {
           <button
             type="button"
             className={cn(
-              'flex-1 min-h-[44px] min-w-[44px] border-l px-4 rounded-none font-sans text-xs font-medium tracking-[0.2em] uppercase transition-colors',
+              'flex-1 min-h-[44px] min-w-[44px] border-l px-4 rounded-none font-sans text-sm font-medium tracking-[0.2em] uppercase transition-colors',
               'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
               isScheduledMode
                 ? 'bg-primary text-primary-foreground'
@@ -550,7 +550,7 @@ export function PostForm(props: PostFormProps) {
               ref={scheduleDatetimeInputRef}
               type="datetime-local"
               className={cn(
-                'min-h-[44px] min-w-[44px] rounded-lg border px-3 py-2 text-sm',
+                'min-h-[44px] min-w-[44px] rounded-lg border px-3 py-2 text-base',
                 'focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
                 scheduledAtError ? 'border-destructive' : 'border-border'
               )}
@@ -565,7 +565,7 @@ export function PostForm(props: PostFormProps) {
             {scheduledAt && !scheduledAtError ? (
               <p
                 id="schedule-preview"
-                className="text-xs tracking-[0.1em] text-muted-foreground"
+                className="text-sm tracking-[0.1em] text-muted-foreground"
               >
                 {formatSchedulePreview(scheduledAt)}
               </p>
@@ -589,7 +589,7 @@ export function PostForm(props: PostFormProps) {
         </p>
 
         {isLandingPreview || isOnboarding ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {[
               isLandingPreview && 'predogled na začetni strani',
               isOnboarding && 'uvajanje novih članic',

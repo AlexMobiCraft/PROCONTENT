@@ -193,7 +193,7 @@ export function PostDetail({
       <button
         type="button"
         onClick={handleBack}
-        className="mb-6 flex min-h-[44px] w-fit items-center gap-1.5 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="mb-6 flex min-h-[44px] w-fit items-center gap-1.5 rounded-lg px-3 text-base text-muted-foreground transition-colors hover:text-foreground"
         aria-label="Nazaj na objave"
       >
         <svg
@@ -219,12 +219,12 @@ export function PostDetail({
           )}
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-foreground">{post.author.name}</span>
+          <span className="text-base font-medium text-foreground">{post.author.name}</span>
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground">
               {post.category}
             </span>
-            <time dateTime={post.created_at} className="text-xs text-muted-foreground">{displayDate}</time>
+            <time dateTime={post.created_at} className="text-sm text-muted-foreground">{displayDate}</time>
           </div>
         </div>
         <div className="ml-auto">
@@ -257,7 +257,7 @@ export function PostDetail({
       </header>
 
       {/* Title */}
-      <h1 className="font-heading mb-4 text-xl font-semibold leading-snug text-foreground">
+      <h1 className="font-heading mb-4 text-2xl font-semibold leading-snug text-foreground">
         {post.title}
       </h1>
 
@@ -315,7 +315,7 @@ export function PostDetail({
           aria-label={liked ? 'Odstrani všeček' : 'Všečkaj'}
           aria-pressed={liked}
           className={cn(
-            'flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-lg px-2 text-sm transition-colors',
+            'flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-lg px-2 text-base transition-colors',
             liked ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
             isPending && 'pointer-events-none opacity-50'
           )}
@@ -325,7 +325,7 @@ export function PostDetail({
         </button>
 
         {/* Comment count — статичный */}
-        <span className="flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-2 text-sm text-muted-foreground">
+        <span className="flex min-h-[44px] min-w-[44px] items-center gap-1.5 px-2 text-base text-muted-foreground">
           <CommentIcon />
           <span>{commentCount}</span>
         </span>

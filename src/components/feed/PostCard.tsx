@@ -112,11 +112,11 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
         </div>
         <div className="flex flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground">
+            <span className="text-base font-medium text-foreground">
               {post.author.name}
             </span>
             {post.author.isAuthor && (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-sm font-medium text-primary">
                 Avtorica
               </span>
             )}
@@ -134,17 +134,17 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
                     e.stopPropagation()
                   }
                 }}
-                className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                className="rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                 aria-label={`Filtriraj po kategoriji ${post.category}`}
               >
                 {post.category}
               </button>
             ) : post.category ? (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              <span className="rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground">
                 {post.category}
               </span>
             ) : null}
-            <time dateTime={post.created_at} className="text-xs text-muted-foreground">{post.date}</time>
+            <time dateTime={post.created_at} className="text-sm text-muted-foreground">{post.date}</time>
           </div>
         </div>
 
@@ -221,7 +221,7 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
           <h2 className="font-heading text-base font-semibold leading-snug text-foreground text-balance group-hover:text-primary transition-colors">
             {post.title}
           </h2>
-          <p className="text-sm leading-relaxed text-muted-foreground line-clamp-3">
+          <p className="text-base leading-relaxed text-muted-foreground line-clamp-3">
             {post.excerpt}
           </p>
         </Link>
@@ -229,7 +229,7 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
 
       {/* Type badge for video/photo/gallery/multi-video */}
       {post.type !== 'text' && (
-        <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
           {post.type === 'video' || post.type === 'multi-video' ? (
             <>
               <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
@@ -258,7 +258,7 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
           aria-label={liked ? 'Odstrani všeček' : 'Všečkaj'}
           aria-pressed={liked}
           className={cn(
-            'flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-lg px-2 text-sm transition-colors',
+            'flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-lg px-2 text-base transition-colors',
             liked
               ? 'text-primary'
               : 'text-muted-foreground hover:text-foreground',
@@ -274,7 +274,7 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
           type="button"
           onClick={() => onCommentClick?.(post.id)}
           aria-label="Komentarji"
-          className="flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-lg px-2 text-base text-muted-foreground transition-colors hover:text-foreground"
         >
           <CommentIcon />
           <span>{post.comments}</span>

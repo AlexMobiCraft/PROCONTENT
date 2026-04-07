@@ -113,31 +113,31 @@ export function DiscussionNode({
         <div className="flex flex-col gap-1 min-w-0 w-full">
           {/* Author row */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-sm font-medium text-foreground">{name}</span>
+            <span className="text-base font-medium text-foreground">{name}</span>
             {showBadge && (
-              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-sm font-medium text-primary">
                 {isAuthor ? 'Avtor' : 'Admin'}
               </span>
             )}
             {!isPending && !isError && (
               <time
                 dateTime={comment.created_at}
-                className="text-xs text-muted-foreground"
+                className="text-sm text-muted-foreground"
                 suppressHydrationWarning
               >
                 {formatDate(comment.created_at)}
               </time>
             )}
             {isPending && (
-              <span className="text-xs text-muted-foreground">Pošiljanje...</span>
+              <span className="text-sm text-muted-foreground">Pošiljanje...</span>
             )}
             {isError && (
-              <span className="text-xs text-destructive">Napaka pri pošiljanju</span>
+              <span className="text-sm text-destructive">Napaka pri pošiljanju</span>
             )}
           </div>
 
           {/* Content */}
-          <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
+          <p className="text-base leading-relaxed text-foreground whitespace-pre-wrap break-words">
             {comment.content}
           </p>
 
@@ -147,7 +147,7 @@ export function DiscussionNode({
               <button
                 type="button"
                 onClick={() => onRetry(comment)}
-                className="text-xs text-destructive hover:text-destructive/80 transition-colors min-h-[32px]"
+                className="text-sm text-destructive hover:text-destructive/80 transition-colors min-h-[32px]"
               >
                 Poskusi znova
               </button>
@@ -156,7 +156,7 @@ export function DiscussionNode({
               <button
                 type="button"
                 onClick={() => setShowReplyForm((v) => !v)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors min-h-[32px]"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[32px]"
               >
                 {showReplyForm ? 'Prekliči' : 'Odgovori'}
               </button>
