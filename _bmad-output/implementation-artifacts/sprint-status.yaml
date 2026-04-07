@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-04-06 (Story 7.2 - review pass 2)
+last_updated: 2026-04-07 (Epics 2, 4, 5, 6, 7 → done)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -63,7 +63,7 @@ development_status:
 
   # ─── EPIC 2: Knowledge Discovery (Content Feed, Multimedia & Archive) ──────
   # Переработан 2026-03-22: добавлены нормализованная БД (post_media), GalleryGrid, Video Controller
-  epic-2: in-progress
+  epic-2: done
 
   # Story-файл создан 2026-03-22 SM Bob
   2-1-normalized-post-media-database-schema: done
@@ -115,7 +115,7 @@ development_status:
 
   # ─── EPIC 4: Creator Operations (Admin Dashboard) ──────────────────────────
   # Story 4-1 обновлена 2026-03-22: мультимедиа до 10 файлов, выбор обложки, drag-and-drop порядок
-  epic-4: in-progress
+  epic-4: done
   # 2026-03-28: 13 review findings resolved (error handling, validation, UX, a11y, memory leaks) → review
   # 2026-03-28: Round 2 Review generated 13 action items for edge cases & security. Story returned to in-progress.
   # 2026-03-29: Round 3 Review findings resolved (8 fixes + 3 N/A) → review
@@ -140,14 +140,14 @@ development_status:
 
   # ─── EPIC 5: Platform Initialization (Telegram Migration) ──────────────────
   # Story 5-1 обновлена 2026-03-22: группировка медиагрупп, Exponential Backoff, post_media
-  epic-5: in-progress
+  epic-5: done
   # 2026-03-30: Story-файл создан SM Bob
   # 2026-03-30: Story реализована → review
   5-1-access-to-the-entire-content-archive-telegram-migration: done
   epic-5-retrospective: optional
 
   # ─── EPIC 6: Scheduled Publishing ──────────────────────────────────────────
-  epic-6: in-progress
+  epic-6: done
   # 2026-04-01: Story 6.1 взята в разработку
   # 2026-04-02: Code Review Round 1 — 5 patch findings → in-progress
   # 2026-04-02: Round 1 patch findings resolved (backfill fix, published_at timing, rollback test, dead code, status type) → review
@@ -166,7 +166,7 @@ development_status:
   epic-6-retrospective: optional
  
   # EPIC 7: Rich Content Experience (Markdown Editor & Inline Media)
-  epic-7: in-progress
+  epic-7: done
   # 2026-04-05: Story file created by SM Bob
   "7-1-wysiwyg-editor-inline-images-posts": "done"
   7-2-markdown-rendering-posts-inline-images-and-combined-layout: done
