@@ -149,8 +149,6 @@ export function ProfileScreen({
           </h1>
         </div>
 
-        {isAdmin && renderAdminSection('md:hidden border-b p-6')}
-
         <div className="md:hidden">
           <ProfileRightPanel
             email={email}
@@ -161,7 +159,7 @@ export function ProfileScreen({
         </div>
 
         <div className="space-y-4 p-6">
-          {isAdmin && renderAdminSection('hidden md:block border p-6')}
+          {isAdmin && renderAdminSection('border p-6')}
 
           <div className="border-border space-y-2 border p-6">
             <p className="text-muted-foreground text-xs tracking-[0.15em] uppercase">
