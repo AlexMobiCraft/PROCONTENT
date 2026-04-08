@@ -18,8 +18,8 @@ echo.
 choice /c 123450 /n /m "Select: "
 
 if %errorlevel%==6 goto :eof
-if %errorlevel%==5 call cc.bat %* & goto :menu
-if %errorlevel%==4 call ccglm.bat %* & goto :menu
-if %errorlevel%==3 call ccqwen.bat %* & goto :menu
-if %errorlevel%==2 call ccst.bat %* & goto :menu
-if %errorlevel%==1 call ccs.bat %* & goto :menu
+if %errorlevel%==5 call C:\Users\1\DEV\PROCONTENT\cc.bat %* & goto :menu
+if %errorlevel%==4 call C:\Users\1\DEV\PROCONTENT\ccglm.bat %* & goto :menu
+if %errorlevel%==3 call C:\Users\1\DEV\PROCONTENT\ccqwen.bat %* & goto :menu
+if %errorlevel%==2 call C:\Users\1\DEV\PROCONTENT\ccst.bat %* & goto :menu
+if %errorlevel%==1 call C:\Users\1\DEV\PROCONTENT\ccs.bat %* & goto :menu
