@@ -148,7 +148,7 @@ describe('SearchContainer', () => {
     render(<SearchContainer />)
     typeInInput(screen.getByRole('searchbox'), 'vsebina')
 
-    await waitFor(() => expect(mockSearchPosts).toHaveBeenCalledWith('vsebina'))
+    await waitFor(() => expect(mockSearchPosts).toHaveBeenCalledWith('vsebina', expect.any(Object)))
   })
 
   it('не вызывает searchPosts при пустом запросе', () => {
@@ -180,7 +180,7 @@ describe('SearchContainer', () => {
     mockSearchPosts.mockResolvedValue([])
     render(<SearchContainer initialQuery="vsebina" />)
     expect(screen.getByRole('searchbox')).toHaveValue('vsebina')
-    await waitFor(() => expect(mockSearchPosts).toHaveBeenCalledWith('vsebina'))
+    await waitFor(() => expect(mockSearchPosts).toHaveBeenCalledWith('vsebina', expect.any(Object)))
   })
 
   it('синхронизирует запрос с URL (?q=)', async () => {

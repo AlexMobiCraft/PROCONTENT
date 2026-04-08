@@ -59,7 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const now = new Date().toISOString()
   const { data: published, error } = await supabase
     .from('posts')
-    .update({ status: 'published', published_at: now })
+    .update({ status: 'published', published_at: now, is_published: true })
     .eq('status', 'scheduled')
     .lte('scheduled_at', now)
     .is('published_at', null)

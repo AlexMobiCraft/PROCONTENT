@@ -2,7 +2,8 @@
 title: 'Search Fixes — 6 дефектов системы поиска'
 type: 'bugfix'
 created: '2026-04-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_commit: '4d50a7a5556a7d2a017884faf592a33f34bc68c4'
 context:
   - '_bmad-output/stories/2-7-search-across-the-entire-knowledge-base.md'
   - '_bmad-output/stories/6-1-post-status-model-database-schema.md'
@@ -68,11 +69,11 @@ context:
 
 ### Задача 1 — Баг #5: синхронизировать `is_published` при cron-публикации
 
-- [ ] `src/app/api/cron/publish/route.ts:62` — добавить `is_published: true` в объект `.update({...})`:
+- [x] `src/app/api/cron/publish/route.ts:62` — добавить `is_published: true` в объект `.update({...})`:
   ```typescript
   .update({ status: 'published', published_at: now, is_published: true })
   ```
-- [ ] Убедиться, что typecheck проходит (`status` и `is_published` оба есть в типах Database)
+- [x] Убедиться, что typecheck проходит (`status` и `is_published` оба есть в типах Database)
 
 **AC:** Scheduled пост с `status='scheduled'` после запуска cron handler имеет `status='published'` И `is_published=true`.
 
@@ -80,7 +81,7 @@ context:
 
 ### Задача 2 — Баг #2: передать AbortSignal в searchPosts
 
-- [ ] `src/features/search/api/search.ts` — изменить сигнатуру функции, добавить `signal` к Supabase-запросу:
+- [x] `src/features/search/api/search.ts` — изменить сигнатуру функции, добавить `signal` к Supabase-запросу:
   ```typescript
   export async function searchPosts(
     query: string,
@@ -93,7 +94,7 @@ context:
     query = query.abortSignal(options.signal)
   }
   ```
-- [ ] `src/features/search/components/SearchContainer.tsx:172` — передать signal:
+- [x] `src/features/search/components/SearchContainer.tsx:172` — передать signal:
   ```typescript
   searchPosts(debouncedQuery, { signal: controller.signal })
   ```
@@ -104,7 +105,7 @@ context:
 
 ### Задача 3 — Баги #1 + #4: комбинированный поиск FTS + ILIKE + fallback
 
-- [ ] `src/features/search/api/search.ts` — заменить `.textSearch(...)` на комбинированную функцию:
+- [x] `src/features/search/api/search.ts` — заменить `.textSearch(...)` на комбинированную функцию:
 
   ```typescript
   // Попытка 1: FTS (быстро, по полным словам) + ILIKE (по подстрокам в title/excerpt)
@@ -144,7 +145,7 @@ context:
   > 2. ILIKE-запрос через `.ilike('title', ilikePattern).or('excerpt.ilike.' + ilikePattern)`
   > 3. Смержить: FTS-результаты первыми, затем ILIKE-уникальные (не попавшие в FTS)
 
-- [ ] При ошибке FTS — не пробрасывать, а пробовать чистый ILIKE:
+- [x] При ошибке FTS — не пробрасывать, а пробовать чистый ILIKE:
   ```typescript
   try {
     return await ftsQuery(...)
@@ -153,7 +154,7 @@ context:
   }
   ```
 
-- [ ] Экранировать спецсимволы `%` и `_` в query перед ILIKE во избежание SQL-инъекций через паттерн
+- [x] Экранировать спецсимволы `%` и `_` в query перед ILIKE во избежание SQL-инъекций через паттерн
 
 **AC:**
 - Поиск "vseb" находит посты со словами "vsebina", "vsebnost"
@@ -164,7 +165,7 @@ context:
 
 ### Задача 4 — Баг #5: устранить circular URL sync
 
-- [ ] `src/features/search/components/SearchContainer.tsx` — добавить `isUserInput` ref и изменить логику двух useEffect:
+- [x] `src/features/search/components/SearchContainer.tsx` — добавить `isUserInput` ref и изменить логику двух useEffect:
 
   ```typescript
   const isUserInputRef = useRef(false)
@@ -192,13 +193,13 @@ context:
 
 ### Задача 5 — Баг #6: кэш результатов in-memory
 
-- [ ] `src/features/search/components/SearchContainer.tsx` — добавить `resultsCache` ref перед основным useEffect поиска:
+- [x] `src/features/search/components/SearchContainer.tsx` — добавить `resultsCache` ref перед основным useEffect поиска:
 
   ```typescript
   const resultsCache = useRef<Map<string, Post[]>>(new Map())
   ```
 
-- [ ] В useEffect поиска — перед вызовом `searchPosts` проверить кэш, после успешного ответа — сохранить:
+- [x] В useEffect поиска — перед вызовом `searchPosts` проверить кэш, после успешного ответа — сохранить:
 
   ```typescript
   const cached = resultsCache.current.get(debouncedQuery)
@@ -217,7 +218,7 @@ context:
   })
   ```
 
-- [ ] Ограничить размер кэша: если `resultsCache.current.size > 20` — удалить первую запись (FIFO)
+- [x] Ограничить размер кэша: если `resultsCache.current.size > 20` — удалить первую запись (FIFO)
 
 **AC:** Набрать "vsebina" → стереть до "vseb" → набрать "vsebina" снова → в Network devtools второй запрос не летит, результаты появляются мгновенно.
 
@@ -254,3 +255,43 @@ pg_trgm требует новой миграции (`CREATE EXTENSION pg_trgm` +
 - [ ] Поиск "obja" → должны появиться посты с "objava"
 - [ ] Набрать "vsebina" → стереть до "vseb" → набрать "vsebina" — второй раз без сетевого запроса
 - [ ] Открыть поиск → `?q=vsebina` в URL → результаты загружаются → нажать Назад → inputValue сбрасывается
+
+## Suggested Review Order
+
+**Cron publication sync**
+
+- Минимальный однострочный фикс: оба флага синхронизируются атомарно в одном UPDATE
+  [`route.ts:62`](../../src/app/api/cron/publish/route.ts#L62)
+
+**Search API — параллельный FTS + ILIKE**
+
+- Точка входа: форма данных запроса (оба запроса используют одну константу)
+  [`search.ts:8`](../../src/features/search/api/search.ts#L8)
+
+- FTS-запрос с AbortSignal через websearch/simple конфиг
+  [`search.ts:13`](../../src/features/search/api/search.ts#L13)
+
+- ILIKE с 4-уровневым экранированием: `\` → `%` → `_` → PostgREST-разделители
+  [`search.ts:31`](../../src/features/search/api/search.ts#L31)
+
+- `Promise.allSettled` стратегия: merge FTS+ILIKE, limit 50, throw только при двух failures
+  [`search.ts:60`](../../src/features/search/api/search.ts#L60)
+
+**SearchContainer — circular sync fix + cache + signal**
+
+- `handleInputChange` устанавливает флаг перед setInputValue для подавления circular sync
+  [`SearchContainer.tsx:148`](../../src/features/search/components/SearchContainer.tsx#L148)
+
+- URL→state useEffect: флаг блокирует обратную запись при пользовательском вводе
+  [`SearchContainer.tsx:155`](../../src/features/search/components/SearchContainer.tsx#L155)
+
+- Cache check с нормализованным ключом (trim), очищает error state при hit
+  [`SearchContainer.tsx:179`](../../src/features/search/components/SearchContainer.tsx#L179)
+
+- searchPosts вызывается с AbortController signal; FIFO eviction при size≥20
+  [`SearchContainer.tsx:192`](../../src/features/search/components/SearchContainer.tsx#L192)
+
+**Тесты**
+
+- Сигнатура обновлена: `expect.any(Object)` для второго аргумента options
+  [`SearchContainer.test.tsx:151`](../../tests/unit/features/search/components/SearchContainer.test.tsx#L151)

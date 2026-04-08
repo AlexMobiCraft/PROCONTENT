@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PostCard, PostCardSkeleton } from '@/components/feed/PostCard'
 import { dbPostToCardData } from '@/features/feed/types'
@@ -131,6 +131,9 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const isUserInputRef = useRef(false)
+  const resultsCache = useRef<Map<string, Post[]>>(new Map())
+
   const debouncedQuery = useDebounce(inputValue, 400)
 
   const currentUser = useAuthStore((s) => s.user)
@@ -142,8 +145,17 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
     currentUser,
   })
 
-  // Синхронизация URL ?q= → inputValue (навигация Назад/Вперёд)
+  function handleInputChange(v: string) {
+    isUserInputRef.current = true
+    setInputValue(v)
+  }
+
+  // Синхронизация URL ?q= → inputValue (только при навигации Назад/Вперёд)
   useEffect(() => {
+    if (isUserInputRef.current) {
+      isUserInputRef.current = false
+      return
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: syncing external state (URL params) into React state
     setInputValue(searchParams.get('q') ?? '')
   }, [searchParams])
@@ -164,14 +176,27 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
       return
     }
 
+    const cacheKey = debouncedQuery.trim()
+    const cached = resultsCache.current.get(cacheKey)
+    if (cached) {
+      setResults(cached)
+      setError(null)
+      return
+    }
+
     const controller = new AbortController()
 
     setIsLoading(true)
     setError(null)
 
-    searchPosts(debouncedQuery)
+    searchPosts(debouncedQuery, { signal: controller.signal })
       .then((posts) => {
         if (controller.signal.aborted) return
+        if (resultsCache.current.size >= 20) {
+          const firstKey = resultsCache.current.keys().next().value
+          if (firstKey !== undefined) resultsCache.current.delete(firstKey)
+        }
+        resultsCache.current.set(cacheKey, posts)
         setResults(posts)
       })
       .catch((err: unknown) => {
@@ -198,7 +223,7 @@ export function SearchContainer({ initialQuery = '' }: { initialQuery?: string }
     <div className="flex flex-col">
       {/* Search input */}
       <div className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
-        <SearchInput value={inputValue} onChange={setInputValue} />
+        <SearchInput value={inputValue} onChange={handleInputChange} />
         {showHint && (
           <p className="mt-1.5 text-xs text-muted-foreground">
             Vpišite vsaj {MIN_QUERY_LENGTH} znake za iskanje
