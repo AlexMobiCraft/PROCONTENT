@@ -1,6 +1,6 @@
 # Story 7.2: Markdown-рендеринг постов с инлайн-изображениями и комбинированным layout
 
-Status: review
+Status: done
 
 ## Story
 

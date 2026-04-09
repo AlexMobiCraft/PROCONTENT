@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-04-07 (Epics 2, 4, 5, 6, 7 → done)
+last_updated: 2026-04-09 (Epic 7 retrospective -> done)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -170,4 +170,4 @@ development_status:
   # 2026-04-05: Story file created by SM Bob
   "7-1-wysiwyg-editor-inline-images-posts": "done"
   7-2-markdown-rendering-posts-inline-images-and-combined-layout: done
-  epic-7-retrospective: optional
+  epic-7-retrospective: done
