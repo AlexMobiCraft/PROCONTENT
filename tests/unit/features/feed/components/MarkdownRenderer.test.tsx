@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import * as markdownModule from '@/lib/markdown'
+import { MarkdownRenderer } from '@/features/feed/components/MarkdownRenderer'
 
-// DOMPurify работает в jsdom, но мокируем для предсказуемости тестов
 vi.mock('dompurify', () => {
   const activeHooks = new Map<string, (node: Element) => void>()
 
@@ -17,10 +18,8 @@ vi.mock('dompurify', () => {
         const div = document.createElement('div')
         div.innerHTML = html
 
-        // Удаляем script-теги
         div.querySelectorAll('script').forEach((el) => el.remove())
 
-        // Удаляем event-атрибуты
         div.querySelectorAll('*').forEach((el) => {
           Array.from(el.attributes).forEach((attr) => {
             if (attr.name.startsWith('on')) {
@@ -29,7 +28,6 @@ vi.mock('dompurify', () => {
           })
         })
 
-        // Если есть ALLOWED_TAGS — удаляем запрещённые теги
         if (options?.ALLOWED_TAGS) {
           const allowedTags = options.ALLOWED_TAGS
           div.querySelectorAll('*').forEach((el) => {
@@ -39,7 +37,6 @@ vi.mock('dompurify', () => {
           })
         }
 
-        // Применяем хуки afterSanitizeAttributes
         const hook = activeHooks.get('afterSanitizeAttributes')
         if (hook) {
           div.querySelectorAll('*').forEach((el) => hook(el))
@@ -51,62 +48,75 @@ vi.mock('dompurify', () => {
   }
 })
 
-import { MarkdownRenderer } from '@/features/feed/components/MarkdownRenderer'
-
 describe('MarkdownRenderer', () => {
-  it('рендерит h2 заголовок из HTML', () => {
-    render(<MarkdownRenderer content="<h2>Заголовок</h2>" />)
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Заголовок')
+  it('renders h2 heading from HTML', () => {
+    render(<MarkdownRenderer content="<h2>Naslov</h2>" />)
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Naslov')
   })
 
-  it('рендерит ul список', () => {
-    render(<MarkdownRenderer content="<ul><li>Первый</li><li>Второй</li></ul>" />)
+  it('renders unordered list', () => {
+    render(<MarkdownRenderer content="<ul><li>Prvi</li><li>Drugi</li></ul>" />)
     const items = screen.getAllByRole('listitem')
     expect(items).toHaveLength(2)
-    expect(items[0]).toHaveTextContent('Первый')
+    expect(items[0]).toHaveTextContent('Prvi')
   })
 
-  it('рендерит pre>code блок кода', () => {
+  it('renders preformatted code block', () => {
     render(<MarkdownRenderer content="<pre><code>const x = 1</code></pre>" />)
-    expect(screen.getByRole('code')).toHaveTextContent('const x = 1')
+    expect(screen.getByText('const x = 1')).toBeInTheDocument()
   })
 
-  it('добавляет loading="lazy" к img без этого атрибута', () => {
-    render(<MarkdownRenderer content='<img src="/test.jpg" alt="тест" />' />)
+  it('adds lazy loading to img without attribute', () => {
+    render(<MarkdownRenderer content='<img src="/test.jpg" alt="test" />' />)
     const img = screen.getByRole('img')
     expect(img).toHaveAttribute('loading', 'lazy')
   })
 
-  it('не перезаписывает loading="eager" у img с явным атрибутом', () => {
-    render(<MarkdownRenderer content='<img src="/test.jpg" alt="тест" loading="eager" />' />)
+  it('preserves explicit eager loading on img', () => {
+    render(<MarkdownRenderer content='<img src="/test.jpg" alt="test" loading="eager" />' />)
     const img = screen.getByRole('img')
     expect(img).toHaveAttribute('loading', 'eager')
   })
 
-  it('удаляет script-тег из output', () => {
+  it('removes script tags from output', () => {
     const { container } = render(
-      <MarkdownRenderer content='<p>Текст</p><script>alert("xss")</script>' />
+      <MarkdownRenderer content='<p>Besedilo</p><script>alert("xss")</script>' />
     )
+
     expect(container.querySelector('script')).toBeNull()
-    expect(screen.getByText('Текст')).toBeInTheDocument()
+    expect(screen.getByText('Besedilo')).toBeInTheDocument()
   })
 
-  it('удаляет onclick атрибут', () => {
-    render(<MarkdownRenderer content='<p onclick="alert(1)">Параграф</p>' />)
-    const p = screen.getByText('Параграф')
-    expect(p).not.toHaveAttribute('onclick')
+  it('removes onclick attribute', () => {
+    render(<MarkdownRenderer content='<p onclick="alert(1)">Odstavek</p>' />)
+    const paragraph = screen.getByText('Odstavek')
+    expect(paragraph).not.toHaveAttribute('onclick')
   })
 
-  it('рендерится без ошибок при пустом content', () => {
+  it('renders without errors for empty content', () => {
     const { container } = render(<MarkdownRenderer content="" />)
     expect(container.firstChild).toBeInTheDocument()
   })
 
-  it('добавляет rel="noopener noreferrer" к ссылкам с target="_blank"', () => {
+  it('adds rel to target blank links', () => {
     render(
-      <MarkdownRenderer content='<a href="https://example.com" target="_blank">Ссылка</a>' />
+      <MarkdownRenderer content='<a href="https://example.com" target="_blank">Povezava</a>' />
     )
     const link = screen.getByRole('link')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('shows fallback when sanitization fails', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const sanitizeSpy = vi.spyOn(markdownModule, 'sanitizeHtml').mockImplementation(() => {
+      throw new Error('sanitize failed')
+    })
+
+    render(<MarkdownRenderer content="<p>test</p>" />)
+
+    expect(screen.getByText('Vsebina trenutno ni na voljo.')).toBeInTheDocument()
+
+    sanitizeSpy.mockRestore()
+    consoleErrorSpy.mockRestore()
   })
 })

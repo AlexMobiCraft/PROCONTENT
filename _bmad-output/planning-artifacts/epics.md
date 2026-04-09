@@ -8,7 +8,7 @@ editHistory:
   - date: '2026-04-01'
     changes: 'Epic 6 (Scheduled Publishing): добавлены FR6.1–FR6.18 (18 FRs), NFR6.1–NFR6.9 (9 NFRs), дополнительные технические требования (pg_cron, схема БД, cron endpoint) и UX-DR1–UX-DR9. Step-01 validate prerequisites завершён.'
   - date: '2026-04-05'
-    changes: 'Добавлен Epic 7 (Rich Content Experience): Story 7.1 (FR19.1: WYSIWYG-редактор с инлайн-изображениями, Tiptap + inline-images bucket) и Story 7.2 (FR16.2, NFR4.2: Markdown-рендеринг, комбинированный layout, DOMPurify). Обновлены FR Coverage Map и Epic List.'
+    changes: 'Добавлен Epic 7 (Rich Content Experience): Story 7.1 (FR19.1: WYSIWYG-редактор с инлайн-изображениями, Tiptap + inline-images bucket) и Story 7.2 (FR16.2, NFR4.2: HTML-рендеринг rich-content, комбинированный layout, DOMPurify). Обновлены FR Coverage Map и Epic List.'
 ---
 
 # PROCONTENT - Epic Breakdown
@@ -113,7 +113,7 @@ NFR24: Telegram-архив после импорта является иммут
 - FR6–FR9: Epic 1 - Лендинг и превью
 - FR10–FR13: Epic 1 - Онбординг и WhatsApp
 - FR14–FR16, FR16.1: Epic 2 - Лента, фильтры, просмотр контента и мультимедиа-галереи
-- FR16.2: Epic 7 / Story 7.2 - Markdown-рендеринг с инлайн-изображениями и комбинированный layout
+- FR16.2: Epic 7 / Story 7.2 - HTML-рендеринг rich-content с инлайн-изображениями и комбинированный layout
 - FR17–FR18: Epic 2 - Поиск и архив
 - FR19–FR22: Epic 4 - Создание мультимедийных постов и управление контентом
 - FR19.1: Epic 7 / Story 7.1 - WYSIWYG-редактор для инлайн-изображений
@@ -213,10 +213,10 @@ UX-DR9: Дизайн-токены design system — `--primary` (Muted Terracott
 **FRs covered:** FR6.1–FR6.18
 **Stories:** 6.1 (Schema Migration) → 6.2 (pg_cron Automation) → 6.3 (UI Form Extension) → 6.4 (Admin Scheduled Table)
 
-### Epic 7: Rich Content Experience (Markdown Editor & Inline Media)
-Автор создаёт посты с форматированным Markdown-текстом и встроенными инлайн-изображениями через WYSIWYG-редактор; участницы видят корректно скомпонованный контент с Markdown-рендерингом, lazy loading изображений и правильным комбинированным layout (текст + галерея).
+### Epic 7: Rich Content Experience (WYSIWYG HTML Content & Inline Media)
+Автор создаёт посты с форматированным rich-text article body и встроенными инлайн-изображениями через WYSIWYG-редактор; участницы видят корректно скомпонованный контент с sanitize + HTML render path, lazy loading изображений и правильным комбинированным layout (article body + галерея).
 **FRs covered:** FR19.1, FR16.2, NFR4.2
-**Stories:** 7.1 (WYSIWYG Editor) → 7.2 (Markdown Renderer & Combined Layout)
+**Stories:** 7.1 (WYSIWYG Editor) → 7.2 (HTML Renderer & Combined Layout)
 
 ## Epic 1: Growth & Conversion (Landing, Subscriptions & Onboarding)
 
@@ -803,12 +803,12 @@ So that я могу контролировать расписание публи
 
 ---
 
-## Epic 7: Rich Content Experience (Markdown Editor & Inline Media)
+## Epic 7: Rich Content Experience (WYSIWYG HTML Content & Inline Media)
 
-Автор создаёт посты с форматированным Markdown-текстом и встроенными инлайн-изображениями через WYSIWYG-редактор; участницы видят корректно скомпонованный контент с Markdown-рендерингом, lazy loading изображений и правильным комбинированным layout (текст + галерея).
+Автор создаёт посты с форматированным rich-text article body и встроенными инлайн-изображениями через WYSIWYG-редактор; участницы видят корректно скомпонованный контент с sanitize + HTML render path, lazy loading изображений и правильным комбинированным layout (article body + галерея).
 
 **FRs covered:** FR19.1, FR16.2, NFR4.2
-**Stories:** 7.1 (WYSIWYG Editor) → 7.2 (Markdown Renderer & Combined Layout)
+**Stories:** 7.1 (WYSIWYG Editor) → 7.2 (HTML Renderer & Combined Layout)
 **Зависимости:** после Epic 4 (форма создания поста существует, поле `content` в таблице `posts`)
 
 ---
@@ -817,7 +817,7 @@ So that я могу контролировать расписание публи
 
 As a автор,
 I want загружать изображения прямо в тело текста поста через редактор,
-So that я могла создавать богатый Markdown-контент с инлайн-иллюстрациями без ручного копирования ссылок.
+So that я могла создавать богатый rich-text контент с инлайн-иллюстрациями без ручного копирования ссылок.
 
 **Acceptance Criteria:**
 
@@ -825,7 +825,7 @@ So that я могла создавать богатый Markdown-контент 
 **When** просматривает текстовое поле
 **Then** вместо обычного `<textarea>` отображается WYSIWYG-редактор на базе Tiptap (`'use client'` компонент в `src/features/editor/components/TiptapEditor.tsx`)
 **And** редактор поддерживает базовое форматирование: жирный, курсив, заголовки (H2–H4), списки, блок кода
-**And** редактор отображает сериализованный Markdown-контент существующего поста при редактировании
+**And** редактор отображает сериализованный HTML-контент существующего поста при редактировании
 
 **Given** автор перетаскивает (drag & drop) изображение в область редактора
 **When** файл отпускается
@@ -865,7 +865,7 @@ So that я могла создавать богатый Markdown-контент 
 
 ---
 
-### Story 7.2: Markdown-рендеринг постов с инлайн-изображениями и комбинированным layout (FR16.2, NFR4.2)
+### Story 7.2: HTML-рендеринг rich-content постов с инлайн-изображениями и комбинированным layout (FR16.2, NFR4.2)
 
 As a участница,
 I want видеть посты с форматированным текстом, встроенными изображениями и галереей в правильной компоновке,
@@ -873,25 +873,25 @@ So that я могла удобно читать богатый контент б
 
 **Acceptance Criteria:**
 
-**Given** пост содержит только Markdown-текст (без галереи)
+**Given** пост содержит только HTML article body в `posts.content` (без галереи)
 **When** участница открывает страницу поста
-**Then** компонент `MarkdownRenderer` рендерит текст с поддержкой полного GFM-синтаксиса (заголовки, списки, жирный, курсив, блоки кода)
-**And** все `<img>` внутри Markdown-тела имеют атрибут `loading="lazy"` (NFR4.2)
+**Then** компонент `MarkdownRenderer` рендерит форматированный article body (заголовки, списки, жирный, курсив, блоки кода)
+**And** все `<img>` внутри HTML article body имеют атрибут `loading="lazy"` (NFR4.2)
 **And** проверка lazy loading подтверждается через Lighthouse audit (не блокирует LCP)
 
-**Given** пост содержит Markdown-текст со встроенными инлайн-изображениями (`![alt](url)`)
+**Given** пост содержит HTML article body со встроенными инлайн-изображениями (`<figure data-type="inline-image">`)
 **When** участница открывает страницу поста
 **Then** инлайн-изображения отображаются внутри текстового блока в правильном месте согласно разметке
-**And** каждое инлайн-изображение имеет `loading="lazy"` и `alt`-атрибут из Markdown-синтаксиса (NFR16)
+**And** каждое инлайн-изображение имеет `loading="lazy"` и `alt`-атрибут из HTML-разметки article body (NFR16)
 **And** изображения адаптивны: `max-width: 100%`, не выходят за ширину контентного блока
 
-**Given** пост содержит и Markdown-текст с инлайн-изображениями, и галерею (`post_media` с 2+ записями)
+**Given** пост содержит и HTML article body с инлайн-изображениями, и галерею (`post_media` с 2+ записями)
 **When** участница открывает страницу поста
 **Then** блок `MarkdownRenderer` (текст + инлайн-изображения) отображается **ниже** блока `GalleryGrid`
 **And** между двумя блоками есть визуальный разделитель (отступ `gap` согласно design tokens)
-**And** компонент `PostDetail` (Dumb UI) принимает отдельные пропы: `content: string` (Markdown) и `media: PostMedia[]` (для галереи) — рендерит их независимо
+**And** компонент `PostDetail` (Dumb UI) принимает отдельные пропы: `content: string` (HTML article body) и `media: PostMedia[]` (для галереи) — рендерит их независимо
 
-**Given** Markdown-контент поста содержит потенциально опасный HTML
+**Given** HTML article body поста содержит потенциально опасный HTML
 **When** `MarkdownRenderer` парсит и рендерит контент
 **Then** HTML санитизируется через DOMPurify до рендеринга (защита от XSS)
 **And** разрешены только безопасные теги: `p`, `strong`, `em`, `ul`, `ol`, `li`, `h2`–`h4`, `img`, `code`, `pre`, `blockquote`
@@ -899,8 +899,8 @@ So that я могла удобно читать богатый контент б
 **Given** компонент `MarkdownRenderer` реализован
 **When** разработчик инспектирует код
 **Then** `MarkdownRenderer` — Dumb UI компонент в `src/features/feed/components/`, принимает `content: string` через props, не импортирует Supabase напрямую
-**And** используется `react-markdown` с плагином `remark-gfm` и кастомным компонентом `img` с `loading="lazy"`
+**And** использует sanitize + `dangerouslySetInnerHTML` render path для HTML article body
 **And** компонент покрыт unit-тестом: рендеринг заголовков, списков, инлайн-изображений с `loading="lazy"`
-**And** конфигурация react-markdown вынесена в `src/lib/markdown.ts`
+**And** sanitization utilities вынесены в `src/lib/markdown.ts`
 
 **FRs covered:** FR16.2, NFR4.2

@@ -1,13 +1,44 @@
 'use client'
 
+import { Component, useMemo, type ReactNode } from 'react'
 import { sanitizeHtml } from '@/lib/markdown'
 
 interface MarkdownRendererProps {
   content: string
 }
 
-export function MarkdownRenderer({ content }: MarkdownRendererProps) {
-  const sanitized = sanitizeHtml(content)
+interface MarkdownRendererBoundaryProps {
+  children: ReactNode
+  fallback: ReactNode
+}
+
+interface MarkdownRendererBoundaryState {
+  hasError: boolean
+}
+
+class MarkdownRendererBoundary extends Component<
+  MarkdownRendererBoundaryProps,
+  MarkdownRendererBoundaryState
+> {
+  state: MarkdownRendererBoundaryState = {
+    hasError: false,
+  }
+
+  static getDerivedStateFromError(): MarkdownRendererBoundaryState {
+    return { hasError: true }
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return this.props.fallback
+    }
+
+    return this.props.children
+  }
+}
+
+function MarkdownRendererContent({ content }: MarkdownRendererProps) {
+  const sanitized = useMemo(() => sanitizeHtml(content), [content])
 
   return (
     <div
@@ -15,5 +46,15 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
       suppressHydrationWarning
       dangerouslySetInnerHTML={{ __html: sanitized }}
     />
+  )
+}
+
+export function MarkdownRenderer({ content }: MarkdownRendererProps) {
+  return (
+    <MarkdownRendererBoundary
+      fallback={<div className="rich-content"><p>Vsebina trenutno ni na voljo.</p></div>}
+    >
+      <MarkdownRendererContent content={content} />
+    </MarkdownRendererBoundary>
   )
 }

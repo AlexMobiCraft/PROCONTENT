@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -451,9 +452,11 @@ export function TiptapEditor({
         <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
           <div className="flex items-center gap-3">
             {selectedImage.attrs.src && (
-              <img
+              <Image
                 src={selectedImage.attrs.src}
                 alt={selectedImage.attrs.alt ?? 'Izbrana slika'}
+                width={48}
+                height={48}
                 className="size-12 shrink-0 rounded border border-border object-cover"
               />
             )}
