@@ -76,9 +76,19 @@ export function FeedContainer({
   const resolvedUserId = isAuthReady ? currentUserId : (initialUserId ?? null)
   const resolvedUserRole = initialUserRole ?? null
 
-  const observerRef = useRef<HTMLDivElement>(null)
   const initialLoadAbortRef = useRef<AbortController | null>(null)
   const loadMoreAbortRef = useRef<AbortController | null>(null)
+  // Активный IntersectionObserver и наблюдаемый узел sentinel.
+  // Используем callback ref (а не useRef + useEffect), чтобы observer корректно
+  // переподключался к новому DOM-узлу sentinel когда тот пересоздаётся между
+  // переходами loading↔loaded состояний.
+  const observerInstanceRef = useRef<IntersectionObserver | null>(null)
+  const sentinelNodeRef = useRef<HTMLDivElement | null>(null)
+  // Отслеживаем предыдущее значение activeCategory, чтобы отличать реальную смену
+  // категории от первого маунта. Без этого category effect сбрасывал store на
+  // маунте после гидрации (или preset в тестах) и обрывал infinite scroll
+  // (баг "лента из 10 постов").
+  const previousCategoryRef = useRef<string | null>(null)
 
   // Количество последовательных stall-загрузок. Sentinel остаётся активным
   // пока stallCount < MAX_STALL_RETRIES — автопрокрутка без ручного CTA.
@@ -150,12 +160,38 @@ export function FeedContainer({
   // Начальная загрузка + перезагрузка при смене категории.
   // Состояние читается через getState() в момент вызова — нет stale closure.
   useEffect(() => {
-    // При смене категории сбрасываем store и переделаем запрос.
-    // Без этого фильтр работает на старых постах из предыдущей категории.
-    // Всегда сбрасываем и перезагружаем при смене категории.
-    // Посты из предыдущего фильтра не подходят для новой категории.
-    useFeedStore.getState().setPosts([], null, true)
-    void loadInitial()
+    const previousCategory = previousCategoryRef.current
+    previousCategoryRef.current = activeCategory
+    const isFirstMount = previousCategory === null
+
+    if (!isFirstMount && previousCategory !== activeCategory) {
+      // Реальная смена категории (пользователь кликнул таб): всегда сбрасываем
+      // store и перезагружаем — посты из предыдущего фильтра не подходят
+      // для новой категории. Это закрывает баг сброса фильтра "VSE" при
+      // возврате из отфильтрованной категории (commit ad1bb55e).
+      useFeedStore.getState().setPosts([], null, true)
+      void loadInitial()
+    } else if (isFirstMount) {
+      // Первый маунт: воспроизводим pre-ad1bb55e логику, чтобы не трогать
+      // свежеотгидрированные SSR-данные и не обрывать IntersectionObserver
+      // (баг "лента из 10 постов": observer оставался привязан к удалённому
+      // sentinel-узлу, пока скелетоны перекрывали ленту).
+      //
+      // • Для 'all' — грузим ТОЛЬКО если store пуст и нет initialData.
+      //   Это путь инициализации fresh-рендера без SSR.
+      // • Для остальных категорий — всегда сбрасываем и подгружаем: SSR
+      //   отдаёт страницу под 'all', а store после SPA-навигации мог быть
+      //   переключён на другую категорию.
+      if (activeCategory !== 'all') {
+        useFeedStore.getState().setPosts([], null, true)
+        void loadInitial()
+      } else {
+        const storeHasPosts = useFeedStore.getState().posts.length > 0
+        if (!storeHasPosts && !initialData) {
+          void loadInitial()
+        }
+      }
+    }
 
     // Cleanup всегда регистрируется — при смене категории отменяем запросы
     // и сбрасываем isLoadingMore, чтобы он не завис после abort
@@ -166,7 +202,7 @@ export function FeedContainer({
       loadMoreAbortRef.current = null
       useFeedStore.getState().setLoadingMore(false)
     }
-  }, [activeCategory, loadInitial])
+  }, [activeCategory, loadInitial, initialData])
 
   // Сбрасываем счётчик stall при смене категории
   useEffect(() => {
@@ -265,15 +301,19 @@ export function FeedContainer({
   // без ручного CTA (fix: автопоиск обрывается после первой пустой страницы).
   // При isLoadingMore=true observer отключается: после завершения подгрузки
   // эффект пересоздаёт observer, который немедленно сработает если sentinel в viewport.
+  //
+  // Observer создаётся в useEffect (с deps на условия активации), а подписка
+  // на конкретный DOM-узел делается через callback ref `setSentinelRef`.
+  // Это критично: между переходами loading↔loaded sentinel-узел пересоздаётся
+  // (другой DOM-элемент при rerender), и без callback ref наблюдатель оставался
+  // бы подписан на отсоединённый узел — infinite scroll ломался после первой
+  // страницы (баг "лента из 10 постов").
   useEffect(() => {
-    if (
-      !observerRef.current ||
-      !hasMore ||
-      error ||
-      isLoadingMore ||
-      stallCount >= MAX_STALL_RETRIES
-    )
+    if (!hasMore || error || isLoadingMore || stallCount >= MAX_STALL_RETRIES) {
+      observerInstanceRef.current?.disconnect()
+      observerInstanceRef.current = null
       return
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -283,10 +323,34 @@ export function FeedContainer({
       },
       { rootMargin: SENTINEL_ROOT_MARGIN }
     )
-
-    observer.observe(observerRef.current)
-    return () => observer.disconnect()
+    observerInstanceRef.current = observer
+    // Если sentinel-узел уже смонтирован к этому моменту — сразу его наблюдаем.
+    if (sentinelNodeRef.current) {
+      observer.observe(sentinelNodeRef.current)
+    }
+    return () => {
+      observer.disconnect()
+      if (observerInstanceRef.current === observer) {
+        observerInstanceRef.current = null
+      }
+    }
   }, [error, hasMore, isLoadingMore, stallCount, loadMoreWithStallDetection])
+
+  // Callback ref для sentinel-узла. Вызывается React при mount/unmount узла.
+  // Переподключает текущий IntersectionObserver к новому DOM-элементу — это
+  // нужно потому, что sentinel размонтируется на время загрузки (скелетоны).
+  const setSentinelRef = useCallback((node: HTMLDivElement | null) => {
+    const previousNode = sentinelNodeRef.current
+    sentinelNodeRef.current = node
+    const observer = observerInstanceRef.current
+    if (!observer) return
+    if (previousNode && previousNode !== node) {
+      observer.unobserve(previousNode)
+    }
+    if (node) {
+      observer.observe(node)
+    }
+  }, [])
 
   // Серверная фильтрация по категории (передаём в fetchPosts).
   // displayedPosts = posts напрямую (уже отфильтрованы на сервере).
@@ -476,7 +540,7 @@ export function FeedContainer({
             auto-scroll и auto-trigger продолжают искать посты нужной категории */}
         {hasMore && !error && stallCount < MAX_STALL_RETRIES && (
           <div
-            ref={observerRef}
+            ref={setSentinelRef}
             aria-hidden="true"
             data-testid="feed-sentinel"
             className="h-px w-full"
@@ -542,7 +606,7 @@ export function FeedContainer({
           автопрокрутка без ручного CTA (fix: автопоиск обрывается при empty state) */}
       {hasMore && !error && stallCount < MAX_STALL_RETRIES && (
         <div
-          ref={observerRef}
+          ref={setSentinelRef}
           aria-hidden="true"
           data-testid="feed-sentinel"
           className="h-px w-full"
