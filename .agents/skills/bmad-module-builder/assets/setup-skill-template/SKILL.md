@@ -1,6 +1,6 @@
 ---
-name: { setup-skill-name }
-description: Sets up {module-name} module in a project. Use when the user requests to 'install {module-code} module', 'configure {module-name}', or 'setup {module-name}'.
+name: "{setup-skill-name}"
+description: "Sets up {module-name} module in a project. Use when the user requests to 'install {module-code} module', 'configure {module-name}', or 'setup {module-name}'."
 ---
 
 # Module Setup
@@ -74,3 +74,4 @@ Use the script JSON output to display what was written — config values set (wr
 ## Outcome
 
 Once the user's `user_name` and `communication_language` are known (from collected input, arguments, or existing config), use them consistently for the remainder of the session: address the user by their configured name and communicate in their configured `communication_language`.
+
