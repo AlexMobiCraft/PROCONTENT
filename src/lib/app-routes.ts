@@ -13,7 +13,7 @@ export const ADMIN_SETTINGS_PATH = '/settings'
 // (recovery-flow), дополнительная защита от неавторизованных — серверная проверка в самой странице
 export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH, '/update-password', '/register', '/forgot-password', '/email-preferences', '/api/email/unsubscribe'] as const
 
-const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/', '/api/checkout'] as const
+const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/', '/api/checkout', '/api/cron/'] as const
 
 function normalizeInternalPath(path: string | undefined, fallback: string) {
   if (!path || !path.startsWith('/')) {
