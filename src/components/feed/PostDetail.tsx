@@ -10,6 +10,7 @@ import { deletePost } from '@/features/admin/api/posts'
 import { getAdminPostEditPath } from '@/lib/app-routes'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { LazyMediaWrapper } from '../media/LazyMediaWrapper'
+import { MediaLightbox, type LightboxMedia } from '../media/MediaLightbox'
 import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { GalleryGrid } from './GalleryGrid'
 import { HeartIcon } from '@/components/ui/icons/HeartIcon'
@@ -26,6 +27,40 @@ import type { Comment } from '@/features/comments/types'
 
 function isToggleLikeResponse(v: unknown): v is ToggleLikeResponse {
   return typeof v === 'object' && v !== null && 'is_liked' in v && 'likes_count' in v
+}
+
+function getLightboxMedia(post: PostDetailData): LightboxMedia[] {
+  if (post.media && post.media.length > 0) {
+    return post.media.map((m) => ({
+      id: m.id,
+      url: m.url,
+      media_type: m.media_type,
+      thumbnail_url: m.thumbnail_url,
+      alt: post.title,
+    }))
+  }
+  if (post.mediaItem) {
+    return [
+      {
+        id: post.mediaItem.id,
+        url: post.mediaItem.url,
+        media_type: post.mediaItem.media_type,
+        thumbnail_url: post.mediaItem.thumbnail_url,
+        alt: post.title,
+      },
+    ]
+  }
+  if (post.imageUrl) {
+    return [
+      {
+        id: post.id,
+        url: post.imageUrl,
+        media_type: post.type === 'video' ? 'video' : 'image',
+        alt: post.title,
+      },
+    ]
+  }
+  return []
 }
 
 type UserProfile = {
@@ -63,6 +98,7 @@ export function PostDetail({
   const [isPending, setIsPending] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isDeletingPost, setIsDeletingPost] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   // Предотвращает утечку памяти: не вызываем setState на unmounted компоненте
   const isMountedRef = useRef(true)
 
@@ -264,7 +300,11 @@ export function PostDetail({
       {/* Gallery — 2+ медиафайлов (Story 2.4) */}
       {(post.media?.length ?? 0) >= 2 && (
         <div className="mb-6">
-          <GalleryGrid media={post.media!} priority={true} />
+          <GalleryGrid
+            media={post.media!}
+            priority={true}
+            onMediaClick={(i) => setLightboxIndex(i)}
+          />
         </div>
       )}
 
@@ -273,28 +313,62 @@ export function PostDetail({
       {(post.media?.length ?? 0) < 2 && (post.mediaItem || post.imageUrl) && (
         <div className="mb-6">
           {post.type === 'video' ? (
-            <VideoPlayerContainer
-              videoId={post.mediaItem?.id ?? post.id}
-              src={(post.mediaItem?.url ?? post.imageUrl)!}
-              poster={post.mediaItem?.thumbnail_url ?? undefined}
-              alt={post.title}
-              aspectRatio="9/16"
-              className="max-h-[640px]"
-              priority={true}
-            />
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={`${post.title} — odpri v polnem pogledu`}
+              onClick={(e) => {
+                const target = e.target as HTMLElement
+                if (target.closest('video') || target.closest('button')) return
+                setLightboxIndex(0)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setLightboxIndex(0)
+                }
+              }}
+              className="cursor-pointer"
+              data-testid="single-video-wrapper"
+            >
+              <VideoPlayerContainer
+                videoId={post.mediaItem?.id ?? post.id}
+                src={(post.mediaItem?.url ?? post.imageUrl)!}
+                poster={post.mediaItem?.thumbnail_url ?? undefined}
+                alt={post.title}
+                aspectRatio="9/16"
+                className="max-h-[640px]"
+                priority={true}
+              />
+            </div>
           ) : post.type === 'photo' ? (
-            <LazyMediaWrapper
-              mediaItem={post.mediaItem ?? undefined}
-              src={!post.mediaItem ? (post.imageUrl ?? undefined) : undefined}
-              alt={post.title}
-              aspectRatio="4/5"
-              type="photo"
-              priority={true}
-              sizes="(max-width: 768px) 100vw, 672px"
-            />
+            <button
+              type="button"
+              onClick={() => setLightboxIndex(0)}
+              aria-label={`${post.title} — odpri v polnem pogledu`}
+              className="block w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              data-testid="single-photo-trigger"
+            >
+              <LazyMediaWrapper
+                mediaItem={post.mediaItem ?? undefined}
+                src={!post.mediaItem ? (post.imageUrl ?? undefined) : undefined}
+                alt={post.title}
+                aspectRatio="4/5"
+                type="photo"
+                priority={true}
+                sizes="(max-width: 768px) 100vw, 672px"
+              />
+            </button>
           ) : null}
         </div>
       )}
+
+      <MediaLightbox
+        media={getLightboxMedia(post)}
+        initialIndex={lightboxIndex ?? 0}
+        open={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+      />
 
       {/* Content */}
       <div className="mt-6">

@@ -1,5 +1,5 @@
 import { createElement } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
@@ -72,13 +72,53 @@ vi.mock('@/features/feed/components/VideoPlayerContainer', () => ({
 }))
 
 vi.mock('@/components/feed/GalleryGrid', () => ({
-  GalleryGrid: ({ media, priority }: { media: unknown[]; priority?: boolean }) => (
+  GalleryGrid: ({
+    media,
+    priority,
+    onMediaClick,
+  }: {
+    media: unknown[]
+    priority?: boolean
+    onMediaClick?: (i: number) => void
+  }) => (
     <div
       data-testid="gallery-grid"
       data-count={media.length}
       data-priority={String(priority ?? false)}
-    />
+      data-has-media-click={String(typeof onMediaClick === 'function')}
+    >
+      {onMediaClick ? (
+        <button
+          type="button"
+          data-testid="gallery-grid-trigger"
+          onClick={() => onMediaClick(2)}
+        >
+          gallery-trigger
+        </button>
+      ) : null}
+    </div>
   ),
+}))
+
+vi.mock('@/components/media/MediaLightbox', () => ({
+  MediaLightbox: ({
+    media,
+    initialIndex,
+    open,
+  }: {
+    media: { id: string; url: string; media_type: string }[]
+    initialIndex: number
+    open: boolean
+    onClose: () => void
+  }) =>
+    open ? (
+      <div
+        data-testid="media-lightbox"
+        data-count={media.length}
+        data-initial-index={initialIndex}
+        data-first-id={media[0]?.id}
+      />
+    ) : null,
 }))
 
 const mockToastError = vi.hoisted(() => vi.fn())
@@ -653,5 +693,117 @@ describe('PostDetail', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
     // Если мы дошли сюда без ошибок, то утечка памяти предотвращена ✅
     expect(true).toBe(true)
+  })
+
+  // --- MediaLightbox: открытие из одиночного медиа и галереи ---
+
+  describe('MediaLightbox integration', () => {
+    function makeMedia(count: number): PostMedia[] {
+      return Array.from({ length: count }, (_, i) => ({
+        id: `m-${i}`,
+        post_id: 'post-1',
+        media_type: 'image' as const,
+        url: `https://example.com/${i}.jpg`,
+        thumbnail_url: null,
+        order_index: i,
+        is_cover: i === 0,
+      }))
+    }
+
+    it('lightbox закрыт по умолчанию', () => {
+      render(<PostDetail post={makePost({ type: 'photo', imageUrl: 'https://example.com/p.jpg' })} />)
+      expect(screen.queryByTestId('media-lightbox')).toBeNull()
+    })
+
+    it('клик по одиночному фото открывает lightbox с initialIndex=0', async () => {
+      const user = userEvent.setup()
+      render(
+        <PostDetail
+          post={makePost({
+            type: 'photo',
+            imageUrl: 'https://example.com/p.jpg',
+            mediaItem: {
+              id: 'mi-1',
+              post_id: 'post-1',
+              media_type: 'image',
+              url: 'https://example.com/p.jpg',
+              thumbnail_url: null,
+              order_index: 0,
+              is_cover: true,
+            },
+          })}
+        />
+      )
+      await user.click(screen.getByTestId('single-photo-trigger'))
+      const lb = screen.getByTestId('media-lightbox')
+      expect(lb.getAttribute('data-initial-index')).toBe('0')
+      expect(lb.getAttribute('data-count')).toBe('1')
+      expect(lb.getAttribute('data-first-id')).toBe('mi-1')
+    })
+
+    it('клик по одиночному видео (вне controls) открывает lightbox', async () => {
+      const user = userEvent.setup()
+      render(
+        <PostDetail
+          post={makePost({
+            type: 'video',
+            imageUrl: 'https://example.com/v.mp4',
+            mediaItem: {
+              id: 'v-1',
+              post_id: 'post-1',
+              media_type: 'video',
+              url: 'https://example.com/v.mp4',
+              thumbnail_url: 'https://example.com/poster.jpg',
+              order_index: 0,
+              is_cover: true,
+            },
+          })}
+        />
+      )
+      await user.click(screen.getByTestId('single-video-wrapper'))
+      expect(screen.getByTestId('media-lightbox')).toBeInTheDocument()
+    })
+
+    it('клик внутри элемента <video> НЕ открывает lightbox (нативные controls)', () => {
+      render(
+        <PostDetail
+          post={makePost({
+            type: 'video',
+            imageUrl: 'https://example.com/v.mp4',
+            mediaItem: {
+              id: 'v-1',
+              post_id: 'post-1',
+              media_type: 'video',
+              url: 'https://example.com/v.mp4',
+              thumbnail_url: null,
+              order_index: 0,
+              is_cover: true,
+            },
+          })}
+        />
+      )
+      const wrapper = screen.getByTestId('single-video-wrapper')
+      const fakeVideo = document.createElement('video')
+      wrapper.appendChild(fakeVideo)
+      fireEvent.click(fakeVideo)
+      expect(screen.queryByTestId('media-lightbox')).toBeNull()
+    })
+
+    it('клик по галерее (onMediaClick) открывает lightbox с правильным индексом', async () => {
+      const user = userEvent.setup()
+      render(<PostDetail post={makePost({ type: 'gallery', media: makeMedia(5) })} />)
+      const grid = screen.getByTestId('gallery-grid')
+      expect(grid.getAttribute('data-has-media-click')).toBe('true')
+      await user.click(screen.getByTestId('gallery-grid-trigger'))
+      const lb = screen.getByTestId('media-lightbox')
+      expect(lb.getAttribute('data-initial-index')).toBe('2')
+      expect(lb.getAttribute('data-count')).toBe('5')
+    })
+
+    it('lightbox получает массив media для галереи', () => {
+      render(<PostDetail post={makePost({ type: 'gallery', media: makeMedia(7) })} />)
+      // open=false по умолчанию, lightbox не рендерится
+      expect(screen.queryByTestId('media-lightbox')).toBeNull()
+    })
   })
 })

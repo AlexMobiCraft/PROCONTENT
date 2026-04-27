@@ -120,12 +120,39 @@ export function GalleryGrid({
             isLastOdd && 'col-span-2'
           )
 
-          // Видео рендерится с VideoPlayer (имеет собственные controls), не оборачивается в <button>
-          // Нет интерактивных стилей: VideoPlayer имеет нативные controls, hover/focus-ring избыточны
-          const videoItemClass = cn('overflow-hidden rounded-sm', isLastOdd && 'col-span-2')
+          // Видео рендерится с VideoPlayer (имеет собственные controls), не оборачивается в <button>.
+          // Внешний div получает onClick (открыть lightbox) с проверкой closest('video') —
+          // клики по нативным controls плеера не вызывают навигацию.
+          const videoItemClass = cn(
+            'overflow-hidden rounded-sm',
+            interactive && onMediaClick && 'cursor-pointer',
+            isLastOdd && 'col-span-2'
+          )
           if (item.media_type === 'video') {
+            const videoIndex = i
+            const handleVideoClick = (e: React.MouseEvent | React.KeyboardEvent) => {
+              if (!onMediaClick) return
+              const target = e.target as HTMLElement
+              if (target.closest('video') || target.closest('button')) return
+              onMediaClick(videoIndex)
+            }
+            const interactiveProps =
+              interactive && onMediaClick
+                ? {
+                    role: 'button' as const,
+                    tabIndex: 0,
+                    'aria-label': ariaLabel,
+                    onClick: handleVideoClick,
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleVideoClick(e)
+                      }
+                    },
+                  }
+                : {}
             return (
-              <div key={item.id} className={videoItemClass}>
+              <div key={item.id} className={videoItemClass} {...interactiveProps}>
                 <VideoPlayerContainer
                   videoId={item.id}
                   src={item.url}
@@ -210,11 +237,39 @@ export function GalleryGrid({
                 'min-h-[44px] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
             )
 
-            // Видео в карусели рендерится с VideoPlayer (собственные controls)
-            // Нет интерактивных стилей: VideoPlayer имеет нативные controls, hover/focus-ring избыточны
+            // Видео в карусели рендерится с VideoPlayer (собственные controls).
+            // Внешний div получает onClick для открытия lightbox с проверкой closest('video').
             if (item.media_type === 'video') {
+              const handleCarouselVideoClick = (e: React.MouseEvent | React.KeyboardEvent) => {
+                if (!onMediaClick) return
+                const target = e.target as HTMLElement
+                if (target.closest('video') || target.closest('button')) return
+                onMediaClick(globalIndex)
+              }
+              const carouselInteractiveProps =
+                interactive && onMediaClick
+                  ? {
+                      role: 'button' as const,
+                      tabIndex: 0,
+                      'aria-label': ariaLabel,
+                      onClick: handleCarouselVideoClick,
+                      onKeyDown: (e: React.KeyboardEvent) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleCarouselVideoClick(e)
+                        }
+                      },
+                    }
+                  : {}
               return (
-                <div key={item.id} className="w-32 flex-none snap-start overflow-hidden rounded-sm">
+                <div
+                  key={item.id}
+                  className={cn(
+                    'w-32 flex-none snap-start overflow-hidden rounded-sm',
+                    interactive && onMediaClick && 'cursor-pointer'
+                  )}
+                  {...carouselInteractiveProps}
+                >
                   <VideoPlayerContainer
                     videoId={item.id}
                     src={item.url}

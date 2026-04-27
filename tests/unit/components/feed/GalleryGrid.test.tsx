@@ -519,4 +519,70 @@ describe('GalleryGrid — itemLinkHref для смешанных галерей 
       expect(link.className).toContain('focus-visible:ring-2')
     }
   })
+
+  describe('video onMediaClick (lightbox trigger)', () => {
+    function makeVideoMedia(): PostMedia[] {
+      return [
+        {
+          id: 'v-1',
+          post_id: 'post-1',
+          media_type: 'video',
+          url: 'https://example.com/v1.mp4',
+          thumbnail_url: 'https://example.com/p1.jpg',
+          order_index: 0,
+          is_cover: false,
+        },
+        {
+          id: 'p-2',
+          post_id: 'post-1',
+          media_type: 'image',
+          url: 'https://example.com/p2.jpg',
+          thumbnail_url: null,
+          order_index: 1,
+          is_cover: true,
+        },
+      ]
+    }
+
+    it('клик по контейнеру видео-элемента вызывает onMediaClick с правильным индексом', () => {
+      const onMediaClick = vi.fn()
+      render(<GalleryGrid media={makeVideoMedia()} onMediaClick={onMediaClick} />)
+      const videoWrapper = screen.getByRole('button', { name: 'Videoposnetek 1' })
+      fireEvent.click(videoWrapper)
+      expect(onMediaClick).toHaveBeenCalledWith(0)
+    })
+
+    it('клик по элементу <video> внутри обёртки НЕ вызывает onMediaClick (нативные controls)', () => {
+      const onMediaClick = vi.fn()
+      render(<GalleryGrid media={makeVideoMedia()} onMediaClick={onMediaClick} />)
+      const video = screen.getAllByTestId('video-player').find((el) => el.tagName === 'VIDEO')!
+      fireEvent.click(video)
+      expect(onMediaClick).not.toHaveBeenCalled()
+    })
+
+    it('видео-элемент имеет role=button и tabIndex=0 при interactive=true', () => {
+      const onMediaClick = vi.fn()
+      render(<GalleryGrid media={makeVideoMedia()} onMediaClick={onMediaClick} />)
+      const videoWrapper = screen.getByRole('button', { name: 'Videoposnetek 1' })
+      expect(videoWrapper.getAttribute('tabindex')).toBe('0')
+    })
+
+    it('Enter / Space на видео-обёртке вызывает onMediaClick', () => {
+      const onMediaClick = vi.fn()
+      render(<GalleryGrid media={makeVideoMedia()} onMediaClick={onMediaClick} />)
+      const videoWrapper = screen.getByRole('button', { name: 'Videoposnetek 1' })
+      fireEvent.keyDown(videoWrapper, { key: 'Enter' })
+      expect(onMediaClick).toHaveBeenCalledWith(0)
+      onMediaClick.mockClear()
+      fireEvent.keyDown(videoWrapper, { key: ' ' })
+      expect(onMediaClick).toHaveBeenCalledWith(0)
+    })
+
+    it('видео-элемент НЕ интерактивен при interactive=false', () => {
+      const onMediaClick = vi.fn()
+      render(<GalleryGrid media={makeVideoMedia()} interactive={false} onMediaClick={onMediaClick} />)
+      const videoWrapper = screen.queryByRole('button', { name: 'Videoposnetek 1' })
+      expect(videoWrapper).toBeNull()
+    })
+  })
 })
