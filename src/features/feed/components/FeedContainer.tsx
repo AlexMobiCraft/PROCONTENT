@@ -98,21 +98,40 @@ export function FeedContainer({
   // false до выполнения useEffect → первый render использует initialData напрямую.
   // true после useEffect → используем store (который уже содержит initialData).
   // Если initialData отсутствует — сразу true, используем store.
-  const [isHydrated, setIsHydrated] = useState(() => !initialData)
+  // При возврате из поста (store имеет посты + sessionStorage содержит feed:scrollY)
+  // начинаем hydrated — рендерим все кэшированные посты сразу для корректного scrollTo.
+  const [isHydrated, setIsHydrated] = useState(() => {
+    if (!initialData) return true
+    if (
+      typeof window !== 'undefined' &&
+      useFeedStore.getState().posts.length > 0 &&
+      sessionStorage.getItem('feed:scrollY') !== null
+    ) {
+      return true
+    }
+    return false
+  })
 
   // SSR-safe гидрация store из серверных данных.
   // useEffect выполняется только на клиенте — не мутирует глобальный Zustand
   // singleton во время серверного рендера (fix: SSR state leak между запросами).
-  // initialData в deps: при возврате на страницу (новый SSR-рендер) store
-  // обновляется свежими данными, а не показывает stale кэш (fix: stale SSR data).
-  // Проверка `> 0` убрана: пустые initialData.posts тоже должны очищать stale кэш.
+  // При возврате из поста (feed:scrollY в sessionStorage + store имеет посты)
+  // НЕ перезаписываем store — сохраняем все загруженные посты для корректного
+  // восстановления позиции скролла. feed:scrollY удаляется в FeedPageClient.
+  // В остальных случаях (новый SSR-рендер) обновляем свежими данными.
   useEffect(() => {
     if (initialData) {
-      useFeedStore.getState().setPosts(
-        initialData.posts,
-        initialData.nextCursor,
-        initialData.hasMore
-      )
+      const storeHasPosts = useFeedStore.getState().posts.length > 0
+      const isRestoringScroll =
+        typeof window !== 'undefined' &&
+        sessionStorage.getItem('feed:scrollY') !== null
+      if (!storeHasPosts || !isRestoringScroll) {
+        useFeedStore.getState().setPosts(
+          initialData.posts,
+          initialData.nextCursor,
+          initialData.hasMore
+        )
+      }
       useFeedStore.getState().setLoading(false)
     }
     setIsHydrated(true)
