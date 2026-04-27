@@ -60,6 +60,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 const STATE_FILE = '.migration-state.json'
 const MAX_MEDIA_PER_POST = 10
 const CATEGORY_MAPPING_FILE = 'category-mapping.json' // маппинг ID → категория
+const MAX_UPLOAD_SIZE_MB = 50 // Supabase Storage лимит на размер файла
 // Telegram Desktop экспорт не всегда содержит media_group_id —
 // группируем последовательные медиа-сообщения, отправленные близко по времени
 const ALBUM_TIME_THRESHOLD_SECONDS = 5
@@ -280,6 +281,12 @@ async function uploadMedia(
   const fullPath = path.join(inputPath, localFilePath)
   if (!fs.existsSync(fullPath)) {
     console.warn(`  ⚠️  Файл не найден: ${fullPath} — пропускаем`)
+    return null
+  }
+
+  const sizeMB = fs.statSync(fullPath).size / 1024 / 1024
+  if (sizeMB > MAX_UPLOAD_SIZE_MB) {
+    console.warn(`  ⚠️  Файл слишком большой (${sizeMB.toFixed(1)} MB > ${MAX_UPLOAD_SIZE_MB} MB), пропускаем: ${localFilePath}`)
     return null
   }
 
