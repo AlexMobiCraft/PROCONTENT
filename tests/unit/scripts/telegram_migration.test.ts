@@ -27,7 +27,7 @@ type PostGroup = {
 }
 
 const MAX_MEDIA_PER_POST = 10
-const ALBUM_TIME_THRESHOLD_SECONDS = 5
+const ALBUM_TIME_THRESHOLD_SECONDS = 90
 
 function timeDiffSeconds(date1: string, date2: string): number {
   return Math.abs(new Date(date2).getTime() - new Date(date1).getTime()) / 1000
@@ -283,10 +283,10 @@ describe('groupMessages', () => {
     expect(groups[0].messages).toHaveLength(7)
   })
 
-  it('два фото с разницей 10 секунд → два отдельных photo-поста', () => {
+  it('два фото с разницей > 90 секунд → два отдельных photo-поста', () => {
     const messages: TelegramMessage[] = [
       { id: 1, type: 'message', date: '2024-04-29T18:25:00', text: 'Первый', photo: 'files/p1.jpg' },
-      { id: 2, type: 'message', date: '2024-04-29T18:25:10', text: 'Второй', photo: 'files/p2.jpg' },
+      { id: 2, type: 'message', date: '2024-04-29T18:27:00', text: 'Второй', photo: 'files/p2.jpg' }, // +120s
     ]
     const groups = groupMessages(messages)
     expect(groups).toHaveLength(2)
