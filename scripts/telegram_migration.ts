@@ -60,6 +60,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 const STATE_FILE = '.migration-state.json'
 const MAX_MEDIA_PER_POST = 10
 const CATEGORY_MAPPING_FILE = 'category-mapping.json' // маппинг ID → категория
+// Telegram Desktop экспорт не всегда содержит media_group_id —
+// группируем последовательные медиа-сообщения, отправленные близко по времени
+const ALBUM_TIME_THRESHOLD_SECONDS = 5
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
 
@@ -97,6 +100,10 @@ type MigrationState = {
 }
 
 // ── Вспомогательные функции ───────────────────────────────────────────────────
+
+function timeDiffSeconds(date1: string, date2: string): number {
+  return Math.abs(new Date(date2).getTime() - new Date(date1).getTime()) / 1000
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -191,50 +198,73 @@ function parseTelegramExport(inputPath: string): TelegramMessage[] {
 // ── Группировка сообщений ─────────────────────────────────────────────────────
 
 function groupMessages(messages: TelegramMessage[]): PostGroup[] {
-  const mediaGroups = new Map<string, TelegramMessage[]>()
-  const singles: TelegramMessage[] = []
+  // Сначала собираем явные медиагруппы (media_group_id присутствует в новых экспортах)
+  const mediaGroupMap = new Map<string, TelegramMessage[]>()
+  const nonGrouped: TelegramMessage[] = []
 
   for (const msg of messages) {
-    if (msg.type !== 'message') continue // пропускаем service messages
+    if (msg.type !== 'message') continue
     if (msg.media_group_id) {
-      const g = mediaGroups.get(msg.media_group_id) ?? []
+      const g = mediaGroupMap.get(msg.media_group_id) ?? []
       g.push(msg)
-      mediaGroups.set(msg.media_group_id, g)
+      mediaGroupMap.set(msg.media_group_id, g)
     } else {
-      singles.push(msg)
+      nonGrouped.push(msg)
     }
   }
 
   const result: PostGroup[] = []
 
-  // Одиночные сообщения
-  for (const msg of singles) {
-    let postType: PostGroup['postType']
-    if (msg.photo) {
-      postType = 'photo'
-    } else if (msg.file) {
-      postType = 'video'
+  // Сортируем по id перед proximity-группировкой — Telegram экспорт обычно упорядочен,
+  // но явная сортировка гарантирует корректный результат.
+  nonGrouped.sort((a, b) => a.id - b.id)
+
+  // Обрабатываем остальные сообщения последовательно.
+  // Последовательные медиа-сообщения, отправленные в пределах ALBUM_TIME_THRESHOLD_SECONDS,
+  // объединяются в gallery (альбом) — Telegram Desktop не всегда экспортирует media_group_id.
+  let i = 0
+  while (i < nonGrouped.length) {
+    const msg = nonGrouped[i]
+    const isMedia = !!(msg.photo || msg.file)
+
+    if (isMedia) {
+      const group = [msg]
+      let j = i + 1
+      while (j < nonGrouped.length) {
+        const next = nonGrouped[j]
+        const nextIsMedia = !!(next.photo || next.file)
+        if (nextIsMedia && timeDiffSeconds(group[0].date, next.date) <= ALBUM_TIME_THRESHOLD_SECONDS) {
+          group.push(next)
+          j++
+        } else {
+          break
+        }
+      }
+
+      for (let k = 0; k < group.length; k += MAX_MEDIA_PER_POST) {
+        const chunk = group.slice(k, k + MAX_MEDIA_PER_POST)
+        const firstInChunk = chunk[0]
+        result.push({
+          messages: chunk,
+          postType: chunk.length === 1 ? (firstInChunk.photo ? 'photo' : 'video') : 'gallery',
+        })
+      }
+      i = j
     } else {
-      postType = 'text'
+      result.push({ messages: [msg], postType: 'text' })
+      i++
     }
-    result.push({ messages: [msg], postType })
   }
 
-  // Медиагруппы → gallery
-  for (const [groupId, msgs] of mediaGroups) {
-    // Сортируем по id — порядок отправки
+  // Явные медиагруппы (из media_group_id) → gallery
+  for (const [groupId, msgs] of mediaGroupMap) {
     const sorted = msgs.sort((a, b) => a.id - b.id)
-
-    // Если медиагруппа > MAX_MEDIA_PER_POST → разбиваем на чанки
-    for (let i = 0; i < sorted.length; i += MAX_MEDIA_PER_POST) {
-      const chunk = sorted.slice(i, i + MAX_MEDIA_PER_POST)
-      result.push({ messages: chunk, media_group_id: groupId, postType: 'gallery' })
+    for (let k = 0; k < sorted.length; k += MAX_MEDIA_PER_POST) {
+      result.push({ messages: sorted.slice(k, k + MAX_MEDIA_PER_POST), media_group_id: groupId, postType: 'gallery' })
     }
   }
 
-  // Сортируем все группы по первому сообщению для хронологического порядка
   result.sort((a, b) => a.messages[0].id - b.messages[0].id)
-
   return result
 }
 
