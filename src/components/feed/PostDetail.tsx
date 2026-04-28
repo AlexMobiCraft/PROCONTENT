@@ -327,7 +327,7 @@ export function PostDetail({
                 type="button"
                 onClick={() => setLightboxIndex(0)}
                 aria-label={`${post.title} — odpri v polnem pogledu`}
-                className="absolute right-2 top-2 z-10 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="absolute right-2 top-2 z-10 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-black/50 text-white opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 data-testid="single-video-trigger"
               >
                 <Maximize2 className="size-4" />

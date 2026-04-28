@@ -93,7 +93,7 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
 
   function handlePointerDown(e: React.PointerEvent) {
     const target = e.target as HTMLElement
-    if (target.closest('button') || target.closest('video')) return
+    if (target.closest('button')) return
     pointerRef.current = { startX: e.clientX, startY: e.clientY, tracking: true }
   }
 
