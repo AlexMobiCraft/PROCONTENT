@@ -64,7 +64,7 @@ For scripts using only the standard library, use a plain Python shebang but stil
 How a built skill's SKILL.md should reference its scripts:
 
 - **Scripts with external dependencies:** `uv run scripts/analyze.py {args}`
-- **Stdlib-only scripts:** `python3 scripts/scan.py {args}` (also fine to use `uv run` for consistency)
+- **Stdlib-only scripts:** `python scripts/scan.py {args}` (also fine to use `uv run` for consistency)
 
 `uv run` reads the PEP 723 metadata, silently caches dependencies in an isolated environment, and runs the script — no user prompt, no global install. Like `npx` for Python.
 
@@ -77,7 +77,7 @@ Skills may run in environments where Python or `uv` is unavailable (e.g., claude
 In SKILL.md, frame script steps as outcomes, not just commands:
 
 - Good: "Validate path conventions (run `scripts/scan-paths.py --help` for details)"
-- Avoid: "Execute `python3 scripts/scan-paths.py`" with no context about what it does
+- Avoid: "Execute `python scripts/scan-paths.py`" with no context about what it does
 
 ## Script Interface Standards
 

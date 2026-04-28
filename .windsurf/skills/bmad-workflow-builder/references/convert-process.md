@@ -95,7 +95,7 @@ Focus on what the LLM *wouldn't* do correctly without being told. The retained c
 2. **Generate the HTML report:**
 
 ```bash
-python3 ./scripts/generate-convert-report.py \
+python ./scripts/generate-convert-report.py \
   "{bmad_builder_reports}/convert-{skill-name}/original" \
   "{rebuilt-skill-path}" \
   "{bmad_builder_reports}/convert-{skill-name}/convert-analysis.json" \

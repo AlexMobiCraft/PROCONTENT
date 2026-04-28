@@ -226,7 +226,7 @@ Copy `./assets/customize-template.toml` into the built agent's root. Fill the `[
   ```markdown
   ### Step 1: Resolve the Agent Block
 
-  Run: `python3 {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key agent`
+  Run: `python {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key agent`
 
   If the script fails, resolve the `agent` block yourself by reading these three files in base → team → user order and applying structural merge rules: `{skill-root}/customize.toml`, `{project-root}/_bmad/custom/{skill-name}.toml`, `{project-root}/_bmad/custom/{skill-name}.user.toml`. Scalars override, tables deep-merge, arrays of tables keyed by `code`/`id` replace matching entries and append new ones, all other arrays append.
   ```
@@ -326,8 +326,8 @@ If subagents available, delegate lint-fix to a subagent. Otherwise run inline.
 
 1. Run both lint scripts in parallel:
    ```bash
-   python3 ./scripts/scan-path-standards.py {skill-path}
-   python3 ./scripts/scan-scripts.py {skill-path}
+   python ./scripts/scan-path-standards.py {skill-path}
+   python ./scripts/scan-scripts.py {skill-path}
    ```
 2. Fix high/critical findings and re-run (up to 3 attempts per script)
 3. Run unit tests if scripts exist in the built skill

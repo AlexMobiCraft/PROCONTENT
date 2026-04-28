@@ -36,7 +36,7 @@ description: 'Post-epic review to extract lessons and assess success. Use when t
 
 ### Step 1: Resolve the Workflow Block
 
-Run: `python3 {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow`
+Run: `python {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow`
 
 **If the script fails**, resolve the `workflow` block yourself by reading these three files in base → team → user order and applying the same structural merge rules as the resolver:
 
@@ -91,7 +91,7 @@ Activation is complete. Begin the workflow below.
 
 ## Required Inputs
 
-- `agent_roster` = resolved via `python3 {project-root}/_bmad/scripts/resolve_config.py --project-root {project-root} --key agents` (merges four layers in order: `_bmad/config.toml`, `_bmad/config.user.toml`, `_bmad/custom/config.toml`, `_bmad/custom/config.user.toml`)
+- `agent_roster` = resolved via `python {project-root}/_bmad/scripts/resolve_config.py --project-root {project-root} --key agents` (merges four layers in order: `_bmad/config.toml`, `_bmad/config.user.toml`, `_bmad/custom/config.toml`, `_bmad/custom/config.user.toml`)
 
 ## Execution
 
@@ -1486,7 +1486,7 @@ Alice (Product Owner): "See you at epic planning!"
 Charlie (Senior Dev): "Time to knock out that prep work."
 
 </output>
-<action>Run: `python3 {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
+<action>Run: `python {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
 </step>
 
 </workflow>

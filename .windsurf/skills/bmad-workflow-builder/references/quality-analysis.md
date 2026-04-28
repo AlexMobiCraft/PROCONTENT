@@ -71,10 +71,10 @@ First create output directory: `{bmad_builder_reports}/{skill-name}/quality-anal
 Run all lint scripts and pre-pass scripts in parallel:
 
 ```bash
-python3 scripts/scan-path-standards.py {skill-path} -o {report-dir}/path-standards-temp.json
-python3 scripts/scan-scripts.py {skill-path} -o {report-dir}/scripts-temp.json
+python scripts/scan-path-standards.py {skill-path} -o {report-dir}/path-standards-temp.json
+python scripts/scan-scripts.py {skill-path} -o {report-dir}/scripts-temp.json
 uv run scripts/prepass-workflow-integrity.py {skill-path} -o {report-dir}/workflow-integrity-prepass.json
-python3 scripts/prepass-prompt-metrics.py {skill-path} -o {report-dir}/prompt-metrics-prepass.json
+python scripts/prepass-prompt-metrics.py {skill-path} -o {report-dir}/prompt-metrics-prepass.json
 uv run scripts/prepass-execution-deps.py {skill-path} -o {report-dir}/execution-deps-prepass.json
 ```
 
@@ -114,7 +114,7 @@ The report creator reads everything, synthesizes themes, and writes:
 After the report creator finishes, generate the interactive HTML:
 
 ```bash
-python3 scripts/generate-html-report.py {report-dir} --open
+python scripts/generate-html-report.py {report-dir} --open
 ```
 
 This reads `report-data.json` and produces `quality-report.html` — a self-contained interactive report with opportunity themes, "Fix This Theme" prompt generation, and expandable detailed analysis.

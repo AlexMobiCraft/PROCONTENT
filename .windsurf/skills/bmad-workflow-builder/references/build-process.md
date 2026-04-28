@@ -161,8 +161,8 @@ If subagents available, delegate lint-fix to a subagent. Otherwise run inline.
 
 1. Run both lint scripts in parallel:
    ```bash
-   python3 scripts/scan-path-standards.py {skill-path}
-   python3 scripts/scan-scripts.py {skill-path}
+   python scripts/scan-path-standards.py {skill-path}
+   python scripts/scan-scripts.py {skill-path}
    ```
 2. Fix high/critical findings and re-run (up to 3 attempts per script)
 3. Run unit tests if scripts exist in the built skill

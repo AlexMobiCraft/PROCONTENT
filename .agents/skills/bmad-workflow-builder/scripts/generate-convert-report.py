@@ -10,7 +10,7 @@ analysis (cuts, retained content, verdict), and renders a self-contained
 HTML report showing the stark before/after comparison.
 
 Usage:
-  python3 generate-convert-report.py <original-path> <rebuilt-path> <analysis-json> [-o output.html] [--open]
+  python generate-convert-report.py <original-path> <rebuilt-path> <analysis-json> [-o output.html] [--open]
 """
 
 from __future__ import annotations

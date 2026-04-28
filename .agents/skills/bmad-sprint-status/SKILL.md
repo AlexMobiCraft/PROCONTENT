@@ -20,7 +20,7 @@ description: 'Summarize sprint status and surface risks. Use when the user says 
 
 ### Step 1: Resolve the Workflow Block
 
-Run: `python3 {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow`
+Run: `python {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow`
 
 **If the script fails**, resolve the `workflow` block yourself by reading these three files in base → team → user order and applying the same structural merge rules as the resolver:
 
@@ -220,7 +220,7 @@ If the command targets a story, set `story_key={{next_story_id}}` when prompted.
   </check>
 
   <check if="choice == 4">
-    <action>Run: `python3 {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
+    <action>Run: `python {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
     <action>Exit workflow</action>
   </check>
 </step>
@@ -291,7 +291,7 @@ If the command targets a story, set `story_key={{next_story_id}}` when prompted.
 
 <template-output>is_valid = true</template-output>
 <template-output>message = "sprint-status.yaml valid: metadata complete, all statuses recognized"</template-output>
-<action>Run: `python3 {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
+<action>Run: `python {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
 </step>
 
 </workflow>

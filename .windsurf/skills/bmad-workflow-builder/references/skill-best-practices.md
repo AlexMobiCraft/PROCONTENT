@@ -33,7 +33,7 @@ Reserve exact steps for **fragile operations** where getting it wrong has conseq
 | ------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
 | **High** (outcomes) | Multiple valid approaches, LLM judgment adds value | "Ensure the user's requirements are complete"                       |
 | **Medium** (guided) | Preferred approach exists, some variation OK       | "Present findings in a structured report with an executive summary" |
-| **Low** (exact)     | Fragile, one right way, consequences for deviation | `python3 scripts/scan-path-standards.py {skill-path}`               |
+| **Low** (exact)     | Fragile, one right way, consequences for deviation | `python scripts/scan-path-standards.py {skill-path}`               |
 
 ## Patterns
 

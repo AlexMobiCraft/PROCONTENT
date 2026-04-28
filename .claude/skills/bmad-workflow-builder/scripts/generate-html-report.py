@@ -16,7 +16,7 @@ a self-contained HTML report with:
   - Link to full markdown report
 
 Usage:
-  python3 generate-html-report.py {quality-report-dir} [--open]
+  python generate-html-report.py {quality-report-dir} [--open]
 """
 
 from __future__ import annotations
