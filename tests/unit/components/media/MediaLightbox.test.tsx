@@ -159,7 +159,7 @@ describe('MediaLightbox', () => {
     render(
       <MediaLightbox media={makeMedia(2)} initialIndex={0} open={true} onClose={() => {}} />
     )
-    expect(pushState).toHaveBeenCalledWith({ mlOpen: true }, '')
+    expect(pushState).toHaveBeenCalledWith({ lightbox: true }, '')
     pushState.mockRestore()
   })
 
@@ -258,5 +258,64 @@ describe('MediaLightbox', () => {
     fireEvent.click(screen.getByTestId('lightbox-next'))
     expect(screen.queryByTestId('lightbox-media-error')).toBeNull()
     expect(screen.getByTestId('lightbox-image')).toBeInTheDocument()
+  })
+
+  it('fallback при ошибке загрузки видео', () => {
+    render(
+      <MediaLightbox
+        media={[{ id: 'v', url: 'v.mp4', media_type: 'video', thumbnail_url: null, alt: 'Video' }]}
+        initialIndex={0}
+        open={true}
+        onClose={() => {}}
+      />
+    )
+    fireEvent.error(screen.getByTestId('lightbox-video'))
+    expect(screen.getByTestId('lightbox-media-error')).toBeInTheDocument()
+    expect(screen.queryByTestId('lightbox-video')).toBeNull()
+  })
+
+  it('видео ставится на паузу при переключении медиа', async () => {
+    const pauseSpy = vi.spyOn(HTMLVideoElement.prototype, 'pause').mockImplementation(() => {})
+    const user = userEvent.setup()
+    const media: LightboxMedia[] = [
+      { id: 'v1', url: 'v1.mp4', media_type: 'video', thumbnail_url: null, alt: 'Video 1' },
+      { id: 'v2', url: 'v2.mp4', media_type: 'video', thumbnail_url: null, alt: 'Video 2' },
+    ]
+    render(<MediaLightbox media={media} initialIndex={0} open={true} onClose={() => {}} />)
+    pauseSpy.mockClear()
+    await user.click(screen.getByTestId('lightbox-next'))
+    expect(pauseSpy).toHaveBeenCalled()
+    pauseSpy.mockRestore()
+  })
+
+  it('видео ставится на паузу при закрытии lightbox', () => {
+    const pauseSpy = vi.spyOn(HTMLVideoElement.prototype, 'pause').mockImplementation(() => {})
+    const { rerender } = render(
+      <MediaLightbox
+        media={[{ id: 'v', url: 'v.mp4', media_type: 'video', thumbnail_url: null, alt: 'Video' }]}
+        initialIndex={0}
+        open={true}
+        onClose={() => {}}
+      />
+    )
+    pauseSpy.mockClear()
+    rerender(
+      <MediaLightbox
+        media={[{ id: 'v', url: 'v.mp4', media_type: 'video', thumbnail_url: null, alt: 'Video' }]}
+        initialIndex={0}
+        open={false}
+        onClose={() => {}}
+      />
+    )
+    expect(pauseSpy).toHaveBeenCalled()
+    pauseSpy.mockRestore()
+  })
+
+  it('Esc закрывает lightbox через Dialog', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<MediaLightbox media={makeMedia(3)} initialIndex={0} open={true} onClose={onClose} />)
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
   })
 })

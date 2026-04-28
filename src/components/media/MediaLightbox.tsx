@@ -54,7 +54,7 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
 
     useFeedStore.getState().setActiveVideo(null)
 
-    window.history.pushState({ mlOpen: true }, '')
+    window.history.pushState({ lightbox: true }, '')
     pushedRef.current = true
 
     const onPopstate = () => {
@@ -63,6 +63,7 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
     }
     window.addEventListener('popstate', onPopstate)
     return () => {
+      videoRef.current?.pause()
       window.removeEventListener('popstate', onPopstate)
       if (pushedRef.current) {
         pushedRef.current = false
@@ -133,7 +134,7 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
   const isDragging = pointerRef.current?.tracking === true
 
   return (
-    <Dialog.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }}>
+    <Dialog.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }} modal>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-foreground/90 backdrop-blur-sm" />
         <Dialog.Popup

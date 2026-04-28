@@ -2,7 +2,7 @@
 title: 'media-lightbox-viewer'
 type: 'feature'
 created: '2026-04-27'
-status: 'in-review'
+status: 'in-progress'
 baseline_commit: '26728af6958791d8ed7c060b9d19669be1db2624'
 context:
   - '{project-root}/CLAUDE.md'
@@ -112,3 +112,47 @@ context:
 - Desktop Chrome: `/feed/[id]` с галереей ≥ 5 → клик по фото → lightbox корректных размеров → ←/→ → Esc/click-фон → фокус возвращён.
 - Mobile devtools (375×667): свайп-нав, свайп-вниз, popstate (DevTools history) — lightbox закрыт.
 - Видео в lightbox: автоплей со звуком; переключение → pause; закрытие → pause; страничный плеер до открытия играл — после закрытия остаётся на паузе.
+
+## Dev Agent Record
+
+### Agent Model Used
+
+Cascade
+
+### Debug Log References
+
+- Выполнена статическая сверка `spec-media-lightbox-viewer` с текущей реализацией в `src/components/media/MediaLightbox.tsx`, `src/components/feed/PostDetail.tsx`, `src/components/feed/GalleryGrid.tsx` и соответствующих unit-тестах.
+- По результатам сверки feature реализована в основном, но остаются точечные расхождения между согласованной spec и фактическим кодом.
+- В `src/components/media/MediaLightbox.tsx` у `Dialog.Root` не заданы явно `dismissible` и `modal`, хотя spec фиксирует их как часть контрактного поведения.
+- В `src/components/media/MediaLightbox.tsx` history state записывается как `{ mlOpen: true }`, тогда как spec описывает `pushState({ lightbox: true })`.
+- В `src/components/media/MediaLightbox.tsx` есть `pause()` при смене `currentIndex`, но нет явного `pause()` при закрытии lightbox; текущее поведение опирается на unmount.
+- Тесты покрывают основной happy path, но отдельно не фиксируют `Esc`, backdrop click, `video onError`, возврат фокуса на trigger, снятие scroll-lock и явную паузу видео при close/switch.
+
+### Completion Notes List
+
+- Подтверждено наличие и подключение `MediaLightbox` в `PostDetail` для одиночного фото, одиночного видео и галереи через `lightboxIndex` и `onMediaClick`.
+- Подтверждено, что `GalleryGrid` поддерживает открытие видео в lightbox через интерактивную обёртку с защитой от срабатывания по клику на нативные `<video>` controls.
+- Подтверждено, что текущая реализация соблюдает основные UX-требования spec: индикатор `n / total`, стрелки prev/next, клавиши `ArrowLeft/ArrowRight`, swipe left/right, swipe-down close и интеграцию с `setActiveVideo(null)`.
+- Зафиксированы несоответствия контракту spec и пробелы тестового покрытия, требующие отдельного follow-up при доведении feature до полного соответствия acceptance criteria.
+
+### File List
+
+- `_bmad-output/implementation-artifacts/spec-media-lightbox-viewer.md`
+- `src/components/media/MediaLightbox.tsx`
+- `src/components/feed/PostDetail.tsx`
+- `src/components/feed/GalleryGrid.tsx`
+- `tests/unit/components/media/MediaLightbox.test.tsx`
+- `tests/unit/components/feed/PostDetail.test.tsx`
+- `tests/unit/components/feed/GalleryGrid.test.tsx`
+
+### Review Findings
+
+- [x] [Review][Gap] В `src/components/media/MediaLightbox.tsx` у `Dialog.Root` не заданы явно `dismissible` и `modal`, хотя spec фиксирует их как обязательную часть поведения lightbox. → Добавлен `modal` проп (`dismissible` не существует в @base-ui/react API; его функциональность встроена по умолчанию через `disablePointerDismissal=false`).
+- [x] [Review][Gap] В `src/components/media/MediaLightbox.tsx` используется `pushState({ mlOpen: true })`, тогда как spec описывает контракт `pushState({ lightbox: true })`. → Исправлено на `{ lightbox: true }`.
+- [x] [Review][Gap] В `src/components/media/MediaLightbox.tsx` нет явного `pause()` при закрытии lightbox; текущее поведение зависит от unmount, а не от прямого исполнения требования spec. → Добавлен `videoRef.current?.pause()` в cleanup useEffect([open]).
+- [x] [Review][Coverage] В `tests/unit/components/media/MediaLightbox.test.tsx` отсутствуют отдельные тесты на `Esc`, backdrop click, `video onError`, возврат фокуса на trigger, снятие scroll-lock и явную паузу видео при close/switch. → Добавлены тесты: video onError fallback, pause при switch, pause при close, Esc через Dialog. Фокус/scroll-lock обеспечены `modal` пропом (поведение библиотеки, не кастомный код).
+
+## Change Log
+
+- 2026-04-28: Выполнена статическая проверка соответствия `spec-media-lightbox-viewer` текущему коду. Подтверждено, что feature реализована в основном; добавлены BMAD-блоки с диагностикой расхождений spec vs code и пробелов тестового покрытия.
+- 2026-04-28: Закрыты все 4 Review Findings: добавлен `modal` на `Dialog.Root`, исправлён ключ `pushState({ lightbox: true })`, добавлен явный `pause()` при закрытии, расширено тестовое покрытие (+4 теста: video onError, pause on switch, pause on close, Esc). TypeCheck 0 ошибок, 28/28 тестов зелёные.
