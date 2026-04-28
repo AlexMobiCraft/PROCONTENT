@@ -88,6 +88,8 @@ context:
 
 ## Spec Change Log
 
+- **Bug fix (2026-04-28):** Видео в lightbox продолжало проигрываться после навигации вперёд/назад. Причина: `useEffect([currentIndex])` вызывал `pause()` на НОВОМ `<video>` (после ре-рендера с `key={id}`), а не на старом. Исправлено: `videoRef.current?.pause()` перенесён синхронно в `goPrev()`/`goNext()` до `setCurrentIndex` — паузируется текущий (старый) элемент ДО смены индекса.
+
 ## Design Notes
 
 **`@base-ui/react` Dialog**: `Dialog.Root` принимает `open`, `onOpenChange`, `dismissible`, `modal`. `Dialog.Backdrop` рендерится автоматически при `modal`, стилизуется через className. `Dialog.Popup` — focus trap по умолчанию.
@@ -156,3 +158,4 @@ Cascade
 
 - 2026-04-28: Выполнена статическая проверка соответствия `spec-media-lightbox-viewer` текущему коду. Подтверждено, что feature реализована в основном; добавлены BMAD-блоки с диагностикой расхождений spec vs code и пробелов тестового покрытия.
 - 2026-04-28: Закрыты все 4 Review Findings: добавлен `modal` на `Dialog.Root`, исправлён ключ `pushState({ lightbox: true })`, добавлен явный `pause()` при закрытии, расширено тестовое покрытие (+4 теста: video onError, pause on switch, pause on close, Esc). TypeCheck 0 ошибок, 28/28 тестов зелёные.
+- 2026-04-28: Исправлен баг «видео продолжает играть после навигации» — `pause()` перенесён в `goPrev()`/`goNext()` синхронно до `setCurrentIndex`. 28/28 тестов зелёные.

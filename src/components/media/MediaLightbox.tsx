@@ -45,7 +45,6 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
 
   useEffect(() => {
     setHasMediaError(false)
-    videoRef.current?.pause()
   }, [currentIndex])
 
   useEffect(() => {
@@ -84,9 +83,11 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
   }, [open, currentIndex, media.length])
 
   function goPrev() {
+    videoRef.current?.pause()
     setCurrentIndex((i) => (i > 0 ? i - 1 : i))
   }
   function goNext() {
+    videoRef.current?.pause()
     setCurrentIndex((i) => (i < media.length - 1 ? i + 1 : i))
   }
 
