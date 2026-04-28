@@ -120,39 +120,16 @@ export function GalleryGrid({
             isLastOdd && 'col-span-2'
           )
 
-          // Видео рендерится с VideoPlayer (имеет собственные controls), не оборачивается в <button>.
-          // Внешний div получает onClick (открыть lightbox) с проверкой closest('video') —
-          // клики по нативным controls плеера не вызывают навигацию.
-          const videoItemClass = cn(
-            'overflow-hidden rounded-sm',
-            interactive && onMediaClick && 'cursor-pointer',
-            isLastOdd && 'col-span-2'
-          )
+          // Видео: прозрачная overlay-кнопка поверх VideoPlayerContainer гарантирует
+          // перехват тапов на мобильном — Android/iOS перехватывают touch на <video controls>
+          // до всплытия события, поэтому обычный div[role="button"] не надёжен.
           if (item.media_type === 'video') {
             const videoIndex = i
-            const handleVideoClick = (e: React.MouseEvent | React.KeyboardEvent) => {
-              if (!onMediaClick) return
-              const target = e.target as HTMLElement
-              if (target.closest('button')) return
-              onMediaClick(videoIndex)
-            }
-            const interactiveProps =
-              interactive && onMediaClick
-                ? {
-                    role: 'button' as const,
-                    tabIndex: 0,
-                    'aria-label': ariaLabel,
-                    onClick: handleVideoClick,
-                    onKeyDown: (e: React.KeyboardEvent) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        handleVideoClick(e)
-                      }
-                    },
-                  }
-                : {}
             return (
-              <div key={item.id} className={videoItemClass} {...interactiveProps}>
+              <div
+                key={item.id}
+                className={cn('relative overflow-hidden rounded-sm', isLastOdd && 'col-span-2')}
+              >
                 <VideoPlayerContainer
                   videoId={item.id}
                   src={item.url}
@@ -161,6 +138,21 @@ export function GalleryGrid({
                   aspectRatio={itemAspectRatio}
                   priority={priority && i < 2}
                 />
+                {interactive && onMediaClick && (
+                  <button
+                    type="button"
+                    className="absolute inset-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                    onClick={() => onMediaClick(videoIndex)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onMediaClick(videoIndex)
+                      }
+                    }}
+                    aria-label={ariaLabel}
+                    tabIndex={0}
+                  />
+                )}
               </div>
             )
           }
@@ -237,38 +229,12 @@ export function GalleryGrid({
                 'min-h-[44px] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
             )
 
-            // Видео в карусели рендерится с VideoPlayer (собственные controls).
-            // Внешний div получает onClick для открытия lightbox с проверкой closest('video').
+            // Видео в карусели: overlay-кнопка (та же логика, что в основной сетке).
             if (item.media_type === 'video') {
-              const handleCarouselVideoClick = (e: React.MouseEvent | React.KeyboardEvent) => {
-                if (!onMediaClick) return
-                const target = e.target as HTMLElement
-                if (target.closest('button')) return
-                onMediaClick(globalIndex)
-              }
-              const carouselInteractiveProps =
-                interactive && onMediaClick
-                  ? {
-                      role: 'button' as const,
-                      tabIndex: 0,
-                      'aria-label': ariaLabel,
-                      onClick: handleCarouselVideoClick,
-                      onKeyDown: (e: React.KeyboardEvent) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          handleCarouselVideoClick(e)
-                        }
-                      },
-                    }
-                  : {}
               return (
                 <div
                   key={item.id}
-                  className={cn(
-                    'w-32 flex-none snap-start overflow-hidden rounded-sm',
-                    interactive && onMediaClick && 'cursor-pointer'
-                  )}
-                  {...carouselInteractiveProps}
+                  className="relative w-32 flex-none snap-start overflow-hidden rounded-sm"
                 >
                   <VideoPlayerContainer
                     videoId={item.id}
@@ -277,6 +243,21 @@ export function GalleryGrid({
                     alt={ariaLabel}
                     aspectRatio="4/5"
                   />
+                  {interactive && onMediaClick && (
+                    <button
+                      type="button"
+                      className="absolute inset-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                      onClick={() => onMediaClick(globalIndex)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onMediaClick(globalIndex)
+                        }
+                      }}
+                      aria-label={ariaLabel}
+                      tabIndex={0}
+                    />
+                  )}
                 </div>
               )
             }

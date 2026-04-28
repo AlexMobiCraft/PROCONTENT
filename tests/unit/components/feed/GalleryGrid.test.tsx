@@ -552,11 +552,13 @@ describe('GalleryGrid — itemLinkHref для смешанных галерей 
       expect(onMediaClick).toHaveBeenCalledWith(0)
     })
 
-    it('клик по элементу <video> внутри обёртки вызывает onMediaClick (открывает lightbox)', () => {
+    it('overlay-кнопка поверх видео перехватывает тап (мобильный паттерн)', () => {
       const onMediaClick = vi.fn()
       render(<GalleryGrid media={makeVideoMedia()} onMediaClick={onMediaClick} />)
-      const video = screen.getAllByTestId('video-player').find((el) => el.tagName === 'VIDEO')!
-      fireEvent.click(video)
+      // На мобильном Android/iOS <video controls> перехватывает touch до всплытия.
+      // Overlay-кнопка (absolute inset-0) гарантирует надёжный перехват тапа.
+      const overlay = screen.getByRole('button', { name: 'Videoposnetek 1' })
+      fireEvent.click(overlay)
       expect(onMediaClick).toHaveBeenCalledWith(0)
     })
 
