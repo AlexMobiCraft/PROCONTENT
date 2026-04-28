@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Maximize2, Pencil, Trash2 } from 'lucide-react'
 import { deletePost } from '@/features/admin/api/posts'
 import { getAdminPostEditPath } from '@/lib/app-routes'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -313,24 +313,7 @@ export function PostDetail({
       {(post.media?.length ?? 0) < 2 && (post.mediaItem || post.imageUrl) && (
         <div className="mb-6">
           {post.type === 'video' ? (
-            <div
-              role="button"
-              tabIndex={0}
-              aria-label={`${post.title} — odpri v polnem pogledu`}
-              onClick={(e) => {
-                const target = e.target as HTMLElement
-                if (target.closest('video') || target.closest('button')) return
-                setLightboxIndex(0)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setLightboxIndex(0)
-                }
-              }}
-              className="cursor-pointer"
-              data-testid="single-video-wrapper"
-            >
+            <div className="relative group" data-testid="single-video-wrapper">
               <VideoPlayerContainer
                 videoId={post.mediaItem?.id ?? post.id}
                 src={(post.mediaItem?.url ?? post.imageUrl)!}
@@ -340,6 +323,15 @@ export function PostDetail({
                 className="max-h-[640px]"
                 priority={true}
               />
+              <button
+                type="button"
+                onClick={() => setLightboxIndex(0)}
+                aria-label={`${post.title} — odpri v polnem pogledu`}
+                className="absolute right-2 top-2 z-10 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                data-testid="single-video-trigger"
+              >
+                <Maximize2 className="size-4" />
+              </button>
             </div>
           ) : post.type === 'photo' ? (
             <button

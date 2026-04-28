@@ -741,7 +741,7 @@ describe('PostDetail', () => {
       expect(lb.getAttribute('data-first-id')).toBe('mi-1')
     })
 
-    it('клик по одиночному видео (вне controls) открывает lightbox', async () => {
+    it('клик по кнопке открытия видео открывает lightbox', async () => {
       const user = userEvent.setup()
       render(
         <PostDetail
@@ -760,11 +760,11 @@ describe('PostDetail', () => {
           })}
         />
       )
-      await user.click(screen.getByTestId('single-video-wrapper'))
+      await user.click(screen.getByTestId('single-video-trigger'))
       expect(screen.getByTestId('media-lightbox')).toBeInTheDocument()
     })
 
-    it('клик внутри элемента <video> НЕ открывает lightbox (нативные controls)', () => {
+    it('клик по области видео (не по кнопке) НЕ открывает lightbox', () => {
       render(
         <PostDetail
           post={makePost({
@@ -782,10 +782,8 @@ describe('PostDetail', () => {
           })}
         />
       )
-      const wrapper = screen.getByTestId('single-video-wrapper')
-      const fakeVideo = document.createElement('video')
-      wrapper.appendChild(fakeVideo)
-      fireEvent.click(fakeVideo)
+      // Клик на VideoPlayerContainer (не на кнопку открытия) не открывает lightbox
+      fireEvent.click(screen.getByTestId('video-player-container'))
       expect(screen.queryByTestId('media-lightbox')).toBeNull()
     })
 

@@ -133,7 +133,7 @@ export function GalleryGrid({
             const handleVideoClick = (e: React.MouseEvent | React.KeyboardEvent) => {
               if (!onMediaClick) return
               const target = e.target as HTMLElement
-              if (target.closest('video') || target.closest('button')) return
+              if (target.closest('button')) return
               onMediaClick(videoIndex)
             }
             const interactiveProps =
@@ -243,7 +243,7 @@ export function GalleryGrid({
               const handleCarouselVideoClick = (e: React.MouseEvent | React.KeyboardEvent) => {
                 if (!onMediaClick) return
                 const target = e.target as HTMLElement
-                if (target.closest('video') || target.closest('button')) return
+                if (target.closest('button')) return
                 onMediaClick(globalIndex)
               }
               const carouselInteractiveProps =

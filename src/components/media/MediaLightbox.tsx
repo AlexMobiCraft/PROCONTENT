@@ -233,7 +233,7 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
                   autoPlay
                   playsInline
                   onError={() => setHasMediaError(true)}
-                  className="max-h-full max-w-full object-contain"
+                  className="h-full w-full object-contain"
                   aria-label={currentMedia.alt ?? 'Videoposnetek'}
                   data-testid="lightbox-video"
                 >
@@ -246,7 +246,7 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
                   src={currentMedia.url}
                   alt={currentMedia.alt ?? 'Slika'}
                   onError={() => setHasMediaError(true)}
-                  className="max-h-full max-w-full object-contain"
+                  className="h-full w-full object-contain"
                   data-testid="lightbox-image"
                 />
               )}

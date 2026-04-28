@@ -552,12 +552,12 @@ describe('GalleryGrid — itemLinkHref для смешанных галерей 
       expect(onMediaClick).toHaveBeenCalledWith(0)
     })
 
-    it('клик по элементу <video> внутри обёртки НЕ вызывает onMediaClick (нативные controls)', () => {
+    it('клик по элементу <video> внутри обёртки вызывает onMediaClick (открывает lightbox)', () => {
       const onMediaClick = vi.fn()
       render(<GalleryGrid media={makeVideoMedia()} onMediaClick={onMediaClick} />)
       const video = screen.getAllByTestId('video-player').find((el) => el.tagName === 'VIDEO')!
       fireEvent.click(video)
-      expect(onMediaClick).not.toHaveBeenCalled()
+      expect(onMediaClick).toHaveBeenCalledWith(0)
     })
 
     it('видео-элемент имеет role=button и tabIndex=0 при interactive=true', () => {
