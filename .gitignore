@@ -35,6 +35,8 @@ next-env.d.ts
 
 # Supabase
 supabase/.temp/
+supabase-backup/
+hetzner-deploy\StudioSupabase.txt
 
 # Dev utility seed scripts (не для продакшн)
 supabase/run-custom-seed.js
