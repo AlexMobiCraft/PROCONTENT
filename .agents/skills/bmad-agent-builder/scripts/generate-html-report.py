@@ -15,7 +15,7 @@ self-contained HTML report with:
   - Expandable strengths and detailed analysis
 
 Usage:
-  python generate-html-report.py {quality-report-dir} [--open]
+  python3 generate-html-report.py {quality-report-dir} [--open]
 """
 
 from __future__ import annotations
