@@ -1,7 +1,7 @@
 ---
-stepsCompleted: ["step-01-validate-prerequisites", "step-02-design-epics", "step-03-create-stories", "step-04-final-validation", "epic6-step-01-validate-prerequisites", "epic6-step-02-design-epics", "epic6-step-03-create-stories", "epic6-step-04-final-validation"]
+stepsCompleted: ["step-01-validate-prerequisites", "step-02-design-epics", "step-03-create-stories", "step-04-final-validation", "epic6-step-01-validate-prerequisites", "epic6-step-02-design-epics", "epic6-step-03-create-stories", "epic6-step-04-final-validation", "epic8-step-01-validate-prerequisites", "epic8-step-02-design-epics", "epic8-step-03-create-stories"]
 inputDocuments: ["_bmad-output/planning-artifacts/prd.md", "_bmad-output/planning-artifacts/architecture.md", "_bmad-output/planning-artifacts/ux-design-specification.md", "_bmad-output/planning-artifacts/prd-scheduled-publishing.md"]
-lastEdited: '2026-04-05'
+lastEdited: '2026-05-17'
 editHistory:
   - date: '2026-03-22'
     changes: 'Обновлены эпики и стори на основании обновлённых PRD, Architecture и двух брифов (architect-brief-multimedia-posts, sm-brief-multimedia-posts): добавлена нормализация БД (post_media), RBAC/RLS, GalleryGrid, видеоконтроллер, NFR SLAs, обновлена Telegram-миграция (Exponential Backoff, медиагруппы как галереи), обновлены Acceptance Criteria'
@@ -9,6 +9,8 @@ editHistory:
     changes: 'Epic 6 (Scheduled Publishing): добавлены FR6.1–FR6.18 (18 FRs), NFR6.1–NFR6.9 (9 NFRs), дополнительные технические требования (pg_cron, схема БД, cron endpoint) и UX-DR1–UX-DR9. Step-01 validate prerequisites завершён.'
   - date: '2026-04-05'
     changes: 'Добавлен Epic 7 (Rich Content Experience): Story 7.1 (FR19.1: WYSIWYG-редактор с инлайн-изображениями, Tiptap + inline-images bucket) и Story 7.2 (FR16.2, NFR4.2: HTML-рендеринг rich-content, комбинированный layout, DOMPurify). Обновлены FR Coverage Map и Epic List.'
+  - date: '2026-05-17'
+    changes: 'Добавлен Epic 8 (Video Thumbnails): FR8.1–FR8.7 (7 FRs), NFR8.1–NFR8.6 (6 NFRs), UX-DR8.1–UX-DR8.4, Stories 8.1–8.4. Обновлены FR Coverage Map и Epic List. Создан отдельный PRD: prd-video-thumbnails.md'
 ---
 
 # PROCONTENT - Epic Breakdown
@@ -122,6 +124,7 @@ NFR24: Telegram-архив после импорта является иммут
 - FR29–FR31: Epic 5 - Миграция из Telegram (включая интеллектуальную группировку медиагрупп)
 - FR32–FR35: Epic 4 - Управление участницами, категориями и настройками
 - FR6.1–FR6.18: Epic 6 - Scheduled Publishing (отложенная публикация)
+- FR8.1–FR8.7: Epic 8 - Video Thumbnails (автоматические и ручные постеры для видео)
 
 ---
 
@@ -217,6 +220,11 @@ UX-DR9: Дизайн-токены design system — `--primary` (Muted Terracott
 Автор создаёт посты с форматированным rich-text article body и встроенными инлайн-изображениями через WYSIWYG-редактор; участницы видят корректно скомпонованный контент с sanitize + HTML render path, lazy loading изображений и правильным комбинированным layout (article body + галерея).
 **FRs covered:** FR19.1, FR16.2, NFR4.2
 **Stories:** 7.1 (WYSIWYG Editor) → 7.2 (HTML Renderer & Combined Layout)
+
+### Epic 8: Video Thumbnails — Avtomatska in ročna upravljanje posterjev za video
+Sistem avtomatsko generira poster (thumbnail) iz prvega kadra video posnetka, če `thumbnail_url` manjka — ob shranjevanju objave ali retroaktivno za obstoječe zapise. Avtor v editorju lahko ročno izbere poljubno sliko kot poster ali ponovno generira avtomatski. Admin lahko zažene masovno obdelavo za vse video posnetke brez posterja (npr. po Telegram migraciji). LazyMediaWrapper in GalleryGrid uporabljata `thumbnail_url` za privlačen predogled v lenti.
+**FRs covered:** FR8.1–FR8.7
+**Stories:** 8.1 (Avtomatsko generiranje ob shranjevanju) → 8.2 (Ročna zamenjava v editorju) → 8.3 (Retroaktivna obdelava) → 8.4 (Ponovno generiranje in brisanje)
 
 ## Epic 1: Growth & Conversion (Landing, Subscriptions & Onboarding)
 

@@ -171,3 +171,12 @@ development_status:
   "7-1-wysiwyg-editor-inline-images-posts": "done"
   7-2-markdown-rendering-posts-inline-images-and-combined-layout: done
   epic-7-retrospective: done
+
+  # ─── EPIC 8: Video Thumbnails ────────────────────────────────────────────────
+  # 2026-05-17: Story files created for all 8.x stories
+  epic-8: in-progress
+  8-1-automatic-thumbnail-generation-on-save: ready-for-dev
+  8-2-manual-poster-replacement-in-editor: ready-for-dev
+  8-3-retroactive-thumbnail-generation: ready-for-dev
+  8-4-regenerate-and-delete-thumbnail: ready-for-dev
+  epic-8-retrospective: backlog
