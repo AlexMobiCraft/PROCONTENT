@@ -389,8 +389,8 @@ describe('LazyMediaWrapper', () => {
       expect(img).toHaveAttribute('src', 'https://example.com/photo.jpg')
     })
 
-    it('использует thumbnail_url как постер для видео (AC 7)', () => {
-      const { getByRole } = render(
+    it('использует thumbnail_url как poster для <video> (AC 7)', () => {
+      const { container } = render(
         <LazyMediaWrapper
           mediaItem={makeMediaItem({
             media_type: 'video',
@@ -401,8 +401,10 @@ describe('LazyMediaWrapper', () => {
           priority
         />
       )
-      const img = getByRole('img', { name: 'Видео' })
-      expect(img).toHaveAttribute('src', 'https://example.com/thumb.jpg')
+      const video = container.querySelector('video')
+      expect(video).toBeInTheDocument()
+      expect(video).toHaveAttribute('poster', 'https://example.com/thumb.jpg')
+      expect(video).toHaveAttribute('src', 'https://example.com/video.mp4')
     })
 
     it('рендерит <video> для видео при thumbnail_url=null — показывает первый кадр (AC 7)', () => {
@@ -449,14 +451,15 @@ describe('LazyMediaWrapper', () => {
     })
 
     it('показывает play-иконку для видео mediaItem после загрузки (AC 7)', () => {
-      const { container, getByRole } = render(
+      const { container } = render(
         <LazyMediaWrapper
           mediaItem={makeMediaItem({ media_type: 'video', thumbnail_url: 'https://example.com/t.jpg' })}
           alt="Видео"
           priority
         />
       )
-      fireEvent.load(getByRole('img', { name: 'Видео' }))
+      const video = container.querySelector('video')!
+      fireEvent.loadedMetadata(video)
       const playIcon = container.querySelector('svg path[d="M8 5v14l11-7z"]')
       expect(playIcon).not.toBeNull()
     })

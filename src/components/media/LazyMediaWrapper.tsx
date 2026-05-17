@@ -84,13 +84,14 @@ function LazyMediaWrapperContent({
       : 'photo'
     : typeProp
 
-  // Для видео без thumbnail_url рендерим <video> напрямую — покажем первый кадр.
-  const videoSrc = mediaItem?.media_type === 'video' ? mediaItem.url : undefined
-  const useVideoElement = type === 'video' && !rawSrc && !!videoSrc
+  // Для видео всегда рендерим <video> — poster покажет thumbnail, а при его
+  // отсутствии/ошибке браузер отрисует первый кадр (currentTime=0.001).
+  const videoSrc = type === 'video' ? (mediaItem?.url ?? srcProp) : undefined
+  const hasVideoSrc = !!videoSrc
 
   // Если src пустой — немедленно показываем fallback (AC: защита от краша Next/Image).
   const [isLoaded, setIsLoaded] = useState(false)
-  const [isError, setIsError] = useState(rawSrc === '' && !useVideoElement)
+  const [isError, setIsError] = useState(rawSrc === '' && type !== 'video')
   // enabled=false когда priority=true: хук не подписывает элемент на observer.
   // ref присваивается только при !priority, чтобы не создавать ложный DOM-attachment.
   const { ref, isInView } = useInView(!priority)
@@ -121,14 +122,15 @@ function LazyMediaWrapperContent({
       className={cn(
         'relative overflow-hidden bg-muted transition-colors duration-500',
         ratioClass,
-        !isLoaded && !isError && !useVideoElement && 'animate-pulse',
+        !isLoaded && !isError && type !== 'video' && 'animate-pulse',
         className
       )}
     >
-      {useVideoElement && showImage && (
+      {type === 'video' && hasVideoSrc && showImage && (
         <video
           ref={videoRef}
           src={videoSrc}
+          poster={rawSrc || undefined}
           muted
           playsInline
           preload="metadata"
@@ -144,7 +146,7 @@ function LazyMediaWrapperContent({
         />
       )}
 
-      {!useVideoElement && showImage && !isError && (
+      {type !== 'video' && showImage && !isError && (
         <Image
           src={rawSrc}
           alt={alt}
