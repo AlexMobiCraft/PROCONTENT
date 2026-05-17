@@ -405,8 +405,8 @@ describe('LazyMediaWrapper', () => {
       expect(img).toHaveAttribute('src', 'https://example.com/thumb.jpg')
     })
 
-    it('показывает error-fallback для видео при thumbnail_url=null — не передаёт .mp4 в next/image (AC 7)', () => {
-      const { getByTestId, container } = render(
+    it('рендерит <video> для видео при thumbnail_url=null — показывает первый кадр (AC 7)', () => {
+      const { container } = render(
         <LazyMediaWrapper
           mediaItem={makeMediaItem({
             media_type: 'video',
@@ -419,8 +419,33 @@ describe('LazyMediaWrapper', () => {
       )
       // Нет next/image <img> — не пытается загрузить .mp4 как картинку
       expect(container.querySelector('img')).toBeNull()
-      // Показывает error-fallback сразу (src='')
-      expect(getByTestId('media-error-fallback')).toBeInTheDocument()
+      // Рендерится <video> для отображения первого кадра
+      const video = container.querySelector('video')
+      expect(video).toBeInTheDocument()
+      expect(video).toHaveAttribute('src', 'https://example.com/video.mp4')
+      expect(video).toHaveAttribute('preload', 'metadata')
+      expect(video).toHaveAttribute('crossOrigin', 'anonymous')
+      expect(video).toHaveAttribute('aria-label', 'Видео')
+    })
+
+    it('при loadedMetadata на <video> без thumbnail выставляет currentTime = 0.001', () => {
+      const { container } = render(
+        <LazyMediaWrapper
+          mediaItem={makeMediaItem({
+            media_type: 'video',
+            url: 'https://example.com/video.mp4',
+            thumbnail_url: null,
+          })}
+          alt="Видео"
+          priority
+        />
+      )
+      const video = container.querySelector('video')!
+      const currentTimeSpy = vi.spyOn(video, 'currentTime', 'set').mockImplementation(() => {})
+      Object.defineProperty(video, 'readyState', { value: 1, writable: true, configurable: true })
+      fireEvent.loadedMetadata(video)
+      expect(currentTimeSpy).toHaveBeenCalledWith(0.001)
+      currentTimeSpy.mockRestore()
     })
 
     it('показывает play-иконку для видео mediaItem после загрузки (AC 7)', () => {

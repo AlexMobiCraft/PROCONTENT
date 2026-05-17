@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { useInView } from '@/hooks/useInView'
@@ -70,8 +70,10 @@ function LazyMediaWrapperContent({
   type: typeProp = 'photo',
   sizes = '(max-width: 768px) 100vw, 640px',
 }: LazyMediaWrapperProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+
   // Если передан mediaItem — выводим src и type из него (AC 6, 7)
-  const src = mediaItem
+  const rawSrc = mediaItem
     ? mediaItem.media_type === 'video'
       ? (mediaItem.thumbnail_url ?? '')
       : mediaItem.url
@@ -81,11 +83,14 @@ function LazyMediaWrapperContent({
       ? 'video'
       : 'photo'
     : typeProp
-  // key по effectiveSrc гарантирует remount при смене медиафайла —
-  // оба состояния сбрасываются автоматически без дополнительной логики.
+
+  // Для видео без thumbnail_url рендерим <video> напрямую — покажем первый кадр.
+  const videoSrc = mediaItem?.media_type === 'video' ? mediaItem.url : undefined
+  const useVideoElement = type === 'video' && !rawSrc && !!videoSrc
+
   // Если src пустой — немедленно показываем fallback (AC: защита от краша Next/Image).
   const [isLoaded, setIsLoaded] = useState(false)
-  const [isError, setIsError] = useState(src === '')
+  const [isError, setIsError] = useState(rawSrc === '' && !useVideoElement)
   // enabled=false когда priority=true: хук не подписывает элемент на observer.
   // ref присваивается только при !priority, чтобы не создавать ложный DOM-attachment.
   const { ref, isInView } = useInView(!priority)
@@ -102,19 +107,46 @@ function LazyMediaWrapperContent({
         } as const)[aspectRatio]
       : undefined
 
+  const handleVideoLoaded = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const v = e.currentTarget
+    if (v.readyState >= 1) {
+      v.currentTime = 0.001
+    }
+    setIsLoaded(true)
+  }
+
   return (
     <div
       ref={priority ? undefined : ref}
       className={cn(
         'relative overflow-hidden bg-muted transition-colors duration-500',
         ratioClass,
-        !isLoaded && !isError && 'animate-pulse',
+        !isLoaded && !isError && !useVideoElement && 'animate-pulse',
         className
       )}
     >
-      {showImage && !isError && (
+      {useVideoElement && showImage && (
+        <video
+          ref={videoRef}
+          src={videoSrc}
+          muted
+          playsInline
+          preload="metadata"
+          crossOrigin="anonymous"
+          aria-label={alt}
+          onLoadedMetadata={handleVideoLoaded}
+          onError={() => setIsError(true)}
+          className={cn(
+            'absolute inset-0 h-full w-full object-cover',
+            !priority && 'transition-opacity duration-700 ease-in-out',
+            !priority && (isLoaded ? 'opacity-100' : 'opacity-0')
+          )}
+        />
+      )}
+
+      {!useVideoElement && showImage && !isError && (
         <Image
-          src={src}
+          src={rawSrc}
           alt={alt}
           fill
           priority={priority}
