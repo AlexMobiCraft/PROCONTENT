@@ -58,12 +58,12 @@ describe('VideoPlayer', () => {
     expect(container.querySelector('video')).toHaveAttribute('playsInline')
   })
 
-  it('имеет preload="none" по умолчанию', () => {
+  it('всегда имеет preload="metadata" для отображения первого кадра', () => {
     const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
-    expect(container.querySelector('video')).toHaveAttribute('preload', 'none')
+    expect(container.querySelector('video')).toHaveAttribute('preload', 'metadata')
   })
 
-  it('имеет preload="metadata" при priority=true', () => {
+  it('имеет preload="metadata" независимо от priority', () => {
     const { container } = render(
       <VideoPlayer videoId="v1" src="https://example.com/v.mp4" priority />
     )
@@ -73,6 +73,28 @@ describe('VideoPlayer', () => {
   it('имеет атрибут controls', () => {
     const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
     expect(container.querySelector('video')).toHaveAttribute('controls')
+  })
+
+  it('при loadedMetadata без poster устанавливает currentTime = 0.001', () => {
+    const { container } = render(<VideoPlayer videoId="v1" src="https://example.com/v.mp4" />)
+    const video = container.querySelector('video')!
+    const currentTimeSpy = vi.spyOn(video, 'currentTime', 'set').mockImplementation(() => {})
+    Object.defineProperty(video, 'readyState', { value: 1, writable: true, configurable: true })
+    fireEvent.loadedMetadata(video)
+    expect(currentTimeSpy).toHaveBeenCalledWith(0.001)
+    currentTimeSpy.mockRestore()
+  })
+
+  it('при loadedMetadata с poster НЕ трогает currentTime', () => {
+    const { container } = render(
+      <VideoPlayer videoId="v1" src="https://example.com/v.mp4" poster="https://example.com/p.jpg" />
+    )
+    const video = container.querySelector('video')!
+    const currentTimeSpy = vi.spyOn(video, 'currentTime', 'set').mockImplementation(() => {})
+    Object.defineProperty(video, 'readyState', { value: 1, writable: true, configurable: true })
+    fireEvent.loadedMetadata(video)
+    expect(currentTimeSpy).not.toHaveBeenCalled()
+    currentTimeSpy.mockRestore()
   })
 
   it('вызывает onPlay при событии play', () => {

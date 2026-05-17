@@ -108,10 +108,16 @@ export function VideoPlayer({
         poster={poster}
         controls
         playsInline
-        preload={priority ? 'metadata' : 'none'}
+        preload="metadata"
         aria-label={alt}
         onPlay={onPlay}
         onPause={onPause}
+        onLoadedMetadata={(e) => {
+          const v = e.currentTarget
+          if (!poster && v.readyState >= 1) {
+            v.currentTime = 0.001
+          }
+        }}
         onError={() => {
           setHasError(true)
           // Сбросить activeVideoId в store если это видео было активным (предотвращает зависший стейт)
