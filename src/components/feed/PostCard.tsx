@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { PostActionsMenu } from './PostActionsMenu'
 import { LazyMediaWrapper, type MediaItem } from '../media/LazyMediaWrapper'
-import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { GalleryGrid, GalleryGridSkeleton } from './GalleryGrid'
 import { HeartIcon } from '@/components/ui/icons/HeartIcon'
 import { CommentIcon } from '@/components/ui/icons/CommentIcon'
@@ -169,39 +168,15 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
           </Link>
         )
       ) : (post.type === 'video' || post.type === 'multi-video') && (post.mediaItem?.url || post.media?.[0]?.url) ? (
-        /* Клик на контейнере ведёт к посту. Нативные контролы <video> и кнопки плеера
-           перехватываются через проверку target — play/pause не вызывают навигацию. */
-        <div
-          className="mb-4 cursor-pointer"
-          role="button"
-          tabIndex={0}
-          aria-label={`Poglej objavo: ${post.title}`}
-          onClick={(e) => {
-            const target = e.target as HTMLElement
-            if (target.closest('button') || target.tagName === 'VIDEO') return
-            e.stopPropagation()
-            saveScrollY()
-            router.push(`/feed/${post.id}?from=feed`)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              saveScrollY()
-              router.push(`/feed/${post.id}?from=feed`)
-            }
-          }}
-          data-testid="video-card-container"
-        >
-          <VideoPlayerContainer
-            videoId={post.mediaItem?.id ?? post.media?.[0]?.id ?? `fallback-video-${post.id}`}
-            src={(post.mediaItem?.url ?? post.media?.[0]?.url)!}
-            poster={post.mediaItem?.thumbnail_url ?? post.media?.[0]?.thumbnail_url ?? undefined}
+        <Link href={`/feed/${post.id}?from=feed`} className="mb-4 block" tabIndex={-1} prefetch={false}>
+          <LazyMediaWrapper
+            mediaItem={post.mediaItem ?? post.media?.[0] ?? undefined}
             alt={post.title}
             aspectRatio={post.type === 'video' ? '9/16' : '4/5'}
             className={post.type === 'video' ? 'max-h-[560px]' : undefined}
             priority={priority}
           />
-        </div>
+        </Link>
       ) : (post.mediaItem || post.imageUrl) ? (
         <Link href={`/feed/${post.id}?from=feed`} className="mb-4 block" tabIndex={-1} prefetch={false}>
           <LazyMediaWrapper

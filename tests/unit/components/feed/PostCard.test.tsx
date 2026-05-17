@@ -37,21 +37,21 @@ vi.mock('@/components/media/LazyMediaWrapper', () => ({
   LazyMediaWrapper: ({
     priority,
     mediaItem,
+    className,
+    aspectRatio,
   }: {
     priority?: boolean
     mediaItem?: { url: string }
+    className?: string
+    aspectRatio?: string
   }) => (
     <div
       data-testid="lazy-media"
       data-priority={String(priority ?? false)}
       data-media-url={mediaItem?.url ?? ''}
+      data-class-name={className ?? ''}
+      data-aspect-ratio={aspectRatio ?? ''}
     />
-  ),
-}))
-
-vi.mock('@/features/feed/components/VideoPlayerContainer', () => ({
-  VideoPlayerContainer: ({ videoId, src, aspectRatio }: { videoId?: string; src?: string; aspectRatio?: string }) => (
-    <div data-testid="video-player" data-video-id={videoId} data-src={src} data-aspect-ratio={aspectRatio} />
   ),
 }))
 
@@ -297,7 +297,7 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
     thumbnail_url: 'https://example.com/thumb.jpg',
   })
 
-  it('рендерит VideoPlayer вместо LazyMediaWrapper для type=video + mediaItem', () => {
+  it('рендерит LazyMediaWrapper для type=video + mediaItem', () => {
     render(
       <PostCard
         post={makeCardData({
@@ -307,41 +307,25 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
         })}
       />
     )
-    expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
-    expect(screen.getByTestId('video-player')).toBeInTheDocument()
+    expect(screen.getByTestId('lazy-media')).toBeInTheDocument()
   })
 
-  it('VideoPlayer не обёрнут в <a>-ссылку', () => {
+  it('LazyMediaWrapper обёрнут в <a>-ссылку на пост', () => {
     const { container } = render(
       <PostCard
         post={makeCardData({
+          id: 'post-vid-link',
           type: 'video',
           mediaItem: makeVideoMediaItem(),
           imageUrl: undefined,
         })}
       />
     )
-    const videoPlayer = container.querySelector('[data-testid="video-player"]')!
-    expect(videoPlayer.closest('a')).toBeNull()
+    const lazyMedia = container.querySelector('[data-testid="lazy-media"]')!
+    expect(lazyMedia.closest('a')).toHaveAttribute('href', '/feed/post-vid-link?from=feed')
   })
 
-  it('клик по контейнеру одиночного видео навигирует к посту с ?from=feed (кликабельность AC)', async () => {
-    const user = userEvent.setup()
-    render(
-      <PostCard
-        post={makeCardData({
-          id: 'post-vid-nav',
-          type: 'video',
-          mediaItem: makeVideoMediaItem(),
-          imageUrl: undefined,
-        })}
-      />
-    )
-    await user.click(screen.getByTestId('video-card-container'))
-    expect(mockRouterPush).toHaveBeenCalledWith('/feed/post-vid-nav?from=feed')
-  })
-
-  it('video-card-container имеет role="button" и tabIndex=0 (a11y Fix #2)', () => {
+  it('передаёт mediaItem.url в LazyMediaWrapper', () => {
     render(
       <PostCard
         post={makeCardData({
@@ -351,141 +335,36 @@ describe('PostCard — одиночное видео с mediaItem [AI-Review Hig
         })}
       />
     )
-    const container = screen.getByTestId('video-card-container')
-    expect(container).toHaveAttribute('role', 'button')
-    expect(container).toHaveAttribute('tabindex', '0')
+    expect(screen.getByTestId('lazy-media')).toHaveAttribute(
+      'data-media-url',
+      'https://example.com/v.mp4'
+    )
   })
 
-  it('video-card-container имеет aria-label с названием поста (a11y Fix #2)', () => {
+  it('type=video использует aspectRatio="9/16"', () => {
     render(
       <PostCard
         post={makeCardData({
-          title: 'Moj video',
           type: 'video',
           mediaItem: makeVideoMediaItem(),
           imageUrl: undefined,
         })}
       />
     )
-    expect(screen.getByTestId('video-card-container')).toHaveAttribute('aria-label', 'Poglej objavo: Moj video')
+    expect(screen.getByTestId('lazy-media')).toHaveAttribute('data-aspect-ratio', '9/16')
   })
 
-  it('Enter на video-card-container навигирует к посту (keyboard a11y Fix #2)', async () => {
-    const user = userEvent.setup()
+  it('type=video использует className max-h-[560px]', () => {
     render(
       <PostCard
         post={makeCardData({
-          id: 'post-key-nav',
           type: 'video',
           mediaItem: makeVideoMediaItem(),
           imageUrl: undefined,
         })}
       />
     )
-    screen.getByTestId('video-card-container').focus()
-    await user.keyboard('{Enter}')
-    expect(mockRouterPush).toHaveBeenCalledWith('/feed/post-key-nav?from=feed')
-  })
-
-  it('клик по кнопке внутри video-card-container не вызывает навигацию (stopPropagation Fix #2)', () => {
-    render(
-      <PostCard
-        post={makeCardData({
-          id: 'post-vid-btn',
-          type: 'video',
-          mediaItem: makeVideoMediaItem(),
-          imageUrl: undefined,
-        })}
-      />
-    )
-    // Создаём кнопку внутри контейнера для имитации контролов плеера
-    const videoContainer = screen.getByTestId('video-card-container')
-    const innerBtn = document.createElement('button')
-    innerBtn.textContent = 'Play'
-    videoContainer.appendChild(innerBtn)
-    // fireEvent.click сохраняет корректный e.target при bubbling — userEvent может отклоняться
-    fireEvent.click(innerBtn)
-    expect(mockRouterPush).not.toHaveBeenCalled()
-  })
-
-  it('stopPropagation предотвращает двойную навигацию при клике на video-card-container', () => {
-    render(
-      <PostCard
-        post={makeCardData({
-          id: 'post-vid-propagation',
-          type: 'video',
-          mediaItem: makeVideoMediaItem(),
-          imageUrl: undefined,
-        })}
-      />
-    )
-    const videoContainer = screen.getByTestId('video-card-container')
-    fireEvent.click(videoContainer)
-    // Должен быть только один вызов router.push (из video container)
-    // Если stopPropagation не работает, article's onClick вызовет второй push
-    expect(mockRouterPush).toHaveBeenCalledTimes(1)
-    expect(mockRouterPush).toHaveBeenCalledWith('/feed/post-vid-propagation?from=feed')
-  })
-
-  it('использует fallback-video-${post.id} как videoId когда нет media[] (без коллизий с UUID медиафайлов)', () => {
-    render(
-      <PostCard
-        post={makeCardData({
-          id: 'post-vid-1',
-          type: 'video',
-          mediaItem: makeVideoMediaItem(),
-        })}
-      />
-    )
-    expect(screen.getByTestId('video-player')).toHaveAttribute('data-video-id', 'fallback-video-post-vid-1')
-  })
-
-  it('использует media[0].id как videoId когда media[] присутствует (согласованность с GalleryGrid)', () => {
-    render(
-      <PostCard
-        post={makeCardData({
-          id: 'post-vid-1',
-          type: 'video',
-          mediaItem: makeVideoMediaItem(),
-          media: [
-            {
-              id: 'media-item-1',
-              post_id: 'post-vid-1',
-              media_type: 'video' as const,
-              url: 'https://example.com/v.mp4',
-              thumbnail_url: null,
-              order_index: 0,
-              is_cover: true,
-            },
-          ],
-        })}
-      />
-    )
-    expect(screen.getByTestId('video-player')).toHaveAttribute('data-video-id', 'media-item-1')
-  })
-
-  it('использует mediaItem.id как приоритетный videoId (priority over media[0].id) [AI-Review Round 14]', () => {
-    render(
-      <PostCard
-        post={makeCardData({
-          id: 'post-vid-1',
-          type: 'video',
-          mediaItem: { id: 'mediaitem-id-123', url: 'https://example.com/v.mp4', media_type: 'video', thumbnail_url: null },
-          media: [
-            {
-              id: 'media-item-1',
-              post_id: 'post-vid-1',
-              media_type: 'video' as const,
-              url: 'https://example.com/v.mp4',
-              thumbnail_url: null,
-              order_index: 0,
-              is_cover: true,
-            },
-          ],
-        })}
-      />
-    )
-    expect(screen.getByTestId('video-player')).toHaveAttribute('data-video-id', 'mediaitem-id-123')
+    expect(screen.getByTestId('lazy-media')).toHaveAttribute('data-class-name', 'max-h-[560px]')
   })
 })
 
@@ -502,7 +381,7 @@ describe('PostCard — одиночное видео без mediaItem, толь�
     },
   ]
 
-  it('рендерит VideoPlayer если type=video и есть только media[0] (без mediaItem)', () => {
+  it('рендерит LazyMediaWrapper если type=video и есть только media[0] (без mediaItem)', () => {
     render(
       <PostCard
         post={makeCardData({
@@ -513,7 +392,7 @@ describe('PostCard — одиночное видео без mediaItem, толь�
         })}
       />
     )
-    expect(screen.getByTestId('video-player')).toBeInTheDocument()
+    expect(screen.getByTestId('lazy-media')).toBeInTheDocument()
   })
 
   it('использует media[0].url как src когда mediaItem отсутствует', () => {
@@ -527,13 +406,13 @@ describe('PostCard — одиночное видео без mediaItem, толь�
         })}
       />
     )
-    expect(screen.getByTestId('video-player')).toHaveAttribute(
-      'data-src',
+    expect(screen.getByTestId('lazy-media')).toHaveAttribute(
+      'data-media-url',
       'https://example.com/v.mp4'
     )
   })
 
-  it('type=video использует aspectRatio="16/9" для горизонтального видео', () => {
+  it('type=video использует aspectRatio="9/16"', () => {
     render(
       <PostCard
         post={makeCardData({
@@ -544,7 +423,7 @@ describe('PostCard — одиночное видео без mediaItem, толь�
         })}
       />
     )
-    expect(screen.getByTestId('video-player')).toHaveAttribute('data-aspect-ratio', '9/16')
+    expect(screen.getByTestId('lazy-media')).toHaveAttribute('data-aspect-ratio', '9/16')
   })
 })
 
@@ -561,7 +440,7 @@ describe('PostCard — type=multi-video с одним media[0] [AI-Review High L
     },
   ]
 
-  it('рендерит VideoPlayerContainer для type=multi-video с одним media элементом', () => {
+  it('рендерит LazyMediaWrapper для type=multi-video с одним media элементом', () => {
     render(
       <PostCard
         post={makeCardData({
@@ -572,10 +451,10 @@ describe('PostCard — type=multi-video с одним media[0] [AI-Review High L
         })}
       />
     )
-    expect(screen.getByTestId('video-player')).toBeInTheDocument()
+    expect(screen.getByTestId('lazy-media')).toBeInTheDocument()
   })
 
-  it('не рендерит LazyMediaWrapper для type=multi-video + media[0] с video url', () => {
+  it('type=multi-video использует aspectRatio="4/5"', () => {
     render(
       <PostCard
         post={makeCardData({
@@ -586,21 +465,7 @@ describe('PostCard — type=multi-video с одним media[0] [AI-Review High L
         })}
       />
     )
-    expect(screen.queryByTestId('lazy-media')).not.toBeInTheDocument()
-  })
-
-  it('type=multi-video использует aspectRatio="4/5" для поддержки вертикальных видео', () => {
-    render(
-      <PostCard
-        post={makeCardData({
-          type: 'multi-video',
-          mediaItem: undefined,
-          imageUrl: undefined,
-          media: makeSingleVideoMedia(),
-        })}
-      />
-    )
-    expect(screen.getByTestId('video-player')).toHaveAttribute('data-aspect-ratio', '4/5')
+    expect(screen.getByTestId('lazy-media')).toHaveAttribute('data-aspect-ratio', '4/5')
   })
 })
 

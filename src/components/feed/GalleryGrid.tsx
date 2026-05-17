@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { LazyMediaWrapper } from '@/components/media/LazyMediaWrapper'
-import { VideoPlayerContainer } from '@/features/feed/components/VideoPlayerContainer'
 import { cn } from '@/lib/utils'
 import type { PostMedia } from '@/features/feed/types'
 import { sortByOrderIndex } from '@/features/feed/types'
@@ -120,9 +119,8 @@ export function GalleryGrid({
             isLastOdd && 'col-span-2'
           )
 
-          // Видео: прозрачная overlay-кнопка поверх VideoPlayerContainer гарантирует
-          // перехват тапов на мобильном — Android/iOS перехватывают touch на <video controls>
-          // до всплытия события, поэтому обычный div[role="button"] не надёжен.
+          // Видео: LazyMediaWrapper показывает thumbnail + play-иконку.
+          // Overlay-кнопка перехватывает тапы на мобильном.
           if (item.media_type === 'video') {
             const videoIndex = i
             return (
@@ -130,13 +128,12 @@ export function GalleryGrid({
                 key={item.id}
                 className={cn('relative overflow-hidden rounded-sm', isLastOdd && 'col-span-2')}
               >
-                <VideoPlayerContainer
-                  videoId={item.id}
-                  src={item.url}
-                  poster={item.thumbnail_url ?? undefined}
+                <LazyMediaWrapper
+                  mediaItem={item}
                   alt={ariaLabel}
                   aspectRatio={itemAspectRatio}
                   priority={priority && i < 2}
+                  sizes={itemSizes}
                 />
                 {interactive && onMediaClick && (
                   <button
@@ -229,19 +226,18 @@ export function GalleryGrid({
                 'min-h-[44px] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
             )
 
-            // Видео в карусели: overlay-кнопка (та же логика, что в основной сетке).
+            // Видео в карусели: LazyMediaWrapper показывает thumbnail + play-иконку.
             if (item.media_type === 'video') {
               return (
                 <div
                   key={item.id}
                   className="relative w-32 flex-none snap-start overflow-hidden rounded-sm"
                 >
-                  <VideoPlayerContainer
-                    videoId={item.id}
-                    src={item.url}
-                    poster={item.thumbnail_url ?? undefined}
+                  <LazyMediaWrapper
+                    mediaItem={item}
                     alt={ariaLabel}
                     aspectRatio="4/5"
+                    sizes="128px"
                   />
                   {interactive && onMediaClick && (
                     <button

@@ -4,42 +4,19 @@ import { describe, it, expect, vi } from 'vitest'
 import { GalleryGrid, getGridLayout } from '@/components/feed/GalleryGrid'
 import type { PostMedia } from '@/features/feed/types'
 
-vi.mock('@/features/feed/components/VideoPlayerContainer', () => ({
-  VideoPlayerContainer: ({
-    alt,
-    src,
-    videoId,
-    aspectRatio,
-    priority,
-  }: {
-    alt?: string
-    src?: string
-    videoId?: string
-    aspectRatio?: string
-    priority?: boolean
-  }) => (
-    <video
-      src={src}
-      aria-label={alt}
-      data-testid="video-player"
-      data-video-id={videoId}
-      data-aspect-ratio={aspectRatio}
-      data-priority={String(priority ?? false)}
-    />
-  ),
-}))
-
 vi.mock('@/components/media/LazyMediaWrapper', () => ({
   LazyMediaWrapper: ({
     alt,
     mediaItem,
     aspectRatio,
     sizes,
+    priority,
   }: {
     alt: string
     mediaItem?: { url: string }
     aspectRatio?: string
     sizes?: string
+    priority?: boolean
   }) =>
     createElement('img', {
       src: mediaItem?.url ?? '',
@@ -47,6 +24,7 @@ vi.mock('@/components/media/LazyMediaWrapper', () => ({
       'data-testid': 'lazy-media',
       'data-aspect-ratio': aspectRatio,
       'data-sizes': sizes,
+      'data-priority': String(priority ?? false),
     }),
 }))
 
@@ -252,14 +230,14 @@ describe('GalleryGrid — mediaLabel / videoLabel (i18n)', () => {
     expect(screen.getByLabelText('Foto 2')).toBeInTheDocument()
   })
 
-  it('использует кастомные лейблы для видео', () => {
+  it('использует кастомные лейблы для видео через overlay-кнопку', () => {
     const videoMedia = [
       { id: 'v1', post_id: 'p1', media_type: 'video' as const, url: 'https://example.com/v1.mp4', thumbnail_url: null, order_index: 0, is_cover: true },
       { id: 'v2', post_id: 'p1', media_type: 'video' as const, url: 'https://example.com/v2.mp4', thumbnail_url: null, order_index: 1, is_cover: false },
     ]
-    render(<GalleryGrid media={videoMedia} videoLabel="Video" />)
-    expect(screen.getByLabelText('Video 1')).toBeInTheDocument()
-    expect(screen.getByLabelText('Video 2')).toBeInTheDocument()
+    render(<GalleryGrid media={videoMedia} videoLabel="Video" onMediaClick={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Video 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Video 2' })).toBeInTheDocument()
   })
 })
 
@@ -358,7 +336,7 @@ describe('GalleryGrid — Skeleton count=0 guard [LOW fix]', () => {
   })
 })
 
-describe('GalleryGrid — priority проброс в VideoPlayer [MEDIUM fix]', () => {
+describe('GalleryGrid — priority проброс в LazyMediaWrapper [MEDIUM fix]', () => {
   const makeVideoMedia = (count: number) =>
     Array.from({ length: count }, (_, i) => ({
       id: `v-${i}`,
@@ -370,23 +348,23 @@ describe('GalleryGrid — priority проброс в VideoPlayer [MEDIUM fix]', 
       is_cover: i === 0,
     }))
 
-  it('первые 2 видео получают priority=true при priority=true', () => {
+  it('первые 2 медиа получают priority=true при priority=true', () => {
     const { container } = render(<GalleryGrid media={makeVideoMedia(3)} priority={true} />)
-    const players = Array.from(
-      container.querySelectorAll('[data-testid="video-player"]')
+    const media = Array.from(
+      container.querySelectorAll('[data-testid="lazy-media"]')
     ) as HTMLElement[]
-    expect(players[0]).toHaveAttribute('data-priority', 'true')
-    expect(players[1]).toHaveAttribute('data-priority', 'true')
-    expect(players[2]).toHaveAttribute('data-priority', 'false')
+    expect(media[0]).toHaveAttribute('data-priority', 'true')
+    expect(media[1]).toHaveAttribute('data-priority', 'true')
+    expect(media[2]).toHaveAttribute('data-priority', 'false')
   })
 
-  it('все видео получают priority=false при priority=false', () => {
+  it('все медиа получают priority=false при priority=false', () => {
     const { container } = render(<GalleryGrid media={makeVideoMedia(2)} priority={false} />)
-    const players = Array.from(
-      container.querySelectorAll('[data-testid="video-player"]')
+    const media = Array.from(
+      container.querySelectorAll('[data-testid="lazy-media"]')
     ) as HTMLElement[]
-    for (const player of players) {
-      expect(player).toHaveAttribute('data-priority', 'false')
+    for (const el of media) {
+      expect(el).toHaveAttribute('data-priority', 'false')
     }
   })
 })
@@ -422,39 +400,39 @@ describe('GalleryGrid — нет интерактивных стилей на wr
 
   it('wrapper вокруг видео в основной сетке НЕ имеет hover:opacity-90 (interactive=true)', () => {
     const { container } = render(<GalleryGrid media={makeVideoMedia(2)} interactive={true} />)
-    const videoPlayers = container.querySelectorAll('[data-testid="video-player"]')
-    for (const player of Array.from(videoPlayers)) {
-      expect(player.parentElement?.className).not.toContain('hover:opacity-90')
+    const lazyMedia = container.querySelectorAll('[data-testid="lazy-media"]')
+    for (const el of Array.from(lazyMedia)) {
+      expect(el.parentElement?.className).not.toContain('hover:opacity-90')
     }
   })
 
   it('wrapper вокруг видео в основной сетке НЕ имеет focus-visible:ring-2 (interactive=true)', () => {
     const { container } = render(<GalleryGrid media={makeVideoMedia(2)} interactive={true} />)
-    const videoPlayers = container.querySelectorAll('[data-testid="video-player"]')
-    for (const player of Array.from(videoPlayers)) {
-      expect(player.parentElement?.className).not.toContain('focus-visible:ring-2')
+    const lazyMedia = container.querySelectorAll('[data-testid="lazy-media"]')
+    for (const el of Array.from(lazyMedia)) {
+      expect(el.parentElement?.className).not.toContain('focus-visible:ring-2')
     }
   })
 
   it('wrapper вокруг видео в карусели НЕ имеет hover:opacity-90 (interactive=true)', () => {
     const { container } = render(<GalleryGrid media={makeVideoMedia(7)} interactive={true} />)
     const carousel = container.querySelector('[data-testid="gallery-carousel"]')!
-    const videoPlayers = carousel.querySelectorAll('[data-testid="video-player"]')
-    for (const player of Array.from(videoPlayers)) {
-      expect(player.parentElement?.className).not.toContain('hover:opacity-90')
+    const lazyMedia = carousel.querySelectorAll('[data-testid="lazy-media"]')
+    for (const el of Array.from(lazyMedia)) {
+      expect(el.parentElement?.className).not.toContain('hover:opacity-90')
     }
   })
 })
 
 describe('GalleryGrid — aria-label для видео', () => {
-  it('видео элемент получает aria-label "Videoposnetek N"', () => {
+  it('видео элемент получает aria-label "Videoposnetek N" через overlay-кнопку', () => {
     const videoMedia = [
       { id: 'v1', post_id: 'p1', media_type: 'video' as const, url: 'https://example.com/v1.mp4', thumbnail_url: null, order_index: 0, is_cover: true },
       { id: 'v2', post_id: 'p1', media_type: 'video' as const, url: 'https://example.com/v2.mp4', thumbnail_url: null, order_index: 1, is_cover: false },
     ]
-    render(<GalleryGrid media={videoMedia} />)
-    expect(screen.getByLabelText('Videoposnetek 1')).toBeInTheDocument()
-    expect(screen.getByLabelText('Videoposnetek 2')).toBeInTheDocument()
+    render(<GalleryGrid media={videoMedia} onMediaClick={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Videoposnetek 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Videoposnetek 2' })).toBeInTheDocument()
   })
 
   it('изображение получает aria-label "Slika N"', () => {
@@ -492,7 +470,9 @@ describe('GalleryGrid — itemLinkHref для смешанных галерей 
     )
 
     expect(screen.getByRole('link', { name: 'Slika 1' })).toHaveAttribute('href', '/feed/post-1')
-    expect(container.querySelector('[data-testid="video-player"]')?.closest('a')).toBeNull()
+    const lazyMediaItems = container.querySelectorAll('[data-testid="lazy-media"]')
+    // Видео — второй элемент (index 1), не обёрнут в <a>
+    expect(lazyMediaItems[1].closest('a')).toBeNull()
   })
 
   it('Link элементы имеют hover/focus стили даже при interactive=false [AI-Review High A11y]', () => {

@@ -109,6 +109,7 @@ export function VideoPlayer({
         controls
         playsInline
         preload="metadata"
+        crossOrigin="anonymous"
         aria-label={alt}
         onPlay={onPlay}
         onPause={onPause}
