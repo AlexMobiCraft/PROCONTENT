@@ -212,15 +212,15 @@ describe('ProfileScreen', () => {
 
   it('показывает admin-секцию при isAdmin=true', () => {
     render(<ProfileScreen {...defaultProps} isAdmin={true} />)
-    expect(screen.getAllByText('Administracija')).toHaveLength(2)
+    expect(screen.getByText('Administracija')).toBeInTheDocument()
   })
 
   it('?????????? 4 admin-??????', () => {
     render(<ProfileScreen {...defaultProps} isAdmin={true} />)
-    expect(screen.getAllByText('Nova objava')).toHaveLength(2)
-    expect(screen.getAllByText('Kategorije')).toHaveLength(2)
-    expect(screen.getAllByText(/Udele.*enke/i)).toHaveLength(2)
-    expect(screen.getAllByText('Nastavitve')).toHaveLength(2)
+    expect(screen.getByText('Nova objava')).toBeInTheDocument()
+    expect(screen.getByText('Kategorije')).toBeInTheDocument()
+    expect(screen.getByText(/Udele.*enke/i)).toBeInTheDocument()
+    expect(screen.getByText('Nastavitve')).toBeInTheDocument()
   })
 
   it('admin-ссылки ведут на правильные пути', () => {
