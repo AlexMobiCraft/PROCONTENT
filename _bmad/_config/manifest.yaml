@@ -1,40 +1,40 @@
 installation:
-  version: 6.6.0
+  version: 6.7.1
   installDate: 2026-02-24T15:08:11.722Z
-  lastUpdated: 2026-05-16T13:27:43.803Z
+  lastUpdated: 2026-05-23T06:22:53.426Z
 modules:
   - name: core
-    version: 6.6.0
+    version: 6.7.1
     installDate: 2026-02-24T15:08:10.272Z
-    lastUpdated: 2026-05-16T13:27:43.734Z
+    lastUpdated: 2026-05-23T06:22:53.416Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: bmm
-    version: 6.6.0
+    version: 6.7.1
     installDate: 2026-02-24T15:08:00.276Z
-    lastUpdated: 2026-05-16T13:27:43.737Z
+    lastUpdated: 2026-05-23T06:22:53.418Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: bmb
-    version: v1.8.0
+    version: v1.8.1
     installDate: 2026-02-24T15:08:03.063Z
-    lastUpdated: 2026-05-16T13:27:43.773Z
+    lastUpdated: 2026-05-23T06:22:53.422Z
     source: external
     npmPackage: bmad-builder
     repoUrl: https://github.com/bmad-code-org/bmad-builder
     channel: stable
-    sha: d64469f61fadc6cfbf2dea6a0a257fe6eb2790a2
+    sha: 3410d952eafe621f31fcdf4dd5efb2b06690a306
   - name: cis
-    version: v0.2.0
+    version: v0.2.1
     installDate: 2026-02-24T15:08:06.918Z
-    lastUpdated: 2026-05-16T13:27:43.803Z
+    lastUpdated: 2026-05-23T06:22:53.426Z
     source: external
     npmPackage: bmad-creative-intelligence-suite
     repoUrl: https://github.com/bmad-code-org/bmad-module-creative-intelligence-suite
     channel: stable
-    sha: 14a63b893c07173b7a6cfe0fb6a9a72ba51d3cf1
+    sha: 07a8dd03d196a762f21c241d985293fe5b0f90e7
 ides:
   - claude-code
   - antigravity
