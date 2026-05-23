@@ -10,49 +10,27 @@ describe('TestimonialsSection', () => {
     expect(screen.getByText('Kaj pravijo')).toBeInTheDocument()
   })
 
-  it('отображает 3 карточки отзывов как blockquote', () => {
+  it('отображает 4 карточки отзывов как blockquote', () => {
     render(<TestimonialsSection />)
 
     const blockquotes = screen.getAllByRole('blockquote')
-    expect(blockquotes).toHaveLength(3)
+    expect(blockquotes).toHaveLength(4)
   })
 
-  it('отображает имена авторов', () => {
+  it('отображает подписи реальных отзывов', () => {
     render(<TestimonialsSection />)
 
-    expect(screen.getByText('Maša K.')).toBeInTheDocument()
-    expect(screen.getByText('Anja R.')).toBeInTheDocument()
-    expect(screen.getByText('Lena V.')).toBeInTheDocument()
+    const labels = screen.getAllByText('Resnično mnenje članice')
+    expect(labels).toHaveLength(4)
   })
 
-  it('отображает бейджи статуса участниц', () => {
+  it('содержит реальные тексты отзывов', () => {
     render(<TestimonialsSection />)
 
-    expect(screen.getByText('Izkušena')).toBeInTheDocument()
-    const participantBadges = screen.getAllByText('Članica')
-    expect(participantBadges).toHaveLength(2)
-  })
-
-  it('отображает роли авторов', () => {
-    render(<TestimonialsSection />)
-
-    expect(screen.getByText('UGC-ustvarjalka')).toBeInTheDocument()
-    expect(screen.getByText('Začetnica ustvarjanja vsebin')).toBeInTheDocument()
-    expect(screen.getByText('Lastnica majhnega podjetja')).toBeInTheDocument()
-  })
-
-  it('содержит текст цитат', () => {
-    render(<TestimonialsSection />)
-
-    expect(
-      screen.getByText(/podpisala pogodbe s 4 blagovnimi znamkami/i)
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/zastavim vprašanje brez strahu/i)
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/snemati vsebino za svojo kavarno/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Navdusena res/i)).toBeInTheDocument()
+    expect(screen.getByText(/včlanila v tvoj ProContent channel/i)).toBeInTheDocument()
+    expect(screen.getByText(/Kako huda in poučna objava/i)).toBeInTheDocument()
+    expect(screen.getByText(/to je to, kar sem iskala/i)).toBeInTheDocument()
   })
 
   it('отображает заголовок секции "Отзывы"', () => {

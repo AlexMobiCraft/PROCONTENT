@@ -51,3 +51,6 @@ supabase/seed_gallery_test_2_4.sql
 .claude/settings.local.*.json
 
 .vercel
+
+# Media files (large binaries)
+public/feedback
