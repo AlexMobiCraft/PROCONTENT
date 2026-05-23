@@ -1,0 +1,43 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PLUGIN_ROOT\\bin\\notify.ps1\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PLUGIN_ROOT\\bin\\protect-files.ps1\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Edit(*.ts)|Write(*.ts)",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PLUGIN_ROOT\\bin\\format-prettier.ps1\""
+          },
+          {
+            "type": "command",
+            "if": "Edit(*.ts)|Write(*.ts)",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PLUGIN_ROOT\\bin\\eslint-fix.ps1\""
+          }
+        ]
+      }
+    ]
+  }
+}

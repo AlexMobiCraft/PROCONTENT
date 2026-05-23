@@ -49,7 +49,8 @@ supabase/seed_gallery_test_2_4.sql
 .claude/settings.local.json
 .claude/settings.json
 .claude/settings.local.*.json
-
+.claude\openrouter-QWEN3_6.json
+.claude\z-glm.json
 .vercel
 
 # Media files (large binaries)
