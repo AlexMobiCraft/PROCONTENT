@@ -5,10 +5,10 @@ import { Check } from 'lucide-react'
 
 const features = [
   'Popoln dostop do baze znanja (2+ leti vsebine)',
-  'Tedenske analize in žive seje',
-  'WhatsApp skupnostni klepet',
-  'Srečanja v živo v Sloveniji',
-  'Predloge, kontrolni seznami in skripte',
+  'Izobraževalne vsebine 3-4 na teden',
+  'Chat za udeleženke v WhatsApp',
+  'Vsak mesec srečanja v živo',
+  'Predloge, grafični prikazi in podrobni tutoriali',
   'Odgovori avtorice v komentarjih',
 ]
 

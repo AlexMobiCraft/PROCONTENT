@@ -51,7 +51,7 @@ export function HeroSection() {
               href="#preview"
               className="inline-flex min-h-[44px] w-full items-center justify-center border border-primary-foreground/30 px-8 py-3 font-sans text-xs font-medium tracking-[0.2em] uppercase text-primary-foreground/60 transition-colors hover:border-primary-foreground/60 hover:text-primary-foreground sm:w-auto"
             >
-              Oglej si predogled
+              Pojdi na predogled
             </Link>
             <Link
               href="/login"

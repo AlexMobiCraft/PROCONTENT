@@ -63,7 +63,7 @@ describe('HeroSection', () => {
   it('ссылка "Посмотреть превью" ведёт на #preview', () => {
     render(<HeroSection />)
 
-    const link = screen.getByRole('link', { name: 'Oglej si predogled' })
+    const link = screen.getByRole('link', { name: 'Pojdi na predogled' })
     expect(link).toBeInTheDocument()
     expect(link).toHaveAttribute('href', '#preview')
   })
@@ -72,7 +72,7 @@ describe('HeroSection', () => {
     render(<HeroSection />)
 
     const joinLink = screen.getByRole('link', { name: 'Pridruži se klubu' })
-    const previewLink = screen.getByRole('link', { name: 'Oglej si predogled' })
+    const previewLink = screen.getByRole('link', { name: 'Pojdi na predogled' })
 
     expect(joinLink.className).toContain('min-h-[44px]')
     expect(previewLink.className).toContain('min-h-[44px]')
