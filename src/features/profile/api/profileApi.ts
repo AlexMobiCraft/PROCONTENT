@@ -1,12 +1,26 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
+import { compressAvatar } from '@/features/profile/lib/compressAvatar'
 
 const AVATARS_BUCKET = 'avatars'
-const MAX_AVATAR_SIZE = 512 * 512 // 256KB
+// Жёсткий предохранитель памяти браузера: больше — отклоняем до сжатия.
+const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50MB
 
 // Fix #5: белый список допустимых MIME-типов
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+
+/**
+ * Detects HEIC/HEIF files (iPhone default) by MIME type or filename extension.
+ * Some browsers report an empty `type` for HEIC, so we also check the name.
+ */
+function isHeic(file: File): boolean {
+  const type = file.type.toLowerCase()
+  if (type.includes('heic') || type.includes('heif')) {
+    return true
+  }
+  return /\.(heic|heif)$/i.test(file.name)
+}
 
 /**
  * Generates a unique storage path for an avatar file.
@@ -22,27 +36,45 @@ function generateAvatarPath(userId: string, fileName: string): string {
  * Uploads an avatar to Supabase Storage.
  * Returns the public URL on success.
  */
-export async function uploadAvatar(userId: string, file: File): Promise<string> {
-  // Fix #5a: проверка 0-byte файла (до проверки размера)
+export async function uploadAvatar(
+  userId: string,
+  file: File,
+  onPhase?: (phase: 'processing' | 'uploading') => void
+): Promise<string> {
+  // Все проверки — по ОРИГИНАЛУ, до сжатия (иначе валидируем собственный выход).
+
+  // 0-byte файл
   if (file.size === 0) {
     throw new Error('Datoteka ne sme biti prazna')
   }
 
-  // Fix #5b: MIME type validation
+  // HEIC/HEIF (дефолт iPhone) Canvas не декодирует — внятный отказ вместо тихого провала.
+  if (isHeic(file)) {
+    throw new Error('HEIC ni podprt. Shranite kot JPEG.')
+  }
+
+  // MIME whitelist
   if (!ALLOWED_MIME_TYPES.includes(file.type)) {
     throw new Error('Samo slike (JPEG, PNG, GIF, WebP) so dovoljene')
   }
 
-  if (file.size > MAX_AVATAR_SIZE) {
-    throw new Error(`Datoteka je prevelika. Največja velikost je 256 KB.`)
+  // Жёсткий потолок памяти
+  if (file.size > MAX_UPLOAD_SIZE) {
+    throw new Error('Datoteka je prevelika (max 50 MB). Pomanjšajte sliko.')
   }
 
-  const supabase = createClient()
-  const path = generateAvatarPath(userId, file.name)
+  // Сжатие на клиенте: > 256 КБ → center-crop 512×512 / ~200 КБ; ≤ 256 КБ — как есть.
+  onPhase?.('processing')
+  const toUpload = await compressAvatar(file)
 
-  const { error } = await supabase.storage.from(AVATARS_BUCKET).upload(path, file, {
+  onPhase?.('uploading')
+  const supabase = createClient()
+  const path = generateAvatarPath(userId, toUpload.name)
+
+  const { error } = await supabase.storage.from(AVATARS_BUCKET).upload(path, toUpload, {
     upsert: false,
     cacheControl: '3600',
+    contentType: toUpload.type,
   })
 
   if (error) {

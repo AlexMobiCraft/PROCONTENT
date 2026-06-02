@@ -25,8 +25,12 @@ export function ProfileEditCard({
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(firstName)
   const [isLoading, setIsLoading] = useState(false)
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'processing' | 'uploading'>('idle')
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(avatarUrl)
   const [validationError, setValidationError] = useState<string | null>(null)
+
+  // Любая активная операция блокирует интерактив (избегаем concurrent uploads/edits)
+  const isBusy = isLoading || uploadPhase !== 'idle'
 
   async function handleSaveName() {
     // Fix #1: trim перед любой проверкой длины
@@ -65,16 +69,22 @@ export function ProfileEditCard({
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.currentTarget.files?.[0]
-    // Fix #3: guard против concurrent uploads — блокируем если уже идёт загрузка
-    if (!file || isLoading) return
+    // Fix #3: guard против concurrent uploads — блокируем если уже идёт операция
+    if (!file || isBusy) return
 
-    setIsLoading(true)
+    // GIF теряет анимацию только при сжатии (берётся первый кадр). Файлы ≤ 256 КБ
+    // грузятся как есть и сохраняют анимацию — тогда не вводим в заблуждение.
+    if (file.type === 'image/gif' && file.size > 256 * 1024) {
+      toast.info('GIF bo shranjen kot slika')
+    }
+
+    setUploadPhase('processing')
 
     // Fix #3: track uploaded URL для корректного rollback/cleanup
     let uploadedAvatarUrl: string | null = null
 
     try {
-      uploadedAvatarUrl = await uploadAvatar(userId, file)
+      uploadedAvatarUrl = await uploadAvatar(userId, file, setUploadPhase)
 
       // Update profile with new avatar URL
       const oldAvatarUrl = currentAvatarUrl
@@ -104,7 +114,7 @@ export function ProfileEditCard({
 
       toast.error(error instanceof Error ? error.message : 'Napaka pri nalaganju avatarja')
     } finally {
-      setIsLoading(false)
+      setUploadPhase('idle')
     }
   }
 
@@ -133,19 +143,27 @@ export function ProfileEditCard({
         <div className="flex-1">
           <label
             htmlFor="avatar-upload"
-            className="inline-flex items-center justify-center border border-primary px-4 py-2 font-sans text-xs font-medium tracking-[0.1em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50 cursor-pointer"
+            aria-disabled={isBusy}
+            className={cn(
+              'inline-flex items-center justify-center border border-primary px-4 py-2 font-sans text-xs font-medium tracking-[0.1em] uppercase text-foreground transition-colors hover:bg-primary/10 cursor-pointer',
+              isBusy && 'pointer-events-none opacity-50'
+            )}
           >
-            Naloži avatar
+            {uploadPhase === 'processing'
+              ? 'Obdelava slike…'
+              : uploadPhase === 'uploading'
+                ? 'Nalaganje…'
+                : 'Naloži avatar'}
           </label>
           <input
             id="avatar-upload"
             type="file"
             accept="image/*"
-            disabled={isLoading}
+            disabled={isBusy}
             onChange={handleAvatarUpload}
             className="hidden"
           />
-          <p className="text-[10px] text-muted-foreground mt-1">Največja velikost: 256 KB</p>
+          <p className="text-[10px] text-muted-foreground mt-1">Slika bo samodejno optimizirana</p>
         </div>
       </div>
 
@@ -161,7 +179,7 @@ export function ProfileEditCard({
             <button
               type="button"
               onClick={() => setIsEditing(true)}
-              disabled={isLoading}
+              disabled={isBusy}
               className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
               Uredi

@@ -51,9 +51,31 @@ describe('uploadAvatar', () => {
     await expect(uploadAvatar('user-1', file)).rejects.toThrow('Datoteka ne sme biti prazna')
   })
 
-  it('throws error when file exceeds 256KB', async () => {
-    const file = makeFile('big.jpg', 256 * 1024 + 1, 'image/jpeg')
-    await expect(uploadAvatar('user-1', file)).rejects.toThrow('Datoteka je prevelika')
+  it('throws error when file exceeds 50MB', async () => {
+    // Не аллоцируем 50 МБ в памяти — подменяем size.
+    const file = makeFile('huge.jpg', 1, 'image/jpeg')
+    Object.defineProperty(file, 'size', { value: 50 * 1024 * 1024 + 1 })
+    await expect(uploadAvatar('user-1', file)).rejects.toThrow('Datoteka je prevelika (max 50 MB)')
+  })
+
+  it('throws error for HEIC file by MIME type', async () => {
+    const file = makeFile('photo.heic', 100, 'image/heic')
+    await expect(uploadAvatar('user-1', file)).rejects.toThrow('HEIC ni podprt')
+  })
+
+  it('throws error for HEIC file by extension (empty MIME)', async () => {
+    const file = makeFile('photo.HEIC', 100, '')
+    await expect(uploadAvatar('user-1', file)).rejects.toThrow('HEIC ni podprt')
+  })
+
+  it('passes contentType to storage upload', async () => {
+    const file = makeFile('avatar.png', 1024, 'image/png')
+    await uploadAvatar('user-1', file)
+    expect(mockUpload).toHaveBeenCalledWith(
+      expect.any(String),
+      file,
+      expect.objectContaining({ contentType: 'image/png' })
+    )
   })
 
   it('throws error for invalid MIME type (text/plain)', async () => {
