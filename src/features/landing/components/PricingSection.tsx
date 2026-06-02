@@ -5,7 +5,7 @@ import { Check } from 'lucide-react'
 
 const features = [
   'Popoln dostop do baze znanja (2+ leti vsebine)',
-  'Izobraževalne vsebine 3-4 na teden',
+  'Izobraževalne vsebine 3-4x na teden',
   'Chat za udeleženke v WhatsApp',
   'Vsak mesec srečanja v živo',
   'Predloge, grafični prikazi in podrobni tutoriali',
