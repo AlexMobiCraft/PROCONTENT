@@ -23,10 +23,16 @@ if (fs.existsSync(envLocalPath)) {
   }
 }
 
-// Если db.ID... не работает (из-за IPv6), используйте Pooler Host (порт 6543)
-const dbHost = process.env.DB_HOST || 'aws-1-eu-north-1.pooler.supabase.com';
-const dbPort = process.env.DB_PORT || '6543';
-const dbUser = process.env.DB_USER || 'postgres.fixiwavyrcmajyzuzand';
+// Self-hosted Supabase на VPS Hetzner (178.105.163.252).
+// Наружу проброшен только Supavisor-pooler: 5432 (session, поддерживает DDL) и 6543 (transaction).
+// Юзер Supavisor имеет вид postgres.<POOLER_TENANT_ID>; в деплое tenant = "default".
+// Для применения миграций (DDL) используем session-режим (порт 5432).
+// ВНИМАНИЕ: внешний доступ к 5432 требует открытого порта в firewall Hetzner.
+// Если порт закрыт — применяйте на сервере через SSH (см. README), напр.:
+//   ssh root@178.105.163.252 "docker exec -i supabase-db psql -U postgres -d postgres" < supabase/migrations/<file>.sql
+const dbHost = process.env.DB_HOST || '178.105.163.252';
+const dbPort = process.env.DB_PORT || '5432';
+const dbUser = process.env.DB_USER || 'postgres.default';
 
 // КРИТИЧНО: Для ConnectionString спецсимволы (+, @, :) должны быть закодированы
 const connectionString = `postgresql://${encodeURIComponent(dbUser)}:${encodeURIComponent(password)}@${dbHost}:${dbPort}/postgres`;
