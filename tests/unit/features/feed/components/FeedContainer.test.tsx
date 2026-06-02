@@ -112,6 +112,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+  sessionStorage.clear()
 })
 
 describe('FeedContainer', () => {
@@ -270,6 +271,46 @@ describe('FeedContainer', () => {
       expect(screen.getByTestId('post-2')).toBeInTheDocument()
     })
     expect(screen.queryByTestId('post-1')).not.toBeInTheDocument()
+  })
+
+  it('сохраняет кэш и не перезагружает при возврате из поста в категории (восстановление скролла)', async () => {
+    // Возврат из поста: выбрана категория, store содержит посты,
+    // feed:scrollY установлен PostCard перед навигацией.
+    sessionStorage.setItem('feed:scrollY', '420')
+    act(() => {
+      useFeedStore.getState().setPosts([makePost('1', 'reels')], 'cursor', true)
+      useFeedStore.getState().setActiveCategory('reels')
+      useFeedStore.getState().setLoading(false)
+    })
+
+    render(<FeedContainer />)
+
+    // Кэшированный пост виден сразу, fetchPosts НЕ вызван (нет сброса+перезагрузки).
+    expect(screen.getByTestId('post-1')).toBeInTheDocument()
+    expect(mockFetchPosts).not.toHaveBeenCalled()
+  })
+
+  it('перезагружает категорию при feed:scrollY, но пустом store (нечего восстанавливать)', async () => {
+    // feed:scrollY установлен, но store пуст → восстанавливать нечего,
+    // должна сработать обычная загрузка категории (guard падает в else).
+    sessionStorage.setItem('feed:scrollY', '420')
+    mockFetchPosts.mockResolvedValue({
+      posts: [makePost('2', 'reels')],
+      nextCursor: null,
+      hasMore: false,
+    })
+    act(() => {
+      useFeedStore.getState().setActiveCategory('reels')
+    })
+
+    render(<FeedContainer />)
+
+    await waitFor(() => {
+      expect(mockFetchPosts).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({ category: 'reels', signal: expect.any(AbortSignal) })
+      )
+    })
   })
 
   it('?? ?????????? sentinel ??? ?????? category ????? server ?????? hasMore=false', async () => {

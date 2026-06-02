@@ -198,12 +198,26 @@ export function FeedContainer({
       //
       // • Для 'all' — грузим ТОЛЬКО если store пуст и нет initialData.
       //   Это путь инициализации fresh-рендера без SSR.
-      // • Для остальных категорий — всегда сбрасываем и подгружаем: SSR
+      // • Для остальных категорий — сбрасываем и подгружаем: SSR
       //   отдаёт страницу под 'all', а store после SPA-навигации мог быть
       //   переключён на другую категорию.
+      //   ИСКЛЮЧЕНИЕ: возврат из поста (feed:scrollY в sessionStorage +
+      //   store содержит посты) — сохраняем кэш, чтобы FeedPageClient смог
+      //   восстановить позицию скролла. Без этого сброс схлопывал ленту и
+      //   scrollTo отрабатывал по пустому списку (баг "категория уезжает
+      //   в начало при возврате из поста"). Зеркалит логику ветки 'all'
+      //   и эффекта гидрации.
       if (activeCategory !== 'all') {
-        useFeedStore.getState().setPosts([], null, true)
-        void loadInitial()
+        const isRestoringScroll =
+          typeof window !== 'undefined' &&
+          sessionStorage.getItem('feed:scrollY') !== null
+        const storeHasPosts = useFeedStore.getState().posts.length > 0
+        // Перезагружаем во всех случаях, КРОМE возврата из поста с непустым кэшем.
+        const shouldReload = !(isRestoringScroll && storeHasPosts)
+        if (shouldReload) {
+          useFeedStore.getState().setPosts([], null, true)
+          void loadInitial()
+        }
       } else {
         const storeHasPosts = useFeedStore.getState().posts.length > 0
         if (!storeHasPosts && !initialData) {
