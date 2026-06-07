@@ -257,9 +257,11 @@ export function PostDetail({
         <div className="flex flex-col gap-0.5">
           <span className="text-base font-medium text-foreground">{post.author.name}</span>
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground">
-              {post.category}
-            </span>
+            {post.category ? (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground">
+                {post.category}
+              </span>
+            ) : null}
             <time dateTime={post.created_at} className="text-sm text-muted-foreground">{displayDate}</time>
           </div>
         </div>

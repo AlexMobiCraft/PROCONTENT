@@ -68,7 +68,7 @@ function resolveMeta(input: {
 
   return {
     title: meta?.title ?? formValues.title,
-    category: meta?.category ?? formValues.category,
+    category: meta?.category ?? formValues.category ?? null,
     excerpt: meta?.excerpt ?? formValues.excerpt ?? null,
     is_landing_preview:
       meta?.is_landing_preview ?? formValues.is_landing_preview ?? false,

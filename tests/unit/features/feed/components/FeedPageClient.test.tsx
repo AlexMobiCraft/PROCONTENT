@@ -3,10 +3,6 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useFeedStore } from '@/features/feed/store'
 import type { Post } from '@/features/feed/types'
 
-vi.mock('@/components/feed/CategoryScroll', () => ({
-  CategoryScroll: () => <div data-testid="category-scroll" />,
-}))
-
 // Мок FeedContainer захватывает переданный initialData для проверки props
 vi.mock('@/features/feed/components/FeedContainer', () => ({
   FeedContainer: ({ initialData }: { initialData?: { posts: Post[]; hasMore: boolean } }) => (
@@ -76,12 +72,12 @@ describe('FeedPageClient', () => {
     expect(screen.getByTestId('feed-container')).toBeInTheDocument()
   })
 
-  it('рендерит CategoryScroll с activeCategory из store', () => {
+  it('рендерит заголовок OBJAVE вместо верхнего меню категорий', () => {
     render(
       <FeedPageClient initialData={{ posts: [], nextCursor: null, hasMore: false }} />
     )
 
-    expect(screen.getByTestId('category-scroll')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /objave/i })).toBeInTheDocument()
   })
 
   // --- Iteration 11: Item 2 (Zustand Anti-pattern — точечные селекторы) ---
@@ -100,7 +96,7 @@ describe('FeedPageClient', () => {
       })
     }).not.toThrow()
 
-    expect(screen.getByTestId('category-scroll')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /objave/i })).toBeInTheDocument()
     expect(screen.getByTestId('feed-container')).toBeInTheDocument()
   })
 })

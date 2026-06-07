@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 export interface OnboardingPost {
   id: string
   title: string
-  category: string
+  category: string | null
   type: string
 }
 

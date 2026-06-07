@@ -1,7 +1,7 @@
 import { Heart, MessageCircle, Lock } from 'lucide-react'
 
 export interface PreviewPostCardProps {
-  category: string
+  category: string | null
   title: string
   excerpt: string
   date: string
@@ -24,9 +24,13 @@ export function PreviewPostCard({
       <div className="flex flex-col gap-3">
         {/* Header row */}
         <div className="flex items-center justify-between">
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
-            {category}
-          </span>
+          {category ? (
+            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
+              {category}
+            </span>
+          ) : (
+            <span />
+          )}
           <span className="text-xs text-muted-foreground">{date}</span>
         </div>
 

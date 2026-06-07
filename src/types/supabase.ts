@@ -133,7 +133,7 @@ export type Database = {
       posts: {
         Row: {
           author_id: string
-          category: string
+          category: string | null
           comments_count: number
           content: string | null
           created_at: string
@@ -154,7 +154,7 @@ export type Database = {
         }
         Insert: {
           author_id: string
-          category?: string
+          category?: string | null
           comments_count?: number
           content?: string | null
           created_at?: string
@@ -175,7 +175,7 @@ export type Database = {
         }
         Update: {
           author_id?: string
-          category?: string
+          category?: string | null
           comments_count?: number
           content?: string | null
           created_at?: string
@@ -299,7 +299,7 @@ export type Database = {
       count_landing_preview_posts: { Args: { exclude_id?: string | null }; Returns: number }
       count_onboarding_posts: { Args: { exclude_id?: string | null }; Returns: number }
       get_auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
-      get_landing_preview_posts: { Args: never; Returns: Array<{ id: string; title: string; excerpt: string | null; category: string; created_at: string; likes_count: number; comments_count: number }> }
+      get_landing_preview_posts: { Args: never; Returns: Array<{ id: string; title: string; excerpt: string | null; category: string | null; created_at: string; likes_count: number; comments_count: number }> }
       is_active_subscriber: { Args: never; Returns: boolean }
       posts_is_liked: {
         Args: { post_row: Database["public"]["Tables"]["posts"]["Row"] }

@@ -144,30 +144,6 @@ describe('deleteCategory', () => {
     )
   })
 
-  it('выбрасывает понятное сообщение при FK-нарушении (code 23503)', async () => {
-    supabaseChain = makeChain({ error: null })
-    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockReturnThis()
-    ;(supabaseChain.select as ReturnType<typeof vi.fn>).mockResolvedValue({
-      error: { code: '23503', message: 'fk violation' },
-    })
-
-    await expect(deleteCategory('cat-id-2')).rejects.toThrow(
-      'Kategorije ni mogoče izbrisati, ker jo uporabljajo objave'
-    )
-  })
-
-  it('выбрасывает понятное сообщение при FK-нарушении через message (без code)', async () => {
-    supabaseChain = makeChain({ error: null })
-    ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockReturnThis()
-    ;(supabaseChain.select as ReturnType<typeof vi.fn>).mockResolvedValue({
-      error: { code: null, message: 'violates FOREIGN KEY constraint' },
-    })
-
-    await expect(deleteCategory('cat-id-fk')).rejects.toThrow(
-      'Kategorije ni mogoče izbrisati, ker jo uporabljajo objave'
-    )
-  })
-
   it('выбрасывает DB-ошибку для других кодов', async () => {
     supabaseChain = makeChain({ error: null })
     ;(supabaseChain.eq as ReturnType<typeof vi.fn>).mockReturnThis()

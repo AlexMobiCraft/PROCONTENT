@@ -119,7 +119,7 @@ describe('CategoryManager', () => {
   it('показывает toast при ошибке удаления', async () => {
     const user = userEvent.setup()
     mockDeleteCategory.mockRejectedValue(
-      new Error('Kategorije ni mogoče izbrisati, ker jo uporabljajo objave')
+      new Error('Napaka pri brisanju kategorije')
     )
 
     render(<CategoryManager initialCategories={[...mockCategories]} />)
@@ -128,7 +128,7 @@ describe('CategoryManager', () => {
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith(
-        'Kategorije ni mogoče izbrisati, ker jo uporabljajo objave'
+        'Napaka pri brisanju kategorije'
       )
     })
     // Категория остаётся в списке

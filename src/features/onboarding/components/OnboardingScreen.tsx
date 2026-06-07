@@ -9,7 +9,7 @@ import { OnboardingPostCard } from './OnboardingPostCard'
 type Post = {
   id: string
   title: string
-  category: string
+  category: string | null
   type: string
 }
 

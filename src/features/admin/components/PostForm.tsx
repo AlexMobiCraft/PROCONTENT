@@ -44,7 +44,7 @@ interface InitialData {
   title: string
   content?: string | null
   excerpt?: string | null
-  category: string
+  category: string | null
   type?: string
   status?: 'draft' | 'scheduled' | 'published'
   scheduled_at?: string | null
@@ -379,18 +379,18 @@ export function PostForm(props: PostFormProps) {
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="category" className="text-base font-medium">
-          Kategorija
+          Kategorija <span className="text-muted-foreground">(neobvezno)</span>
         </label>
         <select
           id="category"
           aria-label="Kategorija"
-          {...register('category', { required: 'Kategorija je obvezna' })}
+          {...register('category')}
           disabled={isSubmitting || isCategoriesLoading}
           aria-invalid={Boolean(errors.category)}
           className="min-h-[44px] w-full rounded-lg border border-border bg-muted/50 px-3 py-3 text-base text-foreground transition-colors focus-visible:border-primary focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:opacity-50"
         >
           <option value="">
-            {isCategoriesLoading ? 'Nalaganje...' : 'Izberite kategorijo'}
+            {isCategoriesLoading ? 'Nalaganje...' : 'Brez teme'}
           </option>
           {categories.map((category) => (
             <option key={category.id} value={category.slug}>

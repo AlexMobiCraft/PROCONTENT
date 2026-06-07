@@ -242,17 +242,24 @@ describe('PostForm (create mode)', () => {
     expect(mockCreatePost).not.toHaveBeenCalled()
   })
 
-  it('shows inline validation error when category is empty on submit', async () => {
+  it('allows submit without category (category is optional, sent as null)', async () => {
     const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('no-category-post-id')
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'Test Post')
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.click(screen.getByTestId('add-media-btn'))
     await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/kategorija je obvezna/i)).toBeInTheDocument()
+      expect(mockCreatePost).toHaveBeenCalledOnce()
     })
-    expect(mockCreatePost).not.toHaveBeenCalled()
+    const call = mockCreatePost.mock.calls[0][0]
+    expect(call.formValues.category).toBeNull()
+    expect(call.meta.category).toBeNull()
   })
 
   it('allows submit without media items (creates text post)', async () => {
@@ -416,8 +423,9 @@ describe('PostForm create mode race conditions', () => {
     mockGetCategories.mockResolvedValue(testCategories)
   })
 
-  it('shows validation error when category is not selected', async () => {
+  it('submits with null category when none is selected (optional)', async () => {
     const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('optional-category-post-id')
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'My Post')
@@ -428,9 +436,9 @@ describe('PostForm create mode race conditions', () => {
     await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/kategorija je obvezna/i)).toBeInTheDocument()
+      expect(mockCreatePost).toHaveBeenCalledOnce()
     })
-    expect(mockCreatePost).not.toHaveBeenCalled()
+    expect(mockCreatePost.mock.calls[0][0].meta.category).toBeNull()
   })
 
   it('keeps submit blocked while categories are still loading', async () => {

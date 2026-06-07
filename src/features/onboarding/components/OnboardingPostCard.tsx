@@ -8,7 +8,7 @@ type ContentType = 'video' | 'photo' | 'text'
 interface OnboardingPostCardProps {
   id: string
   title: string
-  category: string
+  category: string | null
   type: string
 }
 
@@ -40,9 +40,11 @@ export function OnboardingPostCard({ id, title, category, type }: OnboardingPost
           {title}
         </span>
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-muted px-3 py-1 font-sans text-xs text-muted-foreground">
-            {category}
-          </span>
+          {category ? (
+            <span className="rounded-full bg-muted px-3 py-1 font-sans text-xs text-muted-foreground">
+              {category}
+            </span>
+          ) : null}
           <span className="flex items-center gap-1 rounded-full bg-muted px-3 py-1 font-sans text-xs text-muted-foreground">
             <Icon className="h-3 w-3" aria-hidden="true" />
             {label}

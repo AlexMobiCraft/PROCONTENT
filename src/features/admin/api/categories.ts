@@ -38,6 +38,8 @@ export async function createCategory(name: string, slug: string): Promise<Catego
 }
 
 export async function deleteCategory(id: string): Promise<void> {
+  // Внешний ключ posts.category настроен на ON DELETE SET NULL,
+  // поэтому при удалении темы она автоматически снимается со всех постов.
   const supabase = createClient()
   const { data, error } = await supabase
     .from('categories')
@@ -45,12 +47,6 @@ export async function deleteCategory(id: string): Promise<void> {
     .eq('id', id)
     .select('id')
   if (error) {
-    if (
-      error.code === '23503' ||
-      (error.message ?? '').includes('FOREIGN KEY')
-    ) {
-      throw new Error('Kategorije ni mogoče izbrisati, ker jo uporabljajo objave')
-    }
     throw error
   }
   if (!data || data.length === 0) {

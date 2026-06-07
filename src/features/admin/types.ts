@@ -13,7 +13,7 @@ export interface MemberProfile {
 export type ScheduledPost = {
   id: string
   title: string
-  category: string
+  category: string | null
   status: string
   scheduled_at: string | null
   created_at: string
@@ -36,7 +36,7 @@ export interface EditorContentValue {
 
 export interface PostMetaState {
   title: string
-  category: string
+  category: string | null
   excerpt: string
   is_landing_preview: boolean
   is_onboarding: boolean
@@ -95,9 +95,12 @@ export const PostFormSchema = z
     content: z.string().max(50000, 'Vsebina je predolga (max 50.000 znakov)').optional(),
     excerpt: z.string().max(500, 'Povzetek je predolg (max 500 znakov)').optional(),
     category: z
-      .string()
-      .transform((s) => s.trim())
-      .pipe(z.string().min(1, 'Kategorija je obvezna').max(100)),
+      .union([z.string(), z.null(), z.undefined()])
+      .transform((s) => {
+        const trimmed = (s ?? '').trim()
+        return trimmed.length > 0 ? trimmed : null
+      })
+      .pipe(z.string().max(100).nullable()),
     is_landing_preview: z.boolean().optional(),
     is_onboarding: z.boolean().optional(),
     status: z.enum(['draft', 'scheduled', 'published']).default('published'),
@@ -156,7 +159,7 @@ export function countInlineImages(content: string): number {
 export function createPostMetaState(values: PostFormValues): PostMetaState {
   return {
     title: values.title,
-    category: values.category,
+    category: values.category ?? null,
     excerpt: values.excerpt ?? '',
     is_landing_preview: values.is_landing_preview ?? false,
     is_onboarding: values.is_onboarding ?? false,

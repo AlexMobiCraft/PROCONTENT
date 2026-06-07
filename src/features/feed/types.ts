@@ -45,7 +45,7 @@ export interface PostDetail {
   title: string
   content: string | null
   excerpt: string
-  category: string
+  category: string | null
   type: 'text' | 'photo' | 'video' | 'gallery' | 'multi-video'
   imageUrl: string | null
   /** Нормализованный медиафайл обложки из post_media (AC 6) */

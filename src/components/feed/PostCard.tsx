@@ -13,7 +13,7 @@ import type { PostMedia } from '@/features/feed/types'
 
 export interface PostCardData {
   id: string
-  category: string
+  category: string | null
   title: string
   excerpt: string
   date: string
@@ -63,6 +63,7 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
   // Локальный state не нужен: FeedContainer управляет оптимистичным обновлением post.isLiked/post.likes
   const liked = post.isLiked ?? false
   const likeCount = post.likes
+  const category = post.category
 
   function handleLike() {
     if (isPending) return
@@ -121,12 +122,12 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
             )}
           </div>
           <div className="flex items-center gap-2">
-            {post.category && onCategoryClick ? (
+            {category && onCategoryClick ? (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  onCategoryClick(post.category)
+                  onCategoryClick(category)
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -134,13 +135,13 @@ export function PostCard({ post, priority = false, isPending = false, canManage 
                   }
                 }}
                 className="rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                aria-label={`Filtriraj po kategoriji ${post.category}`}
+                aria-label={`Filtriraj po kategoriji ${category}`}
               >
-                {post.category}
+                {category}
               </button>
-            ) : post.category ? (
+            ) : category ? (
               <span className="rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground">
-                {post.category}
+                {category}
               </span>
             ) : null}
             <time dateTime={post.created_at} className="text-sm text-muted-foreground">{post.date}</time>

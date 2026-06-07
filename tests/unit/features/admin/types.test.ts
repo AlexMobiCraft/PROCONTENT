@@ -53,17 +53,28 @@ describe('PostFormSchema', () => {
     }
   })
 
-  it('fails when category is empty', () => {
+  it('treats empty category as null (optional)', () => {
     const result = PostFormSchema.safeParse({ title: 'Post', category: '' })
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(result.error.issues[0].path).toContain('category')
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.category).toBeNull()
     }
   })
 
-  it('fails when category is only whitespace', () => {
+  it('treats whitespace-only category as null (optional)', () => {
     const result = PostFormSchema.safeParse({ title: 'Post', category: '   ' })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.category).toBeNull()
+    }
+  })
+
+  it('treats missing category as null (optional)', () => {
+    const result = PostFormSchema.safeParse({ title: 'Post' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.category).toBeNull()
+    }
   })
 
   it('allows optional content and excerpt', () => {
