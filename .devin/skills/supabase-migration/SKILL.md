@@ -11,7 +11,7 @@ description: Навык для применения и управления ми
 
 **PROCONTENT использует self-hosted Supabase** на VPS (Hetzner), а НЕ Supabase Cloud.
 
-- **API URL**: `http://178.105.163.252:8000` (= `https://api.procontent.si`)
+- **API URL**: `https://api.procontent.si`
 - **Service Role Key**: из `.env.local` → `SUPABASE_SERVICE_ROLE_KEY`
 - Supabase CLI (`npx supabase db push`) **не работает** с self-hosted инсталляцией — использовать API ниже.
 
@@ -22,7 +22,7 @@ $service = $env:SUPABASE_SERVICE_ROLE_KEY
 $sql = (Get-Content "supabase/migrations/<файл>.sql" -Raw).ToString()
 $body = '{"query": ' + ($sql | ConvertTo-Json) + '}'
 $result = Invoke-RestMethod `
-  -Uri "http://178.105.163.252:8000/pg/query" `
+  -Uri "https://api.procontent.si/pg/query" `
   -Method POST `
   -Headers @{ Authorization="Bearer $service"; apikey=$service; "Content-Type"="application/json" } `
   -Body $body
@@ -36,7 +36,7 @@ $service = $env:SUPABASE_SERVICE_ROLE_KEY
 $checkSql = "SELECT column_name, is_nullable FROM information_schema.columns WHERE table_name = 'posts';"
 $body = '{"query": ' + ($checkSql | ConvertTo-Json) + '}'
 Invoke-RestMethod `
-  -Uri "http://178.105.163.252:8000/pg/query" `
+  -Uri "https://api.procontent.si/pg/query" `
   -Method POST `
   -Headers @{ Authorization="Bearer $service"; apikey=$service; "Content-Type"="application/json" } `
   -Body $body | ConvertTo-Json -Depth 5

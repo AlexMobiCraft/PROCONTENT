@@ -135,7 +135,7 @@ Do NOT use `apply_migration` to change a local database schema — it writes a m
 
 - Supabase CLI (`supabase db push`, `supabase db query`, `supabase migration list`) — **не работает** с self-hosted.
 - Supabase MCP Server (`mcp.supabase.com`) — **недоступен** для self-hosted.
-- Supabase Dashboard — доступен через Kong: `http://178.105.163.252:8000` (= `https://api.procontent.si`).
+- Supabase Dashboard — доступен через Kong: `https://api.procontent.si`.
 
 **Применение SQL / миграций** (PowerShell):
 ```powershell
@@ -143,7 +143,7 @@ $service = $env:SUPABASE_SERVICE_ROLE_KEY
 $sql = (Get-Content "supabase/migrations/<файл>.sql" -Raw).ToString()
 $body = '{"query": ' + ($sql | ConvertTo-Json) + '}'
 Invoke-RestMethod `
-  -Uri "http://178.105.163.252:8000/pg/query" `
+  -Uri "https://api.procontent.si/pg/query" `
   -Method POST `
   -Headers @{ Authorization="Bearer $service"; apikey=$service; "Content-Type"="application/json" } `
   -Body $body | ConvertTo-Json -Depth 5

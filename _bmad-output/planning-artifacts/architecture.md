@@ -4,8 +4,10 @@ workflowType: 'architecture'
 lastStep: 8
 status: 'complete'
 completedAt: '2026-03-06'
-lastUpdated: '2026-04-09'
+lastUpdated: '2026-06-07'
 updateHistory:
+  - date: '2026-06-07'
+    changes: 'Добавлен раздел Post Category System: категория поста стала необязательной (nullable), удаление темы каскадно снимает её со всех постов (ON DELETE SET NULL), документированы Zod-схема и UI-паттерны для отображения/редактирования.'
   - date: '2026-04-09'
     changes: 'Синхронизирован architecture.md с итогами Epic 7 retro follow-up: зафиксирован фактический HTML contract для posts.content, уточнены границы gallery-media vs inline-images, заменён markdown-centric rendering narrative на DOMPurify + HTML render path, добавлен минимальный stabilization scope для rendering layer и приоритизация adjacent tech debt.'
   - date: '2026-04-04'
@@ -316,6 +318,16 @@ _Критическое правило:_ В конфигурации ESLint об
 - **Validation:** `scheduled_at` должен быть в будущем моменте создания/редактирования.
 - **Feed Query:** `SELECT * FROM posts WHERE status = 'published' ORDER BY created_at DESC` (исключает draft/scheduled из ленты).
 - **Admin Query:** `SELECT * FROM posts WHERE status IN ('draft', 'scheduled')` для админки.
+
+**Post Category System:**
+Система категоризации контента с поддержкой опциональных тем и каскадным удалением.
+
+- **Database Schema:** `posts.category` — nullable foreign key (`string | null`) на `categories.slug`. Внешний ключ настроен с `ON DELETE SET NULL`: при удалении категории её значение автоматически обнуляется у всех связанных постов.
+- **Validation (Zod):** Категория опциональна. Пустая строка, пробелы или отсутствие значения преобразуются в `null`. Максимальная длина — 100 символов.
+- **UI Patterns:**
+  - **PostForm:** Поле категории помечено как «neobvezno» (необязательное). Опция по умолчанию — «Brez teme» (без темы).
+  - **PostCard/PostDetail:** Бейдж категории отображается только при `category != null`. При клике — фильтрация ленты по категории.
+- **Migration:** `supabase/migrations/043_make_post_category_optional.sql` — делает колонку nullable, убирает DEFAULT, пересоздаёт FK с `ON DELETE SET NULL`.
 
 ### Enforcement Guidelines
 
