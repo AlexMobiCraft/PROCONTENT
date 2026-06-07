@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { CategoryScroll } from '@/components/feed/CategoryScroll'
 import { FeedContainer } from '@/features/feed/components/FeedContainer'
 import { TopicsPanel } from '@/features/feed/components/TopicsPanel'
 import { useFeedStore } from '@/features/feed/store'
@@ -23,9 +22,7 @@ export function FeedPageClient({
   initialUserRole?: string | null
 }) {
   // Точечные селекторы — компонент перерисовывается только при изменении
-  // activeCategory или changeCategory, а не при любом изменении store.
-  const activeCategory = useFeedStore((s) => s.activeCategory)
-  const changeCategory = useFeedStore((s) => s.changeCategory)
+  // соответствующего среза store, а не при любом изменении.
   const setCategories = useFeedStore((s) => s.setCategories)
   const setCategoriesLoading = useFeedStore((s) => s.setCategoriesLoading)
 
@@ -69,7 +66,9 @@ export function FeedPageClient({
       {/* Центральная колонка: фильтры + лента */}
       <div className="flex min-w-0 flex-1 flex-col md:border-r md:border-border">
         <div className="sticky top-0 z-10 flex h-[var(--header-height)] shrink-0 items-center border-b border-border bg-background/95 px-4 backdrop-blur-sm">
-          <CategoryScroll activeCategory={activeCategory} onCategoryChange={changeCategory} />
+          <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.2em] text-foreground">
+            Objave
+          </h2>
         </div>
 
         <FeedContainer
