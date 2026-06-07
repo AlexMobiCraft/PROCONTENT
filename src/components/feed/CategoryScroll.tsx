@@ -55,7 +55,7 @@ export function CategoryScroll({
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => onCategoryChange(cat.slug)}
+                onClick={() => onCategoryChange(isActive ? 'all' : cat.slug)}
                 aria-pressed={isActive}
                 className={cn(
                   'inline-flex shrink-0 items-center rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[44px]',
