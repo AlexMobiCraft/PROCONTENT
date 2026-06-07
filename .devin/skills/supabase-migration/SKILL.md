@@ -7,38 +7,43 @@ description: Навык для применения и управления ми
 
 Этот навык предназначен для процесса применения локальных SQL-миграций к удаленному (или локальному) проекту Supabase.
 
-## Предварительные условия
+## Конфигурация проекта
 
-1. Наличие `devDependencies` в `package.json` должно включать `"supabase"`.
-2. Знание `project-ref` проекта (например, `esbutggkvetajkuvrjcb`).
-3. Знание пароля базы данных (обычно находится в `.env.local`).
+**PROCONTENT использует self-hosted Supabase** на VPS (Hetzner), а НЕ Supabase Cloud.
 
-## Порядок действий
+- **API URL**: `http://178.105.163.252:8000` (= `https://api.procontent.si`)
+- **Service Role Key**: из `.env.local` → `SUPABASE_SERVICE_ROLE_KEY`
+- Supabase CLI (`npx supabase db push`) **не работает** с self-hosted инсталляцией — использовать API ниже.
 
-### 1. Подготовка
-- Используйте `npx supabase`, если CLI не установлен глобально.
-- Убедитесь, что миграции находятся в папке `supabase/migrations/`.
+## Применение миграции (PowerShell)
 
-### 2. Привязка проекта (если не привязан)
-Если проект еще не линкован, выполните:
-```bash
-npx supabase link --project-ref <PROJECT_ID> --password <PASSWORD>
+```powershell
+$service = $env:SUPABASE_SERVICE_ROLE_KEY
+$sql = (Get-Content "supabase/migrations/<файл>.sql" -Raw).ToString()
+$body = '{"query": ' + ($sql | ConvertTo-Json) + '}'
+$result = Invoke-RestMethod `
+  -Uri "http://178.105.163.252:8000/pg/query" `
+  -Method POST `
+  -Headers @{ Authorization="Bearer $service"; apikey=$service; "Content-Type"="application/json" } `
+  -Body $body
+$result | ConvertTo-Json -Depth 5
 ```
 
-### 3. Проверка статуса
-Перед применением полезно увидеть список примененных и ожидающих миграций:
-```bash
-npx supabase migration list
-```
+## Проверка результата
 
-### 4. Применение миграций (Push)
-Для применения локальных изменений к удаленной БД используйте:
-```bash
-npx supabase db push --yes
+```powershell
+$service = $env:SUPABASE_SERVICE_ROLE_KEY
+$checkSql = "SELECT column_name, is_nullable FROM information_schema.columns WHERE table_name = 'posts';"
+$body = '{"query": ' + ($checkSql | ConvertTo-Json) + '}'
+Invoke-RestMethod `
+  -Uri "http://178.105.163.252:8000/pg/query" `
+  -Method POST `
+  -Headers @{ Authorization="Bearer $service"; apikey=$service; "Content-Type"="application/json" } `
+  -Body $body | ConvertTo-Json -Depth 5
 ```
-Флаг `--yes` обязателен при автоматизированном запуске, чтобы пропустить запрос на подтверждение.
 
 ## Решение проблем
 
-- **Ошибка "The system cannot find the file specified"**: Убедитесь, что Docker запущен (если используете локальный статус) или используйте флаги `--remote` для работы с удаленным проектом.
-- **Ошибка "cannot send input"**: Всегда используйте флаг `--yes` в командах `push`, так как CLI ожидает интерактивного подтверждения.
+- **Пустой ответ от `/pg/query`**: нормально для DDL-команд (ALTER TABLE и т.п.) — означает успех.
+- **`No API key found`**: передавайте ключ и в заголовке `Authorization: Bearer <key>`, и в `apikey: <key>`.
+- **Supabase CLI не подключается**: self-hosted инсталляция не поддерживает `supabase link` / `db push` стандартным образом.
