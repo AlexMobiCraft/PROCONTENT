@@ -86,6 +86,16 @@ services:
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
     entrypoint: /home/kong/kong-entrypoint.sh
 
+  # Статичный nginx, отдающий кастомные HTML-шаблоны писем GoTrue по
+  # внутреннему URL (GoTrue принимает GOTRUE_MAILER_TEMPLATES_* только как
+  # HTTP(S)-URL; file:// и пути не работают — приклеиваются к SITE_URL).
+  email-templates:
+    container_name: supabase-email-templates
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./volumes/auth/templates:/usr/share/nginx/html:ro
+
   auth:
     container_name: supabase-auth
     image: supabase/gotrue:v2.186.0
@@ -133,6 +143,9 @@ services:
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: ${MAILER_URLPATHS_CONFIRMATION}
       GOTRUE_MAILER_URLPATHS_RECOVERY: ${MAILER_URLPATHS_RECOVERY}
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${MAILER_URLPATHS_EMAIL_CHANGE}
+      # Кастомный шаблон recovery (отдаётся сервисом email-templates по HTTP)
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: ${MAILER_SUBJECTS_RECOVERY}
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: ${MAILER_TEMPLATES_RECOVERY}
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
 

@@ -275,6 +275,61 @@ npm run build
 
 ---
 
+## Шаг 11. Настройка email (SMTP + кастомные шаблоны)
+
+GoTrue отправляет письма (восстановление пароля и т.д.) через SMTP. По
+умолчанию указан несуществующий контейнер `supabase-mail` → письма не уходят
+(HTTP 500). Настраиваем реальный SMTP через **Resend**.
+
+### 11.1. SMTP через Resend
+
+В `.env` (значения уже в `env.example`):
+
+```
+SMTP_ADMIN_EMAIL=noreply@procontent.si
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587            # ВАЖНО: порт 465 Hetzner блокирует, используем 587 (STARTTLS)
+SMTP_USER=resend
+SMTP_PASS=re_...         # Resend API key
+SMTP_SENDER_NAME=ProContent
+```
+
+> Домен отправителя должен быть верифицирован в Resend (DKIM + SPF на
+> `send.<domain>`). Проверка: `nslookup -type=TXT send.procontent.si`.
+
+### 11.2. Кастомный шаблон письма recovery
+
+`GOTRUE_MAILER_TEMPLATES_*` принимает **только HTTP(S)-URL** — file-путь GoTrue
+приклеивает к `SITE_URL` и грузит не тот контент (страницу login). Поэтому
+шаблон отдаётся отдельным nginx-контейнером `email-templates` по внутреннему
+docker-DNS:
+
+- Сервис `email-templates` (см. `docker-compose.yml`) монтирует
+  `./volumes/auth/templates` и отдаёт файлы по `http://email-templates/...`
+- `.env`:
+  ```
+  MAILER_SUBJECTS_RECOVERY=Ponastavitev gesla za PROCONTENT
+  MAILER_TEMPLATES_RECOVERY=http://email-templates/recovery.html
+  ```
+- Файл шаблона: `volumes/auth/templates/recovery.html` (в дизайн-схеме проекта;
+  ведёт на `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/update-password`)
+
+### 11.3. Применение изменений
+
+```bash
+cd /opt/supabase
+docker compose up -d email-templates
+docker compose restart auth      # сброс in-memory кэша шаблонов GoTrue
+docker compose restart kong      # ВАЖНО: Kong кэширует IP auth → иначе 502
+```
+
+> После любого пересоздания `auth` перезапускайте `kong` — иначе он стучится
+> на старый IP контейнера (`502 connection refused`).
+>
+> GoTrue ограничивает отправку ~1 письмо/60 сек на адрес (429 — это норма).
+
+---
+
 ## Управление сервером
 
 ### Полезные команды

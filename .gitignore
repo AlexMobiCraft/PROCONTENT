@@ -38,6 +38,11 @@ supabase/.temp/
 supabase-backup/
 hetzner-deploy/StudioSupabase.txt
 
+# Серверные .env с секретами (бэкап боевого /opt/supabase/.env)
+hetzner-deploy/.env
+hetzner-deploy/.env.server.backup
+hetzner-deploy/generated_keys.txt
+
 # Dev utility seed scripts (не для продакшн)
 supabase/run-custom-seed.js
 supabase/seed_gallery_test_2_4.sql
