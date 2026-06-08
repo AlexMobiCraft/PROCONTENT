@@ -6,6 +6,7 @@ import { Star, Trash2, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MediaItem } from '@/features/admin/types'
 import { getMediaItemId } from '@/features/admin/types'
+import { MediaItemPreview } from './MediaItemPreview'
 
 interface MediaSortableItemProps {
   item: MediaItem
@@ -31,8 +32,21 @@ export function MediaSortableItem({
     transition,
   }
 
-  const previewUrl = item.kind === 'new' ? item.preview_url : item.url
   const isVideo = item.media_type === 'video'
+
+  // Poster: для видео — сгенерированный/существующий thumbnail; для картинок — сам файл.
+  const posterUrl = isVideo
+    ? item.kind === 'new'
+      ? (item.thumbnail_preview_url ?? null)
+      : item.thumbnail_url
+    : item.kind === 'new'
+      ? item.preview_url
+      : item.url
+
+  // Сырой URL видео для fallback-кадра, пока poster не готов.
+  const videoFallbackUrl = isVideo ? (item.kind === 'new' ? item.preview_url : item.url) : null
+
+  const thumbnailStatus = item.kind === 'new' ? item.thumbnail_status : undefined
 
   return (
     <div
@@ -57,20 +71,13 @@ export function MediaSortableItem({
         <GripVertical className="size-4" />
       </button>
 
-      {/* Thumbnail */}
-      <div className="size-14 shrink-0 overflow-hidden rounded bg-muted">
-        {isVideo ? (
-          <video
-            src={previewUrl}
-            className="size-full object-cover"
-            muted
-            preload="none"
-          />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewUrl} alt="" className="size-full object-cover" />
-        )}
-      </div>
+      {/* Thumbnail / poster preview */}
+      <MediaItemPreview
+        mediaType={item.media_type}
+        posterUrl={posterUrl}
+        videoUrl={videoFallbackUrl}
+        thumbnailStatus={thumbnailStatus}
+      />
 
       {/* Media type badge */}
       <span className="text-xs uppercase text-muted-foreground">

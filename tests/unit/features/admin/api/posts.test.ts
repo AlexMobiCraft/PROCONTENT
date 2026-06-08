@@ -132,7 +132,9 @@ describe('createPost', () => {
     supabaseChain = makeChain({ data: { id: 'post-boundary' }, error: null })
     supabaseChain.insert
       .mockReturnValueOnce(supabaseChain)
-      .mockReturnValueOnce({ error: null })
+      .mockReturnValueOnce({
+        select: vi.fn().mockResolvedValue({ data: [], error: null }),
+      })
     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-boundary' }, error: null })
 
     const exactMax = Array.from({ length: MAX_MEDIA_FILES }, (_, i) => makeNewItem(`k${i}`, i))
@@ -169,7 +171,15 @@ describe('createPost', () => {
     supabaseChain = makeChain({ data: { id: 'post-1' }, error: null })
     supabaseChain.insert
       .mockReturnValueOnce(supabaseChain) // posts insert → chained
-      .mockReturnValueOnce({ error: null }) // post_media insert → {error: null}
+      .mockReturnValueOnce({
+        // post_media insert → .select('id, url')
+        select: vi
+          .fn()
+          .mockResolvedValue({
+            data: [{ id: 'm-new', url: 'https://cdn.example.com/file0.jpg' }],
+            error: null,
+          }),
+      })
     supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-1' }, error: null })
 
     const newItem = makeNewItem('k1', 0)

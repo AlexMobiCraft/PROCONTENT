@@ -53,6 +53,15 @@ export interface RichPostSubmitPayload {
 // Media type union — aligned with DB CHECK constraint
 export type MediaType = 'image' | 'video'
 
+/**
+ * Статус Canvas-генерации thumbnail (poster) для нового видео (Story 8.1).
+ * idle — добавлено, генерация ещё не началась
+ * generating — идёт генерация кадра в браузере
+ * success — poster сгенерирован (blob готов)
+ * error — Canvas не удался (CORS/формат) → серверный fallback при сохранении
+ */
+export type ThumbnailStatus = 'idle' | 'generating' | 'success' | 'error'
+
 /** A NEW media item selected by the user — not yet uploaded to Storage */
 export interface NewMediaItem {
   kind: 'new'
@@ -64,6 +73,15 @@ export interface NewMediaItem {
   media_type: MediaType
   is_cover: boolean
   order_index: number
+  /**
+   * Сгенерированный thumbnail-blob (только видео, Story 8.1).
+   * Создаётся в браузере при добавлении видео, загружается в Storage при сохранении.
+   */
+  thumbnail_blob?: Blob | null
+  /** ObjectURL сгенерированного poster для мгновенного предпросмотра (только видео) */
+  thumbnail_preview_url?: string | null
+  /** Статус Canvas-генерации thumbnail (только видео) */
+  thumbnail_status?: ThumbnailStatus
 }
 
 /** An EXISTING media item loaded from the database */

@@ -27,6 +27,7 @@ import {
   ALLOWED_MEDIA_TYPES,
 } from '@/features/admin/types'
 import { generateUUID } from '@/features/admin/api/uploadMedia'
+import { VideoThumbnailGenerator } from '@/features/editor/components/VideoThumbnailGenerator'
 import { MediaSortableItem } from './MediaSortableItem'
 
 interface MediaUploaderProps {
@@ -68,6 +69,45 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
   const isAtLimit = items.length >= MAX_MEDIA_FILES
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+
+  // Актуальные items для колбэков генерации thumbnail (read-latest без пересоздания колбэков)
+  const itemsRef = useRef<MediaItem[]>([])
+
+  // Точечное обновление нового элемента по ключу (Story 8.1, Task 2.2)
+  const updateNewItem = useCallback(
+    (key: string, patch: Partial<NewMediaItem>) => {
+      const next = itemsRef.current.map((it) =>
+        it.kind === 'new' && it.key === key ? { ...it, ...patch } : it
+      )
+      onChange(next)
+    },
+    [onChange]
+  )
+
+  const handleThumbGenerating = useCallback(
+    (key: string) => updateNewItem(key, { thumbnail_status: 'generating' }),
+    [updateNewItem]
+  )
+  const handleThumbSuccess = useCallback(
+    (key: string, blob: Blob, previewUrl: string) =>
+      updateNewItem(key, {
+        thumbnail_blob: blob,
+        thumbnail_preview_url: previewUrl,
+        thumbnail_status: 'success',
+      }),
+    [updateNewItem]
+  )
+  const handleThumbError = useCallback(
+    (key: string) => updateNewItem(key, { thumbnail_status: 'error' }),
+    [updateNewItem]
+  )
+
+  // Синхронизируем ref во время рендера: значение ДОЛЖНО быть свежим до запуска
+  // дочерних эффектов VideoThumbnailGenerator (эффекты детей выполняются раньше
+  // эффектов родителя, поэтому useEffect-синхронизация дала бы устаревшее значение
+  // в момент первого onGenerating). Это latest-value ref, не влияющий на рендер.
+  // eslint-disable-next-line react-hooks/refs
+  itemsRef.current = items
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -152,6 +192,10 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
           media_type: mediaType,
           is_cover: false,
           order_index: items.length + i,
+          // Видео стартуют в статусе idle → VideoThumbnailGenerator запустит Canvas-генерацию
+          ...(mediaType === 'video'
+            ? { thumbnail_status: 'idle' as const, thumbnail_blob: null, thumbnail_preview_url: null }
+            : {}),
         }
       })
 
@@ -187,9 +231,12 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
       .filter((item) => getMediaItemId(item) !== targetId)
       .map((item, idx) => ({ ...item, order_index: idx }))
 
-    // Revoke object URL for new items immediately
+    // Revoke object URLs for new items immediately (превью + сгенерированный poster)
     const removed = items.find((item) => getMediaItemId(item) === targetId)
-    if (removed?.kind === 'new') URL.revokeObjectURL(removed.preview_url)
+    if (removed?.kind === 'new') {
+      URL.revokeObjectURL(removed.preview_url)
+      if (removed.thumbnail_preview_url) URL.revokeObjectURL(removed.thumbnail_preview_url)
+    }
 
     // Re-assign cover if the cover was removed
     if (filtered.length > 0 && !filtered.some((m) => m.is_cover)) {
@@ -238,6 +285,23 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Headless: Canvas-генерация poster для новых видео (Story 8.1, Task 2.2) */}
+      {items.map((item) =>
+        item.kind === 'new' &&
+        item.media_type === 'video' &&
+        item.thumbnail_status !== 'success' &&
+        item.thumbnail_status !== 'error' ? (
+          <VideoThumbnailGenerator
+            key={`thumb-${item.key}`}
+            mediaKey={item.key}
+            file={item.file}
+            onGenerating={handleThumbGenerating}
+            onSuccess={handleThumbSuccess}
+            onError={handleThumbError}
+          />
+        ) : null
+      )}
+
       {/* Sortable list */}
       {items.length > 0 && (
         <DndContext

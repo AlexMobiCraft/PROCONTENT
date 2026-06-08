@@ -1,6 +1,10 @@
+---
+baseline_commit: 56952b35109b54ff17d671b0636fffe0d1ba4054
+---
+
 # Story 8.1: Avtomatsko generiranje thumbnaila ob shranjevanju objave
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -36,31 +40,31 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Canvas-генерация на стороне клиента (AC: 1, 2, 4)
-  - [ ] Subtask 1.1: Создать `src/lib/media/generateVideoThumbnail.ts` — функция, принимающая `File` или `URL`, создающая `<video>` элемент, seekTo(0.1), рисующая на `<canvas>`, возвращающая `Blob` (image/jpeg, 0.85)
-  - [ ] Subtask 1.2: Создать `src/lib/media/uploadThumbnail.ts` — функция, принимающая `Blob` и `post_media_id`, загружающая в Storage bucket `post_media/thumbnails/{id}_thumb.jpg`, возвращающая public URL
-  - [ ] Subtask 1.3: Создать `src/lib/media/updateThumbnailUrl.ts` — функция, обновляющая `thumbnail_url` в `post_media` через Supabase client
-  - [ ] Subtask 1.4: Создать `src/features/editor/components/VideoThumbnailGenerator.tsx` — Smart container, управляющий статусом генерации (idle | generating | success | error) и координирующий вышеперечисленные шаги
-- [ ] Task 2: Интеграция в MediaUploader workflow (AC: 1, 2)
-  - [ ] Subtask 2.1: Расширить `MediaSortableItem.tsx` (или создать `MediaItemPreview.tsx` как Dumb UI) — отображает poster с overlay-иконкой видео и индикатором загрузки
-  - [ ] Subtask 2.2: В `MediaUploader.tsx` после добавления видео-файла запускать `VideoThumbnailGenerator` для асинхронной генерации poster
-  - [ ] Subtask 2.3: Обеспечить, чтобы `preview_url` для видео (ObjectURL) не перекрывался poster — poster отображается отдельно
-- [ ] Task 3: Server fallback API (AC: 4)
-  - [ ] Subtask 3.1: Создать `src/app/api/admin/generate-thumbnail-fallback/route.ts` — Route Handler, принимающий `{videoUrl, postMediaId}`, скачивающий видео, генерирующий thumbnail (используя `ffmpeg.wasm` или внешний сервис), загружающий в Storage
-  - [ ] Subtask 3.2: Проверить admin-аутентификацию в fallback endpoint
-- [ ] Task 4: Интеграция с сохранением публикации (AC: 1, 2)
-  - [ ] Subtask 4.1: В PostForm / API-вызове для сохранения проверить, что все видео-записи в `post_media` имеют `thumbnail_url` перед отправкой финального PUT/POST
-  - [ ] Subtask 4.2: Если генерация ещё идёт при клике "Objavi", показать предупреждение "Generiranje posterjev v teku..." или дождаться завершения
-- [ ] Task 5: Обновление LazyMediaWrapper для отображения thumbnail (AC: 1)
-  - [ ] Subtask 5.1: Проверить, что `LazyMediaWrapper.tsx` корректно использует `thumbnail_url` для video poster (уже частично реализовано — проверить fallback на первый кадр, если `thumbnail_url` отсутствует)
-  - [ ] Subtask 5.2: Проверить, что `LazyMediaWrapper.tsx` не отображает пустой/чёрный предпросмотр
-- [ ] Task 6: Миграция базы и настройки Storage
-  - [ ] Subtask 6.1: Создать миграцию `031_add_thumbnail_index.sql` — индекс для быстрого поиска видео-записей без thumbnail
-  - [ ] Subtask 6.2: Проверить/настроить Storage RLS политики для bucket `post_media/thumbnails/` (admin может писать, public может читать)
-- [ ] Task 7: Тесты
-  - [ ] Subtask 7.1: Unit-тесты для `generateVideoThumbnail.ts` (mock video element, canvas)
-  - [ ] Subtask 7.2: E2E-тест: загрузка видео в редактор → проверить, что отображается poster в превью
-  - [ ] Subtask 7.3: Интеграционный тест для fallback API
+- [x] Task 1: Canvas-генерация на стороне клиента (AC: 1, 2, 4)
+  - [x] Subtask 1.1: Создать `src/lib/media/generateVideoThumbnail.ts` — функция, принимающая `File` или `URL`, создающая `<video>` элемент, seekTo(0.1), рисующая на `<canvas>`, возвращающая `Blob` (image/jpeg, 0.85)
+  - [x] Subtask 1.2: Создать `src/lib/media/uploadThumbnail.ts` — функция, принимающая `Blob` и `post_media_id`, загружающая в Storage bucket `post_media/thumbnails/{id}_thumb.jpg`, возвращающая public URL
+  - [x] Subtask 1.3: Создать `src/lib/media/updateThumbnailUrl.ts` — функция, обновляющая `thumbnail_url` в `post_media` через Supabase client
+  - [x] Subtask 1.4: Создать `src/features/editor/components/VideoThumbnailGenerator.tsx` — Smart container, управляющий статусом генерации (idle | generating | success | error) и координирующий вышеперечисленные шаги
+- [x] Task 2: Интеграция в MediaUploader workflow (AC: 1, 2)
+  - [x] Subtask 2.1: Расширить `MediaSortableItem.tsx` (или создать `MediaItemPreview.tsx` как Dumb UI) — отображает poster с overlay-иконкой видео и индикатором загрузки
+  - [x] Subtask 2.2: В `MediaUploader.tsx` после добавления видео-файла запускать `VideoThumbnailGenerator` для асинхронной генерации poster
+  - [x] Subtask 2.3: Обеспечить, чтобы `preview_url` для видео (ObjectURL) не перекрывался poster — poster отображается отдельно
+- [x] Task 3: Server fallback API (AC: 4)
+  - [x] Subtask 3.1: Создать `src/app/api/admin/generate-thumbnail-fallback/route.ts` — Route Handler, принимающий `{videoUrl, postMediaId}`, скачивающий видео, генерирующий thumbnail (используя `ffmpeg.wasm` или внешний сервис), загружающий в Storage — ⚠️ извлечение кадра отложено (вариант "skeleton без зависимости"); auth/валидация/SSRF/контракт готовы, возвращает 501
+  - [x] Subtask 3.2: Проверить admin-аутентификацию в fallback endpoint
+- [x] Task 4: Интеграция с сохранением публикации (AC: 1, 2)
+  - [x] Subtask 4.1: В PostForm / API-вызове для сохранения проверить, что все видео-записи в `post_media` имеют `thumbnail_url` перед отправкой финального PUT/POST — реализовано как загрузка thumbnail сразу после insert post_media (post_media_id появляется только после insert), best-effort
+  - [x] Subtask 4.2: Если генерация ещё идёт при клике "Objavi", показать предупреждение "Generiranje posterjev v teku..." или дождаться завершения
+- [x] Task 5: Обновление LazyMediaWrapper для отображения thumbnail (AC: 1)
+  - [x] Subtask 5.1: Проверить, что `LazyMediaWrapper.tsx` корректно использует `thumbnail_url` для video poster (уже частично реализовано — проверить fallback на первый кадр, если `thumbnail_url` отсутствует) — подтверждено: poster=thumbnail_url, fallback currentTime=0.001; покрыто тестами
+  - [x] Subtask 5.2: Проверить, что `LazyMediaWrapper.tsx` не отображает пустой/чёрный предпросмотр — подтверждено: для видео всегда рендерится `<video>` с первым кадром
+- [x] Task 6: Миграция базы и настройки Storage
+  - [x] Subtask 6.1: Создать миграцию `031_add_thumbnail_index.sql` — индекс для быстрого поиска видео-записей без thumbnail — создан как `045_add_thumbnail_index.sql` (номер 031 уже занят)
+  - [x] Subtask 6.2: Проверить/настроить Storage RLS политики для bucket `post_media/thumbnails/` (admin может писать, public может читать) — добавлена UPDATE-политика для upsert; INSERT/public SELECT уже были (022), запись thumbnail_url admin-gated на уровне БД (016)
+- [x] Task 7: Тесты
+  - [x] Subtask 7.1: Unit-тесты для `generateVideoThumbnail.ts` (mock video element, canvas)
+  - [x] Subtask 7.2: E2E-тест: загрузка видео в редактор → проверить, что отображается poster в превью — реализовано как интеграционный тест (Vitest + Testing Library), т.к. Playwright в проекте не настроен (потребовал бы новой зависимости)
+  - [x] Subtask 7.3: Интеграционный тест для fallback API
 
 ## Dev Notes
 
@@ -138,10 +142,69 @@ Vsi uporabniško vidni teksti v UI morajo biti v slovenščini:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-opus-4-8 (Amelia, dev-story workflow)
 
 ### Debug Log References
 
+- `npm run typecheck` — чисто
+- `npx eslint` (файлы story) — чисто (1 обоснованный `eslint-disable react-hooks/refs` в MediaUploader для latest-value ref)
+- `npx vitest run` — 97 файлов, 1321 тест, все зелёные
+
 ### Completion Notes List
 
+**Архитектурное решение (важно):** Путь thumbnail `thumbnails/{post_media_id}_thumb.jpg`
+требует `post_media_id`, которого нет до вставки записи в БД. Поэтому реализован гибрид:
+- **Add-time (браузер):** Canvas-генерация blob сразу при добавлении видео в форму
+  (мгновенный визуальный feedback, poster в превью). Blob хранится в `NewMediaItem.thumbnail_blob`.
+- **Save-time (posts.ts):** после insert `post_media` (с `.select('id, url')`) blob загружается
+  в Storage по реальному id и `thumbnail_url` обновляется. Best-effort (не блокирует сохранение).
+
+**Решение пользователя по Task 3 (серверный fallback, AC 4):** выбран вариант "skeleton без
+новой зависимости". Route `/api/admin/generate-thumbnail-fallback` реализован с полноценной
+admin-авторизацией, валидацией входа и SSRF-защитой, но серверное извлечение кадра возвращает
+**501** (движок ffmpeg.wasm/системный ffmpeg/внешний сервис подключается позже). Клиентский
+Canvas-путь покрывает практически все реальные случаи; при отсутствии blob save-time код
+вызывает fallback (получает 501 → логируется как best-effort). **AC 4 покрыт частично** —
+вызов fallback есть, серверная генерация отложена по согласованию.
+
+**Прочее:**
+- Миграция создана как `045_...` (черновой `031` уже занят `031_fix_profiles_select_rls.sql`).
+- Task 5 (LazyMediaWrapper) — изменения кода не потребовались: poster из `thumbnail_url` и
+  fallback на первый кадр (`currentTime=0.001`) уже реализованы; подтверждено 33 тестами.
+- Task 7.2 (E2E) реализован как интеграционный тест Vitest+Testing Library (Playwright в проекте
+  не настроен; добавление = новая зависимость).
+- ✅ AC 1, 2, 3 — реализованы полностью. ⚠️ AC 4 — частично (см. выше).
+- Миграцию `045` нужно применить к БД на этапе деплоя (DDL не применялся к боевой БД).
+
 ### File List
+
+**Новые файлы:**
+- `src/lib/media/generateVideoThumbnail.ts`
+- `src/lib/media/uploadThumbnail.ts`
+- `src/lib/media/updateThumbnailUrl.ts`
+- `src/features/editor/components/VideoThumbnailGenerator.tsx`
+- `src/features/admin/components/MediaItemPreview.tsx`
+- `src/features/admin/api/postThumbnails.ts`
+- `src/app/api/admin/generate-thumbnail-fallback/route.ts`
+- `supabase/migrations/045_add_thumbnail_index.sql`
+- `tests/unit/lib/media/generateVideoThumbnail.test.ts`
+- `tests/unit/lib/media/uploadThumbnail.test.ts`
+- `tests/unit/lib/media/updateThumbnailUrl.test.ts`
+- `tests/unit/features/admin/components/MediaItemPreview.test.tsx`
+- `tests/unit/features/admin/components/MediaUploaderThumbnail.test.tsx`
+- `tests/unit/features/admin/api/postThumbnails.test.ts`
+- `tests/unit/features/admin/api/posts.thumbnails.test.ts`
+- `tests/unit/app/api/admin/generate-thumbnail-fallback/route.test.ts`
+
+**Изменённые файлы:**
+- `src/features/admin/types.ts` — `ThumbnailStatus`, поля thumbnail в `NewMediaItem`
+- `src/features/admin/components/MediaUploader.tsx` — триггер генерации, колбэки, revoke
+- `src/features/admin/components/MediaSortableItem.tsx` — использует `MediaItemPreview`
+- `src/features/admin/components/PostForm.tsx` — ожидание генерации, трекинг poster ObjectURL
+- `src/features/admin/api/posts.ts` — `.select('id, url')` + применение thumbnail для новых видео
+- `tests/unit/features/admin/api/posts.test.ts` — моки `.select` после insert post_media
+
+### Change Log
+
+- 2026-06-08: Реализована Story 8.1 — автоматическая Canvas-генерация thumbnail видео при
+  сохранении (Tasks 1–7). Серверный fallback — skeleton (501) по согласованию. 36 новых тестов.

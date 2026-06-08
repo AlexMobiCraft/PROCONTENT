@@ -17,7 +17,6 @@ import {
   type EditorContentValue,
   type ExistingMediaItem,
   type MediaItem,
-  type NewMediaItem,
   type PostFormValues,
   PostFormSchema,
   MAX_LANDING_PREVIEW,
@@ -74,6 +73,7 @@ export function PostForm(props: PostFormProps) {
   const [scheduledAtError, setScheduledAtError] = useState<string | null>(null)
 
   const objectUrlsRef = useRef<Set<string>>(new Set())
+  const mediaItemsRef = useRef<MediaItem[]>([])
   const hasSetCategoryRef = useRef(false)
   const scheduleAnnouncementRef = useRef<HTMLParagraphElement>(null)
   const immediateModeButtonRef = useRef<HTMLButtonElement>(null)
@@ -94,6 +94,9 @@ export function PostForm(props: PostFormProps) {
         order_index: item.order_index,
       }))
   })
+
+  // Актуальные media для onSubmit (включая poster'ы, сгенерированные перед сабмитом)
+  mediaItemsRef.current = mediaItems
 
   const [originalMedia] = useState<ExistingMediaItem[]>(() => {
     if (!initialData?.post_media) return []
@@ -197,11 +200,13 @@ export function PostForm(props: PostFormProps) {
   }, [scheduledAt])
 
   function handleMediaChange(nextItems: MediaItem[]) {
-    const currentUrls = new Set(
-      nextItems
-        .filter((item): item is NewMediaItem => item.kind === 'new')
-        .map((item) => item.preview_url)
-    )
+    const currentUrls = new Set<string>()
+    for (const item of nextItems) {
+      if (item.kind !== 'new') continue
+      currentUrls.add(item.preview_url)
+      // Сгенерированный poster (Story 8.1) тоже отслеживаем для revoke
+      if (item.thumbnail_preview_url) currentUrls.add(item.thumbnail_preview_url)
+    }
 
     for (const url of objectUrlsRef.current) {
       if (!currentUrls.has(url)) {
@@ -292,6 +297,25 @@ export function PostForm(props: PostFormProps) {
       return
     }
 
+    // Дождаться завершения Canvas-генерации poster'ов, если она ещё идёт (Story 8.1, Task 4.2)
+    const isThumbnailGenerating = () =>
+      mediaItemsRef.current.some(
+        (item) =>
+          item.kind === 'new' &&
+          item.media_type === 'video' &&
+          item.thumbnail_status === 'generating'
+      )
+
+    if (isThumbnailGenerating()) {
+      toast.info('Generiranje posterjev v teku...')
+      const waitStart = Date.now()
+      while (isThumbnailGenerating() && Date.now() - waitStart < 10_000) {
+        await new Promise((resolve) => setTimeout(resolve, 150))
+      }
+    }
+
+    // Берём актуальные media (с уже сгенерированными poster-blob'ами)
+    const finalMedia = mediaItemsRef.current
     const meta = createPostMetaState(parsed.data)
 
     try {
@@ -302,10 +326,10 @@ export function PostForm(props: PostFormProps) {
         await updatePost({
           postId: initialData.id,
           formValues: parsed.data,
-          mediaItems,
+          mediaItems: finalMedia,
           originalMedia,
           meta,
-          gallery: mediaItems,
+          gallery: finalMedia,
           editor: editorValue,
         })
 
@@ -330,10 +354,10 @@ export function PostForm(props: PostFormProps) {
       } else {
         await createPost({
           formValues: parsed.data,
-          mediaItems,
+          mediaItems: finalMedia,
           authorId: user.id,
           meta,
-          gallery: mediaItems,
+          gallery: finalMedia,
           editor: editorValue,
         })
         toast.success('Objava je bila objavljena')

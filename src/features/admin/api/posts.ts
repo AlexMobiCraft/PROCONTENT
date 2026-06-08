@@ -13,6 +13,7 @@ import {
   MAX_ONBOARDING_POSTS,
 } from '@/features/admin/types'
 import { removeStorageFiles, uploadFilesWithTracking } from './uploadMedia'
+import { applyNewVideoThumbnails, buildVideoThumbnailTasks } from './postThumbnails'
 
 export interface CreatePostInput {
   formValues: PostFormValues
@@ -162,6 +163,7 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       uploadedUrls
     )
 
+    let insertedRows: { id: string; url: string }[] = []
     if (gallery.length > 0) {
       let newItemIndex = 0
       const postMediaPayload = gallery.map((item) => {
@@ -186,16 +188,24 @@ export async function createPost(input: CreatePostInput): Promise<string> {
         }
       })
 
-      const { error: mediaError } = await supabase
+      const { data: mediaRows, error: mediaError } = await supabase
         .from('post_media')
         .insert(postMediaPayload)
+        .select('id, url')
 
       if (mediaError) {
         throw new Error(`Napaka pri shranjevanju medijev: ${mediaError.message}`, {
           cause: mediaError,
         })
       }
+
+      insertedRows = mediaRows ?? []
     }
+
+    // Генерация/загрузка thumbnail для новых видео — best-effort, не блокирует сохранение (Story 8.1)
+    await applyNewVideoThumbnails(
+      buildVideoThumbnailTasks(newItems, newFileUrls, insertedRows)
+    )
 
     if (!isScheduled) {
       const { error: publishedAtError } = await supabase
@@ -328,6 +338,7 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       }
     }
 
+    let insertedNewRows: { id: string; url: string }[] = []
     if (newItems.length > 0) {
       const newMediaPayload = newItems.map((item, index) => ({
         post_id: input.postId,
@@ -338,9 +349,10 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
         is_cover: item.is_cover,
       }))
 
-      const { error: insertError } = await supabase
+      const { data: insertedRows, error: insertError } = await supabase
         .from('post_media')
         .insert(newMediaPayload)
+        .select('id, url')
 
       if (insertError) {
         throw new Error(
@@ -348,7 +360,14 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
           { cause: insertError }
         )
       }
+
+      insertedNewRows = insertedRows ?? []
     }
+
+    // Генерация/загрузка thumbnail для новых видео — best-effort, не блокирует сохранение (Story 8.1)
+    await applyNewVideoThumbnails(
+      buildVideoThumbnailTasks(newItems, uploadedUrls, insertedNewRows)
+    )
 
     if (removedItems.length > 0) {
       const removedIds = removedItems.map((item) => item.id)
