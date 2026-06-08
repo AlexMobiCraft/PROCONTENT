@@ -4,7 +4,7 @@ baseline_commit: 56952b35109b54ff17d671b0636fffe0d1ba4054
 
 # Story 8.1: Avtomatsko generiranje thumbnaila ob shranjevanju objave
 
-Status: review
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -65,6 +65,14 @@ Status: review
   - [x] Subtask 7.1: Unit-тесты для `generateVideoThumbnail.ts` (mock video element, canvas)
   - [x] Subtask 7.2: E2E-тест: загрузка видео в редактор → проверить, что отображается poster в превью — реализовано как интеграционный тест (Vitest + Testing Library), т.к. Playwright в проекте не настроен (потребовал бы новой зависимости)
   - [x] Subtask 7.3: Интеграционный тест для fallback API
+
+### Review Findings
+
+- [x] [Review][Defer] Server fallback не выполняет AC4 — deferred: fallback требует отдельного технического решения и будет вынесен в будущую story. AC4 требует, чтобы `POST /api/admin/generate-thumbnail-fallback` генерировал thumbnail и сохранял результат так же, как Canvas-путь. Текущий route после auth/валидации всегда возвращает `501`, а story одновременно отмечает AC4 как частично покрытый и статус `review`.
+- [ ] [Review][Patch] Сохранение публикации может блокироваться thumbnail-пайплайном дольше 3 секунд [src/features/admin/components/PostForm.tsx:300]
+- [ ] [Review][Patch] Storage UPDATE policy разрешает всем authenticated пользователям перезаписывать объекты bucket `post_media` [supabase/migrations/045_add_thumbnail_index.sql:22]
+- [ ] [Review][Patch] Thumbnail-файлы не удаляются при удалении поста/медиа и могут оставаться orphaned в Storage [src/features/admin/api/posts.ts:372]
+- [ ] [Review][Patch] Новые source-файлы содержат большое количество комментариев/JSDoc вопреки правилу проекта `No comments unless explicitly requested` [src/lib/media/generateVideoThumbnail.ts:1]
 
 ## Dev Notes
 
