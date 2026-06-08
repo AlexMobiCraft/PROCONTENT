@@ -80,6 +80,44 @@ vi.mock('@/features/admin/components/MediaUploader', () => ({
       >
         Add generating video
       </button>
+      <button
+        type="button"
+        data-testid="add-idle-video-btn"
+        onClick={() =>
+          onChange([
+            ...items,
+            {
+              kind: 'new',
+              key: 'vgen',
+              media_type: 'video',
+              is_cover: true,
+              order_index: 0,
+              thumbnail_status: 'idle',
+            },
+          ])
+        }
+      >
+        Add idle video
+      </button>
+      <button
+        type="button"
+        data-testid="complete-video-generation-btn"
+        onClick={() =>
+          onChange(
+            (items as Array<{ key?: string }>).map((it) =>
+              it.key === 'vgen'
+                ? {
+                    ...it,
+                    thumbnail_status: 'success',
+                    thumbnail_blob: new Blob(['x'], { type: 'image/jpeg' }),
+                  }
+                : it
+            )
+          )
+        }
+      >
+        Complete generation
+      </button>
     </div>
   ),
 }))
@@ -383,10 +421,10 @@ describe('PostForm (create mode)', () => {
     })
   })
 
-  it('submits immediately without blocking when poster is still generating (Finding 1)', async () => {
+  it('ждёт завершения in-flight генерации poster и сохраняет blob (Finding A)', async () => {
     const { toast } = await import('sonner')
     const user = userEvent.setup()
-    mockCreatePost.mockResolvedValue('post-generating')
+    mockCreatePost.mockResolvedValue('post-poster')
     render(<PostForm mode="create" />)
 
     await user.type(screen.getByLabelText(/naslov/i), 'Video Post')
@@ -395,13 +433,91 @@ describe('PostForm (create mode)', () => {
     )
     await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
     await user.click(screen.getByTestId('add-generating-video-btn'))
-    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
 
-    // Сохранение не блокируется ожиданием генерации — createPost вызван сразу
+    // Сабмит при ещё идущей генерации — блокируется ожиданием, createPost не вызван
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+    expect(toast.info).toHaveBeenCalledWith('Generiranje posterjev v teku...')
+    expect(mockCreatePost).not.toHaveBeenCalled()
+
+    // Генерация завершилась во время ожидания → poster blob попадает в сохранение
+    await user.click(screen.getByTestId('complete-video-generation-btn'))
+
     await waitFor(() => {
       expect(mockCreatePost).toHaveBeenCalledOnce()
     })
+    const videoItem = (
+      mockCreatePost.mock.calls[0][0].gallery as Array<{
+        key?: string
+        thumbnail_status?: string
+        thumbnail_blob?: Blob
+      }>
+    ).find((m) => m.key === 'vgen')
+    expect(videoItem?.thumbnail_status).toBe('success')
+    expect(videoItem?.thumbnail_blob).toBeInstanceOf(Blob)
+  })
+
+  it('блокирует сабмит дольше 2500ms до завершения генерации (Finding 1, Раунд 4)', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('post-poster')
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Video Post')
+    await user.click(screen.getByTestId('add-generating-video-btn'))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+
     expect(toast.info).toHaveBeenCalledWith('Generiranje posterjev v teku...')
+
+    // Прошло больше старого лимита 2500ms — генерация ещё идёт, сабмит НЕ сохраняется
+    await new Promise((resolve) => setTimeout(resolve, 2800))
+    expect(mockCreatePost).not.toHaveBeenCalled()
+
+    // Генерация завершилась → сабмит продолжается с blob
+    await user.click(screen.getByTestId('complete-video-generation-btn'))
+    await waitFor(() => {
+      expect(mockCreatePost).toHaveBeenCalledOnce()
+    })
+
+    const videoItem = (
+      mockCreatePost.mock.calls[0][0].gallery as Array<{
+        key?: string
+        thumbnail_blob?: Blob
+      }>
+    ).find((m) => m.key === 'vgen')
+    expect(videoItem?.thumbnail_blob).toBeInstanceOf(Blob)
+  }, 10000)
+
+  it('блокирует сабмит для idle-видео (генерация ещё не стартовала) и сохраняет blob после завершения', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('post-idle')
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Video Post')
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-idle-video-btn'))
+
+    // idle-видео (генерация ещё не стартовала) блокирует сабмит — createPost не вызван
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+    expect(toast.info).toHaveBeenCalledWith('Generiranje posterjev v teku...')
+    expect(mockCreatePost).not.toHaveBeenCalled()
+
+    // Генерация завершилась → poster blob попадает в сохранение
+    await user.click(screen.getByTestId('complete-video-generation-btn'))
+
+    await waitFor(() => {
+      expect(mockCreatePost).toHaveBeenCalledOnce()
+    })
+    const videoItem = (
+      mockCreatePost.mock.calls[0][0].gallery as Array<{
+        key?: string
+        thumbnail_blob?: Blob
+      }>
+    ).find((m) => m.key === 'vgen')
+    expect(videoItem?.thumbnail_blob).toBeInstanceOf(Blob)
   })
 
   it('keeps gallery state intact when inline image is removed before submit', async () => {

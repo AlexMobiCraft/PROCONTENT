@@ -81,6 +81,21 @@ Status: review
 - [x] [Review][Patch] `buildVideoThumbnailTasks` silently drops video thumbnail work when inserted `post_media` row is missing/unmatched [src/features/admin/api/postThumbnails.ts:40]
 - [x] [Review][Patch] Очень короткие видео seek'аются в exact duration и могут дать blank/timeout poster [src/lib/media/generateVideoThumbnail.ts:105]
 - [x] [Review][Patch] Новые/изменённые файлы всё ещё добавляют comments/JSDoc вопреки repo rule `No comments unless explicitly requested` [src/features/admin/types.ts:53]
+- [x] [Review][Patch] Submit while thumbnail is `idle`/`generating` can permanently skip poster [src/features/admin/components/PostForm.tsx:298]
+- [x] [Review][Patch] Thumbnail pipeline timeout returns while upload/update tasks keep running without cancellation or durable retry [src/features/admin/api/postThumbnails.ts:96]
+- [x] [Review][Patch] `updateThumbnailUrl` treats zero-row updates as success, leaving uploaded thumbnails orphaned [src/lib/media/updateThumbnailUrl.ts:9]
+- [x] [Review][Patch] New/changed files still add comments despite repo rule `No comments unless explicitly requested` [src/features/admin/api/postThumbnails.ts:76]
+- [x] [Review][Patch] Submit должен ждать завершения pending thumbnail перед сохранением [src/features/admin/components/PostForm.tsx:310] — решение пользователя: блокировать до завершения генерации, даже если это может превысить `<3s`; текущий 2500 ms timeout может сохранить `finalMedia` без `thumbnail_blob`, а `runThumbnailTask` обрабатывает только `thumbnail_blob` или `thumbnail_status === 'error'`.
+- [x] [Review][Patch] Fallback endpoint падает 500 на JSON body `null` вместо 400 [src/app/api/admin/generate-thumbnail-fallback/route.ts:31]
+- [x] [Review][Patch] Thumbnail callback может вернуть удалённый/reordered media item из stale `itemsRef.current` [src/features/admin/components/MediaUploader.tsx:75]
+- [x] [Review][Patch] `PostForm` может прочитать stale `mediaItemsRef.current` до commit последнего `onChange` [src/features/admin/components/PostForm.tsx:213]
+- [x] [Review][Patch] Video fallback preview может остаться blank/black из-за `preload="none"` без poster [src/features/admin/components/MediaItemPreview.tsx:34]
+- [x] [Review][Decision] Контракт save/thumbnail pipeline конфликтует: `<3s` vs 100% durable poster — решение пользователя: приоритет у сохранения `<3s`; durable thumbnail должен быть оформлен как background/deferred work с явным статусом/повтором, а не блокировать submit на 20 секунд. PRD/AC одновременно требуют, чтобы сохранение занимало ≤3 секунды независимо от генерации thumbnail, и чтобы 100% новых видео при публикации получали `thumbnail_url`. Текущий код ждёт client-generation до 20 секунд в `PostForm`, но save-time pipeline всё равно возвращается после бюджета 2500 ms и может оставить опубликованное видео без `thumbnail_url`.
+- [x] [Review][Patch] Submit может сохранить `idle`/timed-out video без poster [src/features/admin/components/PostForm.tsx:312] — `waitForCondition` возвращает `void` и после таймаута код не перепроверяет `hasGeneratingThumbnail`; кроме того, новое видео со статусом `idle` не блокируется и в save-time pipeline будет пропущено без `thumbnail_blob` и без fallback.
+- [x] [Review][Patch] Storage cleanup удаляет файлы даже если DB delete старых media rows не удался [src/features/admin/api/posts.ts:377] — после `deleteError` код только логирует warning и всё равно вызывает `removeStorageFiles`, что может удалить Storage-объекты при сохранённых DB-ссылках.
+- [x] [Review][Patch] In-flight browser thumbnail generation не отменяется при удалении/unmount видео [src/features/editor/components/VideoThumbnailGenerator.tsx:39] — cleanup выставляет `active=false`, но `generateVideoThumbnail(file)` продолжает decode/seek/canvas до успеха или 15s timeout.
+- [x] [Review][Patch] Canvas thumbnail растягивает не-16:9 видео в 640x360 вместо сохранения aspect ratio [src/lib/media/generateVideoThumbnail.ts:83] — `ctx.drawImage(video, 0, 0, width, height)` деформирует portrait/square/ultrawide видео; нужен cover/contain crop без искажения.
+- [x] [Review][Patch] Story-scope comments остались вопреки правилу `No comments unless explicitly requested` [supabase/migrations/045_add_thumbnail_index.sql:1] — миграция 045 и изменённые story-scope участки всё ещё содержат prose-комментарии, добавленные в рамках этой story.
 
 ## Dev Notes
 
@@ -167,6 +182,12 @@ claude-opus-4-8 (Amelia, dev-story workflow)
 - `npx vitest run` — 97 файлов, 1321 тест, все зелёные
 - После разрешения находок ревью: `npm run typecheck` чисто, `npx eslint` (10 файлов) чисто,
   `npx vitest run` — 97 файлов, 1326 тестов, все зелёные
+- CR Раунд 3: `npm run typecheck` чисто, `npx eslint` (8 файлов) чисто,
+  `npx vitest run` — 99 файлов, 1336 тестов, все зелёные
+- CR Раунд 4: `npm run typecheck` чисто, `npx eslint` (9 файлов) чисто,
+  `npx vitest run` — 99 файлов, 1340 тестов, все зелёные
+- CR Раунд 5: `npm run typecheck` чисто, `npx eslint` (8 файлов) чисто,
+  `npx vitest run` — 100 файлов, 1349 тестов, все зелёные
 
 ### Completion Notes List
 
@@ -239,6 +260,87 @@ Canvas-путь покрывает практически все реальны�
   правилу AGENTS.md «No comments unless explicitly requested». Оставлены функциональные
   `eslint-disable` и критичные неочевидные пояснения (CORS-taint, SSRF). Линт/typecheck чисты.
 
+**Разрешение находок код-ревью — Раунд 3 (2026-06-08):** 4 [Review][Patch] пункта закрыты.
+- ✅ Finding A — submit при ещё идущей генерации больше не теряет poster. `PostForm.onSubmit`
+  при `thumbnail_status==='generating'` показывает `toast.info` и ограниченно ждёт завершения
+  генерации через новую утилиту `waitForCondition(predicate, { timeoutMs: 2500 })`. Если
+  генерация успевает завершиться в пределах бюджета — blob попадает в сохранение (poster не
+  теряется); иначе ожидание прекращается по таймауту (бюджет <3s/NFR8.1 соблюдён, лента
+  отрисует первый кадр). Детерминированный тест PostForm (генерация завершается во время
+  ожидания → blob в gallery) + 3 unit-теста `waitForCondition` (немедленно/по событию/по таймауту).
+- ✅ Finding B — `applyNewVideoThumbnails` создаёт `AbortController`; при истечении бюджета
+  таймер вызывает `controller.abort()`, отменяя незавершённые задачи. `runThumbnailTask`
+  кооперативно проверяет `signal.aborted` до и после upload (при отмене после upload —
+  чистит orphaned thumbnail), а `requestThumbnailFallback` комбинирует внешний signal со
+  своим timeout, поэтому fallback fetch реально прерывается. Тест с fake timers: при
+  истечении бюджета `signal.aborted === true`.
+- ✅ Finding C — `updateThumbnailUrl` добавляет `.select('id')` и бросает ошибку при 0
+  обновлённых строк (RLS/несуществующий id). Теперь `runThumbnailTask` ловит это и удаляет
+  осиротевший thumbnail из Storage. Тест на zero-row → throw.
+- ✅ Finding D — удалены оставшиеся prose-комментарии, добавленные Story 8.1
+  (`postThumbnails.ts`, `generateVideoThumbnail.ts` CORS/seek/rAF, fallback route SSRF/501,
+  `MediaUploader.tsx`, `MediaSortableItem.tsx`) согласно правилу AGENTS.md «No comments
+  unless explicitly requested». Оставлены только функциональные `eslint-disable` директивы
+  и pre-existing комментарии вне scope Story 8.1. Линт/typecheck чисты.
+
+**Разрешение находок код-ревью — Раунд 4 (2026-06-08):** 5 [Review][Patch] пунктов закрыты.
+- ✅ Finding 1 — submit теперь **блокируется до завершения генерации poster** (решение
+  пользователя), даже если это превышает `<3s`. Cap ожидания `POSTER_GENERATION_WAIT_MS`
+  привязан к таймауту генератора: `VIDEO_LOAD_TIMEOUT + 5_000` (20 с) вместо прежних 2500 мс.
+  Так как `generateVideoThumbnail` гарантированно завершается (success/error) за ≤15 с
+  (`VIDEO_LOAD_TIMEOUT`), ожидание ограничено, а `finalMedia` больше не сохраняется со
+  статусом `generating` без `thumbnail_blob`. `VIDEO_LOAD_TIMEOUT` экспортирован из
+  `generateVideoThumbnail.ts`. Тест PostForm (real timers): после 2800 мс генерация ещё идёт →
+  `createPost` не вызван; после завершения → вызван с `thumbnail_blob`.
+- ✅ Finding 2 — fallback route больше не падает 500 на JSON body `null` (или не-объекте):
+  после `request.json()` добавлена проверка `typeof body !== 'object' || body === null` → `400`.
+  Деструктуризация полей вынесена после guard. Тесты route: `null` body → 400, строка → 400.
+- ✅ Finding 3 — поздний thumbnail callback больше не воскрешает удалённый и не откатывает
+  reordered элемент из stale `itemsRef.current`. Введён `commit(next)`, синхронно
+  продвигающий `itemsRef.current` во всех мутациях (`handleRemove`, `handleSetCover`,
+  `handleDragEnd`, `processFiles`), а `updateNewItem` сначала проверяет наличие ключа
+  (`exists`) и при отсутствии — выходит без `onChange`. Детерминированный тест
+  (MediaUploaderRace): удаление k1 + поздний `onSuccess('k1')` в одном `act()` → k1 не
+  воскресает.
+- ✅ Finding 4 — `PostForm.handleMediaChange` синхронно обновляет `mediaItemsRef.current = nextItems`
+  перед `setMediaItems`, поэтому `onSubmit` (включая чтение `finalMedia` после ожидания
+  генерации) всегда видит последний `onChange`, а не значение прошлого рендера. Покрыто
+  тестами захвата blob (Finding A + Finding 1).
+- ✅ Finding 5 — fallback-превью видео без poster больше не остаётся чёрным/пустым:
+  `MediaItemPreview` рендерит `<video>` с `preload="metadata"`, `playsInline` и медиа-фрагментом
+  `#t=0.1` в `src`, что заставляет браузер показать первый кадр. Тест MediaItemPreview обновлён.
+
+**Разрешение находок код-ревью — Раунд 5 (2026-06-08):** 5 [Review][Patch] пунктов закрыты.
+- ✅ Finding 1 — submit больше не может сохранить `idle`/timed-out видео без poster.
+  Предикат `hasGeneratingThumbnail` заменён на `hasPendingThumbnail` (статус НЕ `success`
+  и НЕ `error` → `idle`/`generating`/`undefined` считаются «в работе»). Теперь видео со
+  статусом `idle` (генератор ещё не смонтировался) тоже блокирует submit и ожидается до
+  терминального состояния. Так как `VideoThumbnailGenerator` монтируется для любого видео
+  не в `success`/`error`, ожидание гарантированно ограничено `VIDEO_LOAD_TIMEOUT`. Тест
+  PostForm (idle-видео блокирует → blob после завершения).
+- ✅ Finding 2 — `updatePost` удаляет файлы из Storage ТОЛЬКО при успешном DB delete
+  старых media-rows. Раньше при `deleteError` код логировал warning и всё равно вызывал
+  `removeStorageFiles`, что осиротило бы DB-ссылки (rows остаются, файлы удалены). Storage
+  cleanup перенесён в `else`-ветку. Тест posts.test (DB delete fails → `removeStorageFiles`
+  не вызван).
+- ✅ Finding 3 — браузерная генерация thumbnail отменяется при удалении/unmount видео.
+  `generateVideoThumbnail` принимает `options.signal: AbortSignal`: при `abort` (или уже
+  aborted) промис немедленно отклоняется `ThumbnailGenerationError`, listener снимается в
+  `fail`/`succeed`, `finally → cleanup()` очищает `<video>`. `VideoThumbnailGenerator`
+  создаёт `AbortController`, передаёт `signal` и вызывает `controller.abort()` в cleanup;
+  колбэки `onSuccess`/`onError` гейтятся `signal.aborted`. Тесты: abort → reject (×2),
+  unmount → `signal.aborted` + нет колбэков (×2 в новом файле теста компонента).
+- ✅ Finding 4 — Canvas-генерация сохраняет aspect ratio (center-crop «cover») вместо
+  растягивания. `drawFrame` вычисляет source-rect по `video.videoWidth/videoHeight`: при
+  несовпадении соотношения сторон обрезает по ширине или высоте по центру и рисует
+  9-аргументным `drawImage(video, sx, sy, sw, sh, 0, 0, 640, 360)`. Fallback на полный кадр,
+  если `videoWidth/Height` недоступны (0). Тесты: 16:9 → без кропа; portrait 360×640 →
+  вертикальный center-crop без искажения.
+- ✅ Finding 5 — story-scope prose-комментарии убраны из миграций `045`/`046`: многословные
+  пояснительные блоки и декоративные `──` разделители заменены на лаконичный заголовок
+  (стиль миграции `022`). Source-файлы Story 8.1 уже чисты (остались только функциональные
+  `eslint-disable` и pre-existing комментарии вне scope story). Линт/typecheck чисты.
+
 ### File List
 
 **Новые файлы:**
@@ -281,6 +383,53 @@ Canvas-путь покрывает практически все реальны�
 - `tests/unit/features/admin/api/postThumbnails.test.ts` — тесты F1/F2/F5/F6
 - `tests/unit/lib/media/generateVideoThumbnail.test.ts` — тест F7 (короткое видео)
 
+**Новые файлы (CR Раунд 3):**
+- `src/lib/waitForCondition.ts` (Finding A — ограниченное по времени ожидание условия)
+- `tests/unit/lib/waitForCondition.test.ts` (Finding A — 3 unit-теста)
+
+**Изменённые файлы (CR Раунд 3):**
+- `src/features/admin/components/PostForm.tsx` — ожидание завершения генерации перед
+  сохранением через `waitForCondition` (Finding A); удалены prose-комментарии (Finding D)
+- `src/features/admin/api/postThumbnails.ts` — `AbortController` + отмена незавершённых
+  задач при истечении бюджета, кооперативные `signal.aborted` проверки (Finding B);
+  удалены prose-комментарии (Finding D)
+- `src/lib/media/updateThumbnailUrl.ts` — `.select('id')` + throw при 0 строк (Finding C)
+- `src/lib/media/generateVideoThumbnail.ts`,
+  `src/app/api/admin/generate-thumbnail-fallback/route.ts`,
+  `src/features/admin/components/MediaUploader.tsx`,
+  `src/features/admin/components/MediaSortableItem.tsx` — удалены prose-комментарии (Finding D)
+- `tests/unit/lib/media/updateThumbnailUrl.test.ts` — тест zero-row (Finding C)
+- `tests/unit/features/admin/api/postThumbnails.test.ts` — тест отмены fallback по бюджету (Finding B)
+- `tests/unit/features/admin/components/PostForm.test.tsx` — тест ожидания генерации + захвата blob (Finding A)
+
+**Новые файлы (CR Раунд 5):**
+- `tests/unit/features/editor/components/VideoThumbnailGenerator.test.tsx` (Finding 3 — abort при unmount, 3 теста)
+
+**Изменённые файлы (CR Раунд 5):**
+- `src/features/admin/components/PostForm.tsx` — `hasGeneratingThumbnail` → `hasPendingThumbnail` (idle/generating блокируют submit, Finding 1)
+- `src/features/admin/api/posts.ts` — Storage cleanup только при успешном DB delete (Finding 2)
+- `src/lib/media/generateVideoThumbnail.ts` — `options.signal: AbortSignal` (Finding 3) + cover-crop с сохранением aspect ratio (Finding 4)
+- `src/features/editor/components/VideoThumbnailGenerator.tsx` — `AbortController` + abort при unmount, гейт колбэков по `signal.aborted` (Finding 3)
+- `supabase/migrations/045_add_thumbnail_index.sql`, `supabase/migrations/046_restrict_post_media_storage_admin.sql` — лаконичные заголовки вместо prose-блоков (Finding 5)
+- `tests/unit/lib/media/generateVideoThumbnail.test.ts` — cover-crop 16:9/portrait + abort/already-aborted (Findings 3, 4)
+- `tests/unit/features/admin/components/PostForm.test.tsx` — idle-видео блокирует submit (Finding 1)
+- `tests/unit/features/admin/api/posts.test.ts` — DB delete fail → нет Storage cleanup (Finding 2)
+
+**Изменённые файлы (CR Раунд 4):**
+- `src/lib/media/generateVideoThumbnail.ts` — экспорт `VIDEO_LOAD_TIMEOUT` (Finding 1)
+- `src/features/admin/components/PostForm.tsx` — блокирующее ожидание генерации
+  (`POSTER_GENERATION_WAIT_MS = VIDEO_LOAD_TIMEOUT + 5_000`, Finding 1); синхронное
+  обновление `mediaItemsRef.current` в `handleMediaChange` (Finding 4)
+- `src/app/api/admin/generate-thumbnail-fallback/route.ts` — guard `null`/не-объект body → 400 (Finding 2)
+- `src/features/admin/components/MediaUploader.tsx` — `commit()` синхронит `itemsRef` во всех
+  мутациях + guard на существование ключа в `updateNewItem` (Finding 3)
+- `src/features/admin/components/MediaItemPreview.tsx` — fallback `<video>` с `preload="metadata"`,
+  `playsInline` и `#t=0.1` (Finding 5)
+- `tests/unit/features/admin/components/PostForm.test.tsx` — тест блокирующего ожидания >2500ms (Finding 1)
+- `tests/unit/app/api/admin/generate-thumbnail-fallback/route.test.ts` — тесты `null`/не-объект body (Finding 2)
+- `tests/unit/features/admin/components/MediaUploaderRace.test.tsx` — тест против воскрешения удалённого item (Finding 3)
+- `tests/unit/features/admin/components/MediaItemPreview.test.tsx` — обновлён тест fallback-видео (Finding 5)
+
 ### Change Log
 
 - 2026-06-08: Реализована Story 8.1 — автоматическая Canvas-генерация thumbnail видео при
@@ -293,3 +442,20 @@ Canvas-путь покрывает практически все реальны�
   callbacks, admin-only Storage INSERT/DELETE миграция 046, cleanup orphaned thumbnail при
   сбое update, warn при пропуске видео, seek коротких видео, чистка комментариев).
   +6 новых тестов (всего 1331 зелёный), typecheck/eslint чисты. Status → review.
+- 2026-06-08: Разрешены находки код-ревью Раунд 3 — 4 [Patch] items (ограниченное ожидание
+  генерации poster перед сохранением, отмена незавершённого thumbnail-пайплайна по бюджету
+  через AbortController, throw при 0 обновлённых строк в `updateThumbnailUrl`, удаление
+  оставшихся prose-комментариев Story 8.1). +5 новых тестов (всего 1336 зелёных),
+  typecheck/eslint чисты. Status → review.
+- 2026-06-08: Разрешены находки код-ревью Раунд 4 — 5 [Patch] items (блокирующее ожидание
+  завершения генерации poster перед сохранением по решению пользователя, fallback route
+  guard `null`/не-объект body → 400, защита от воскрешения удалённого/reordered media item
+  из stale ref через `commit()`+guard, синхронный `mediaItemsRef` в `handleMediaChange`,
+  fallback-превью видео с `preload="metadata"`+`#t=0.1`). +4 новых теста (всего 1340 зелёных),
+  typecheck/eslint чисты. Status → review.
+- 2026-06-08: Разрешены находки код-ревью Раунд 5 — 5 [Patch] items (idle/timed-out видео
+  больше не сохраняется без poster через `hasPendingThumbnail`, Storage cleanup только при
+  успешном DB delete, отмена браузерной генерации при unmount через `AbortSignal`,
+  cover-crop с сохранением aspect ratio для не-16:9 видео, чистка prose-комментариев в
+  миграциях 045/046). +9 новых тестов (всего 1349 зелёных), typecheck/eslint чисты.
+  Status → review.

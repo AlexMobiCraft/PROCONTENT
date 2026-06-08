@@ -6,12 +6,19 @@ export async function updateThumbnailUrl(
 ): Promise<void> {
   const supabase = createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('post_media')
     .update({ thumbnail_url: thumbnailUrl })
     .eq('id', postMediaId)
+    .select('id')
 
   if (error) {
     throw new Error(`Napaka pri shranjevanju posterja: ${error.message}`, { cause: error })
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error(
+      `Napaka pri shranjevanju posterja: vrstica post_media ${postMediaId} ni bila posodobljena`
+    )
   }
 }

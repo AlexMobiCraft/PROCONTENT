@@ -14,6 +14,8 @@ interface FakeVideo {
   src: string
   duration: number
   currentTime: number
+  videoWidth: number
+  videoHeight: number
   onloadeddata: (() => void) | null
   onseeked: (() => void) | null
   onerror: (() => void) | null
@@ -53,6 +55,8 @@ describe('generateVideoThumbnail', () => {
       src: '',
       duration: 10,
       currentTime: 0,
+      videoWidth: 1280,
+      videoHeight: 720,
       onloadeddata: null,
       onseeked: null,
       onerror: null,
@@ -183,5 +187,67 @@ describe('generateVideoThumbnail', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('для 16:9 видео рисует кадр целиком без кропа', async () => {
+    const drawImage = (getContextResult as { drawImage: ReturnType<typeof vi.fn> })
+      .drawImage
+    const p = generateVideoThumbnail(makeFile())
+    driveHappyPath()
+    await p
+
+    expect(drawImage).toHaveBeenCalledWith(
+      fakeVideo,
+      0,
+      0,
+      1280,
+      720,
+      0,
+      0,
+      THUMBNAIL_WIDTH,
+      THUMBNAIL_HEIGHT
+    )
+  })
+
+  it('для portrait-видео делает center-crop без искажения aspect ratio (Finding 4)', async () => {
+    fakeVideo.videoWidth = 360
+    fakeVideo.videoHeight = 640
+    const drawImage = (getContextResult as { drawImage: ReturnType<typeof vi.fn> })
+      .drawImage
+
+    const p = generateVideoThumbnail(makeFile())
+    driveHappyPath()
+    await p
+
+    expect(drawImage).toHaveBeenCalledTimes(1)
+    const [, sx, sy, sw, sh, dx, dy, dw, dh] = drawImage.mock.calls[0]
+    // Кроп по вертикали: ширина источника сохранена, высота обрезана и отцентрирована
+    expect(sx).toBeCloseTo(0)
+    expect(sw).toBeCloseTo(360)
+    expect(sh).toBeCloseTo(360 / (THUMBNAIL_WIDTH / THUMBNAIL_HEIGHT))
+    expect(sy).toBeCloseTo((640 - sh) / 2)
+    // Источник сохраняет соотношение сторон цели → нет искажения
+    expect(sw / sh).toBeCloseTo(THUMBNAIL_WIDTH / THUMBNAIL_HEIGHT)
+    expect([dx, dy, dw, dh]).toEqual([0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT])
+  })
+
+  it('отклоняется при отмене через AbortSignal (Finding 3)', async () => {
+    const controller = new AbortController()
+    const p = generateVideoThumbnail(makeFile(), {
+      signal: controller.signal,
+    }).catch((e) => e)
+    controller.abort()
+    const err = await p
+
+    expect(err).toBeInstanceOf(ThumbnailGenerationError)
+  })
+
+  it('отклоняется немедленно если signal уже aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      generateVideoThumbnail(makeFile(), { signal: controller.signal })
+    ).rejects.toBeInstanceOf(ThumbnailGenerationError)
   })
 })

@@ -52,6 +52,16 @@ describe('POST /api/admin/generate-thumbnail-fallback', () => {
     expect(res.status).toBe(400)
   })
 
+  it('возвращает 400 при JSON body null (а не 500)', async () => {
+    const res = await POST(makeRequest(undefined, 'null'))
+    expect(res.status).toBe(400)
+  })
+
+  it('возвращает 400 при JSON body не-объекте (строка)', async () => {
+    const res = await POST(makeRequest(undefined, '"just-a-string"'))
+    expect(res.status).toBe(400)
+  })
+
   it('возвращает 400 при отсутствии полей', async () => {
     const res = await POST(makeRequest({ videoUrl: VALID_VIDEO_URL }))
     expect(res.status).toBe(400)

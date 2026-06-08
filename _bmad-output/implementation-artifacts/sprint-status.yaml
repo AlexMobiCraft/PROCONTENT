@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-06-08 (Story 8.1 -> review, CR Round 2: 8 action items resolved)
+last_updated: 2026-06-08 (Story 8.1 -> review, CR Round 5: 5 action items resolved)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -177,6 +177,17 @@ development_status:
   epic-8: in-progress
   # 2026-06-08: 4 CR-находки [Patch] закрыты (неблокирующий сабмит, admin-only Storage UPDATE, удаление orphaned thumbnail, сокращение комментариев) → review
   # 2026-06-08: CR Раунд 2 — 8 [Patch] находок закрыты (bounded pipeline+AbortController, fallback только при error, гонка callbacks, admin-only Storage INSERT/DELETE 046, orphan cleanup, warn пропуска, seek коротких видео, чистка комментариев) → review
+  # 2026-06-08: CR Раунд 3 — 4 [Patch] action items оставлены в story → in-progress
+  # 2026-06-08: CR Раунд 3 — 4 [Patch] закрыты (ограниченное ожидание генерации перед сохранением,
+  #   AbortController-отмена thumbnail-пайплайна по бюджету, throw при 0 строк updateThumbnailUrl,
+  #   чистка оставшихся prose-комментариев) → review
+  # 2026-06-08: CR Раунд 4 — 5 [Patch] action items оставлены в story → in-progress
+  # 2026-06-08: CR Раунд 4 — 5 [Patch] закрыты (блокирующее ожидание генерации перед
+  #   сохранением, fallback null-body → 400, защита от воскрешения удалённого media item,
+  #   синхронный mediaItemsRef, fallback-видео preload=metadata+#t=0.1) → review
+  # 2026-06-08: CR Раунд 5 — 5 [Patch] закрыты (idle/timed-out видео не сохраняется без poster,
+  #   Storage cleanup только при успешном DB delete, отмена генерации при unmount через AbortSignal,
+  #   cover-crop без искажения aspect ratio, чистка prose-комментариев в миграциях 045/046) → review
   8-1-automatic-thumbnail-generation-on-save: review
   8-2-manual-poster-replacement-in-editor: ready-for-dev
   8-3-retroactive-thumbnail-generation: ready-for-dev

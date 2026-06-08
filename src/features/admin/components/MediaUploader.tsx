@@ -72,17 +72,27 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
 
   const itemsRef = useRef<MediaItem[]>([])
 
-  const updateNewItem = useCallback(
-    (key: string, patch: Partial<NewMediaItem>) => {
-      const next = itemsRef.current.map((it) =>
-        it.kind === 'new' && it.key === key ? { ...it, ...patch } : it
-      )
-      // Сразу продвигаем ref: параллельный callback в том же тике (другое видео)
-      // увидит этот патч и не перетрёт его при чтении itemsRef.current
+  const commit = useCallback(
+    (next: MediaItem[]) => {
       itemsRef.current = next
       onChange(next)
     },
     [onChange]
+  )
+
+  const updateNewItem = useCallback(
+    (key: string, patch: Partial<NewMediaItem>) => {
+      const exists = itemsRef.current.some(
+        (it) => it.kind === 'new' && it.key === key
+      )
+      if (!exists) return
+
+      const next = itemsRef.current.map((it) =>
+        it.kind === 'new' && it.key === key ? { ...it, ...patch } : it
+      )
+      commit(next)
+    },
+    [commit]
   )
 
   const handleThumbGenerating = useCallback(
@@ -103,7 +113,6 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
     [updateNewItem]
   )
 
-  // Свежее значение до эффектов детей (VideoThumbnailGenerator) — синхронизация через useEffect была бы устаревшей
   // eslint-disable-next-line react-hooks/refs
   itemsRef.current = items
 
@@ -126,7 +135,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
     }))
     // Clear stale error on successful reorder
     setFileError(null)
-    onChange(reordered)
+    commit(reordered)
   }
 
   const processFiles = useCallback(
@@ -203,11 +212,11 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
         combined[0] = { ...combined[0], is_cover: true }
       }
 
-      onChange(combined)
+      commit(combined)
       // Reset input so same file can be re-selected
       if (inputRef.current) inputRef.current.value = ''
     },
-    [items, onChange]
+    [items, commit]
   )
 
   function handleFilesSelected(files: FileList | null) {
@@ -220,7 +229,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
       ...item,
       is_cover: getMediaItemId(item) === targetId,
     }))
-    onChange(updated)
+    commit(updated)
   }
 
   function handleRemove(targetId: string) {
@@ -239,7 +248,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
       filtered[0] = { ...filtered[0], is_cover: true }
     }
 
-    onChange(filtered)
+    commit(filtered)
     setFileError(null)
   }
 

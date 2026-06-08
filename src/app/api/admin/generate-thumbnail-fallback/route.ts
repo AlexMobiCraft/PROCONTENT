@@ -8,7 +8,6 @@ interface FallbackBody {
   postMediaId?: string
 }
 
-// Контракт готов (auth/валидация/SSRF); серверное извлечение кадра отложено → 501.
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const supabase = await createClient()
   const {
@@ -29,21 +28,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  let body: FallbackBody
+  let body: unknown
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const videoUrl = typeof body.videoUrl === 'string' ? body.videoUrl.trim() : ''
-  const postMediaId = typeof body.postMediaId === 'string' ? body.postMediaId.trim() : ''
+  if (typeof body !== 'object' || body === null) {
+    return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
+  }
+
+  const { videoUrl: rawVideoUrl, postMediaId: rawPostMediaId } = body as FallbackBody
+  const videoUrl = typeof rawVideoUrl === 'string' ? rawVideoUrl.trim() : ''
+  const postMediaId = typeof rawPostMediaId === 'string' ? rawPostMediaId.trim() : ''
 
   if (!videoUrl || !postMediaId) {
     return NextResponse.json({ error: 'Missing videoUrl or postMediaId' }, { status: 400 })
   }
 
-  // SSRF-защита: videoUrl обязан указывать на наш Supabase Storage
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!supabaseUrl || !videoUrl.startsWith(`${supabaseUrl}/storage/`)) {
     return NextResponse.json({ error: 'Invalid videoUrl' }, { status: 400 })

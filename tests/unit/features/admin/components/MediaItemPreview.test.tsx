@@ -24,12 +24,13 @@ describe('MediaItemPreview', () => {
     expect(container.querySelector('video')).toBeNull()
   })
 
-  it('для видео без poster показывает fallback-видео', () => {
+  it('для видео без poster показывает fallback-видео с первым кадром (preload+fragment)', () => {
     const { container } = render(
       <MediaItemPreview mediaType="video" posterUrl={null} videoUrl="blob:raw-video" />
     )
     const video = container.querySelector('video')
-    expect(video).toHaveAttribute('src', 'blob:raw-video')
+    expect(video).toHaveAttribute('src', 'blob:raw-video#t=0.1')
+    expect(video).toHaveAttribute('preload', 'metadata')
   })
 
   it('показывает индикатор генерации при статусе generating', () => {

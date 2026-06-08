@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { waitForCondition } from '@/lib/waitForCondition'
+import { VIDEO_LOAD_TIMEOUT } from '@/lib/media/generateVideoThumbnail'
 import { useAuthStore } from '@/features/auth/store'
 import { getCategories, type Category } from '@/features/admin/api/categories'
 import { createPost, updatePost } from '@/features/admin/api/posts'
@@ -56,6 +58,18 @@ interface InitialData {
 type PostFormProps =
   | { mode: 'create' }
   | { mode: 'edit'; initialData: InitialData }
+
+const POSTER_GENERATION_WAIT_MS = VIDEO_LOAD_TIMEOUT + 5_000
+
+function hasPendingThumbnail(items: MediaItem[]): boolean {
+  return items.some(
+    (item) =>
+      item.kind === 'new' &&
+      item.media_type === 'video' &&
+      item.thumbnail_status !== 'success' &&
+      item.thumbnail_status !== 'error'
+  )
+}
 
 export function PostForm(props: PostFormProps) {
   const router = useRouter()
@@ -217,6 +231,7 @@ export function PostForm(props: PostFormProps) {
       objectUrlsRef.current.add(url)
     }
 
+    mediaItemsRef.current = nextItems
     setMediaItems(nextItems)
   }
 
@@ -295,15 +310,12 @@ export function PostForm(props: PostFormProps) {
       return
     }
 
-    const isThumbnailGenerating = mediaItemsRef.current.some(
-      (item) =>
-        item.kind === 'new' &&
-        item.media_type === 'video' &&
-        item.thumbnail_status === 'generating'
-    )
-
-    if (isThumbnailGenerating) {
+    if (hasPendingThumbnail(mediaItemsRef.current)) {
       toast.info('Generiranje posterjev v teku...')
+      await waitForCondition(
+        () => !hasPendingThumbnail(mediaItemsRef.current),
+        { timeoutMs: POSTER_GENERATION_WAIT_MS }
+      )
     }
 
     const finalMedia = mediaItemsRef.current

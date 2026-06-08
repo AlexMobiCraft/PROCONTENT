@@ -31,7 +31,13 @@ export function MediaItemPreview({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={posterUrl} alt="" className="size-full object-cover" />
         ) : (
-          <video src={videoUrl ?? undefined} className="size-full object-cover" muted preload="none" />
+          <video
+            src={videoUrl ? `${videoUrl}#t=0.1` : undefined}
+            className="size-full object-cover"
+            muted
+            playsInline
+            preload="metadata"
+          />
         )
       ) : (
         // eslint-disable-next-line @next/next/no-img-element

@@ -34,7 +34,6 @@ export function MediaSortableItem({
 
   const isVideo = item.media_type === 'video'
 
-  // Poster: для видео — сгенерированный/существующий thumbnail; для картинок — сам файл.
   const posterUrl = isVideo
     ? item.kind === 'new'
       ? (item.thumbnail_preview_url ?? null)
@@ -43,7 +42,6 @@ export function MediaSortableItem({
       ? item.preview_url
       : item.url
 
-  // Сырой URL видео для fallback-кадра, пока poster не готов.
   const videoFallbackUrl = isVideo ? (item.kind === 'new' ? item.preview_url : item.url) : null
 
   const thumbnailStatus = item.kind === 'new' ? item.thumbnail_status : undefined

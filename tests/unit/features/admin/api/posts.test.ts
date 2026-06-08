@@ -322,6 +322,29 @@ describe('updatePost', () => {
     ])
   })
 
+  it('does NOT remove storage files when DB delete of removed media fails (Finding)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const original = [makeExistingItem('m1', 0), makeExistingItem('m2', 1)]
+    const current = [makeExistingItem('m1', 0)]
+
+    supabaseChain.update.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    })
+    supabaseChain.delete.mockReturnValue({
+      in: vi.fn().mockResolvedValue({ error: { message: 'delete failed' } }),
+    })
+
+    await updatePost({
+      postId: 'p1',
+      formValues: baseFormValues,
+      mediaItems: current,
+      originalMedia: original,
+    })
+
+    expect(mockRemoveStorageFiles).not.toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
   it('throws when post update fails', async () => {
     supabaseChain.update.mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: { message: 'Update failed' } }),

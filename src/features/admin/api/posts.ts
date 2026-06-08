@@ -376,20 +376,20 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
 
       if (deleteError) {
         console.warn('Napaka pri brisanju starih medijev iz DB:', deleteError)
+      } else {
+        const removedFiles = [
+          ...removedItems.map((item) => item.url),
+          ...removedItems
+            .map((item) => item.thumbnail_url)
+            .filter((url): url is string => Boolean(url)),
+        ]
+        await removeStorageFiles(removedFiles).catch((removeError) => {
+          console.warn(
+            'Napaka pri brisanju starih datotek iz Storage:',
+            removeError
+          )
+        })
       }
-
-      const removedFiles = [
-        ...removedItems.map((item) => item.url),
-        ...removedItems
-          .map((item) => item.thumbnail_url)
-          .filter((url): url is string => Boolean(url)),
-      ]
-      await removeStorageFiles(removedFiles).catch((removeError) => {
-        console.warn(
-          'Napaka pri brisanju starih datotek iz Storage:',
-          removeError
-        )
-      })
     }
   } catch (error) {
     if (uploadedUrls.length > 0) {

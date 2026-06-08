@@ -159,7 +159,6 @@ describe('applyNewVideoThumbnails', () => {
   it('ограничивает время пайплайна бюджетом (Finding 1)', async () => {
     vi.useFakeTimers()
     try {
-      // upload зависает дольше бюджета — пайплайн должен разрешиться по таймеру
       mockUploadThumbnail.mockImplementation(() => new Promise(() => {}))
       const blob = new Blob([], { type: 'image/jpeg' })
 
@@ -170,6 +169,29 @@ describe('applyNewVideoThumbnails', () => {
 
       await vi.advanceTimersByTimeAsync(1000)
       await expect(promise).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('прерывает незавершённый fallback fetch при истечении бюджета (Finding B)', async () => {
+    vi.useFakeTimers()
+    try {
+      let capturedSignal: AbortSignal | undefined
+      const fetchMock = vi.fn((_url: string, opts: { signal?: AbortSignal }) => {
+        capturedSignal = opts.signal
+        return new Promise(() => {})
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const promise = applyNewVideoThumbnails(
+        [{ item: newVideo('v1', 0, null, 'error'), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' }],
+        { budgetMs: 1000 }
+      )
+
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(promise).resolves.toBeUndefined()
+      expect(capturedSignal?.aborted).toBe(true)
     } finally {
       vi.useRealTimers()
     }

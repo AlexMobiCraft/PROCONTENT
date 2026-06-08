@@ -1,11 +1,5 @@
--- Migration 046: admin-only Storage INSERT/DELETE для bucket post_media
--- Story 8.1: код-ревью Finding 4 — broad-политики из 022 разрешали ЛЮБОМУ
--- authenticated пользователю создавать/удалять объекты bucket post_media
--- (включая thumbnails/). Ограничиваем INSERT/DELETE ролью admin (паттерн из 016/045).
--- Public SELECT (022) и admin UPDATE (045) остаются без изменений.
--- Идемпотентна: DROP IF EXISTS + CREATE.
+-- Migration 046: admin-only Storage INSERT/DELETE policies for bucket post_media
 
--- ── INSERT: только admin ──────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "authenticated_can_upload_post_media" ON storage.objects;
 DROP POLICY IF EXISTS "admin_can_upload_post_media" ON storage.objects;
 
@@ -21,7 +15,6 @@ CREATE POLICY "admin_can_upload_post_media"
     )
   );
 
--- ── DELETE: только admin ──────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "authenticated_can_delete_post_media" ON storage.objects;
 DROP POLICY IF EXISTS "admin_can_delete_post_media" ON storage.objects;
 

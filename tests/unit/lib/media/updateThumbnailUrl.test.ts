@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockEq = vi.fn()
+const mockSelect = vi.fn()
+const mockEq = vi.fn(() => ({ select: mockSelect }))
 const mockUpdate = vi.fn(() => ({ eq: mockEq }))
 const mockFrom = vi.fn(() => ({ update: mockUpdate }))
 
@@ -13,7 +14,7 @@ import { updateThumbnailUrl } from '@/lib/media/updateThumbnailUrl'
 describe('updateThumbnailUrl', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockEq.mockResolvedValue({ error: null })
+    mockSelect.mockResolvedValue({ data: [{ id: 'media-1' }], error: null })
   })
 
   it('обновляет thumbnail_url по id записи post_media', async () => {
@@ -24,10 +25,18 @@ describe('updateThumbnailUrl', () => {
       thumbnail_url: 'https://cdn.example.com/t.jpg',
     })
     expect(mockEq).toHaveBeenCalledWith('id', 'media-1')
+    expect(mockSelect).toHaveBeenCalledWith('id')
   })
 
   it('бросает ошибку при сбое БД', async () => {
-    mockEq.mockResolvedValue({ error: { message: 'RLS denied' } })
+    mockSelect.mockResolvedValue({ data: null, error: { message: 'RLS denied' } })
+    await expect(
+      updateThumbnailUrl('media-1', 'https://cdn.example.com/t.jpg')
+    ).rejects.toThrow('Napaka pri shranjevanju posterja')
+  })
+
+  it('бросает ошибку, когда обновлено 0 строк (RLS/несуществующий id) — иначе thumbnail осиротеет', async () => {
+    mockSelect.mockResolvedValue({ data: [], error: null })
     await expect(
       updateThumbnailUrl('media-1', 'https://cdn.example.com/t.jpg')
     ).rejects.toThrow('Napaka pri shranjevanju posterja')

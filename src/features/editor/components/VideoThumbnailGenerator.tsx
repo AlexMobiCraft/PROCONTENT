@@ -22,22 +22,22 @@ export function VideoThumbnailGenerator({
   cbRef.current = { onGenerating, onSuccess, onError }
 
   useEffect(() => {
-    let active = true
+    const controller = new AbortController()
     cbRef.current.onGenerating(mediaKey)
 
-    generateVideoThumbnail(file)
+    generateVideoThumbnail(file, { signal: controller.signal })
       .then((blob) => {
-        if (!active) return
+        if (controller.signal.aborted) return
         const previewUrl = URL.createObjectURL(blob)
         cbRef.current.onSuccess(mediaKey, blob, previewUrl)
       })
       .catch(() => {
-        if (!active) return
+        if (controller.signal.aborted) return
         cbRef.current.onError(mediaKey)
       })
 
     return () => {
-      active = false
+      controller.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

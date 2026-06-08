@@ -20,11 +20,23 @@ vi.mock('@/features/editor/components/VideoThumbnailGenerator', () => ({
 }))
 
 vi.mock('@/features/admin/components/MediaSortableItem', () => ({
-  MediaSortableItem: ({ item }: { item: MediaItem }) => (
-    <div data-testid={`item-${item.kind === 'new' ? item.key : item.id}`}>
-      {item.kind === 'new' ? item.thumbnail_status : ''}
-    </div>
-  ),
+  MediaSortableItem: ({
+    item,
+    onRemove,
+  }: {
+    item: MediaItem
+    onRemove: () => void
+  }) => {
+    const id = item.kind === 'new' ? item.key : item.id
+    return (
+      <div data-testid={`item-${id}`}>
+        {item.kind === 'new' ? item.thumbnail_status : ''}
+        <button data-testid={`remove-${id}`} onClick={onRemove}>
+          remove
+        </button>
+      </div>
+    )
+  },
 }))
 
 import { MediaUploader } from '@/features/admin/components/MediaUploader'
@@ -78,5 +90,21 @@ describe('MediaUploader — параллельные thumbnail callbacks (Findin
 
     expect(getByTestId('item-k1')).toHaveTextContent('success')
     expect(getByTestId('item-k2')).toHaveTextContent('success')
+  })
+
+  it('поздний onSuccess не воскрешает удалённый в том же тике элемент (Finding 3, Раунд 4)', () => {
+    const { queryByTestId, getByTestId } = render(
+      <Harness initial={[makeVideo('k1', 0), makeVideo('k2', 1)]} />
+    )
+
+    const blob = new Blob([], { type: 'image/jpeg' })
+
+    act(() => {
+      getByTestId('remove-k1').click()
+      generatorCallbacks['k1']?.('k1', blob, 'blob:p1')
+    })
+
+    expect(queryByTestId('item-k1')).toBeNull()
+    expect(getByTestId('item-k2')).toBeInTheDocument()
   })
 })

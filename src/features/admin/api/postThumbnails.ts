@@ -17,11 +17,17 @@ interface InsertedMediaRow {
 const FALLBACK_FETCH_TIMEOUT_MS = 2000
 const THUMBNAIL_PIPELINE_BUDGET_MS = 2500
 
-async function requestThumbnailFallback(body: {
-  videoUrl: string
-  postMediaId: string
-}): Promise<void> {
+async function requestThumbnailFallback(
+  body: { videoUrl: string; postMediaId: string },
+  externalSignal: AbortSignal
+): Promise<void> {
   const controller = new AbortController()
+  const abortFromExternal = () => controller.abort()
+  if (externalSignal.aborted) {
+    controller.abort()
+  } else {
+    externalSignal.addEventListener('abort', abortFromExternal, { once: true })
+  }
   const timer = setTimeout(() => controller.abort(), FALLBACK_FETCH_TIMEOUT_MS)
   try {
     const res = await fetch('/api/admin/generate-thumbnail-fallback', {
@@ -35,6 +41,7 @@ async function requestThumbnailFallback(body: {
     }
   } finally {
     clearTimeout(timer)
+    externalSignal.removeEventListener('abort', abortFromExternal)
   }
 }
 
@@ -62,25 +69,26 @@ export function buildVideoThumbnailTasks(
   return tasks
 }
 
-async function runThumbnailTask({
-  item,
-  postMediaId,
-  videoUrl,
-}: NewVideoThumbnailTask): Promise<void> {
+async function runThumbnailTask(
+  { item, postMediaId, videoUrl }: NewVideoThumbnailTask,
+  signal: AbortSignal
+): Promise<void> {
   try {
+    if (signal.aborted) return
     if (item.thumbnail_blob) {
       const url = await uploadThumbnail(item.thumbnail_blob, postMediaId)
+      if (signal.aborted) {
+        await removeStorageFiles([url]).catch(() => {})
+        return
+      }
       try {
         await updateThumbnailUrl(postMediaId, url)
       } catch (updateErr) {
-        // updateThumbnailUrl упал → удаляем уже загруженный thumbnail, чтобы он не осиротел
         await removeStorageFiles([url]).catch(() => {})
         throw updateErr
       }
     } else if (item.thumbnail_status === 'error') {
-      // Canvas не удался (AC4) → серверный fallback. Для 'generating'/'idle'
-      // poster ещё не готов: best-effort skip, лента отрисует первый кадр видео.
-      await requestThumbnailFallback({ videoUrl, postMediaId })
+      await requestThumbnailFallback({ videoUrl, postMediaId }, signal)
     }
   } catch (err) {
     console.warn(`[thumbnails] Napaka za post_media ${postMediaId}:`, err)
@@ -94,12 +102,18 @@ export async function applyNewVideoThumbnails(
   if (tasks.length === 0) return
 
   const budgetMs = options.budgetMs ?? THUMBNAIL_PIPELINE_BUDGET_MS
-  const work = Promise.allSettled(tasks.map(runThumbnailTask))
+  const controller = new AbortController()
+  const work = Promise.allSettled(
+    tasks.map((task) => runThumbnailTask(task, controller.signal))
+  )
 
-  // Ограничиваем время пайплайна, чтобы сохранение не выходило за бюджет <3s (NFR8.1)
   let timer: ReturnType<typeof setTimeout> | undefined
   const budget = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, budgetMs)
+    timer = setTimeout(() => {
+      controller.abort()
+      resolve()
+    }, budgetMs)
   })
+
   await Promise.race([work.finally(() => clearTimeout(timer)), budget])
 }
