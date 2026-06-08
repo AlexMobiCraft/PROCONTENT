@@ -247,6 +247,23 @@ describe('MediaLightbox', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('pointerDown с target=видео не переключает медиа (early-return для видео)', () => {
+    const onClose = vi.fn()
+    const media: LightboxMedia[] = [
+      { id: 'v', url: 'v.mp4', media_type: 'video', thumbnail_url: null, alt: 'Video' },
+      { id: 'i', url: 'i.jpg', media_type: 'image', thumbnail_url: null, alt: 'Slika' },
+    ]
+    render(<MediaLightbox media={media} initialIndex={0} open={true} onClose={onClose} />)
+    const video = screen.getByTestId('lightbox-video')
+    const popup = screen.getByTestId('lightbox-frame').parentElement!
+    // Жест начат на видео → событие всплывает на Popup, но guard target.closest('video')
+    // должен сделать early-return: индекс не меняется, нативный скраб остаётся за видео.
+    fireEvent.pointerDown(video, { clientX: 200, clientY: 100 })
+    fireEvent.pointerUp(popup, { clientX: 50, clientY: 105 })
+    expect(screen.getByTestId('lightbox-indicator').textContent).toBe('1 / 2')
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('переключение медиа сбрасывает hasMediaError', () => {
     const media: LightboxMedia[] = [
       { id: 'a', url: 'a.jpg', media_type: 'image', alt: 'A' },
