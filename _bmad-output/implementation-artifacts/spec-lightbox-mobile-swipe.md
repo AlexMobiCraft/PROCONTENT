@@ -2,8 +2,9 @@
 title: 'Рабочий свайп пальцем между медиа в lightbox на мобильном'
 type: 'bugfix'
 created: '2026-06-07'
-status: 'draft'
+status: 'review'
 context: []
+baseline_commit: 56952b35109b54ff17d671b0636fffe0d1ba4054
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
@@ -56,10 +57,10 @@ context: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `src/components/media/MediaLightbox.tsx` -- добавить `touch-none` (touch-action: none) на контейнер `lightbox-media-wrap` (213–216) **условно**: `cn('...', currentMedia.media_type === 'image' && 'touch-none')`. Покрывает всю площадь свайпа, включая тёмные поля вокруг `object-contain`-фото; при видео класс отсутствует → правило предков не нарушается, нативный скраб цел. На `<img>` дублировать не нужно. -- корневая причина неработающего свайпа на мобильном
-- [ ] `src/components/media/MediaLightbox.tsx` -- в `handlePointerDown` дополнительно `return`, если `target.closest('video')` — не перехватывать жесты на видео (события из UA shadow-DOM controls ретаргетятся на сам `<video>`, поэтому guard их ловит); навигация между видео остаётся через кнопки/клавиатуру
-- [ ] `src/components/media/MediaLightbox.tsx` -- в `handlePointerDown` вызвать `setPointerCapture(e.pointerId)` на `e.currentTarget`. В `handlePointerUp` и `handlePointerCancel` — освобождать через явную проверку: `if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId)` (Safari/Chrome по-разному ведут себя, если при `pointercancel` capture уже отпущен браузером). ⚠️ `handlePointerCancel` сейчас вызывается без аргумента (`function handlePointerCancel()`, строка 125 и `onPointerCancel={handlePointerCancel}` строка 150) — добавить параметр `e: React.PointerEvent`, чтобы получить `pointerId`
-- [ ] `tests/unit/components/media/MediaLightbox.test.tsx` -- добавить тест: `pointerDown` с target=видео не меняет индекс (early-return для видео)
+- [x] `src/components/media/MediaLightbox.tsx` -- добавить `touch-none` (touch-action: none) на контейнер `lightbox-media-wrap` (213–216) **условно**: `cn('...', currentMedia.media_type === 'image' && 'touch-none')`. Покрывает всю площадь свайпа, включая тёмные поля вокруг `object-contain`-фото; при видео класс отсутствует → правило предков не нарушается, нативный скраб цел. На `<img>` дублировать не нужно. -- корневая причина неработающего свайпа на мобильном
+- [x] `src/components/media/MediaLightbox.tsx` -- в `handlePointerDown` дополнительно `return`, если `target.closest('video')` — не перехватывать жесты на видео (события из UA shadow-DOM controls ретаргетятся на сам `<video>`, поэтому guard их ловит); навигация между видео остаётся через кнопки/клавиатуру
+- [x] `src/components/media/MediaLightbox.tsx` -- в `handlePointerDown` вызвать `setPointerCapture(e.pointerId)` на `e.currentTarget`. В `handlePointerUp` и `handlePointerCancel` — освобождать через явную проверку: `if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId)` (Safari/Chrome по-разному ведут себя, если при `pointercancel` capture уже отпущен браузером). ⚠️ `handlePointerCancel` сейчас вызывается без аргумента (`function handlePointerCancel()`, строка 125 и `onPointerCancel={handlePointerCancel}` строка 150) — добавить параметр `e: React.PointerEvent`, чтобы получить `pointerId`
+- [x] `tests/unit/components/media/MediaLightbox.test.tsx` -- добавить тест: `pointerDown` с target=видео не меняет индекс (early-return для видео)
 
 **Acceptance Criteria:**
 - Given пост с ≥2 изображениями открыт в lightbox на мобильном (или эмуляции тача), when пользователь свайпает пальцем влево/вправо по изображению, then медиа переключается и индикатор обновляется — без нажатия кнопок.
@@ -110,3 +111,37 @@ if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId)
   - вызывается ли `setPointerCapture` в `pointerdown` ДО того, как UA отменяет жест;
   - не перехватывает ли события scroll-контейнер-предок (`overflow: auto/scroll`) выше по дереву;
   - специфика iOS Safari — там `pointercancel` может приходить по иным триггерам, чем в Chrome.
+
+## Dev Agent Record
+
+### Implementation Plan
+
+Цикл red-green-refactor. Сначала добавлен падающий unit-тест на early-return для видео (RED — без guard свайп по видео навигировал: `2 / 2` вместо `1 / 2`), затем реализованы три правки в `MediaLightbox.tsx` (GREEN). Все остальные правки (touch-none, setPointerCapture) — это фикс реального тач-потока, который jsdom не воспроизводит; они проверяются ручным тестом на устройстве.
+
+### Debug Log
+
+- `npx vitest run ... -t "early-return для видео"` → RED подтверждён: `expected '2 / 2' to be '1 / 2'`.
+- Проверено: в `node_modules/jsdom` методы `setPointerCapture`/`hasPointerCapture`/`releasePointerCapture` отсутствуют → optional chaining (`?.`) безопасно схлопывается в no-op, существующие swipe-тесты не ломаются.
+
+### Completion Notes
+
+- **Task 1 (touch-none):** На `lightbox-media-wrap` добавлен условный класс `currentMedia.media_type === 'image' && 'touch-none'` через `cn()`. Рядом оставлен комментарий с архитектурным инвариантом (новый тип медиа со свайпом → расширить условие).
+- **Task 2 (видео-guard):** В `handlePointerDown` guard расширен до `target.closest('button') || target.closest('video')` — жест на видео делает early-return, нативный скраб не перехватывается.
+- **Task 3 (pointer capture):** В `handlePointerDown` добавлен `setPointerCapture?.(e.pointerId)` на `e.currentTarget`; в `handlePointerUp` и `handlePointerCancel` — освобождение через `if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId)`. В `handlePointerCancel` добавлен параметр `e: React.PointerEvent` (JSX `onPointerCancel={handlePointerCancel}` передаёт event без изменений).
+- **Task 4 (тест):** Добавлен unit-тест early-return для видео — pointerDown с `target=video` не меняет индекс и не закрывает lightbox.
+- **Верификация:** `npm run test` — 1286 тестов в 89 файлах зелёные (регрессий нет, включая прежние swipe/видео-тесты). `npm run typecheck` — чисто. `npm run lint` — новых ошибок/предупреждений нет (warning на строке 65 в `MediaLightbox.tsx` и ошибка `supabase-backup/schema_types.ts` — предсуществующие, не связаны с фиксом).
+- **Out of scope (без изменений, по спеке):** velocity-flick, follow-drag, pinch-zoom — зафиксированы как Known Limitations / UX debt.
+- **⚠️ Требует ручной проверки на устройстве (AC #5):** свайп влево/вправо и вниз на физическом Chrome Android И iOS Safari — jsdom этот тач-поток не воспроизводит.
+
+## File List
+
+- `src/components/media/MediaLightbox.tsx` (изменён) — условный `touch-none`, видео-guard в `handlePointerDown`, `setPointerCapture`/`releasePointerCapture` в pointer-хендлерах, параметр `e` в `handlePointerCancel`
+- `tests/unit/components/media/MediaLightbox.test.tsx` (изменён) — новый тест early-return для видео
+
+## Change Log
+
+- 2026-06-08: Реализован фикс свайпа в lightbox на мобильном (условный `touch-action: none` для изображения, `setPointerCapture`/`release`, video-guard) + unit-тест early-return для видео. Статус → review.
+
+## Status
+
+review

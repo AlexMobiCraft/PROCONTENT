@@ -93,7 +93,12 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
 
   function handlePointerDown(e: React.PointerEvent) {
     const target = e.target as HTMLElement
-    if (target.closest('button')) return
+    // Не перехватываем жесты на кнопках (клик) и на видео (нативный скраб/controls —
+    // события из UA shadow-DOM ретаргетятся на сам <video>, поэтому guard их ловит).
+    if (target.closest('button') || target.closest('video')) return
+    // Удерживаем поток pointer-событий, если палец вышел за пределы стартового элемента
+    // до pointerup. В jsdom метод отсутствует — optional chaining делает это no-op.
+    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
     pointerRef.current = { startX: e.clientX, startY: e.clientY, tracking: true }
   }
 
@@ -108,6 +113,8 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
   }
 
   function handlePointerUp(e: React.PointerEvent) {
+    const el = e.currentTarget as HTMLElement
+    if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId)
     const p = pointerRef.current
     if (!p?.tracking) return
     const dx = e.clientX - p.startX
@@ -122,7 +129,11 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
     }
   }
 
-  function handlePointerCancel() {
+  function handlePointerCancel(e: React.PointerEvent) {
+    const el = e.currentTarget as HTMLElement
+    // Safari/Chrome по-разному ведут себя, если при pointercancel браузер уже отпустил
+    // capture — освобождаем только через явную проверку hasPointerCapture.
+    if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId)
     pointerRef.current = null
     setTranslateY(0)
   }
@@ -210,8 +221,21 @@ export function MediaLightbox({ media, initialIndex, open, onClose }: MediaLight
               </button>
             )}
 
+            {/*
+              touch-none (touch-action: none) включается УСЛОВНО только для изображения:
+              иначе UA перехватывает pan и шлёт pointercancel до pointerup, и свайп не
+              завершается. Покрывает всю площадь свайпа, включая тёмные поля вокруг
+              object-contain-фото. При видео класса нет → правило предков не нарушается,
+              нативный скраб цел (фото и видео никогда не показываются одновременно).
+              ⚠️ Архитектурный инвариант: при добавлении нового типа медиа со свайпом
+              (PDF-превью, iframe, canvas) это условие нужно расширить — иначе свайп для
+              него молча сломается.
+            */}
             <div
-              className="flex h-full w-full items-center justify-center px-2 py-14 md:p-12"
+              className={cn(
+                'flex h-full w-full items-center justify-center px-2 py-14 md:p-12',
+                currentMedia.media_type === 'image' && 'touch-none'
+              )}
               data-testid="lightbox-media-wrap"
             >
               {hasMediaError ? (
