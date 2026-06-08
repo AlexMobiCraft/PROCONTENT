@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-06-08 (Story 8.1 -> in-progress)
+last_updated: 2026-06-08 (Story 8.1 -> review, 4 CR-находки закрыты)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -175,7 +175,8 @@ development_status:
   # ─── EPIC 8: Video Thumbnails ────────────────────────────────────────────────
   # 2026-05-17: Story files created for all 8.x stories
   epic-8: in-progress
-  8-1-automatic-thumbnail-generation-on-save: in-progress
+  # 2026-06-08: 4 CR-находки [Patch] закрыты (неблокирующий сабмит, admin-only Storage UPDATE, удаление orphaned thumbnail, сокращение комментариев) → review
+  8-1-automatic-thumbnail-generation-on-save: review
   8-2-manual-poster-replacement-in-editor: ready-for-dev
   8-3-retroactive-thumbnail-generation: ready-for-dev
   8-4-regenerate-and-delete-thumbnail: ready-for-dev

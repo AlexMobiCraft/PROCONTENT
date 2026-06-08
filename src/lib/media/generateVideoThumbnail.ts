@@ -1,27 +1,10 @@
-/**
- * Генерация thumbnail (poster) из первого кадра видео на стороне браузера (Story 8.1).
- *
- * Это primary path: генерация выполняется в браузере автора сразу после добавления
- * видео в форму, что даёт мгновенный визуальный feedback и не требует серверных job'ов.
- *
- * Video-элемент использует crossOrigin="anonymous", чтобы Canvas не получил "tainted"
- * состояние при загрузке видео из Supabase Storage.
- */
-
-/** Целевая ширина thumbnail в px */
 export const THUMBNAIL_WIDTH = 640
-/** Целевая высота thumbnail в px */
 export const THUMBNAIL_HEIGHT = 360
-/** Качество JPEG (0..1) */
 export const THUMBNAIL_QUALITY = 0.85
-/** Момент кадра в секундах — не 0, чтобы избежать чёрного первого кадра */
 export const THUMBNAIL_SEEK_TIME = 0.1
-/** MIME-тип результата */
 export const THUMBNAIL_MIME = 'image/jpeg'
-/** Максимальное время ожидания готовности видео (мс) */
 const VIDEO_LOAD_TIMEOUT = 15_000
 
-/** Ошибка генерации thumbnail (CORS-taint, неподдерживаемый формат, timeout) */
 export class ThumbnailGenerationError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options)
@@ -36,13 +19,6 @@ export interface GenerateVideoThumbnailOptions {
   seekTime?: number
 }
 
-/**
- * Создаёт JPEG-thumbnail из первого кадра видео.
- *
- * @param source File (локальный файл) или string (публичный URL видео)
- * @returns Blob типа image/jpeg
- * @throws ThumbnailGenerationError при CORS-taint, неподдерживаемом формате или timeout
- */
 export async function generateVideoThumbnail(
   source: File | string,
   options: GenerateVideoThumbnailOptions = {}
@@ -118,7 +94,6 @@ export async function generateVideoThumbnail(
             quality
           )
         } catch (err) {
-          // SecurityError при tainted canvas (CORS)
           fail('Ustvarjanje posterja ni uspelo (CORS)', err)
         }
       }
@@ -144,7 +119,6 @@ export async function generateVideoThumbnail(
         raf(() => drawFrame())
       }
 
-      // src присваиваем после навешивания обработчиков, чтобы не упустить события
       video.src = src
     })
   } finally {

@@ -70,10 +70,8 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
 
-  // Актуальные items для колбэков генерации thumbnail (read-latest без пересоздания колбэков)
   const itemsRef = useRef<MediaItem[]>([])
 
-  // Точечное обновление нового элемента по ключу (Story 8.1, Task 2.2)
   const updateNewItem = useCallback(
     (key: string, patch: Partial<NewMediaItem>) => {
       const next = itemsRef.current.map((it) =>
@@ -102,10 +100,8 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
     [updateNewItem]
   )
 
-  // Синхронизируем ref во время рендера: значение ДОЛЖНО быть свежим до запуска
-  // дочерних эффектов VideoThumbnailGenerator (эффекты детей выполняются раньше
-  // эффектов родителя, поэтому useEffect-синхронизация дала бы устаревшее значение
-  // в момент первого onGenerating). Это latest-value ref, не влияющий на рендер.
+  // Свежее значение нужно до эффектов детей (VideoThumbnailGenerator), которые
+  // выполняются раньше эффектов родителя — useEffect-синхронизация была бы устаревшей.
   // eslint-disable-next-line react-hooks/refs
   itemsRef.current = items
 
@@ -192,7 +188,6 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
           media_type: mediaType,
           is_cover: false,
           order_index: items.length + i,
-          // Видео стартуют в статусе idle → VideoThumbnailGenerator запустит Canvas-генерацию
           ...(mediaType === 'video'
             ? { thumbnail_status: 'idle' as const, thumbnail_blob: null, thumbnail_preview_url: null }
             : {}),
@@ -231,7 +226,6 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
       .filter((item) => getMediaItemId(item) !== targetId)
       .map((item, idx) => ({ ...item, order_index: idx }))
 
-    // Revoke object URLs for new items immediately (превью + сгенерированный poster)
     const removed = items.find((item) => getMediaItemId(item) === targetId)
     if (removed?.kind === 'new') {
       URL.revokeObjectURL(removed.preview_url)
@@ -285,7 +279,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Headless: Canvas-генерация poster для новых видео (Story 8.1, Task 2.2) */}
+      {/* Headless Canvas-генерация poster для новых видео */}
       {items.map((item) =>
         item.kind === 'new' &&
         item.media_type === 'video' &&

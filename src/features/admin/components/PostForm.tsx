@@ -95,7 +95,7 @@ export function PostForm(props: PostFormProps) {
       }))
   })
 
-  // Актуальные media для onSubmit (включая poster'ы, сгенерированные перед сабмитом)
+  // Свежие media для onSubmit (включая poster'ы, сгенерированные перед сабмитом)
   mediaItemsRef.current = mediaItems
 
   const [originalMedia] = useState<ExistingMediaItem[]>(() => {
@@ -204,7 +204,6 @@ export function PostForm(props: PostFormProps) {
     for (const item of nextItems) {
       if (item.kind !== 'new') continue
       currentUrls.add(item.preview_url)
-      // Сгенерированный poster (Story 8.1) тоже отслеживаем для revoke
       if (item.thumbnail_preview_url) currentUrls.add(item.thumbnail_preview_url)
     }
 
@@ -297,24 +296,17 @@ export function PostForm(props: PostFormProps) {
       return
     }
 
-    // Дождаться завершения Canvas-генерации poster'ов, если она ещё идёт (Story 8.1, Task 4.2)
-    const isThumbnailGenerating = () =>
-      mediaItemsRef.current.some(
-        (item) =>
-          item.kind === 'new' &&
-          item.media_type === 'video' &&
-          item.thumbnail_status === 'generating'
-      )
+    const isThumbnailGenerating = mediaItemsRef.current.some(
+      (item) =>
+        item.kind === 'new' &&
+        item.media_type === 'video' &&
+        item.thumbnail_status === 'generating'
+    )
 
-    if (isThumbnailGenerating()) {
+    if (isThumbnailGenerating) {
       toast.info('Generiranje posterjev v teku...')
-      const waitStart = Date.now()
-      while (isThumbnailGenerating() && Date.now() - waitStart < 10_000) {
-        await new Promise((resolve) => setTimeout(resolve, 150))
-      }
     }
 
-    // Берём актуальные media (с уже сгенерированными poster-blob'ами)
     const finalMedia = mediaItemsRef.current
     const meta = createPostMetaState(parsed.data)
 

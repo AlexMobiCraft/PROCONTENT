@@ -6,21 +6,12 @@ import type { MediaType, ThumbnailStatus } from '@/features/admin/types'
 
 interface MediaItemPreviewProps {
   mediaType: MediaType
-  /** Poster: для изображений — их URL; для видео — сгенерированный/существующий thumbnail */
   posterUrl: string | null
-  /** Сырой URL видео — fallback-кадр, если poster ещё не готов (только видео) */
   videoUrl?: string | null
-  /** Статус генерации thumbnail (только новые видео) */
   thumbnailStatus?: ThumbnailStatus
   className?: string
 }
 
-/**
- * Dumb UI (Story 8.1, Task 2.1): превью медиа-элемента в списке загрузчика.
- *
- * Для видео сгенерированный poster имеет приоритет над сырым первым кадром (Task 2.3),
- * показывается overlay-иконка видео и индикатор генерации poster.
- */
 export function MediaItemPreview({
   mediaType,
   posterUrl,
@@ -37,7 +28,6 @@ export function MediaItemPreview({
     >
       {isVideo ? (
         posterUrl ? (
-          // Сгенерированный/существующий poster приоритетнее сырого кадра видео
           // eslint-disable-next-line @next/next/no-img-element
           <img src={posterUrl} alt="" className="size-full object-cover" />
         ) : (
@@ -48,7 +38,6 @@ export function MediaItemPreview({
         <img src={posterUrl ?? undefined} alt="" className="size-full object-cover" />
       )}
 
-      {/* Overlay-иконка видео */}
       {isVideo && !isGenerating && (
         <span
           className="pointer-events-none absolute inset-0 flex items-center justify-center"
@@ -60,7 +49,6 @@ export function MediaItemPreview({
         </span>
       )}
 
-      {/* Индикатор генерации poster */}
       {isGenerating && (
         <span
           className="absolute inset-0 flex items-center justify-center bg-black/40"

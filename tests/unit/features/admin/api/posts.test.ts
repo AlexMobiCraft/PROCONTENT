@@ -40,7 +40,7 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
-import { createPost, updatePost, fetchPostForEdit, cancelScheduledPost } from '@/features/admin/api/posts'
+import { createPost, updatePost, deletePost, fetchPostForEdit, cancelScheduledPost } from '@/features/admin/api/posts'
 
 const baseFormValues: PostFormValues = {
   title: 'Test Post',
@@ -288,6 +288,40 @@ describe('updatePost', () => {
     expect(mockRemoveStorageFiles).toHaveBeenCalledWith([original[1].url])
   })
 
+  it('also removes thumbnail file when a removed media item has thumbnail_url (Finding 3)', async () => {
+    const removedVideo: ExistingMediaItem = {
+      kind: 'existing',
+      id: 'm2',
+      url: 'https://cdn.example.com/posts/p1/uuid/clip.mp4',
+      thumbnail_url:
+        'https://cdn.example.com/storage/v1/object/public/post_media/thumbnails/m2_thumb.jpg',
+      media_type: 'video',
+      is_cover: false,
+      order_index: 1,
+    }
+    const original = [makeExistingItem('m1', 0), removedVideo]
+    const current = [makeExistingItem('m1', 0)]
+
+    supabaseChain.update.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    })
+    supabaseChain.delete.mockReturnValue({
+      in: vi.fn().mockResolvedValue({ error: null }),
+    })
+
+    await updatePost({
+      postId: 'p1',
+      formValues: baseFormValues,
+      mediaItems: current,
+      originalMedia: original,
+    })
+
+    expect(mockRemoveStorageFiles).toHaveBeenCalledWith([
+      removedVideo.url,
+      removedVideo.thumbnail_url,
+    ])
+  })
+
   it('throws when post update fails', async () => {
     supabaseChain.update.mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: { message: 'Update failed' } }),
@@ -433,6 +467,56 @@ describe('updatePost', () => {
 
     // Verify rollback was called with DB snapshot values (not stale page data)
     expect(supabaseChain.update).toHaveBeenCalledTimes(2) // update + rollback
+  })
+})
+
+describe('deletePost', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockRemoveStorageFiles.mockResolvedValue(undefined)
+  })
+
+  it('removes media files together with their thumbnails from Storage (Finding 3)', async () => {
+    supabaseChain = makeChain({ data: null, error: null })
+    supabaseChain.select.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({
+        data: [
+          {
+            url: 'https://cdn.example.com/posts/p1/uuid/clip.mp4',
+            thumbnail_url:
+              'https://cdn.example.com/storage/v1/object/public/post_media/thumbnails/m1_thumb.jpg',
+          },
+          {
+            url: 'https://cdn.example.com/posts/p1/uuid/photo.jpg',
+            thumbnail_url: null,
+          },
+        ],
+        error: null,
+      }),
+    })
+    supabaseChain.delete.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    })
+
+    await deletePost('p1')
+
+    expect(mockRemoveStorageFiles).toHaveBeenCalledWith([
+      'https://cdn.example.com/posts/p1/uuid/clip.mp4',
+      'https://cdn.example.com/storage/v1/object/public/post_media/thumbnails/m1_thumb.jpg',
+      'https://cdn.example.com/posts/p1/uuid/photo.jpg',
+    ])
+  })
+
+  it('throws when post delete fails', async () => {
+    supabaseChain = makeChain({ data: null, error: null })
+    supabaseChain.select.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+    })
+    supabaseChain.delete.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: { message: 'Delete failed' } }),
+    })
+
+    await expect(deletePost('p1')).rejects.toThrow('Napaka pri brisanju objave')
   })
 })
 

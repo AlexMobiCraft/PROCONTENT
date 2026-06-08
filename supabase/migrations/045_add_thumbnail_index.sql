@@ -11,16 +11,29 @@ CREATE INDEX IF NOT EXISTS idx_post_media_video_missing_thumbnail
   ON public.post_media (post_id)
   WHERE media_type = 'video' AND thumbnail_url IS NULL;
 
--- ── 2. Storage RLS: разрешить authenticated UPDATE в bucket post_media ─────────
+-- ── 2. Storage RLS: admin-only UPDATE в bucket post_media ──────────────────────
 -- Нужно для upsert (перезапись) thumbnail'ов по пути thumbnails/{post_media_id}_thumb.jpg.
--- INSERT и public SELECT уже созданы в 022_create_post_media_bucket.sql и покрывают
--- подпапку thumbnails/. Запись в таблицу post_media.thumbnail_url дополнительно
--- ограничена admin-only RLS (016_create_post_media.sql), поэтому фактический путь
--- записи thumbnail закрыт ролью admin на уровне БД.
+-- Ограничено ролью admin (паттерн из 016_create_post_media.sql), чтобы обычный
+-- authenticated пользователь не мог перезаписывать чужие объекты bucket post_media.
 DROP POLICY IF EXISTS "authenticated_can_update_post_media" ON storage.objects;
+DROP POLICY IF EXISTS "admin_can_update_post_media" ON storage.objects;
 
-CREATE POLICY "authenticated_can_update_post_media"
+CREATE POLICY "admin_can_update_post_media"
   ON storage.objects FOR UPDATE
   TO authenticated
-  USING (bucket_id = 'post_media')
-  WITH CHECK (bucket_id = 'post_media');
+  USING (
+    bucket_id = 'post_media'
+    AND EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.role = 'admin'
+    )
+  )
+  WITH CHECK (
+    bucket_id = 'post_media'
+    AND EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.role = 'admin'
+    )
+  );

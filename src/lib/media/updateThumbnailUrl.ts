@@ -1,10 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
 
-/**
- * Обновляет поле thumbnail_url записи post_media (Story 8.1, AC 1).
- *
- * @throws Error при ошибке БД
- */
 export async function updateThumbnailUrl(
   postMediaId: string,
   thumbnailUrl: string

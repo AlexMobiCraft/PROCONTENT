@@ -4,7 +4,7 @@ baseline_commit: 56952b35109b54ff17d671b0636fffe0d1ba4054
 
 # Story 8.1: Avtomatsko generiranje thumbnaila ob shranjevanju objave
 
-Status: in-progress
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -69,10 +69,10 @@ Status: in-progress
 ### Review Findings
 
 - [x] [Review][Defer] Server fallback не выполняет AC4 — deferred: fallback требует отдельного технического решения и будет вынесен в будущую story. AC4 требует, чтобы `POST /api/admin/generate-thumbnail-fallback` генерировал thumbnail и сохранял результат так же, как Canvas-путь. Текущий route после auth/валидации всегда возвращает `501`, а story одновременно отмечает AC4 как частично покрытый и статус `review`.
-- [ ] [Review][Patch] Сохранение публикации может блокироваться thumbnail-пайплайном дольше 3 секунд [src/features/admin/components/PostForm.tsx:300]
-- [ ] [Review][Patch] Storage UPDATE policy разрешает всем authenticated пользователям перезаписывать объекты bucket `post_media` [supabase/migrations/045_add_thumbnail_index.sql:22]
-- [ ] [Review][Patch] Thumbnail-файлы не удаляются при удалении поста/медиа и могут оставаться orphaned в Storage [src/features/admin/api/posts.ts:372]
-- [ ] [Review][Patch] Новые source-файлы содержат большое количество комментариев/JSDoc вопреки правилу проекта `No comments unless explicitly requested` [src/lib/media/generateVideoThumbnail.ts:1]
+- [x] [Review][Patch] Сохранение публикации может блокироваться thumbnail-пайплайном дольше 3 секунд [src/features/admin/components/PostForm.tsx:300]
+- [x] [Review][Patch] Storage UPDATE policy разрешает всем authenticated пользователям перезаписывать объекты bucket `post_media` [supabase/migrations/045_add_thumbnail_index.sql:22]
+- [x] [Review][Patch] Thumbnail-файлы не удаляются при удалении поста/медиа и могут оставаться orphaned в Storage [src/features/admin/api/posts.ts:372]
+- [x] [Review][Patch] Новые source-файлы содержат большое количество комментариев/JSDoc вопреки правилу проекта `No comments unless explicitly requested` [src/lib/media/generateVideoThumbnail.ts:1]
 
 ## Dev Notes
 
@@ -157,6 +157,8 @@ claude-opus-4-8 (Amelia, dev-story workflow)
 - `npm run typecheck` — чисто
 - `npx eslint` (файлы story) — чисто (1 обоснованный `eslint-disable react-hooks/refs` в MediaUploader для latest-value ref)
 - `npx vitest run` — 97 файлов, 1321 тест, все зелёные
+- После разрешения находок ревью: `npm run typecheck` чисто, `npx eslint` (10 файлов) чисто,
+  `npx vitest run` — 97 файлов, 1326 тестов, все зелёные
 
 ### Completion Notes List
 
@@ -184,6 +186,24 @@ Canvas-путь покрывает практически все реальны�
 - ✅ AC 1, 2, 3 — реализованы полностью. ⚠️ AC 4 — частично (см. выше).
 - Миграцию `045` нужно применить к БД на этапе деплоя (DDL не применялся к боевой БД).
 
+**Разрешение находок код-ревью (2026-06-08):** 4 [Review][Patch] пункта закрыты.
+- ✅ [Med] Finding 1 — убрано блокирующее 10-сек ожидание генерации в `PostForm.onSubmit`;
+  заменено на неблокирующее предупреждение «Generiranje posterjev v teku...» (Task 4.2
+  явно разрешает альтернативу «показать предупреждение»). Сохранение больше не превышает
+  бюджет <3 сек из-за thumbnail-пайплайна. Покрыто тестом PostForm.
+- ✅ [Med] Finding 2 — Storage UPDATE-политика в `045` ограничена ролью admin
+  (`EXISTS profiles.role='admin'`, паттерн из миграции 016); раньше любой authenticated
+  мог перезаписывать объекты bucket `post_media`. Миграция идемпотентна и ещё не
+  применялась к боевой БД, поэтому отредактирована на месте.
+- ✅ [Med] Finding 3 — `updatePost` (removedItems) и `deletePost` теперь удаляют
+  thumbnail-файлы из Storage вместе с основным медиа (через `removeStorageFiles`,
+  публичный URL thumbnail парсится тем же маркером bucket). Покрыто тестами posts.test.ts.
+- ✅ [Low] Finding 4 — сокращены избыточные JSDoc/комментарии в новых файлах
+  (`generateVideoThumbnail.ts`, `uploadThumbnail.ts`, `updateThumbnailUrl.ts`,
+  `postThumbnails.ts`, `VideoThumbnailGenerator.tsx`, `MediaItemPreview.tsx`, fallback route)
+  и Story-теги в изменённых файлах; оставлены только неочевидные пояснения (CORS,
+  обоснования `eslint-disable`). Линт и typecheck чисты.
+
 ### File List
 
 **Новые файлы:**
@@ -208,11 +228,15 @@ Canvas-путь покрывает практически все реальны�
 - `src/features/admin/types.ts` — `ThumbnailStatus`, поля thumbnail в `NewMediaItem`
 - `src/features/admin/components/MediaUploader.tsx` — триггер генерации, колбэки, revoke
 - `src/features/admin/components/MediaSortableItem.tsx` — использует `MediaItemPreview`
-- `src/features/admin/components/PostForm.tsx` — ожидание генерации, трекинг poster ObjectURL
-- `src/features/admin/api/posts.ts` — `.select('id, url')` + применение thumbnail для новых видео
-- `tests/unit/features/admin/api/posts.test.ts` — моки `.select` после insert post_media
+- `src/features/admin/components/PostForm.tsx` — неблокирующее предупреждение генерации, трекинг poster ObjectURL
+- `src/features/admin/api/posts.ts` — `.select('id, url')` + применение thumbnail; удаление orphaned thumbnail при delete/remove
+- `tests/unit/features/admin/api/posts.test.ts` — моки `.select` после insert post_media; тесты удаления thumbnail (Finding 3)
+- `tests/unit/features/admin/components/PostForm.test.tsx` — тест неблокирующего сабмита при генерации (Finding 1)
 
 ### Change Log
 
 - 2026-06-08: Реализована Story 8.1 — автоматическая Canvas-генерация thumbnail видео при
   сохранении (Tasks 1–7). Серверный fallback — skeleton (501) по согласованию. 36 новых тестов.
+- 2026-06-08: Разрешены находки код-ревью — 4 [Patch] items (неблокирующий сабмит,
+  admin-only Storage UPDATE policy, удаление orphaned thumbnail, сокращение комментариев).
+  +5 новых тестов (всего 1326 зелёных), typecheck/eslint чисты. Status → review.

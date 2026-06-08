@@ -24,6 +24,7 @@ vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
   },
 }))
 
@@ -59,6 +60,25 @@ vi.mock('@/features/admin/components/MediaUploader', () => ({
         }
       >
         Add
+      </button>
+      <button
+        type="button"
+        data-testid="add-generating-video-btn"
+        onClick={() =>
+          onChange([
+            ...items,
+            {
+              kind: 'new',
+              key: 'vgen',
+              media_type: 'video',
+              is_cover: true,
+              order_index: 0,
+              thumbnail_status: 'generating',
+            },
+          ])
+        }
+      >
+        Add generating video
       </button>
     </div>
   ),
@@ -361,6 +381,27 @@ describe('PostForm (create mode)', () => {
     await waitFor(() => {
       expect(mockRouterPush).toHaveBeenCalledWith('/feed')
     })
+  })
+
+  it('submits immediately without blocking when poster is still generating (Finding 1)', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('post-generating')
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Video Post')
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-generating-video-btn'))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+
+    // Сохранение не блокируется ожиданием генерации — createPost вызван сразу
+    await waitFor(() => {
+      expect(mockCreatePost).toHaveBeenCalledOnce()
+    })
+    expect(toast.info).toHaveBeenCalledWith('Generiranje posterjev v teku...')
   })
 
   it('keeps gallery state intact when inline image is removed before submit', async () => {

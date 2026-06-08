@@ -2,25 +2,17 @@ import { uploadThumbnail } from '@/lib/media/uploadThumbnail'
 import { updateThumbnailUrl } from '@/lib/media/updateThumbnailUrl'
 import type { NewMediaItem } from '@/features/admin/types'
 
-/** Задача генерации thumbnail для одного нового видео после вставки post_media */
 export interface NewVideoThumbnailTask {
   item: NewMediaItem
-  /** id вставленной строки post_media */
   postMediaId: string
-  /** публичный URL загруженного видео (для серверного fallback) */
   videoUrl: string
 }
 
-/** Минимум полей вставленной строки post_media, нужных для сопоставления */
 interface InsertedMediaRow {
   id: string
   url: string
 }
 
-/**
- * Вызывает серверный fallback генерации thumbnail (Story 8.1, AC 4).
- * @throws при не-2xx ответе
- */
 async function requestThumbnailFallback(body: {
   videoUrl: string
   postMediaId: string
@@ -35,10 +27,8 @@ async function requestThumbnailFallback(body: {
   }
 }
 
-/**
- * Сопоставляет новые видео с вставленными строками post_media по URL и строит задачи.
- * newItems[i] ↔ uploadedUrls[i] (порядок гарантирует uploadFilesWithTracking).
- */
+// Сопоставляет новые видео с вставленными строками post_media по url (порядок
+// newItems[i] ↔ uploadedUrls[i] гарантирует uploadFilesWithTracking).
 export function buildVideoThumbnailTasks(
   newItems: NewMediaItem[],
   uploadedUrls: string[],
@@ -59,14 +49,7 @@ export function buildVideoThumbnailTasks(
   return tasks
 }
 
-/**
- * Для каждого нового видео загружает сгенерированный Canvas-thumbnail в Storage и
- * обновляет thumbnail_url. Если Canvas-blob отсутствует (генерация не удалась) —
- * вызывает серверный fallback (Story 8.1, AC 4).
- *
- * Best-effort: ошибки логируются и НЕ прерывают сохранение публикации
- * (Story 8.1 — генерация thumbnail не блокирует сохранение).
- */
+// Best-effort: ошибки логируются и НЕ прерывают сохранение публикации.
 export async function applyNewVideoThumbnails(tasks: NewVideoThumbnailTask[]): Promise<void> {
   if (tasks.length === 0) return
 

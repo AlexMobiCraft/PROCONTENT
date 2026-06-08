@@ -4,26 +4,16 @@ import { useEffect, useRef } from 'react'
 import { generateVideoThumbnail } from '@/lib/media/generateVideoThumbnail'
 
 interface VideoThumbnailGeneratorProps {
-  /** Уникальный ключ медиа-элемента (NewMediaItem.key) */
   mediaKey: string
-  /** Видео-файл для генерации thumbnail */
   file: File
-  /** Вызывается при старте генерации (статус → generating) */
   onGenerating: (key: string) => void
-  /** Вызывается при успешной генерации с blob и ObjectURL для предпросмотра */
   onSuccess: (key: string, blob: Blob, previewUrl: string) => void
-  /** Вызывается при ошибке Canvas (CORS/формат) — серверный fallback при сохранении */
   onError: (key: string) => void
 }
 
-/**
- * Smart container (Story 8.1, Task 1.4): на маунте генерирует thumbnail из первого
- * кадра видео (Canvas, primary path) и сообщает результат через колбэки.
- *
- * Безголовый — рендерит null; визуальный индикатор статуса показывает MediaItemPreview.
- * Запускается ровно один раз на элемент (deps []), колбэки читаются через ref,
- * поэтому пересоздание колбэков родителем не прерывает текущую генерацию.
- */
+// Headless smart container: на маунте генерирует Canvas-thumbnail из первого кадра
+// видео и сообщает результат через колбэки. Рендерит null — индикатор статуса
+// показывает MediaItemPreview.
 export function VideoThumbnailGenerator({
   mediaKey,
   file,
@@ -31,7 +21,7 @@ export function VideoThumbnailGenerator({
   onSuccess,
   onError,
 }: VideoThumbnailGeneratorProps) {
-  // Храним последние колбэки в ref, чтобы effect с пустыми deps вызывал актуальные
+  // Колбэки в ref, чтобы effect с пустыми deps вызывал актуальные значения
   const cbRef = useRef({ onGenerating, onSuccess, onError })
   cbRef.current = { onGenerating, onSuccess, onError }
 
@@ -53,7 +43,7 @@ export function VideoThumbnailGenerator({
     return () => {
       active = false
     }
-    // Генерация — одноразовая операция на маунт; mediaKey/file стабильны на элемент.
+    // Одноразовая генерация на маунт; mediaKey/file стабильны на элемент.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

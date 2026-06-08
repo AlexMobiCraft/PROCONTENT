@@ -202,7 +202,7 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       insertedRows = mediaRows ?? []
     }
 
-    // Генерация/загрузка thumbnail для новых видео — best-effort, не блокирует сохранение (Story 8.1)
+    // thumbnail для новых видео — best-effort, не блокирует сохранение
     await applyNewVideoThumbnails(
       buildVideoThumbnailTasks(newItems, newFileUrls, insertedRows)
     )
@@ -364,7 +364,7 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       insertedNewRows = insertedRows ?? []
     }
 
-    // Генерация/загрузка thumbnail для новых видео — best-effort, не блокирует сохранение (Story 8.1)
+    // thumbnail для новых видео — best-effort, не блокирует сохранение
     await applyNewVideoThumbnails(
       buildVideoThumbnailTasks(newItems, uploadedUrls, insertedNewRows)
     )
@@ -380,14 +380,18 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
         console.warn('Napaka pri brisanju starih medijev iz DB:', deleteError)
       }
 
-      await removeStorageFiles(removedItems.map((item) => item.url)).catch(
-        (removeError) => {
-          console.warn(
-            'Napaka pri brisanju starih datotek iz Storage:',
-            removeError
-          )
-        }
-      )
+      const removedFiles = [
+        ...removedItems.map((item) => item.url),
+        ...removedItems
+          .map((item) => item.thumbnail_url)
+          .filter((url): url is string => Boolean(url)),
+      ]
+      await removeStorageFiles(removedFiles).catch((removeError) => {
+        console.warn(
+          'Napaka pri brisanju starih datotek iz Storage:',
+          removeError
+        )
+      })
     }
   } catch (error) {
     if (uploadedUrls.length > 0) {
@@ -434,7 +438,7 @@ export async function deletePost(postId: string): Promise<void> {
 
   const { data: mediaRows, error: mediaError } = await supabase
     .from('post_media')
-    .select('url')
+    .select('url, thumbnail_url')
     .eq('post_id', postId)
 
   if (mediaError) {
@@ -443,9 +447,9 @@ export async function deletePost(postId: string): Promise<void> {
     })
   }
 
-  const mediaUrls =
-    mediaRows?.map((item) => item.url).filter((url): url is string => Boolean(url)) ??
-    []
+  const mediaUrls = (mediaRows ?? [])
+    .flatMap((item) => [item.url, item.thumbnail_url])
+    .filter((url): url is string => Boolean(url))
 
   const { error: deleteError } = await supabase.from('posts').delete().eq('id', postId)
 
