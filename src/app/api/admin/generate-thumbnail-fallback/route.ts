@@ -8,9 +8,7 @@ interface FallbackBody {
   postMediaId?: string
 }
 
-// POST /api/admin/generate-thumbnail-fallback — серверный fallback (Story 8.1, AC 4).
-// Контракт (auth, валидация, SSRF-защита) готов; серверное извлечение кадра пока
-// не реализовано и возвращает 501 (движок подключается отдельной story).
+// Контракт готов (auth/валидация/SSRF); серверное извлечение кадра отложено → 501.
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const supabase = await createClient()
   const {

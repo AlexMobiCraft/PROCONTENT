@@ -202,7 +202,6 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       insertedRows = mediaRows ?? []
     }
 
-    // thumbnail для новых видео — best-effort, не блокирует сохранение
     await applyNewVideoThumbnails(
       buildVideoThumbnailTasks(newItems, newFileUrls, insertedRows)
     )
@@ -364,7 +363,6 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       insertedNewRows = insertedRows ?? []
     }
 
-    // thumbnail для новых видео — best-effort, не блокирует сохранение
     await applyNewVideoThumbnails(
       buildVideoThumbnailTasks(newItems, uploadedUrls, insertedNewRows)
     )

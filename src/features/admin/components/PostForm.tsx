@@ -95,7 +95,6 @@ export function PostForm(props: PostFormProps) {
       }))
   })
 
-  // Свежие media для onSubmit (включая poster'ы, сгенерированные перед сабмитом)
   mediaItemsRef.current = mediaItems
 
   const [originalMedia] = useState<ExistingMediaItem[]>(() => {

@@ -11,9 +11,6 @@ interface VideoThumbnailGeneratorProps {
   onError: (key: string) => void
 }
 
-// Headless smart container: на маунте генерирует Canvas-thumbnail из первого кадра
-// видео и сообщает результат через колбэки. Рендерит null — индикатор статуса
-// показывает MediaItemPreview.
 export function VideoThumbnailGenerator({
   mediaKey,
   file,
@@ -21,7 +18,6 @@ export function VideoThumbnailGenerator({
   onSuccess,
   onError,
 }: VideoThumbnailGeneratorProps) {
-  // Колбэки в ref, чтобы effect с пустыми deps вызывал актуальные значения
   const cbRef = useRef({ onGenerating, onSuccess, onError })
   cbRef.current = { onGenerating, onSuccess, onError }
 
@@ -43,7 +39,6 @@ export function VideoThumbnailGenerator({
     return () => {
       active = false
     }
-    // Одноразовая генерация на маунт; mediaKey/file стабильны на элемент.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

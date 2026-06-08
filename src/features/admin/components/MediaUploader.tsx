@@ -77,6 +77,9 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
       const next = itemsRef.current.map((it) =>
         it.kind === 'new' && it.key === key ? { ...it, ...patch } : it
       )
+      // Сразу продвигаем ref: параллельный callback в том же тике (другое видео)
+      // увидит этот патч и не перетрёт его при чтении itemsRef.current
+      itemsRef.current = next
       onChange(next)
     },
     [onChange]
@@ -100,8 +103,7 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
     [updateNewItem]
   )
 
-  // Свежее значение нужно до эффектов детей (VideoThumbnailGenerator), которые
-  // выполняются раньше эффектов родителя — useEffect-синхронизация была бы устаревшей.
+  // Свежее значение до эффектов детей (VideoThumbnailGenerator) — синхронизация через useEffect была бы устаревшей
   // eslint-disable-next-line react-hooks/refs
   itemsRef.current = items
 
@@ -279,7 +281,6 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Headless Canvas-генерация poster для новых видео */}
       {items.map((item) =>
         item.kind === 'new' &&
         item.media_type === 'video' &&

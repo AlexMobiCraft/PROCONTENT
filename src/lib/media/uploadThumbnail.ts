@@ -16,7 +16,6 @@ export async function uploadThumbnail(blob: Blob, postMediaId: string): Promise<
   const supabase = createClient()
   const path = getThumbnailStoragePath(postMediaId)
 
-  // upsert: повторная генерация перезаписывает старый thumbnail
   const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, {
     contentType: THUMBNAIL_MIME,
     upsert: true,

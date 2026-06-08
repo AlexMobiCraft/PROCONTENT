@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { NewMediaItem } from '@/features/admin/types'
+import type { NewMediaItem, ThumbnailStatus } from '@/features/admin/types'
 
 const mockUploadThumbnail = vi.fn()
 const mockUpdateThumbnailUrl = vi.fn()
+const mockRemoveStorageFiles = vi.fn()
 
 vi.mock('@/lib/media/uploadThumbnail', () => ({
   uploadThumbnail: (...args: unknown[]) => mockUploadThumbnail(...args),
@@ -10,13 +11,21 @@ vi.mock('@/lib/media/uploadThumbnail', () => ({
 vi.mock('@/lib/media/updateThumbnailUrl', () => ({
   updateThumbnailUrl: (...args: unknown[]) => mockUpdateThumbnailUrl(...args),
 }))
+vi.mock('@/features/admin/api/uploadMedia', () => ({
+  removeStorageFiles: (...args: unknown[]) => mockRemoveStorageFiles(...args),
+}))
 
 import {
   buildVideoThumbnailTasks,
   applyNewVideoThumbnails,
 } from '@/features/admin/api/postThumbnails'
 
-function newVideo(key: string, orderIndex: number, blob: Blob | null): NewMediaItem {
+function newVideo(
+  key: string,
+  orderIndex: number,
+  blob: Blob | null,
+  status?: ThumbnailStatus
+): NewMediaItem {
   return {
     kind: 'new',
     key,
@@ -26,7 +35,7 @@ function newVideo(key: string, orderIndex: number, blob: Blob | null): NewMediaI
     is_cover: false,
     order_index: orderIndex,
     thumbnail_blob: blob,
-    thumbnail_status: blob ? 'success' : 'error',
+    thumbnail_status: status ?? (blob ? 'success' : 'error'),
   }
 }
 
@@ -57,10 +66,17 @@ describe('buildVideoThumbnailTasks', () => {
     expect(tasks[0]).toMatchObject({ postMediaId: 'row-v1', videoUrl: 'https://cdn/v1.mp4' })
   })
 
-  it('пропускает видео без сопоставленной строки', () => {
+  it('пропускает видео без сопоставленной строки и логирует предупреждение (Finding 6)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const items = [newVideo('v1', 0, new Blob([], { type: 'image/jpeg' }))]
+
     const tasks = buildVideoThumbnailTasks(items, ['https://cdn/v1.mp4'], [])
+
     expect(tasks).toHaveLength(0)
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('post_media')
+    )
+    warnSpy.mockRestore()
   })
 })
 
@@ -69,6 +85,7 @@ describe('applyNewVideoThumbnails', () => {
     vi.clearAllMocks()
     mockUploadThumbnail.mockResolvedValue('https://cdn/thumb.jpg')
     mockUpdateThumbnailUrl.mockResolvedValue(undefined)
+    mockRemoveStorageFiles.mockResolvedValue(undefined)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
   })
 
@@ -83,9 +100,9 @@ describe('applyNewVideoThumbnails', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('вызывает серверный fallback когда blob отсутствует', async () => {
+  it('вызывает серверный fallback когда Canvas не удался (status=error)', async () => {
     await applyNewVideoThumbnails([
-      { item: newVideo('v1', 0, null), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' },
+      { item: newVideo('v1', 0, null, 'error'), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' },
     ])
 
     expect(mockUploadThumbnail).not.toHaveBeenCalled()
@@ -93,6 +110,32 @@ describe('applyNewVideoThumbnails', () => {
       '/api/admin/generate-thumbnail-fallback',
       expect.objectContaining({ method: 'POST' })
     )
+  })
+
+  it('НЕ вызывает fallback когда poster ещё генерируется (status=generating) (Finding 2)', async () => {
+    await applyNewVideoThumbnails([
+      {
+        item: newVideo('v1', 0, null, 'generating'),
+        postMediaId: 'm1',
+        videoUrl: 'https://cdn/v1.mp4',
+      },
+    ])
+
+    expect(mockUploadThumbnail).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('удаляет orphaned thumbnail когда upload успешен, а updateThumbnailUrl падает (Finding 5)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockUpdateThumbnailUrl.mockRejectedValue(new Error('DB down'))
+    const blob = new Blob([], { type: 'image/jpeg' })
+
+    await applyNewVideoThumbnails([
+      { item: newVideo('v1', 0, blob), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' },
+    ])
+
+    expect(mockUploadThumbnail).toHaveBeenCalledWith(blob, 'm1')
+    expect(mockRemoveStorageFiles).toHaveBeenCalledWith(['https://cdn/thumb.jpg'])
   })
 
   it('не пробрасывает ошибки (best-effort, не блокирует сохранение)', async () => {
@@ -111,5 +154,24 @@ describe('applyNewVideoThumbnails', () => {
     await applyNewVideoThumbnails([])
     expect(mockUploadThumbnail).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('ограничивает время пайплайна бюджетом (Finding 1)', async () => {
+    vi.useFakeTimers()
+    try {
+      // upload зависает дольше бюджета — пайплайн должен разрешиться по таймеру
+      mockUploadThumbnail.mockImplementation(() => new Promise(() => {}))
+      const blob = new Blob([], { type: 'image/jpeg' })
+
+      const promise = applyNewVideoThumbnails(
+        [{ item: newVideo('v1', 0, blob), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' }],
+        { budgetMs: 1000 }
+      )
+
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(promise).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

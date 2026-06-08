@@ -125,6 +125,16 @@ describe('generateVideoThumbnail', () => {
     expect(fakeVideo.currentTime).toBeCloseTo(0.1)
   })
 
+  it('для очень короткого видео сикает не в точный конец, а на половину длительности (Finding 7)', async () => {
+    fakeVideo.duration = 0.05
+    const p = generateVideoThumbnail(makeFile())
+    driveHappyPath()
+    await p
+
+    expect(fakeVideo.currentTime).toBeCloseTo(0.025)
+    expect(fakeVideo.currentTime).toBeLessThan(fakeVideo.duration)
+  })
+
   it('принимает URL-строку без создания ObjectURL', async () => {
     const p = generateVideoThumbnail('https://cdn.example.com/video.mp4')
     driveHappyPath()

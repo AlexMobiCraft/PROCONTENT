@@ -103,7 +103,8 @@ export async function generateVideoThumbnail(
       video.onloadeddata = () => {
         try {
           const duration = Number.isFinite(video.duration) ? video.duration : 0
-          const target = duration > 0 ? Math.min(seekTime, duration) : seekTime
+          // Для очень коротких видео не сикаем в точный конец (blank/timeout) — максимум половина длительности
+          const target = duration > 0 ? Math.min(seekTime, duration / 2) : seekTime
           video.currentTime = target
         } catch (err) {
           fail('Premik na okvir ni uspel', err)

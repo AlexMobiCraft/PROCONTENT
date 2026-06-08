@@ -73,6 +73,14 @@ Status: review
 - [x] [Review][Patch] Storage UPDATE policy разрешает всем authenticated пользователям перезаписывать объекты bucket `post_media` [supabase/migrations/045_add_thumbnail_index.sql:22]
 - [x] [Review][Patch] Thumbnail-файлы не удаляются при удалении поста/медиа и могут оставаться orphaned в Storage [src/features/admin/api/posts.ts:372]
 - [x] [Review][Patch] Новые source-файлы содержат большое количество комментариев/JSDoc вопреки правилу проекта `No comments unless explicitly requested` [src/lib/media/generateVideoThumbnail.ts:1]
+- [x] [Review][Patch] Сохранение всё ещё ждёт thumbnail-pipeline и fallback fetch без timeout, что может нарушить бюджет `<3 seconds`/NFR8.1 [src/features/admin/api/posts.ts:206]
+- [x] [Review][Patch] Submit без готового `thumbnail_blob` может уйти в `501` fallback и показать success без созданного poster [src/features/admin/components/PostForm.tsx:299]
+- [x] [Review][Patch] Параллельные thumbnail callbacks могут перетереть результаты друг друга через stale `itemsRef.current` [src/features/admin/components/MediaUploader.tsx:75]
+- [x] [Review][Patch] Storage RLS всё ещё разрешает non-admin `authenticated` создавать/удалять thumbnail objects через старые broad policies [supabase/migrations/022_create_post_media_bucket.sql:11]
+- [x] [Review][Patch] Если upload thumbnail succeeds, а `updateThumbnailUrl` fails, новый thumbnail остаётся orphaned в Storage [src/features/admin/api/postThumbnails.ts:59]
+- [x] [Review][Patch] `buildVideoThumbnailTasks` silently drops video thumbnail work when inserted `post_media` row is missing/unmatched [src/features/admin/api/postThumbnails.ts:40]
+- [x] [Review][Patch] Очень короткие видео seek'аются в exact duration и могут дать blank/timeout poster [src/lib/media/generateVideoThumbnail.ts:105]
+- [x] [Review][Patch] Новые/изменённые файлы всё ещё добавляют comments/JSDoc вопреки repo rule `No comments unless explicitly requested` [src/features/admin/types.ts:53]
 
 ## Dev Notes
 
@@ -204,6 +212,33 @@ Canvas-путь покрывает практически все реальны�
   и Story-теги в изменённых файлах; оставлены только неочевидные пояснения (CORS,
   обоснования `eslint-disable`). Линт и typecheck чисты.
 
+**Разрешение находок код-ревью — Раунд 2 (2026-06-08):** 8 [Review][Patch] пунктов закрыты.
+- ✅ Finding 1 — `applyNewVideoThumbnails` теперь ограничен бюджетом (`Promise.race`,
+  `THUMBNAIL_PIPELINE_BUDGET_MS=2500`), а `requestThumbnailFallback` использует
+  `AbortController`+`setTimeout` (`FALLBACK_FETCH_TIMEOUT_MS=2000`). Сохранение больше не
+  может зависнуть на upload/fetch → бюджет <3s/NFR8.1 соблюдён. Тест бюджета с fake timers.
+- ✅ Finding 2 — серверный fallback вызывается ТОЛЬКО при `thumbnail_status==='error'`
+  (genuine Canvas failure, AC4). Для `'generating'`/`'idle'` без blob — best-effort skip
+  (лента отрисует первый кадр через LazyMediaWrapper, пользователь уведомлён `toast.info`).
+  Submit больше не уходит в бесполезный 501. Тест на пропуск fallback для `generating`.
+- ✅ Finding 3 — гонка параллельных thumbnail-колбэков устранена: `updateNewItem` синхронно
+  продвигает `itemsRef.current = next` перед `onChange`, поэтому второй колбэк в том же тике
+  видит первый патч и не перетирает его. Детерминированный red-green тест (MediaUploaderRace).
+- ✅ Finding 4 — миграция `046_restrict_post_media_storage_admin.sql`: broad INSERT/DELETE
+  политики из `022` заменены на admin-gated (`EXISTS profiles.role='admin'`, паттерн 016/045).
+  Раньше любой `authenticated` мог создавать/удалять объекты bucket `post_media`. Не применялась
+  к боевой БД (применить на деплое).
+- ✅ Finding 5 — при сбое `updateThumbnailUrl` после успешного `uploadThumbnail` загруженный
+  thumbnail удаляется из Storage (`removeStorageFiles`), чтобы не осиротел. Покрыто тестом.
+- ✅ Finding 6 — `buildVideoThumbnailTasks` логирует `console.warn`, когда у видео нет
+  сопоставленной inserted-строки `post_media` (раньше тихо пропускал). Покрыто тестом.
+- ✅ Finding 7 — `generateVideoThumbnail` сикает на `min(seekTime, duration/2)` вместо
+  exact duration → короткие видео не дают blank/timeout poster. Покрыто тестом (duration=0.05).
+- ✅ Finding 8 — убраны избыточные JSDoc/комментарии в файлах Story 8.1 (types.ts,
+  VideoThumbnailGenerator, MediaUploader, PostForm, uploadThumbnail, fallback route) согласно
+  правилу AGENTS.md «No comments unless explicitly requested». Оставлены функциональные
+  `eslint-disable` и критичные неочевидные пояснения (CORS-taint, SSRF). Линт/typecheck чисты.
+
 ### File List
 
 **Новые файлы:**
@@ -223,6 +258,8 @@ Canvas-путь покрывает практически все реальны�
 - `tests/unit/features/admin/api/postThumbnails.test.ts`
 - `tests/unit/features/admin/api/posts.thumbnails.test.ts`
 - `tests/unit/app/api/admin/generate-thumbnail-fallback/route.test.ts`
+- `supabase/migrations/046_restrict_post_media_storage_admin.sql` (CR Раунд 2, Finding 4)
+- `tests/unit/features/admin/components/MediaUploaderRace.test.tsx` (CR Раунд 2, Finding 3)
 
 **Изменённые файлы:**
 - `src/features/admin/types.ts` — `ThumbnailStatus`, поля thumbnail в `NewMediaItem`
@@ -233,6 +270,17 @@ Canvas-путь покрывает практически все реальны�
 - `tests/unit/features/admin/api/posts.test.ts` — моки `.select` после insert post_media; тесты удаления thumbnail (Finding 3)
 - `tests/unit/features/admin/components/PostForm.test.tsx` — тест неблокирующего сабмита при генерации (Finding 1)
 
+**Изменённые файлы (CR Раунд 2):**
+- `src/features/admin/api/postThumbnails.ts` — bounded pipeline + AbortController fallback (F1),
+  fallback только при error (F2), orphan cleanup при сбое update (F5), warn при пропуске (F6)
+- `src/features/admin/components/MediaUploader.tsx` — синхронное продвижение `itemsRef.current` (F3)
+- `src/lib/media/generateVideoThumbnail.ts` — seek `min(seekTime, duration/2)` (F7)
+- `src/features/admin/types.ts`, `src/features/editor/components/VideoThumbnailGenerator.tsx`,
+  `src/features/admin/components/PostForm.tsx`, `src/lib/media/uploadThumbnail.ts`,
+  `src/app/api/admin/generate-thumbnail-fallback/route.ts`, `src/features/admin/api/posts.ts` — чистка комментариев (F8)
+- `tests/unit/features/admin/api/postThumbnails.test.ts` — тесты F1/F2/F5/F6
+- `tests/unit/lib/media/generateVideoThumbnail.test.ts` — тест F7 (короткое видео)
+
 ### Change Log
 
 - 2026-06-08: Реализована Story 8.1 — автоматическая Canvas-генерация thumbnail видео при
@@ -240,3 +288,8 @@ Canvas-путь покрывает практически все реальны�
 - 2026-06-08: Разрешены находки код-ревью — 4 [Patch] items (неблокирующий сабмит,
   admin-only Storage UPDATE policy, удаление orphaned thumbnail, сокращение комментариев).
   +5 новых тестов (всего 1326 зелёных), typecheck/eslint чисты. Status → review.
+- 2026-06-08: Разрешены находки код-ревью Раунд 2 — 8 [Patch] items (bounded thumbnail
+  pipeline + AbortController fallback, fallback только при Canvas-error, гонка thumbnail
+  callbacks, admin-only Storage INSERT/DELETE миграция 046, cleanup orphaned thumbnail при
+  сбое update, warn при пропуске видео, seek коротких видео, чистка комментариев).
+  +6 новых тестов (всего 1331 зелёный), typecheck/eslint чисты. Status → review.
