@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-06-08 (Story 8.1 -> review, CR Round 5: 5 action items resolved)
+last_updated: 2026-06-09 (Story 8.1 -> review, CR Раунд 6: 4 action items закрыты)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -188,6 +188,11 @@ development_status:
   # 2026-06-08: CR Раунд 5 — 5 [Patch] закрыты (idle/timed-out видео не сохраняется без poster,
   #   Storage cleanup только при успешном DB delete, отмена генерации при unmount через AbortSignal,
   #   cover-crop без искажения aspect ratio, чистка prose-комментариев в миграциях 045/046) → review
+  # 2026-06-09: Full CR — decision resolved as poster priority; 4 [Patch] action items left in story → in-progress
+  # 2026-06-09: CR Раунд 6 — 4 [Patch] закрыты (контракт в AC/Dev Notes; по уточнению пользователя
+  #   graceful degradation: при ошибке/таймауте генерации публикация сохраняется без poster +
+  #   информативный toast о ручном добавлении позже; устранена утечка ObjectURL для late-success;
+  #   MediaLightbox-комментарии признаны вне scope — merged-в-main коммит c49c7304) → review
   8-1-automatic-thumbnail-generation-on-save: review
   8-2-manual-poster-replacement-in-editor: ready-for-dev
   8-3-retroactive-thumbnail-generation: ready-for-dev

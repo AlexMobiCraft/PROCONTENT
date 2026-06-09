@@ -78,7 +78,7 @@ describe('VideoThumbnailGenerator', () => {
     expect(onError).not.toHaveBeenCalled()
   })
 
-  it('вызывает onSuccess с blob и previewUrl при успешной генерации', async () => {
+  it('вызывает onSuccess только с blob и не создаёт ObjectURL (Finding 3, Раунд 6)', async () => {
     const blob = new Blob(['img'], { type: 'image/jpeg' })
     mockGenerate.mockResolvedValue(blob)
     const createObjectURL = vi.fn(() => 'blob:poster')
@@ -96,8 +96,9 @@ describe('VideoThumbnailGenerator', () => {
     )
 
     await vi.waitFor(() => {
-      expect(onSuccess).toHaveBeenCalledWith('k1', blob, 'blob:poster')
+      expect(onSuccess).toHaveBeenCalledWith('k1', blob)
     })
+    expect(createObjectURL).not.toHaveBeenCalled()
 
     vi.unstubAllGlobals()
   })

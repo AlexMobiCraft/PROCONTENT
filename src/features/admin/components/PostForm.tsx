@@ -71,6 +71,18 @@ function hasPendingThumbnail(items: MediaItem[]): boolean {
   )
 }
 
+function hasVideoWithoutPoster(items: MediaItem[]): boolean {
+  return items.some(
+    (item) =>
+      item.kind === 'new' &&
+      item.media_type === 'video' &&
+      item.thumbnail_status !== 'success'
+  )
+}
+
+const POSTER_NOT_GENERATED_MESSAGE =
+  'Poster ni bil samodejno ustvarjen. Objava je shranjena brez njega — dodate ga lahko ročno pozneje.'
+
 export function PostForm(props: PostFormProps) {
   const router = useRouter()
   const user = useAuthStore((state) => state.user)
@@ -319,9 +331,12 @@ export function PostForm(props: PostFormProps) {
     }
 
     const finalMedia = mediaItemsRef.current
+    const posterMissing = hasVideoWithoutPoster(finalMedia)
     const meta = createPostMetaState(parsed.data)
 
     try {
+      let savedMessage = 'Objava je bila objavljena'
+
       if (isEditMode && initialData) {
         const isImmediatePublish =
           initialData.status === 'scheduled' && parsed.data.status === 'published'
@@ -349,11 +364,9 @@ export function PostForm(props: PostFormProps) {
           }
         }
 
-        toast.success(
-          isImmediatePublish
-            ? 'Objava je bila objavljena'
-            : 'Objava je bila posodobljena'
-        )
+        savedMessage = isImmediatePublish
+          ? 'Objava je bila objavljena'
+          : 'Objava je bila posodobljena'
       } else {
         await createPost({
           formValues: parsed.data,
@@ -363,7 +376,13 @@ export function PostForm(props: PostFormProps) {
           gallery: finalMedia,
           editor: editorValue,
         })
-        toast.success('Objava je bila objavljena')
+        savedMessage = 'Objava je bila objavljena'
+      }
+
+      if (posterMissing) {
+        toast.warning(POSTER_NOT_GENERATED_MESSAGE)
+      } else {
+        toast.success(savedMessage)
       }
 
       router.push('/feed')

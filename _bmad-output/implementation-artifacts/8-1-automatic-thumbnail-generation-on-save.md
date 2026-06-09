@@ -18,8 +18,9 @@ Status: review
 
 **Given** автор создаёт новую публикацию с видео без установленного poster  
 **When** нажимает "Objavi"  
-**Then** публикация сохраняется менее чем за 3 секунды  
-**And** система в фоне из первого кадра видео (currentTime = 0.1s) создаёт изображение 640×360 px (JPEG, качество 85 %)  
+**Then** если генерация poster ещё идёт, сохранение дожидается её завершения и включает готовый poster в публикацию (приоритет — наличие poster, а не скорость; требование `<3 сек` снято решением пользователя)  
+**And** если генерация завершилась ошибкой или poster не удалось создать в отведённое время (таймаут), публикация сохраняется **без poster**, а пользователю показывается уведомление, что poster не был создан автоматически и его можно добавить вручную позже (Story 8.2)  
+**And** система из первого кадра видео (currentTime = 0.1s) создаёт изображение 640×360 px (JPEG, качество 85 %)  
 **And** изображение загружается в Supabase Storage по пути `post_media/thumbnails/{post_media_id}_thumb.jpg`  
 **And** поле `thumbnail_url` в `post_media` обновляется публичным URL  
 **And** когда публикация появляется в ленте, для видео отображается созданный poster
@@ -96,6 +97,11 @@ Status: review
 - [x] [Review][Patch] In-flight browser thumbnail generation не отменяется при удалении/unmount видео [src/features/editor/components/VideoThumbnailGenerator.tsx:39] — cleanup выставляет `active=false`, но `generateVideoThumbnail(file)` продолжает decode/seek/canvas до успеха или 15s timeout.
 - [x] [Review][Patch] Canvas thumbnail растягивает не-16:9 видео в 640x360 вместо сохранения aspect ratio [src/lib/media/generateVideoThumbnail.ts:83] — `ctx.drawImage(video, 0, 0, width, height)` деформирует portrait/square/ultrawide видео; нужен cover/contain crop без искажения.
 - [x] [Review][Patch] Story-scope comments остались вопреки правилу `No comments unless explicitly requested` [supabase/migrations/045_add_thumbnail_index.sql:1] — миграция 045 и изменённые story-scope участки всё ещё содержат prose-комментарии, добавленные в рамках этой story.
+- [x] [Review][Decision] Контракт Story 8.1 всё ещё конфликтует: `<3s` save vs durable poster — решение пользователя: приоритет poster. `<3s` больше не является обязательным контрактом для этой story; submit должен ждать готовый poster или терминальную ошибку, а не молча сохранять pending video.
+- [x] [Review][Patch] Закрепить выбранный контракт `приоритет poster` в Story 8.1 и убрать/заменить противоречивое требование `<3s` [8-1-automatic-thumbnail-generation-on-save.md:21] — AC и Dev Notes #4 переписаны: `<3 сек` снято. По уточнению пользователя выбран graceful degradation: submit дожидается генерации, при успехе включает poster, при ошибке/таймауте сохраняет публикацию без poster и информирует пользователя о возможности добавить poster вручную позже (Story 8.2).
+- [x] [Review][Patch] Timeout ожидания thumbnail может продолжить submit с pending video без poster [src/features/admin/components/PostForm.tsx:313] — по уточнению пользователя сохранение видео без poster допустимо, но не молча: при ошибке/таймауте генерации (`hasVideoWithoutPoster`) публикация сохраняется без poster и показывается `toast.warning` (`POSTER_NOT_GENERATED_MESSAGE`) с пояснением о ручном добавлении позже. Submit больше не блокируется навсегда и не сохраняет видео без уведомления.
+- [x] [Review][Patch] Late success удалённого video может утечь `thumbnail_preview_url` ObjectURL [src/features/editor/components/VideoThumbnailGenerator.tsx:31] — создание ObjectURL перенесено из генератора в `MediaUploader.handleThumbSuccess` под guard `exists`; поздний success удалённого item больше не создаёт осиротевший URL.
+- [x] [Review][Patch] В diff Story 8.1 попали несвязанные `MediaLightbox` изменения с новыми prose-комментариями [src/components/media/MediaLightbox.tsx:94] — НЕ код Story 8.1: изменения принадлежат отдельному коммиту `c49c7304` (мобильный фикс свайпа lightbox), уже влитому в `main` (`git log main..HEAD -- MediaLightbox.tsx` пуст). В diff относительно `baseline_commit` они попали лишь потому, что baseline захвачен до merge main. Откат/правка здесь создали бы расхождение с `main` и отменили легитимный фикс — оставлено без изменений.
 
 ## Dev Notes
 
@@ -114,7 +120,7 @@ Status: review
 1. **Canvas-генерация — primary path.** Это означает, что генерация происходит в браузере сразу после загрузки видео (ещё до клика на "Objavi"). Это обеспечивает мгновенный визуальный feedback и устраняет необходимость в асинхронных job'ах в workflow автора.
 2. **Cross-origin:** Video-элемент ДОЛЖЕН иметь `crossOrigin="anonymous"`, чтобы Canvas не получил "tainted" состояние. Проверить CORS-настройки на Supabase Storage.
 3. **Качество:** `canvas.toBlob('image/jpeg', 0.85)` — целевой размер файла ≤ 150 KB. Если blob слишком большой, перед загрузкой уменьшить размеры до 640×360.
-4. **Асинхронность:** Генерация thumbnail НЕ ДОЛЖНА блокировать сохранение публикации. Если пользователь кликнет "Objavi" до завершения генерации, либо дождаться завершения, либо сохранить публикацию без thumbnail и сгенерировать в фоне.
+4. **Приоритет poster + graceful degradation (решение пользователя):** генерация thumbnail имеет приоритет над скоростью сохранения. Если пользователь кликнет "Objavi" до завершения генерации, submit дожидается её завершения. При успехе готовый poster включается в публикацию. Если генерация завершилась ошибкой или не успела (таймаут), публикация сохраняется БЕЗ poster, а пользователю показывается уведомление (toast), что poster не создан автоматически и его можно добавить вручную позже (Story 8.2). Submit не блокируется навсегда. Требование `<3 сек` снято для этой story.
 5. **Идемпотентность:** Если `thumbnail_url` уже существует, генерация пропускается. Если генерация повторяется (например, повторное сохранение), старый thumbnail перезаписывается (overwrite).
 
 ### Существующие компоненты для расширения
@@ -188,6 +194,8 @@ claude-opus-4-8 (Amelia, dev-story workflow)
   `npx vitest run` — 99 файлов, 1340 тестов, все зелёные
 - CR Раунд 5: `npm run typecheck` чисто, `npx eslint` (8 файлов) чисто,
   `npx vitest run` — 100 файлов, 1349 тестов, все зелёные
+- CR Раунд 6 (Full CR): `npm run typecheck` чисто, `npx eslint` (6 файлов) чисто,
+  `npx vitest run` — 101 файл, 1351 тест, все зелёные
 
 ### Completion Notes List
 
@@ -341,6 +349,36 @@ Canvas-путь покрывает практически все реальны�
   (стиль миграции `022`). Source-файлы Story 8.1 уже чисты (остались только функциональные
   `eslint-disable` и pre-existing комментарии вне scope story). Линт/typecheck чисты.
 
+**Разрешение находок код-ревью — Раунд 6 (Full CR, 2026-06-09):** 4 [Review][Patch] пункта закрыты.
+- ✅ Finding 1 — контракт закреплён в Story 8.1: AC (раздел Acceptance Criteria) и Dev Notes #4
+  переписаны. Противоречивое требование «сохранение `<3 сек`» снято. **Уточнение пользователя
+  (graceful degradation):** submit дожидается генерации; при успехе poster включается в публикацию;
+  при ошибке генерации или таймауте публикация сохраняется БЕЗ poster, а пользователю показывается
+  уведомление, что poster не создан автоматически и его можно добавить вручную позже (Story 8.2).
+- ✅ Finding 2 — submit больше не блокируется навсегда и не сохраняет видео без уведомления. В
+  `PostForm.onSubmit` сохранена блокирующая фаза ожидания идущей генерации (`waitForCondition` +
+  `toast.info`), но после неё вычисляется `hasVideoWithoutPoster(finalMedia)` (новый видео-item со
+  статусом ≠ `success`, т.е. `error`/`idle`/`generating` после таймаута). Если poster не создан —
+  публикация всё равно сохраняется, а вместо `toast.success` показывается `toast.warning`
+  (`POSTER_NOT_GENERATED_MESSAGE`: «Poster ni bil samodejno ustvarjen. Objava je shranjena brez njega
+  — dodate ga lahko ročno pozneje.»). Новый файл `PostForm.posterTimeout.test.tsx` (мок
+  `waitForCondition` на немедленный возврат): generating-видео после таймаута → `createPost` вызван +
+  информативный `toast.warning`, `toast.success` не вызван; аналогичный тест для статуса `error`.
+- ✅ Finding 3 — устранена утечка `thumbnail_preview_url` ObjectURL для поздно завершившейся
+  генерации удалённого видео. Создание ObjectURL перенесено из `VideoThumbnailGenerator` в
+  `MediaUploader.handleThumbSuccess`, где оно выполняется только под guard `exists` (item ещё в
+  `itemsRef.current`). Сигнатура `onSuccess` упрощена до `(key, blob)` — генератор больше не создаёт
+  URL. Если video удалён к моменту late-success, URL не создаётся вовсе → нет осиротевшего blob:.
+  Тесты: генератор не вызывает `createObjectURL` и зовёт `onSuccess('k1', blob)`; поздний
+  `onSuccess` удалённого item не вызывает `createObjectURL` (MediaUploaderRace).
+- ✅ Finding 4 — `MediaLightbox` prose-комментарии НЕ относятся к Story 8.1. Расследование:
+  изменения файла принадлежат отдельному коммиту `c49c7304` («fix(lightbox): исправить свайп на
+  мобильном — touch-none, video-guard, pointer capture»), уже влитому в `main` (`git log main..HEAD
+  -- src/components/media/MediaLightbox.tsx` пуст; `c49c7304` — общий предок `main` и HEAD). В diff
+  относительно `baseline_commit` они попали лишь потому, что baseline зафиксирован до merge main в
+  ветку. Откат/правка комментариев на этой ветке отменили бы легитимный merged-фикс и создали
+  расхождение с `main`. Файл оставлен без изменений; вывод задокументирован.
+
 ### File List
 
 **Новые файлы:**
@@ -430,6 +468,23 @@ Canvas-путь покрывает практически все реальны�
 - `tests/unit/features/admin/components/MediaUploaderRace.test.tsx` — тест против воскрешения удалённого item (Finding 3)
 - `tests/unit/features/admin/components/MediaItemPreview.test.tsx` — обновлён тест fallback-видео (Finding 5)
 
+**Новые файлы (CR Раунд 6):**
+- `tests/unit/features/admin/components/PostForm.posterTimeout.test.tsx` (Finding 2 — прерывание submit при не готовом poster)
+
+**Изменённые файлы (CR Раунд 6):**
+- `src/features/admin/components/PostForm.tsx` — повторная проверка `hasPendingThumbnail` после
+  ожидания, `toast.error`+`return` если poster не готов (Finding 2)
+- `src/features/editor/components/VideoThumbnailGenerator.tsx` — `onSuccess(key, blob)` без создания
+  ObjectURL (Finding 3)
+- `src/features/admin/components/MediaUploader.tsx` — `handleThumbSuccess` создаёт ObjectURL под
+  guard `exists` (Finding 3)
+- `tests/unit/features/editor/components/VideoThumbnailGenerator.test.tsx` — onSuccess без previewUrl,
+  генератор не создаёт ObjectURL (Finding 3)
+- `tests/unit/features/admin/components/MediaUploaderRace.test.tsx` — сигнатура `(key, blob)` +
+  тест отсутствия утечки ObjectURL для удалённого item (Finding 3)
+- `_bmad-output/implementation-artifacts/8-1-automatic-thumbnail-generation-on-save.md` — AC и
+  Dev Notes #4: контракт `приоритет poster`, снято `<3 сек` (Finding 1)
+
 ### Change Log
 
 - 2026-06-08: Реализована Story 8.1 — автоматическая Canvas-генерация thumbnail видео при
@@ -459,3 +514,10 @@ Canvas-путь покрывает практически все реальны�
   cover-crop с сохранением aspect ratio для не-16:9 видео, чистка prose-комментариев в
   миграциях 045/046). +9 новых тестов (всего 1349 зелёных), typecheck/eslint чисты.
   Status → review.
+- 2026-06-09: Разрешены находки код-ревью Раунд 6 (Full CR) — 4 [Patch] items (контракт
+  закреплён в AC/Dev Notes, снято `<3 сек`; по уточнению пользователя — graceful degradation:
+  при ошибке/таймауте генерации публикация сохраняется без poster + информативный `toast.warning`
+  о ручном добавлении позже, submit не блокируется навсегда; устранена утечка ObjectURL для
+  late-success удалённого видео через перенос создания URL под guard `exists`; MediaLightbox
+  prose-комментарии признаны вне scope Story 8.1 — отдельный merged-в-main коммит `c49c7304`).
+  +3 новых теста (всего 1352 зелёных), typecheck/eslint чисты. Status → review.

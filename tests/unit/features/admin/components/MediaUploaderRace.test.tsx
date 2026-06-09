@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { render, act } from '@testing-library/react'
 import type { MediaItem, NewMediaItem } from '@/features/admin/types'
 
-type SuccessCb = (key: string, blob: Blob, previewUrl: string) => void
+type SuccessCb = (key: string, blob: Blob) => void
 const generatorCallbacks: Record<string, SuccessCb> = {}
 
 vi.mock('@/features/editor/components/VideoThumbnailGenerator', () => ({
@@ -84,8 +84,8 @@ describe('MediaUploader — параллельные thumbnail callbacks (Findin
     const blob2 = new Blob([], { type: 'image/jpeg' })
 
     act(() => {
-      generatorCallbacks['k1']('k1', blob1, 'blob:p1')
-      generatorCallbacks['k2']('k2', blob2, 'blob:p2')
+      generatorCallbacks['k1']('k1', blob1)
+      generatorCallbacks['k2']('k2', blob2)
     })
 
     expect(getByTestId('item-k1')).toHaveTextContent('success')
@@ -101,10 +101,28 @@ describe('MediaUploader — параллельные thumbnail callbacks (Findin
 
     act(() => {
       getByTestId('remove-k1').click()
-      generatorCallbacks['k1']?.('k1', blob, 'blob:p1')
+      generatorCallbacks['k1']?.('k1', blob)
     })
 
     expect(queryByTestId('item-k1')).toBeNull()
     expect(getByTestId('item-k2')).toBeInTheDocument()
+  })
+
+  it('поздний onSuccess удалённого video не создаёт ObjectURL — нет утечки (Finding 3, Раунд 6)', () => {
+    const { getByTestId } = render(
+      <Harness initial={[makeVideo('k1', 0), makeVideo('k2', 1)]} />
+    )
+
+    const createObjectURL = vi.mocked(URL.createObjectURL)
+    createObjectURL.mockClear()
+
+    const blob = new Blob([], { type: 'image/jpeg' })
+
+    act(() => {
+      getByTestId('remove-k1').click()
+      generatorCallbacks['k1']?.('k1', blob)
+    })
+
+    expect(createObjectURL).not.toHaveBeenCalled()
   })
 })

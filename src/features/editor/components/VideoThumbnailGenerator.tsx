@@ -7,7 +7,7 @@ interface VideoThumbnailGeneratorProps {
   mediaKey: string
   file: File
   onGenerating: (key: string) => void
-  onSuccess: (key: string, blob: Blob, previewUrl: string) => void
+  onSuccess: (key: string, blob: Blob) => void
   onError: (key: string) => void
 }
 
@@ -28,8 +28,7 @@ export function VideoThumbnailGenerator({
     generateVideoThumbnail(file, { signal: controller.signal })
       .then((blob) => {
         if (controller.signal.aborted) return
-        const previewUrl = URL.createObjectURL(blob)
-        cbRef.current.onSuccess(mediaKey, blob, previewUrl)
+        cbRef.current.onSuccess(mediaKey, blob)
       })
       .catch(() => {
         if (controller.signal.aborted) return
