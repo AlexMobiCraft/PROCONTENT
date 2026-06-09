@@ -48,7 +48,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  if (!supabaseUrl || !videoUrl.startsWith(`${supabaseUrl}/storage/`)) {
+  const allowedPrefix = supabaseUrl
+    ? `${supabaseUrl}/storage/v1/object/public/post_media/`
+    : null
+  if (!allowedPrefix || !videoUrl.startsWith(allowedPrefix)) {
     return NextResponse.json({ error: 'Invalid videoUrl' }, { status: 400 })
   }
 

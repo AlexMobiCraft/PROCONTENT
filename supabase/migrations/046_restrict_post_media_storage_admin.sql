@@ -1,5 +1,3 @@
--- Migration 046: admin-only Storage INSERT/DELETE policies for bucket post_media
-
 DROP POLICY IF EXISTS "authenticated_can_upload_post_media" ON storage.objects;
 DROP POLICY IF EXISTS "admin_can_upload_post_media" ON storage.objects;
 

@@ -100,15 +100,37 @@ describe('createPost', () => {
     expect(id).toBe('new-post-id')
     expect(supabaseChain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        is_published: true,
+        is_published: false,
         status: 'published',
         scheduled_at: null,
         published_at: null,
       })
     )
-    // published_at is set via a separate UPDATE after media upload completes
     expect(supabaseChain.update).toHaveBeenCalledWith(
-      expect.objectContaining({ published_at: expect.any(String) })
+      expect.objectContaining({
+        is_published: true,
+        published_at: expect.any(String),
+      })
+    )
+  })
+
+  it('создаёт пост скрытым (is_published=false) и публикует его только после вставки медиа и thumbnail', async () => {
+    supabaseChain = makeChain({ data: { id: 'post-vis' }, error: null })
+    supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-vis' }, error: null })
+    supabaseChain.insert.mockReturnThis()
+
+    await createPost({
+      formValues: baseFormValues,
+      mediaItems: [],
+      authorId: 'u1',
+    })
+
+    expect(supabaseChain.insert.mock.calls[0][0].is_published).toBe(false)
+    expect(supabaseChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_published: true,
+        published_at: expect.any(String),
+      })
     )
   })
 

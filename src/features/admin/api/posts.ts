@@ -139,7 +139,7 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       category: meta.category,
       author_id: input.authorId,
       type: derivePostType(gallery),
-      is_published: !isScheduled,
+      is_published: false,
       status: isScheduled ? 'scheduled' : 'published',
       scheduled_at: isScheduled ? meta.scheduled_at : null,
       published_at: null,
@@ -214,13 +214,13 @@ export async function createPost(input: CreatePostInput): Promise<string> {
     input.onThumbnailResult?.(thumbnailResult)
 
     if (!isScheduled) {
-      const { error: publishedAtError } = await supabase
+      const { error: publishError } = await supabase
         .from('posts')
-        .update({ published_at: getPublishedTimestamp() })
+        .update({ is_published: true, published_at: getPublishedTimestamp() })
         .eq('id', postId)
 
-      if (publishedAtError) {
-        console.warn('Napaka pri posodobitvi published_at:', publishedAtError)
+      if (publishError) {
+        console.warn('Napaka pri objavi objave:', publishError)
       }
     }
 

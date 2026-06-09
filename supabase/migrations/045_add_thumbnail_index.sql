@@ -1,5 +1,3 @@
--- Migration 045: post_media video-thumbnail index + admin-only Storage UPDATE policy
-
 CREATE INDEX IF NOT EXISTS idx_post_media_video_missing_thumbnail
   ON public.post_media (post_id)
   WHERE media_type = 'video' AND thumbnail_url IS NULL;
