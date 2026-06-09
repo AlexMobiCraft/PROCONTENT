@@ -69,7 +69,6 @@ export function MediaSortableItem({
         <GripVertical className="size-4" />
       </button>
 
-      {/* Thumbnail / poster preview */}
       <MediaItemPreview
         mediaType={item.media_type}
         posterUrl={posterUrl}

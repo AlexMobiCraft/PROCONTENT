@@ -13,7 +13,11 @@ import {
   MAX_ONBOARDING_POSTS,
 } from '@/features/admin/types'
 import { removeStorageFiles, uploadFilesWithTracking } from './uploadMedia'
-import { applyNewVideoThumbnails, buildVideoThumbnailTasks } from './postThumbnails'
+import {
+  applyNewVideoThumbnails,
+  buildVideoThumbnailTasks,
+  type ThumbnailPipelineResult,
+} from './postThumbnails'
 
 export interface CreatePostInput {
   formValues: PostFormValues
@@ -22,6 +26,7 @@ export interface CreatePostInput {
   meta?: PostMetaState
   gallery?: MediaItem[]
   editor?: EditorContentValue
+  onThumbnailResult?: (result: ThumbnailPipelineResult) => void
 }
 
 export interface UpdatePostInput {
@@ -32,6 +37,7 @@ export interface UpdatePostInput {
   meta?: PostMetaState
   gallery?: MediaItem[]
   editor?: EditorContentValue
+  onThumbnailResult?: (result: ThumbnailPipelineResult) => void
 }
 
 function derivePostType(items: MediaItem[]): string {
@@ -202,9 +208,10 @@ export async function createPost(input: CreatePostInput): Promise<string> {
       insertedRows = mediaRows ?? []
     }
 
-    await applyNewVideoThumbnails(
+    const thumbnailResult = await applyNewVideoThumbnails(
       buildVideoThumbnailTasks(newItems, newFileUrls, insertedRows)
     )
+    input.onThumbnailResult?.(thumbnailResult)
 
     if (!isScheduled) {
       const { error: publishedAtError } = await supabase
@@ -363,9 +370,10 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       insertedNewRows = insertedRows ?? []
     }
 
-    await applyNewVideoThumbnails(
+    const thumbnailResult = await applyNewVideoThumbnails(
       buildVideoThumbnailTasks(newItems, uploadedUrls, insertedNewRows)
     )
+    input.onThumbnailResult?.(thumbnailResult)
 
     if (removedItems.length > 0) {
       const removedIds = removedItems.map((item) => item.id)

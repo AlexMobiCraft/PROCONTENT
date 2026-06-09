@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-06-09 (Story 8.1 -> review, CR Раунд 6: 4 action items закрыты)
+last_updated: 2026-06-09 (Story 8.1 -> review, CR Раунд 7 — 5 patch items resolved)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -193,6 +193,12 @@ development_status:
   #   graceful degradation: при ошибке/таймауте генерации публикация сохраняется без poster +
   #   информативный toast о ручном добавлении позже; устранена утечка ObjectURL для late-success;
   #   MediaLightbox-комментарии признаны вне scope — merged-в-main коммит c49c7304) → review
+  # 2026-06-09: Full CR follow-up — 1 [Decision] + 5 [Patch] action items left in story → in-progress
+  # 2026-06-09: Fallback decision resolved as deferred/future story; 5 [Patch] action items remain → in-progress
+  # 2026-06-09: CR Раунд 7 — 5 [Patch] закрыты (save-time pipeline возвращает ThumbnailPipelineResult
+  #   + честный toast success/warning через onThumbnailResult; зависший upload по бюджету = не persisted;
+  #   handleThumbSuccess отзывает прежний ObjectURL; waitForCondition не перепрыгивает timeout;
+  #   удалён story-scope комментарий MediaSortableItem). +5 тестов (1356 зелёных) → review
   8-1-automatic-thumbnail-generation-on-save: review
   8-2-manual-poster-replacement-in-editor: ready-for-dev
   8-3-retroactive-thumbnail-generation: ready-for-dev

@@ -101,10 +101,13 @@ export function MediaUploader({ items, onChange, isSubmitting }: MediaUploaderPr
   )
   const handleThumbSuccess = useCallback(
     (key: string, blob: Blob) => {
-      const exists = itemsRef.current.some(
-        (it) => it.kind === 'new' && it.key === key
+      const current = itemsRef.current.find(
+        (it): it is NewMediaItem => it.kind === 'new' && it.key === key
       )
-      if (!exists) return
+      if (!current) return
+      if (current.thumbnail_preview_url) {
+        URL.revokeObjectURL(current.thumbnail_preview_url)
+      }
       const previewUrl = URL.createObjectURL(blob)
       updateNewItem(key, {
         thumbnail_blob: blob,

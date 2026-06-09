@@ -91,13 +91,14 @@ describe('applyNewVideoThumbnails', () => {
 
   it('загружает thumbnail и обновляет URL когда blob есть', async () => {
     const blob = new Blob([], { type: 'image/jpeg' })
-    await applyNewVideoThumbnails([
+    const result = await applyNewVideoThumbnails([
       { item: newVideo('v1', 0, blob), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' },
     ])
 
     expect(mockUploadThumbnail).toHaveBeenCalledWith(blob, 'm1')
     expect(mockUpdateThumbnailUrl).toHaveBeenCalledWith('m1', 'https://cdn/thumb.jpg')
     expect(fetch).not.toHaveBeenCalled()
+    expect(result).toEqual({ expected: 1, persisted: 1, allPersisted: true })
   })
 
   it('вызывает серверный fallback когда Canvas не удался (status=error)', async () => {
@@ -130,33 +131,35 @@ describe('applyNewVideoThumbnails', () => {
     mockUpdateThumbnailUrl.mockRejectedValue(new Error('DB down'))
     const blob = new Blob([], { type: 'image/jpeg' })
 
-    await applyNewVideoThumbnails([
+    const result = await applyNewVideoThumbnails([
       { item: newVideo('v1', 0, blob), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' },
     ])
 
     expect(mockUploadThumbnail).toHaveBeenCalledWith(blob, 'm1')
     expect(mockRemoveStorageFiles).toHaveBeenCalledWith(['https://cdn/thumb.jpg'])
+    expect(result).toEqual({ expected: 1, persisted: 0, allPersisted: false })
   })
 
-  it('не пробрасывает ошибки (best-effort, не блокирует сохранение)', async () => {
+  it('не пробрасывает ошибки и сообщает allPersisted=false (best-effort, не блокирует сохранение)', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     mockUploadThumbnail.mockRejectedValue(new Error('Storage down'))
     const blob = new Blob([], { type: 'image/jpeg' })
 
-    await expect(
-      applyNewVideoThumbnails([
-        { item: newVideo('v1', 0, blob), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' },
-      ])
-    ).resolves.toBeUndefined()
+    const result = await applyNewVideoThumbnails([
+      { item: newVideo('v1', 0, blob), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' },
+    ])
+
+    expect(result).toEqual({ expected: 1, persisted: 0, allPersisted: false })
   })
 
-  it('ничего не делает для пустого списка задач', async () => {
-    await applyNewVideoThumbnails([])
+  it('ничего не делает для пустого списка задач (allPersisted=true)', async () => {
+    const result = await applyNewVideoThumbnails([])
     expect(mockUploadThumbnail).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
+    expect(result).toEqual({ expected: 0, persisted: 0, allPersisted: true })
   })
 
-  it('ограничивает время пайплайна бюджетом (Finding 1)', async () => {
+  it('зависший Storage upload по истечении бюджета не считается persisted (Findings 1, 2)', async () => {
     vi.useFakeTimers()
     try {
       mockUploadThumbnail.mockImplementation(() => new Promise(() => {}))
@@ -168,7 +171,11 @@ describe('applyNewVideoThumbnails', () => {
       )
 
       await vi.advanceTimersByTimeAsync(1000)
-      await expect(promise).resolves.toBeUndefined()
+      await expect(promise).resolves.toEqual({
+        expected: 1,
+        persisted: 0,
+        allPersisted: false,
+      })
     } finally {
       vi.useRealTimers()
     }
@@ -190,7 +197,11 @@ describe('applyNewVideoThumbnails', () => {
       )
 
       await vi.advanceTimersByTimeAsync(1000)
-      await expect(promise).resolves.toBeUndefined()
+      await expect(promise).resolves.toEqual({
+        expected: 0,
+        persisted: 0,
+        allPersisted: true,
+      })
       expect(capturedSignal?.aborted).toBe(true)
     } finally {
       vi.useRealTimers()

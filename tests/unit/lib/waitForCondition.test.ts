@@ -40,4 +40,21 @@ describe('waitForCondition', () => {
       vi.useRealTimers()
     }
   })
+
+  it('не спит дольше дедлайна: разрешается ровно к таймауту, не на целый интервал позже', async () => {
+    vi.useFakeTimers()
+    try {
+      let resolved = false
+      const predicate = vi.fn(() => false)
+      void waitForCondition(predicate, { timeoutMs: 250, intervalMs: 100 }).then(
+        () => {
+          resolved = true
+        }
+      )
+      await vi.advanceTimersByTimeAsync(250)
+      expect(resolved).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

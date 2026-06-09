@@ -13,6 +13,7 @@ import { VIDEO_LOAD_TIMEOUT } from '@/lib/media/generateVideoThumbnail'
 import { useAuthStore } from '@/features/auth/store'
 import { getCategories, type Category } from '@/features/admin/api/categories'
 import { createPost, updatePost } from '@/features/admin/api/posts'
+import type { ThumbnailPipelineResult } from '@/features/admin/api/postThumbnails'
 import { MediaUploader } from '@/features/admin/components/MediaUploader'
 import { PostComposerPreview } from '@/features/admin/components/PostComposerPreview'
 import {
@@ -331,8 +332,13 @@ export function PostForm(props: PostFormProps) {
     }
 
     const finalMedia = mediaItemsRef.current
-    const posterMissing = hasVideoWithoutPoster(finalMedia)
+    const posterMissingClient = hasVideoWithoutPoster(finalMedia)
     const meta = createPostMetaState(parsed.data)
+
+    let thumbnailPersistFailed = false
+    const onThumbnailResult = (result: ThumbnailPipelineResult) => {
+      if (!result.allPersisted) thumbnailPersistFailed = true
+    }
 
     try {
       let savedMessage = 'Objava je bila objavljena'
@@ -349,6 +355,7 @@ export function PostForm(props: PostFormProps) {
           meta,
           gallery: finalMedia,
           editor: editorValue,
+          onThumbnailResult,
         })
 
         if (isImmediatePublish) {
@@ -375,11 +382,12 @@ export function PostForm(props: PostFormProps) {
           meta,
           gallery: finalMedia,
           editor: editorValue,
+          onThumbnailResult,
         })
         savedMessage = 'Objava je bila objavljena'
       }
 
-      if (posterMissing) {
+      if (posterMissingClient || thumbnailPersistFailed) {
         toast.warning(POSTER_NOT_GENERATED_MESSAGE)
       } else {
         toast.success(savedMessage)

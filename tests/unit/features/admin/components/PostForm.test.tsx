@@ -521,6 +521,72 @@ describe('PostForm (create mode)', () => {
     expect(videoItem?.thumbnail_blob).toBeInstanceOf(Blob)
   })
 
+  it('показывает предупреждение, если thumbnail_url не был сохранён несмотря на готовый poster (Finding 1, Раунд 7)', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    mockCreatePost.mockImplementation(
+      async (input: {
+        onThumbnailResult?: (r: {
+          expected: number
+          persisted: number
+          allPersisted: boolean
+        }) => void
+      }) => {
+        input.onThumbnailResult?.({ expected: 1, persisted: 0, allPersisted: false })
+        return 'post-persist-fail'
+      }
+    )
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Video Post')
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.click(screen.getByTestId('add-generating-video-btn'))
+    await user.click(screen.getByTestId('complete-video-generation-btn'))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+
+    await waitFor(() => {
+      expect(mockCreatePost).toHaveBeenCalledOnce()
+    })
+    expect(toast.warning).toHaveBeenCalledWith(
+      'Poster ni bil samodejno ustvarjen. Objava je shranjena brez njega — dodate ga lahko ročno pozneje.'
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('показывает success, когда poster действительно сохранён (allPersisted=true)', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    mockCreatePost.mockImplementation(
+      async (input: {
+        onThumbnailResult?: (r: {
+          expected: number
+          persisted: number
+          allPersisted: boolean
+        }) => void
+      }) => {
+        input.onThumbnailResult?.({ expected: 1, persisted: 1, allPersisted: true })
+        return 'post-ok'
+      }
+    )
+    render(<PostForm mode="create" />)
+
+    await user.type(screen.getByLabelText(/naslov/i), 'Video Post')
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.click(screen.getByTestId('add-generating-video-btn'))
+    await user.click(screen.getByTestId('complete-video-generation-btn'))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+
+    await waitFor(() => {
+      expect(mockCreatePost).toHaveBeenCalledOnce()
+    })
+    expect(toast.success).toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
+  })
+
   it('keeps gallery state intact when inline image is removed before submit', async () => {
     const user = userEvent.setup()
     mockCreatePost.mockResolvedValue('post-inline-removed')

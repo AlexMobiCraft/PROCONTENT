@@ -125,4 +125,32 @@ describe('MediaUploader — параллельные thumbnail callbacks (Findin
 
     expect(createObjectURL).not.toHaveBeenCalled()
   })
+
+  it('повторный onSuccess для одного item отзывает прежний ObjectURL — нет утечки (Finding 3, Раунд 7)', () => {
+    const createObjectURL = vi.mocked(URL.createObjectURL)
+    const revokeObjectURL = vi.mocked(URL.revokeObjectURL)
+    createObjectURL
+      .mockReturnValueOnce('blob:first')
+      .mockReturnValueOnce('blob:second')
+
+    const { getByTestId } = render(
+      <Harness initial={[makeVideo('k1', 0)]} />
+    )
+
+    const blob1 = new Blob([], { type: 'image/jpeg' })
+    const blob2 = new Blob([], { type: 'image/jpeg' })
+
+    act(() => {
+      generatorCallbacks['k1']('k1', blob1)
+    })
+    expect(getByTestId('item-k1')).toHaveTextContent('success')
+
+    revokeObjectURL.mockClear()
+
+    act(() => {
+      generatorCallbacks['k1']('k1', blob2)
+    })
+
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:first')
+  })
 })

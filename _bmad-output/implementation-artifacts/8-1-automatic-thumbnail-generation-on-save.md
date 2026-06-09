@@ -34,14 +34,11 @@ Status: review
 **When** автор сохраняет публикацию  
 **Then** автоматическая генерация пропускается — ручной выбор имеет приоритет
 
-**Given** Canvas-генерация на стороне клиента не удалась (CORS, неподдерживаемый формат)  
-**When** отправляется запрос на серверный fallback  
-**Then** используется `POST /api/admin/generate-thumbnail-fallback` для генерации thumbnail  
-**And** результат сохраняется так же, как при успешной Canvas-генерации
+**Отложенный scope:** реальная server-side генерация thumbnail через `POST /api/admin/generate-thumbnail-fallback` не входит в Story 8.1. В текущей story endpoint является skeleton-заделом с auth/admin/body/SSRF validation и временным `501`; извлечение кадра, upload thumbnail и update `post_media.thumbnail_url` будут вынесены в отдельную будущую story.
 
 ## Tasks / Subtasks
 
-- [x] Task 1: Canvas-генерация на стороне клиента (AC: 1, 2, 4)
+- [x] Task 1: Canvas-генерация на стороне клиента (AC: 1, 2)
   - [x] Subtask 1.1: Создать `src/lib/media/generateVideoThumbnail.ts` — функция, принимающая `File` или `URL`, создающая `<video>` элемент, seekTo(0.1), рисующая на `<canvas>`, возвращающая `Blob` (image/jpeg, 0.85)
   - [x] Subtask 1.2: Создать `src/lib/media/uploadThumbnail.ts` — функция, принимающая `Blob` и `post_media_id`, загружающая в Storage bucket `post_media/thumbnails/{id}_thumb.jpg`, возвращающая public URL
   - [x] Subtask 1.3: Создать `src/lib/media/updateThumbnailUrl.ts` — функция, обновляющая `thumbnail_url` в `post_media` через Supabase client
@@ -50,8 +47,8 @@ Status: review
   - [x] Subtask 2.1: Расширить `MediaSortableItem.tsx` (или создать `MediaItemPreview.tsx` как Dumb UI) — отображает poster с overlay-иконкой видео и индикатором загрузки
   - [x] Subtask 2.2: В `MediaUploader.tsx` после добавления видео-файла запускать `VideoThumbnailGenerator` для асинхронной генерации poster
   - [x] Subtask 2.3: Обеспечить, чтобы `preview_url` для видео (ObjectURL) не перекрывался poster — poster отображается отдельно
-- [x] Task 3: Server fallback API (AC: 4)
-  - [x] Subtask 3.1: Создать `src/app/api/admin/generate-thumbnail-fallback/route.ts` — Route Handler, принимающий `{videoUrl, postMediaId}`, скачивающий видео, генерирующий thumbnail (используя `ffmpeg.wasm` или внешний сервис), загружающий в Storage — ⚠️ извлечение кадра отложено (вариант "skeleton без зависимости"); auth/валидация/SSRF/контракт готовы, возвращает 501
+- [x] Task 3: Skeleton server fallback API (реальная генерация отложена)
+  - [x] Subtask 3.1: Создать `src/app/api/admin/generate-thumbnail-fallback/route.ts` — Route Handler, принимающий `{videoUrl, postMediaId}` и выполняющий auth/admin/body/SSRF validation; реальное извлечение кадра, upload thumbnail и update `thumbnail_url` отложены в отдельную будущую story, текущий skeleton возвращает 501
   - [x] Subtask 3.2: Проверить admin-аутентификацию в fallback endpoint
 - [x] Task 4: Интеграция с сохранением публикации (AC: 1, 2)
   - [x] Subtask 4.1: В PostForm / API-вызове для сохранения проверить, что все видео-записи в `post_media` имеют `thumbnail_url` перед отправкой финального PUT/POST — реализовано как загрузка thumbnail сразу после insert post_media (post_media_id появляется только после insert), best-effort
@@ -65,11 +62,11 @@ Status: review
 - [x] Task 7: Тесты
   - [x] Subtask 7.1: Unit-тесты для `generateVideoThumbnail.ts` (mock video element, canvas)
   - [x] Subtask 7.2: E2E-тест: загрузка видео в редактор → проверить, что отображается poster в превью — реализовано как интеграционный тест (Vitest + Testing Library), т.к. Playwright в проекте не настроен (потребовал бы новой зависимости)
-  - [x] Subtask 7.3: Интеграционный тест для fallback API
+  - [x] Subtask 7.3: Интеграционный тест для skeleton fallback API
 
 ### Review Findings
 
-- [x] [Review][Defer] Server fallback не выполняет AC4 — deferred: fallback требует отдельного технического решения и будет вынесен в будущую story. AC4 требует, чтобы `POST /api/admin/generate-thumbnail-fallback` генерировал thumbnail и сохранял результат так же, как Canvas-путь. Текущий route после auth/валидации всегда возвращает `501`, а story одновременно отмечает AC4 как частично покрытый и статус `review`.
+- [x] [Review][Defer] Server fallback generation вынесен из Story 8.1 — fallback требует отдельного технического решения и будет оформлен будущей story. В Story 8.1 текущий `POST /api/admin/generate-thumbnail-fallback` является skeleton endpoint: auth/валидация/SSRF готовы, реальное извлечение кадра/upload/update отложены, временный `501` ожидаем.
 - [x] [Review][Patch] Сохранение публикации может блокироваться thumbnail-пайплайном дольше 3 секунд [src/features/admin/components/PostForm.tsx:300]
 - [x] [Review][Patch] Storage UPDATE policy разрешает всем authenticated пользователям перезаписывать объекты bucket `post_media` [supabase/migrations/045_add_thumbnail_index.sql:22]
 - [x] [Review][Patch] Thumbnail-файлы не удаляются при удалении поста/медиа и могут оставаться orphaned в Storage [src/features/admin/api/posts.ts:372]
@@ -102,6 +99,12 @@ Status: review
 - [x] [Review][Patch] Timeout ожидания thumbnail может продолжить submit с pending video без poster [src/features/admin/components/PostForm.tsx:313] — по уточнению пользователя сохранение видео без poster допустимо, но не молча: при ошибке/таймауте генерации (`hasVideoWithoutPoster`) публикация сохраняется без poster и показывается `toast.warning` (`POSTER_NOT_GENERATED_MESSAGE`) с пояснением о ручном добавлении позже. Submit больше не блокируется навсегда и не сохраняет видео без уведомления.
 - [x] [Review][Patch] Late success удалённого video может утечь `thumbnail_preview_url` ObjectURL [src/features/editor/components/VideoThumbnailGenerator.tsx:31] — создание ObjectURL перенесено из генератора в `MediaUploader.handleThumbSuccess` под guard `exists`; поздний success удалённого item больше не создаёт осиротевший URL.
 - [x] [Review][Patch] В diff Story 8.1 попали несвязанные `MediaLightbox` изменения с новыми prose-комментариями [src/components/media/MediaLightbox.tsx:94] — НЕ код Story 8.1: изменения принадлежат отдельному коммиту `c49c7304` (мобильный фикс свайпа lightbox), уже влитому в `main` (`git log main..HEAD -- MediaLightbox.tsx` пуст). В diff относительно `baseline_commit` они попали лишь потому, что baseline захвачен до merge main. Откат/правка здесь создали бы расхождение с `main` и отменили легитимный фикс — оставлено без изменений.
+- [x] [Review][Decision] Server fallback не выполняет AC4 — решение пользователя: вариант 2, real fallback generation вынесен в отложенную будущую story. Story/AC/Tasks скорректированы: текущий `src/app/api/admin/generate-thumbnail-fallback/route.ts` считается skeleton-заделом с auth/admin/body/SSRF validation и временным `501`, а реальное server-side извлечение кадра, upload thumbnail и update `thumbnail_url` больше не заявлены как покрытие Story 8.1.
+- [x] [Review][Patch] Save может показать success, хотя `thumbnail_url` фактически не сохранён [src/features/admin/components/PostForm.tsx:333] — save-time pipeline теперь возвращает фактический результат персистентности (`ThumbnailPipelineResult.allPersisted`), проброшенный в `PostForm` через колбэк `onThumbnailResult`. Toast выбирается по реальному результату: если хотя бы один blob-poster не сохранён в БД — показывается `toast.warning` (`POSTER_NOT_GENERATED_MESSAGE`), а не ложный `toast.success`.
+- [x] [Review][Patch] Timeout save-time thumbnail pipeline не возвращает результат и не учитывает зависший Storage upload [src/features/admin/api/postThumbnails.ts:98] — `applyNewVideoThumbnails` теперь возвращает `{ expected, persisted, allPersisted }`. Зависший `uploadThumbnail` по истечении бюджета не попадает в `persistedIds` (task не успевает завершиться до abort) → корректно считается НЕ persisted (`allPersisted=false`), а не молча проглатывается.
+- [x] [Review][Patch] Повторный thumbnail success для одного item может утечь старый ObjectURL [src/features/admin/components/MediaUploader.tsx:102] — `handleThumbSuccess` перед `createObjectURL` находит текущий item и отзывает прежний `thumbnail_preview_url` (если был), устраняя утечку при повторной генерации.
+- [x] [Review][Patch] `waitForCondition` может выйти позже заданного timeout [src/lib/waitForCondition.ts:1] — последний сон ограничен остатком до дедлайна (`Math.min(intervalMs, deadline - Date.now())`), поэтому функция не перепрыгивает таймаут на целый интервал.
+- [x] [Review][Patch] Story-scope изменения добавляют prose-комментарии вопреки AGENTS.md [src/features/admin/components/MediaSortableItem.tsx:72] — удалён story-scope комментарий `{/* Thumbnail / poster preview */}` (добавлен этой story). Pre-existing комментарии вне scope Story 8.1 не трогались.
 
 ## Dev Notes
 
@@ -196,6 +199,8 @@ claude-opus-4-8 (Amelia, dev-story workflow)
   `npx vitest run` — 100 файлов, 1349 тестов, все зелёные
 - CR Раунд 6 (Full CR): `npm run typecheck` чисто, `npx eslint` (6 файлов) чисто,
   `npx vitest run` — 101 файл, 1351 тест, все зелёные
+- CR Раунд 7: `npm run typecheck` чисто, `npx eslint` (10 файлов) чисто,
+  `npx vitest run` — 101 файл, 1356 тестов, все зелёные
 
 ### Completion Notes List
 
@@ -247,7 +252,7 @@ Canvas-путь покрывает практически все реальны�
   `AbortController`+`setTimeout` (`FALLBACK_FETCH_TIMEOUT_MS=2000`). Сохранение больше не
   может зависнуть на upload/fetch → бюджет <3s/NFR8.1 соблюдён. Тест бюджета с fake timers.
 - ✅ Finding 2 — серверный fallback вызывается ТОЛЬКО при `thumbnail_status==='error'`
-  (genuine Canvas failure, AC4). Для `'generating'`/`'idle'` без blob — best-effort skip
+  (сбой Canvas-генерации; позднее real fallback generation вынесен из Story 8.1). Для `'generating'`/`'idle'` без blob — best-effort skip
   (лента отрисует первый кадр через LazyMediaWrapper, пользователь уведомлён `toast.info`).
   Submit больше не уходит в бесполезный 501. Тест на пропуск fallback для `generating`.
 - ✅ Finding 3 — гонка параллельных thumbnail-колбэков устранена: `updateNewItem` синхронно
@@ -379,6 +384,29 @@ Canvas-путь покрывает практически все реальны�
   ветку. Откат/правка комментариев на этой ветке отменили бы легитимный merged-фикс и создали
   расхождение с `main`. Файл оставлен без изменений; вывод задокументирован.
 
+**Разрешение находок код-ревью — Раунд 7 (2026-06-09):** 5 [Review][Patch] пунктов закрыты.
+- ✅ Finding 1 — `toast.success` больше не показывается, если `thumbnail_url` фактически не сохранён.
+  `applyNewVideoThumbnails` теперь возвращает `ThumbnailPipelineResult` (`{ expected, persisted,
+  allPersisted }`), а `createPost`/`updatePost` пробрасывают его в `PostForm` через новый колбэк
+  `onThumbnailResult` (контракт возврата `string`/`void` сохранён — на нём завязаны тесты posts).
+  В `onSubmit` `posterMissingClient` (видео без blob) комбинируется с `thumbnailPersistFailed`
+  (save-time персистентность не удалась) → при любом из них `toast.warning`, иначе `toast.success`.
+  Тесты PostForm: persist-fail при готовом poster → `toast.warning`; `allPersisted=true` → `toast.success`.
+- ✅ Finding 2 — save-time pipeline возвращает результат и учитывает зависший Storage upload.
+  `runThumbnailTask` возвращает `{ postMediaId, persisted }`; задачи, не успевшие завершиться до
+  `controller.abort()` по бюджету (в т.ч. зависший `uploadThumbnail`), не попадают в `persistedIds`,
+  поэтому `allPersisted=false`. Тесты postThumbnails: happy-path → `persisted:1/allPersisted:true`;
+  зависший upload по бюджету → `persisted:0/allPersisted:false`; update-fail → `allPersisted:false`;
+  fallback-only (нет blob) → `expected:0/allPersisted:true` + сигнал прерван.
+- ✅ Finding 3 — повторный thumbnail success больше не утекает старый ObjectURL.
+  `handleThumbSuccess` перед `createObjectURL` отзывает прежний `thumbnail_preview_url` текущего item.
+  Тест MediaUploaderRace: повторный `onSuccess('k1', blob2)` вызывает `revokeObjectURL('blob:first')`.
+- ✅ Finding 4 — `waitForCondition` не перепрыгивает заданный timeout. Последний сон ограничен
+  `Math.min(intervalMs, deadline - Date.now())`. Тест: с `timeoutMs:250, intervalMs:100` промис
+  разрешается ровно к 250 мс (а не к 300 мс, как со старым полным интервалом).
+- ✅ Finding 5 — удалён единственный story-scope prose-комментарий `{/* Thumbnail / poster preview */}`
+  в `MediaSortableItem.tsx`. Pre-existing комментарии (до baseline) вне scope Story 8.1 не изменялись.
+
 ### File List
 
 **Новые файлы:**
@@ -485,6 +513,23 @@ Canvas-путь покрывает практически все реальны�
 - `_bmad-output/implementation-artifacts/8-1-automatic-thumbnail-generation-on-save.md` — AC и
   Dev Notes #4: контракт `приоритет poster`, снято `<3 сек` (Finding 1)
 
+**Изменённые файлы (CR Раунд 7):**
+- `src/features/admin/api/postThumbnails.ts` — `applyNewVideoThumbnails` возвращает
+  `ThumbnailPipelineResult`; `runThumbnailTask` возвращает `{ postMediaId, persisted }` (Findings 1, 2)
+- `src/features/admin/api/posts.ts` — `onThumbnailResult` колбэк в `CreatePostInput`/`UpdatePostInput`,
+  проброс результата pipeline из `createPost`/`updatePost` (Findings 1, 2)
+- `src/features/admin/components/PostForm.tsx` — toast по фактической персистентности
+  (`thumbnailPersistFailed` + `posterMissingClient`) через `onThumbnailResult` (Finding 1)
+- `src/features/admin/components/MediaUploader.tsx` — `handleThumbSuccess` отзывает прежний
+  `thumbnail_preview_url` перед созданием нового (Finding 3)
+- `src/lib/waitForCondition.ts` — последний сон ограничен остатком до дедлайна (Finding 4)
+- `src/features/admin/components/MediaSortableItem.tsx` — удалён story-scope комментарий (Finding 5)
+- `tests/unit/features/admin/api/postThumbnails.test.ts` — проверки `ThumbnailPipelineResult`
+  (happy/hung-upload/update-fail/fallback-only) (Findings 1, 2)
+- `tests/unit/features/admin/components/PostForm.test.tsx` — toast по persist-результату (Finding 1)
+- `tests/unit/features/admin/components/MediaUploaderRace.test.tsx` — повторный success отзывает URL (Finding 3)
+- `tests/unit/lib/waitForCondition.test.ts` — нет overshoot за дедлайн (Finding 4)
+
 ### Change Log
 
 - 2026-06-08: Реализована Story 8.1 — автоматическая Canvas-генерация thumbnail видео при
@@ -521,3 +566,14 @@ Canvas-путь покрывает практически все реальны�
   late-success удалённого видео через перенос создания URL под guard `exists`; MediaLightbox
   prose-комментарии признаны вне scope Story 8.1 — отдельный merged-в-main коммит `c49c7304`).
   +3 новых теста (всего 1352 зелёных), typecheck/eslint чисты. Status → review.
+- 2026-06-09: Decision по server fallback закрыт вариантом 2 — real fallback generation вынесен
+  в отложенную будущую story. AC/Tasks обновлены: fallback endpoint остаётся skeleton-заделом с
+  auth/admin/body/SSRF validation и временным `501`; извлечение кадра, upload thumbnail и update
+  `thumbnail_url` больше не заявлены как покрытие Story 8.1. Status остаётся in-progress из-за
+  5 открытых [Patch] findings.
+- 2026-06-09: Разрешены находки код-ревью Раунд 7 — 5 [Patch] items (save-time pipeline возвращает
+  фактический результат персистентности `ThumbnailPipelineResult` и пробрасывает его в PostForm через
+  `onThumbnailResult` → честный toast success/warning; зависший Storage upload по бюджету корректно
+  считается НЕ persisted; `handleThumbSuccess` отзывает прежний ObjectURL при повторном success;
+  `waitForCondition` не перепрыгивает timeout на целый интервал; удалён story-scope комментарий в
+  MediaSortableItem). +5 новых тестов (всего 1356 зелёных), typecheck/eslint чисты. Status → review.

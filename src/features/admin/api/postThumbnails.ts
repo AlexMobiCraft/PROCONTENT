@@ -9,6 +9,17 @@ export interface NewVideoThumbnailTask {
   videoUrl: string
 }
 
+export interface ThumbnailPipelineResult {
+  expected: number
+  persisted: number
+  allPersisted: boolean
+}
+
+interface ThumbnailTaskOutcome {
+  postMediaId: string
+  persisted: boolean
+}
+
 interface InsertedMediaRow {
   id: string
   url: string
@@ -72,17 +83,18 @@ export function buildVideoThumbnailTasks(
 async function runThumbnailTask(
   { item, postMediaId, videoUrl }: NewVideoThumbnailTask,
   signal: AbortSignal
-): Promise<void> {
+): Promise<ThumbnailTaskOutcome> {
   try {
-    if (signal.aborted) return
+    if (signal.aborted) return { postMediaId, persisted: false }
     if (item.thumbnail_blob) {
       const url = await uploadThumbnail(item.thumbnail_blob, postMediaId)
       if (signal.aborted) {
         await removeStorageFiles([url]).catch(() => {})
-        return
+        return { postMediaId, persisted: false }
       }
       try {
         await updateThumbnailUrl(postMediaId, url)
+        return { postMediaId, persisted: true }
       } catch (updateErr) {
         await removeStorageFiles([url]).catch(() => {})
         throw updateErr
@@ -90,21 +102,31 @@ async function runThumbnailTask(
     } else if (item.thumbnail_status === 'error') {
       await requestThumbnailFallback({ videoUrl, postMediaId }, signal)
     }
+    return { postMediaId, persisted: false }
   } catch (err) {
     console.warn(`[thumbnails] Napaka za post_media ${postMediaId}:`, err)
+    return { postMediaId, persisted: false }
   }
 }
 
 export async function applyNewVideoThumbnails(
   tasks: NewVideoThumbnailTask[],
   options: { budgetMs?: number } = {}
-): Promise<void> {
-  if (tasks.length === 0) return
+): Promise<ThumbnailPipelineResult> {
+  const expected = tasks.filter((task) => task.item.thumbnail_blob != null).length
+  if (tasks.length === 0) {
+    return { expected: 0, persisted: 0, allPersisted: true }
+  }
 
   const budgetMs = options.budgetMs ?? THUMBNAIL_PIPELINE_BUDGET_MS
   const controller = new AbortController()
+  const persistedIds = new Set<string>()
+
   const work = Promise.allSettled(
-    tasks.map((task) => runThumbnailTask(task, controller.signal))
+    tasks.map(async (task) => {
+      const outcome = await runThumbnailTask(task, controller.signal)
+      if (outcome.persisted) persistedIds.add(outcome.postMediaId)
+    })
   )
 
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -116,4 +138,10 @@ export async function applyNewVideoThumbnails(
   })
 
   await Promise.race([work.finally(() => clearTimeout(timer)), budget])
+
+  return {
+    expected,
+    persisted: persistedIds.size,
+    allPersisted: persistedIds.size >= expected,
+  }
 }

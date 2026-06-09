@@ -8,7 +8,8 @@ export async function waitForCondition(
   const deadline = Date.now() + options.timeoutMs
 
   while (Date.now() < deadline) {
-    await new Promise<void>((resolve) => setTimeout(resolve, intervalMs))
+    const wait = Math.min(intervalMs, deadline - Date.now())
+    await new Promise<void>((resolve) => setTimeout(resolve, wait))
     if (predicate()) return
   }
 }
