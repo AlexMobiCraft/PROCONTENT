@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-06-10 (Story 8.1 -> review, CR Раунд 9 — 4 patch action items resolved)
+last_updated: 2026-06-10 (Story 8.5 создана -> ready-for-dev; server-side fallback вынесен из 8.1. Story 8.1 -> in-progress, Full CR — 3 patch action items left)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -208,8 +208,12 @@ development_status:
   #   updatePost скрывает опубликованный пост с новым видео до thumbnail persistence и публикует после;
   #   applyNewVideoThumbnails expected=tasks.length → честный allPersisted для error/fallback видео;
   #   SSRF-валидация fallback сужена до post_media/posts/ + video-расширение). +6 тестов (1365 зелёных) → review
-  8-1-automatic-thumbnail-generation-on-save: review
+  # 2026-06-10: Full CR — 3 [Patch] action items оставлены в story → in-progress
+  8-1-automatic-thumbnail-generation-on-save: in-progress
   8-2-manual-poster-replacement-in-editor: ready-for-dev
   8-3-retroactive-thumbnail-generation: ready-for-dev
   8-4-regenerate-and-delete-thumbnail: ready-for-dev
+  # 2026-06-10: Создана как дополнительная story — реальная server-side fallback генерация,
+  #   отложенная из 8.1 (skeleton 501). Вариант A: Supabase Edge Function + ядро-за-HTTP-контрактом.
+  8-5-server-side-fallback-thumbnail-generation: ready-for-dev
   epic-8-retrospective: backlog

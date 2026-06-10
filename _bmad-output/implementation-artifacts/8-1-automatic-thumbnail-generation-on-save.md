@@ -4,7 +4,7 @@ baseline_commit: 56952b35109b54ff17d671b0636fffe0d1ba4054
 
 # Story 8.1: Avtomatsko generiranje thumbnaila ob shranjevanju objave
 
-Status: review
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -112,6 +112,9 @@ Status: review
 - [x] [Review][Patch] Редактирование уже опубликованного поста вставляет новое видео до завершения thumbnail persistence, поэтому feed может увидеть video без poster [src/features/admin/api/posts.ts:301] — `updatePost` при `hideForThumbnail` (опубликованный пост + новое видео) временно ставит `is_published=false` в основном update и возвращает `is_published=true` ТОЛЬКО после insert медиа и `applyNewVideoThumbnails`. `published_at` не трогается. Для не-видео правок и draft/scheduled поведение прежнее. Покрыто тестами posts.test (toggle при новом видео + guard «только новое изображение → без toggle»).
 - [x] [Review][Patch] `applyNewVideoThumbnails` считает Canvas-error/fallback задачи `expected=0` и возвращает `allPersisted=true` даже без сохранённого `thumbnail_url` [src/features/admin/api/postThumbnails.ts:116] — `expected` теперь равен числу всех видео-задач (`tasks.length`), а не только blob-задач. Видео с `thumbnail_status='error'` (Canvas-сбой → fallback 501) корректно считается expected, но не persisted → `allPersisted=false` (честный результат, PostForm показывает `toast.warning`). Покрыто тестом postThumbnails (error-video → `expected:1/persisted:0/allPersisted:false`) + обновлён тест fallback-budget.
 - [x] [Review][Patch] Skeleton fallback validation всё ещё принимает не-video объекты bucket `post_media` (например `thumbnails/*.jpg`), а не только media video URLs [src/app/api/admin/generate-thumbnail-fallback/route.ts:50] — SSRF-префикс сужен с `/post_media/` до `/post_media/posts/` (видео лежат в `posts/{postId}/...`, thumbnail — в `thumbnails/...`) + добавлена проверка video-расширения (`.mp4/.mov/.webm`). Thumbnail-объекты и не-видео файлы из `posts/` отклоняются `400`. Покрыто +2 тестами route.
+- [ ] [Review][Patch] `updatePost` возвращает success, если republish после временного скрытия опубликованного поста не удался [src/features/admin/api/posts.ts:391]
+- [ ] [Review][Patch] Rollback после downstream-сбоя не удаляет thumbnail-файлы, уже загруженные save-time pipeline [src/features/admin/api/posts.ts:211]
+- [ ] [Review][Patch] Story-файл содержит trailing whitespace, из-за чего `git diff --check` падает [8-1-automatic-thumbnail-generation-on-save.md:21]
 
 ## Dev Notes
 
