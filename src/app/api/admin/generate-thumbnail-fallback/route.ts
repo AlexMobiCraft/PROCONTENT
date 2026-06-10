@@ -49,9 +49,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const allowedPrefix = supabaseUrl
-    ? `${supabaseUrl}/storage/v1/object/public/post_media/`
+    ? `${supabaseUrl}/storage/v1/object/public/post_media/posts/`
     : null
   if (!allowedPrefix || !videoUrl.startsWith(allowedPrefix)) {
+    return NextResponse.json({ error: 'Invalid videoUrl' }, { status: 400 })
+  }
+
+  const objectPath = videoUrl.split('?')[0].toLowerCase()
+  const isVideoObject = ['.mp4', '.mov', '.webm'].some((ext) =>
+    objectPath.endsWith(ext)
+  )
+  if (!isVideoObject) {
     return NextResponse.json({ error: 'Invalid videoUrl' }, { status: 400 })
   }
 

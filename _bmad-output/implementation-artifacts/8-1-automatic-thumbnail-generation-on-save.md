@@ -105,6 +105,13 @@ Status: review
 - [x] [Review][Patch] Повторный thumbnail success для одного item может утечь старый ObjectURL [src/features/admin/components/MediaUploader.tsx:102] — `handleThumbSuccess` перед `createObjectURL` находит текущий item и отзывает прежний `thumbnail_preview_url` (если был), устраняя утечку при повторной генерации.
 - [x] [Review][Patch] `waitForCondition` может выйти позже заданного timeout [src/lib/waitForCondition.ts:1] — последний сон ограничен остатком до дедлайна (`Math.min(intervalMs, deadline - Date.now())`), поэтому функция не перепрыгивает таймаут на целый интервал.
 - [x] [Review][Patch] Story-scope изменения добавляют prose-комментарии вопреки AGENTS.md [src/features/admin/components/MediaSortableItem.tsx:72] — удалён story-scope комментарий `{/* Thumbnail / poster preview */}` (добавлен этой story). Pre-existing комментарии вне scope Story 8.1 не трогались.
+- [x] [Review][Patch] Новая публикация становится видимой в feed до завершения thumbnail persistence [src/features/admin/api/posts.ts:142] — `createPost` теперь вставляет пост со `is_published: false` и переводит в `is_published: true` (+`published_at`) ТОЛЬКО после insert `post_media` и завершения `applyNewVideoThumbnails`. Feed фильтрует по `is_published=true`, поэтому пост появляется в ленте лишь после персистентности thumbnail. Для scheduled постов поведение прежнее (остаются `is_published=false`). Покрыто тестами posts.test (insert `is_published=false` + последующий publish-flip).
+- [x] [Review][Patch] Skeleton fallback SSRF/body validation принимает любые Supabase Storage paths, не только `post_media` media object URLs [src/app/api/admin/generate-thumbnail-fallback/route.ts:50] — валидация `videoUrl` сужена с `${supabaseUrl}/storage/` до публичного пути bucket `post_media`: `${supabaseUrl}/storage/v1/object/public/post_media/`. URL из других bucket (`avatars`, …) и signed-пути (`/object/sign/…`) отклоняются `400`. Покрыто тестами route (чужой bucket → 400, sign-путь → 400).
+- [x] [Review][Patch] Story-scope комментарии всё ещё остались в новых/изменённых файлах вопреки правилу `No comments unless explicitly requested` [supabase/migrations/045_add_thumbnail_index.sql:1] — удалены header-комментарии story-scope из миграций `045`/`046` (целиком новые файлы этой story). Проверено `git diff` против baseline: единственные story-добавленные комментарии в исходниках — функциональные `eslint-disable` директивы (разрешены); pre-existing комментарии в `MediaUploader`/`MediaSortableItem`/`types.ts` (из ранних story) вне scope и не изменялись.
+- [x] [Review][Patch] `createPost` возвращает success даже если финальный publish-flip failed, оставляя новый пост скрытым [src/features/admin/api/posts.ts:216] — publish-flip теперь бросает ошибку при `publishError` (вместо `console.warn`); срабатывает catch-rollback (удаление загруженных файлов + delete скрытого поста), вызов больше не возвращает ложный success. Покрыто тестом posts.test (publish-flip fails → throw + delete `id`).
+- [x] [Review][Patch] Редактирование уже опубликованного поста вставляет новое видео до завершения thumbnail persistence, поэтому feed может увидеть video без poster [src/features/admin/api/posts.ts:301] — `updatePost` при `hideForThumbnail` (опубликованный пост + новое видео) временно ставит `is_published=false` в основном update и возвращает `is_published=true` ТОЛЬКО после insert медиа и `applyNewVideoThumbnails`. `published_at` не трогается. Для не-видео правок и draft/scheduled поведение прежнее. Покрыто тестами posts.test (toggle при новом видео + guard «только новое изображение → без toggle»).
+- [x] [Review][Patch] `applyNewVideoThumbnails` считает Canvas-error/fallback задачи `expected=0` и возвращает `allPersisted=true` даже без сохранённого `thumbnail_url` [src/features/admin/api/postThumbnails.ts:116] — `expected` теперь равен числу всех видео-задач (`tasks.length`), а не только blob-задач. Видео с `thumbnail_status='error'` (Canvas-сбой → fallback 501) корректно считается expected, но не persisted → `allPersisted=false` (честный результат, PostForm показывает `toast.warning`). Покрыто тестом postThumbnails (error-video → `expected:1/persisted:0/allPersisted:false`) + обновлён тест fallback-budget.
+- [x] [Review][Patch] Skeleton fallback validation всё ещё принимает не-video объекты bucket `post_media` (например `thumbnails/*.jpg`), а не только media video URLs [src/app/api/admin/generate-thumbnail-fallback/route.ts:50] — SSRF-префикс сужен с `/post_media/` до `/post_media/posts/` (видео лежат в `posts/{postId}/...`, thumbnail — в `thumbnails/...`) + добавлена проверка video-расширения (`.mp4/.mov/.webm`). Thumbnail-объекты и не-видео файлы из `posts/` отклоняются `400`. Покрыто +2 тестами route.
 
 ## Dev Notes
 
@@ -201,6 +208,10 @@ claude-opus-4-8 (Amelia, dev-story workflow)
   `npx vitest run` — 101 файл, 1351 тест, все зелёные
 - CR Раунд 7: `npm run typecheck` чисто, `npx eslint` (10 файлов) чисто,
   `npx vitest run` — 101 файл, 1356 тестов, все зелёные
+- CR Раунд 8: `npm run typecheck` чисто, `npx eslint` (2 файла) чисто,
+  `npx vitest run` — 101 файл, 1359 тестов, все зелёные
+- CR Раунд 9: `npm run typecheck` чисто, `npx eslint` (6 файлов) чисто,
+  `npx vitest run` — 101 файл, 1365 тестов, все зелёные
 
 ### Completion Notes List
 
@@ -407,6 +418,49 @@ Canvas-путь покрывает практически все реальны�
 - ✅ Finding 5 — удалён единственный story-scope prose-комментарий `{/* Thumbnail / poster preview */}`
   в `MediaSortableItem.tsx`. Pre-existing комментарии (до baseline) вне scope Story 8.1 не изменялись.
 
+**Разрешение находок код-ревью — Раунд 8 (2026-06-09):** 3 [Review][Patch] пункта закрыты.
+- ✅ Finding 1 — новая публикация больше не появляется в feed до завершения persistence thumbnail.
+  `createPost` вставляет пост со `is_published: false` (раньше `!isScheduled` → сразу `true`) и переводит
+  в `is_published: true` вместе с `published_at` ТОЛЬКО после insert `post_media` и `applyNewVideoThumbnails`.
+  Так как feed фильтрует по `.eq('is_published', true)`, пост становится виден лишь после того, как
+  thumbnail записан, что закрепляет AC «когда публикация появляется в ленте, для видео отображается poster».
+  Для scheduled постов поведение не изменилось (остаются скрытыми). Тесты posts.test: insert
+  `is_published=false` + последующий publish-flip `is_published=true`; scheduled-тест без publish-flip — зелёные.
+- ✅ Finding 2 — SSRF-валидация fallback сужена до публичного объектного пути bucket `post_media`.
+  Префикс изменён с `${supabaseUrl}/storage/` на `${supabaseUrl}/storage/v1/object/public/post_media/`,
+  поэтому любые другие bucket'ы (`avatars`, `inline_images`, …) и signed-пути (`/object/sign/…`) отклоняются
+  `400`. Реальная server-генерация по-прежнему отложена (`501`). +2 теста route (чужой bucket → 400, sign → 400).
+- ✅ Finding 3 — удалены story-scope header-комментарии из миграций `045`/`046`. Расследование `git diff`
+  против `baseline_commit`: единственные story-добавленные комментарии в исходных `.ts/.tsx` — функциональные
+  `eslint-disable` директивы (разрешены правилом), а комментарии в `MediaUploader.tsx`/`MediaSortableItem.tsx`/
+  `types.ts` — pre-existing из ранних story и вне scope 8.1, поэтому не трогались.
+
+**Разрешение находок код-ревью — Раунд 9 (2026-06-10):** 4 [Review][Patch] пункта закрыты.
+- ✅ Finding 1 — `createPost` больше не возвращает ложный success при сбое финального publish-flip.
+  При `publishError` вместо `console.warn` бросается ошибка `Napaka pri objavi objave`, что включает
+  catch-rollback: удаляются загруженные Storage-файлы и удаляется скрытый (`is_published=false`) пост.
+  Пользователь получает `toast.error` и может повторить, а не остаётся со «скрытым» постом при мнимом
+  успехе. Тест posts.test: publish-flip fails → throw + `delete().eq('id', postId)`.
+- ✅ Finding 2 — редактирование уже опубликованного поста с добавлением нового видео больше не
+  показывает в ленте video без poster. `updatePost` вычисляет `hideForThumbnail` (`snapshot.is_published
+  === true` && статус остаётся published && среди новых медиа есть видео): в основном update временно
+  ставит `is_published=false`, а после insert `post_media` и `applyNewVideoThumbnails` отдельным update
+  возвращает `is_published=true`. `published_at` не трогается (сохраняется исходный). Для правок без
+  нового видео и для draft/scheduled поведение не изменилось. Тесты posts.test: toggle при новом видео;
+  guard — добавление только нового изображения не вызывает toggle.
+- ✅ Finding 3 — `applyNewVideoThumbnails` больше не рапортует `allPersisted=true` без сохранённого
+  poster. `expected` теперь равен числу всех видео-задач (`tasks.length`), а не только задач с blob.
+  Видео с `thumbnail_status='error'` (Canvas-сбой → fallback, который пока 501) честно считается
+  expected, но не persisted → `allPersisted=false`; PostForm на основании этого показывает `toast.warning`
+  о ручном добавлении poster позже. Тест postThumbnails: error-video → `expected:1/persisted:0/
+  allPersisted:false`; обновлён тест fallback-budget (теперь `expected:1/allPersisted:false`).
+- ✅ Finding 4 — SSRF-валидация fallback больше не принимает не-video объекты bucket `post_media`.
+  Префикс сужен с `${supabaseUrl}/storage/v1/object/public/post_media/` до `.../post_media/posts/`
+  (видео загружаются в `posts/{postId}/{uuid}/...`, thumbnail — в `thumbnails/...`), плюс добавлена
+  проверка расширения объекта (`.mp4/.mov/.webm`). Thumbnail-URL (`thumbnails/*.jpg`) и не-видео файлы
+  из `posts/` (например `.jpg`) отклоняются `400`. Реальная server-генерация по-прежнему отложена (`501`).
+  +2 теста route (thumbnail-объект → 400, не-video расширение → 400).
+
 ### File List
 
 **Новые файлы:**
@@ -530,6 +584,31 @@ Canvas-путь покрывает практически все реальны�
 - `tests/unit/features/admin/components/MediaUploaderRace.test.tsx` — повторный success отзывает URL (Finding 3)
 - `tests/unit/lib/waitForCondition.test.ts` — нет overshoot за дедлайн (Finding 4)
 
+**Изменённые файлы (CR Раунд 8):**
+- `src/features/admin/api/posts.ts` — `createPost`: insert `is_published: false`, publish-flip
+  (`is_published: true` + `published_at`) после insert `post_media` и thumbnail pipeline (Finding 1)
+- `src/app/api/admin/generate-thumbnail-fallback/route.ts` — SSRF-валидация сужена до
+  `/storage/v1/object/public/post_media/` (Finding 2)
+- `supabase/migrations/045_add_thumbnail_index.sql`,
+  `supabase/migrations/046_restrict_post_media_storage_admin.sql` — удалены story-scope header-комментарии (Finding 3)
+- `tests/unit/features/admin/api/posts.test.ts` — insert `is_published=false` + publish-flip (Finding 1)
+- `tests/unit/app/api/admin/generate-thumbnail-fallback/route.test.ts` — чужой bucket → 400, sign-путь → 400 (Finding 2)
+
+**Изменённые файлы (CR Раунд 9):**
+- `src/features/admin/api/posts.ts` — `createPost`: throw при сбое publish-flip → catch-rollback (Finding 1);
+  `updatePost`: `hideForThumbnail` (временный `is_published=false` + re-publish после thumbnail persistence) для
+  опубликованного поста с новым видео (Finding 2)
+- `src/features/admin/api/postThumbnails.ts` — `expected = tasks.length` (видео-задачи error/fallback
+  больше не считаются `expected=0`/`allPersisted=true`) (Finding 3)
+- `src/app/api/admin/generate-thumbnail-fallback/route.ts` — SSRF-префикс сужен до `/post_media/posts/`
+  + проверка video-расширения; thumbnail/не-видео объекты → 400 (Finding 4)
+- `tests/unit/features/admin/api/posts.test.ts` — publish-flip fail → throw+delete (Finding 1);
+  hide/re-publish toggle + guard (Finding 2)
+- `tests/unit/features/admin/api/postThumbnails.test.ts` — error-video `expected:1/allPersisted:false`
+  + обновлён fallback-budget ассерт (Finding 3)
+- `tests/unit/app/api/admin/generate-thumbnail-fallback/route.test.ts` — thumbnail-объект → 400,
+  не-video расширение → 400 (Finding 4)
+
 ### Change Log
 
 - 2026-06-08: Реализована Story 8.1 — автоматическая Canvas-генерация thumbnail видео при
@@ -577,3 +656,13 @@ Canvas-путь покрывает практически все реальны�
   считается НЕ persisted; `handleThumbSuccess` отзывает прежний ObjectURL при повторном success;
   `waitForCondition` не перепрыгивает timeout на целый интервал; удалён story-scope комментарий в
   MediaSortableItem). +5 новых тестов (всего 1356 зелёных), typecheck/eslint чисты. Status → review.
+- 2026-06-09: Разрешены находки код-ревью Раунд 8 — 3 [Patch] items (новая публикация скрыта
+  `is_published=false` до завершения thumbnail persistence и публикуется только после неё; SSRF-валидация
+  fallback сужена до публичного пути bucket `post_media`; удалены story-scope header-комментарии миграций
+  045/046). +3 новых теста (всего 1359 зелёных), typecheck/eslint чисты. Status → review.
+- 2026-06-10: Разрешены находки код-ревью Раунд 9 — 4 [Patch] items (`createPost` бросает ошибку при
+  сбое publish-flip → catch-rollback вместо ложного success; `updatePost` временно скрывает
+  опубликованный пост с новым видео и публикует после thumbnail persistence; `applyNewVideoThumbnails`
+  `expected=tasks.length` → честный `allPersisted=false` для error/fallback видео; SSRF-валидация
+  fallback сужена до `post_media/posts/` + проверка video-расширения). +6 новых тестов
+  (всего 1365 зелёных), typecheck/eslint чисты. Status → review.

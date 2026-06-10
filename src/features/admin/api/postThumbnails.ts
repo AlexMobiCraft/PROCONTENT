@@ -113,11 +113,11 @@ export async function applyNewVideoThumbnails(
   tasks: NewVideoThumbnailTask[],
   options: { budgetMs?: number } = {}
 ): Promise<ThumbnailPipelineResult> {
-  const expected = tasks.filter((task) => task.item.thumbnail_blob != null).length
   if (tasks.length === 0) {
     return { expected: 0, persisted: 0, allPersisted: true }
   }
 
+  const expected = tasks.length
   const budgetMs = options.budgetMs ?? THUMBNAIL_PIPELINE_BUDGET_MS
   const controller = new AbortController()
   const persistedIds = new Set<string>()

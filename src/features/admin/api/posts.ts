@@ -220,7 +220,9 @@ export async function createPost(input: CreatePostInput): Promise<string> {
         .eq('id', postId)
 
       if (publishError) {
-        console.warn('Napaka pri objavi objave:', publishError)
+        throw new Error(`Napaka pri objavi objave: ${publishError.message}`, {
+          cause: publishError,
+        })
       }
     }
 
@@ -271,6 +273,13 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
     .eq('id', input.postId)
     .single()
 
+  const willStayPublished =
+    meta.status !== 'scheduled' &&
+    meta.status !== 'draft' &&
+    snapshot?.is_published === true
+  const hasNewVideo = newItems.some((item) => item.media_type === 'video')
+  const hideForThumbnail = willStayPublished && hasNewVideo
+
   try {
     const updatePayload: Record<string, unknown> = {
       title: meta.title,
@@ -296,6 +305,10 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       updatePayload.scheduled_at = null
       updatePayload.is_published = false
       updatePayload.published_at = null
+    }
+
+    if (hideForThumbnail) {
+      updatePayload.is_published = false
     }
 
     const { error: updateError } = await supabase
@@ -374,6 +387,17 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       buildVideoThumbnailTasks(newItems, uploadedUrls, insertedNewRows)
     )
     input.onThumbnailResult?.(thumbnailResult)
+
+    if (hideForThumbnail) {
+      const { error: republishError } = await supabase
+        .from('posts')
+        .update({ is_published: true })
+        .eq('id', input.postId)
+
+      if (republishError) {
+        console.warn('Napaka pri ponovni objavi objave:', republishError)
+      }
+    }
 
     if (removedItems.length > 0) {
       const removedIds = removedItems.map((item) => item.id)

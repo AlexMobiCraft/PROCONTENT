@@ -218,6 +218,25 @@ describe('createPost', () => {
       expect.any(Array)
     )
   })
+
+  it('throws and rolls back when final publish-flip fails (Finding 1)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    supabaseChain = makeChain({ data: { id: 'post-flip' }, error: null })
+    supabaseChain.single.mockResolvedValueOnce({ data: { id: 'post-flip' }, error: null })
+    const deleteEq = vi.fn().mockResolvedValue({ error: null })
+    supabaseChain.update.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: { message: 'publish failed' } }),
+    })
+    supabaseChain.delete.mockReturnValue({ eq: deleteEq })
+
+    await expect(
+      createPost({ formValues: baseFormValues, mediaItems: [], authorId: 'u1' })
+    ).rejects.toThrow('Napaka pri objavi objave')
+
+    // Rollback: hidden post is deleted, not left as a silent success
+    expect(deleteEq).toHaveBeenCalledWith('id', 'post-flip')
+    warnSpy.mockRestore()
+  })
 })
 
 describe('fetchPostForEdit', () => {
@@ -365,6 +384,70 @@ describe('updatePost', () => {
 
     expect(mockRemoveStorageFiles).not.toHaveBeenCalled()
     warnSpy.mockRestore()
+  })
+
+  it('hides a published post while persisting a new video thumbnail, then re-publishes (Finding 2)', async () => {
+    const updatePayloads: Record<string, unknown>[] = []
+    supabaseChain.update.mockImplementation((payload: Record<string, unknown>) => {
+      updatePayloads.push(payload)
+      return { eq: vi.fn().mockResolvedValue({ error: null }) }
+    })
+    supabaseChain.insert.mockReturnValue({
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: 'm-new', url: 'https://cdn.example.com/new-file0.jpg' }],
+        error: null,
+      }),
+    })
+
+    const newVideo: NewMediaItem = {
+      kind: 'new',
+      key: 'v1',
+      file: new File(['v'], 'v1.mp4', { type: 'video/mp4' }),
+      preview_url: 'blob:v1',
+      media_type: 'video',
+      is_cover: false,
+      order_index: 0,
+      thumbnail_blob: null,
+      thumbnail_status: 'idle',
+    }
+
+    await updatePost({
+      postId: 'p1',
+      formValues: baseFormValues,
+      mediaItems: [newVideo],
+      originalMedia: [],
+    })
+
+    // Main update temporarily hides the published post during thumbnail work
+    expect(updatePayloads[0]).toMatchObject({ is_published: false })
+    expect(updatePayloads[0]).not.toHaveProperty('published_at')
+    // A later update re-publishes it without touching published_at
+    const republish = updatePayloads.find((p) => p.is_published === true)
+    expect(republish).toBeDefined()
+    expect(republish).not.toHaveProperty('published_at')
+  })
+
+  it('does not hide/re-publish a published post when only a new image is added (Finding 2 guard)', async () => {
+    const updatePayloads: Record<string, unknown>[] = []
+    supabaseChain.update.mockImplementation((payload: Record<string, unknown>) => {
+      updatePayloads.push(payload)
+      return { eq: vi.fn().mockResolvedValue({ error: null }) }
+    })
+    supabaseChain.insert.mockReturnValue({
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: 'm-img', url: 'https://cdn.example.com/new-file0.jpg' }],
+        error: null,
+      }),
+    })
+
+    await updatePost({
+      postId: 'p1',
+      formValues: baseFormValues,
+      mediaItems: [makeNewItem('k1', 0)],
+      originalMedia: [],
+    })
+
+    expect(updatePayloads.every((p) => !('is_published' in p))).toBe(true)
   })
 
   it('throws when post update fails', async () => {

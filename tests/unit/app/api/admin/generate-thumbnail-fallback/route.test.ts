@@ -96,6 +96,28 @@ describe('POST /api/admin/generate-thumbnail-fallback', () => {
     expect(res.status).toBe(400)
   })
 
+  it('возвращает 400 если videoUrl указывает на thumbnail-объект bucket post_media, а не видео (Finding 4)', async () => {
+    const res = await POST(
+      makeRequest({
+        videoUrl:
+          'https://test.supabase.co/storage/v1/object/public/post_media/thumbnails/m1_thumb.jpg',
+        postMediaId: 'm1',
+      })
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('возвращает 400 если объект post_media/posts не имеет video-расширения (Finding 4)', async () => {
+    const res = await POST(
+      makeRequest({
+        videoUrl:
+          'https://test.supabase.co/storage/v1/object/public/post_media/posts/p1/u/photo.jpg',
+        postMediaId: 'm1',
+      })
+    )
+    expect(res.status).toBe(400)
+  })
+
   it('возвращает 501 для валидного admin-запроса (извлечение пока не реализовано)', async () => {
     const res = await POST(makeRequest({ videoUrl: VALID_VIDEO_URL, postMediaId: 'm1' }))
     expect(res.status).toBe(501)

@@ -113,6 +113,18 @@ describe('applyNewVideoThumbnails', () => {
     )
   })
 
+  it('Canvas-error видео (fallback) считается expected и даёт allPersisted=false без сохранённого poster (Finding 3)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 501 }))
+
+    const result = await applyNewVideoThumbnails([
+      { item: newVideo('v1', 0, null, 'error'), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' },
+    ])
+
+    expect(mockUploadThumbnail).not.toHaveBeenCalled()
+    expect(result).toEqual({ expected: 1, persisted: 0, allPersisted: false })
+  })
+
   it('НЕ вызывает fallback когда poster ещё генерируется (status=generating) (Finding 2)', async () => {
     await applyNewVideoThumbnails([
       {
@@ -198,9 +210,9 @@ describe('applyNewVideoThumbnails', () => {
 
       await vi.advanceTimersByTimeAsync(1000)
       await expect(promise).resolves.toEqual({
-        expected: 0,
+        expected: 1,
         persisted: 0,
-        allPersisted: true,
+        allPersisted: false,
       })
       expect(capturedSignal?.aborted).toBe(true)
     } finally {
