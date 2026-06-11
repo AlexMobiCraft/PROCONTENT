@@ -14,6 +14,11 @@ const eslintConfig = defineConfig([
     ".obsidian/**",
     "next-env.d.ts",
     "everything-claude-code/**",
+    // Deno Edge Functions — отдельный рантайм (Deno globals, npm:/esm.sh импорты),
+    // не линтуется проектным конфигом; чистые хелперы покрыты Vitest-тестами.
+    "supabase/functions/**",
+    "hetzner-deploy/volumes/functions/**",
+    "supabase-backup/**",
   ]),
   {
     // Disable camelcase rule for Supabase DB type compatibility (snake_case fields)

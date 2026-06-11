@@ -113,6 +113,19 @@ describe('applyNewVideoThumbnails', () => {
     )
   })
 
+  it('успешный in-budget fallback (200) → persisted:1/allPersisted:true (Story 8.5)', async () => {
+    const result = await applyNewVideoThumbnails([
+      { item: newVideo('v1', 0, null, 'error'), postMediaId: 'm1', videoUrl: 'https://cdn/v1.mp4' },
+    ])
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/admin/generate-thumbnail-fallback',
+      expect.objectContaining({ method: 'POST' })
+    )
+    expect(mockUploadThumbnail).not.toHaveBeenCalled()
+    expect(result).toEqual({ expected: 1, persisted: 1, allPersisted: true })
+  })
+
   it('Canvas-error видео (fallback) считается expected и даёт allPersisted=false без сохранённого poster (Finding 3)', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 501 }))

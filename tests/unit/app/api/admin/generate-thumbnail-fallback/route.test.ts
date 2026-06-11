@@ -14,6 +14,24 @@ vi.mock('@/lib/supabase/server', () => ({
   })),
 }))
 
+// Движок (serverThumbnail) мокируется — реальный импорт тянет 'server-only'.
+// vi.hoisted: класс и мок объявлены до hoisted-вызова vi.mock.
+const { mockRequestServerThumbnail, ServerThumbnailError } = vi.hoisted(() => {
+  class ServerThumbnailError extends Error {
+    readonly status?: number
+    constructor(message: string, status?: number) {
+      super(message)
+      this.name = 'ServerThumbnailError'
+      this.status = status
+    }
+  }
+  return { mockRequestServerThumbnail: vi.fn(), ServerThumbnailError }
+})
+vi.mock('@/lib/media/serverThumbnail', () => ({
+  requestServerThumbnail: (...args: unknown[]) => mockRequestServerThumbnail(...args),
+  ServerThumbnailError,
+}))
+
 import { POST } from '@/app/api/admin/generate-thumbnail-fallback/route'
 
 const VALID_VIDEO_URL =
@@ -33,6 +51,10 @@ describe('POST /api/admin/generate-thumbnail-fallback', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co')
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
     mockSingle.mockResolvedValue({ data: { role: 'admin' } })
+    mockRequestServerThumbnail.mockResolvedValue({
+      thumbnail_url:
+        'https://test.supabase.co/storage/v1/object/public/post_media/thumbnails/m1_thumb.jpg',
+    })
   })
 
   it('возвращает 401 без аутентифицированного пользователя', async () => {
@@ -118,8 +140,37 @@ describe('POST /api/admin/generate-thumbnail-fallback', () => {
     expect(res.status).toBe(400)
   })
 
-  it('возвращает 501 для валидного admin-запроса (извлечение пока не реализовано)', async () => {
+  it('возвращает 200 + thumbnail_url для валидного admin-запроса (вызывает движок)', async () => {
     const res = await POST(makeRequest({ videoUrl: VALID_VIDEO_URL, postMediaId: 'm1' }))
-    expect(res.status).toBe(501)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.thumbnail_url).toContain('thumbnails/m1_thumb.jpg')
+    expect(mockRequestServerThumbnail).toHaveBeenCalledWith({
+      postMediaId: 'm1',
+      videoUrl: VALID_VIDEO_URL,
+    })
+  })
+
+  it('возвращает 502 при сбое движка Edge Function', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockRequestServerThumbnail.mockRejectedValue(new ServerThumbnailError('engine failed', 502))
+    const res = await POST(makeRequest({ videoUrl: VALID_VIDEO_URL, postMediaId: 'm1' }))
+    expect(res.status).toBe(502)
+  })
+
+  it('возвращает 500 при неожиданном 4xx от Edge Function', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockRequestServerThumbnail.mockRejectedValue(new ServerThumbnailError('bad input', 400))
+    const res = await POST(makeRequest({ videoUrl: VALID_VIDEO_URL, postMediaId: 'm1' }))
+    expect(res.status).toBe(500)
+  })
+
+  it('возвращает 502 при сетевом/abort-сбое (не ServerThumbnailError)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const abortErr = new Error('The operation was aborted')
+    abortErr.name = 'AbortError'
+    mockRequestServerThumbnail.mockRejectedValue(abortErr)
+    const res = await POST(makeRequest({ videoUrl: VALID_VIDEO_URL, postMediaId: 'm1' }))
+    expect(res.status).toBe(502)
   })
 })

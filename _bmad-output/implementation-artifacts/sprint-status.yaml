@@ -42,7 +42,7 @@
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
 generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-06-10 (Story 8.5 создана -> ready-for-dev; server-side fallback вынесен из 8.1. Story 8.1 -> in-progress, Full CR — 3 patch action items left)
+last_updated: 2026-06-11 (Story 8.5 -> review: server-side fallback через Supabase Edge Function generate-thumbnail (ffmpeg.wasm st), +30 тестов 1395 зелёных; Subtask 6.2 стенд-верификация — manual pending)
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -215,5 +215,9 @@ development_status:
   8-4-regenerate-and-delete-thumbnail: ready-for-dev
   # 2026-06-10: Создана как дополнительная story — реальная server-side fallback генерация,
   #   отложенная из 8.1 (skeleton 501). Вариант A: Supabase Edge Function + ядро-за-HTTP-контрактом.
-  8-5-server-side-fallback-thumbnail-generation: ready-for-dev
+  # 2026-06-10: Взята в разработку — Edge Function generate-thumbnail (Deno, ffmpeg.wasm st),
+  #   тонкий клиент serverThumbnail.ts, fallback-route 501→200, честный persisted в save-time pipeline.
+  # 2026-06-11: Реализация завершена (+30 тестов, 1395 зелёных) → review. Subtask 6.2 (ручная
+  #   стенд-верификация MOV/HEVC на Hetzner edge-runtime) — manual, ОЖИДАЕТ деплоя на стенд.
+  8-5-server-side-fallback-thumbnail-generation: review
   epic-8-retrospective: backlog

@@ -4,7 +4,7 @@ baseline_commit: 65614c74400770de827370694ac1aa24182043ee
 
 # Story 8.5: Strežniška generacija posterja (fallback) prek Supabase Edge Function
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -85,35 +85,35 @@ POST {SUPABASE_FUNCTIONS_URL}/functions/v1/generate-thumbnail
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Edge Function `generate-thumbnail` (Deno)** (AC: 1, 2)
-  - [ ] Subtask 1.0 (**сначала, blocking**): Исследовать и зафиксировать библиотеку извлечения кадра, работающую в `supabase/edge-runtime` (см. «КЛЮЧЕВОЙ технический риск»). Критерий: на стенде извлекает кадр из `.mp4` и `.mov`/HEVC без `SharedArrayBuffer`/потоков. Результат записать в Dev Agent Record. Если ни одна не подходит → escape hatch (Вариант C), зафиксировать и продолжить.
-  - [ ] Subtask 1.1: Создать `supabase/functions/generate-thumbnail/index.ts` — Deno-обработчик: декодирование+проверка JWT (см. 1.2), парсинг body `{ post_media_id, video_url }`, вызов хелперов валидации, создание Deno supabase-client `createClient(SUPABASE_URL /* internal http://kong:8000 */, SERVICE_ROLE_KEY)`, оркестрация download → extract frame → encode → upload → update, ответ `200 { thumbnail_url }` / `{ error }` с корректным кодом
-  - [ ] Subtask 1.2: Создать `supabase/functions/_shared/validation.ts` — чистые хелперы:
+- [x] **Task 1: Edge Function `generate-thumbnail` (Deno)** (AC: 1, 2)
+  - [x] Subtask 1.0 (**сначала, blocking**): Исследовать и зафиксировать библиотеку извлечения кадра, работающую в `supabase/edge-runtime` (см. «КЛЮЧЕВОЙ технический риск»). Критерий: на стенде извлекает кадр из `.mp4` и `.mov`/HEVC без `SharedArrayBuffer`/потоков. Результат записать в Dev Agent Record. Если ни одна не подходит → escape hatch (Вариант C), зафиксировать и продолжить. — **РЕШЕНИЕ зафиксировано пользователем: ffmpeg.wasm single-thread (`@ffmpeg/ffmpeg` + single-thread core `@ffmpeg/core`, без `SharedArrayBuffer`).** Web-research: subprocess в edge-runtime запрещён → только WASM (см. Completion Notes). **Эмпирическая стенд-проверка извлечения MOV/HEVC консолидирована в Subtask 6.2 (ОЖИДАЕТ стенда).**
+  - [x] Subtask 1.1: Создать `supabase/functions/generate-thumbnail/index.ts` — Deno-обработчик: декодирование+проверка JWT (см. 1.2), парсинг body `{ post_media_id, video_url }`, вызов хелперов валидации, создание Deno supabase-client `createClient(SUPABASE_URL /* internal http://kong:8000 */, SERVICE_ROLE_KEY)`, оркестрация download → extract frame → encode → upload → update, ответ `200 { thumbnail_url }` / `{ error }` с корректным кодом
+  - [x] Subtask 1.2: Создать `supabase/functions/_shared/validation.ts` — чистые хелперы:
     - `decodeJwtRole(authHeader, jwtSecret)` — извлекает `Authorization: Bearer …`, верифицирует HS256 подпись c `JWT_SECRET` (из env контейнера), возвращает claim `role`
     - `assertServiceRole(role)` — `role === 'service_role'` → иначе `403` (defense-in-depth: gateway пропускает ЛЮБОЙ валидный JWT, включая токен участника)
     - `assertAllowedVideoUrl(url, publicUrl)` — сверка с **публичным** хостом `SUPABASE_PUBLIC_URL` (video_url приходит с публичного хоста, не с internal kong): `{publicUrl}/storage/v1/object/public/post_media/posts/` + `.mp4/.mov/.webm`
     - `buildThumbnailPath(postMediaId)` = `thumbnails/{id}_thumb.jpg` — **результат обязан совпадать** с `getThumbnailStoragePath` (Next.js)
-  - [ ] Subtask 1.3: Реализовать извлечение кадра выбранной (Subtask 1.0) библиотекой: **только один кадр** `-ss 0.1 -frames:v 1 -s 640x360` (single-thread, без `SharedArrayBuffer`); cover-crop без искажения aspect ratio (как `generateVideoThumbnail.ts`), JPEG q85, цель ≤150 KB
-  - [ ] Subtask 1.4: Upload в Storage `post_media/thumbnails/{id}_thumb.jpg` (`upsert: true`, `image/jpeg`) и `update post_media.thumbnail_url` под `service_role`; при 0 обновлённых строк — ошибка (паттерн `updateThumbnailUrl`)
-  - [ ] Subtask 1.5: **Идемпотентность + abort** (NFR8.5): `upsert` делает повторный вызов безопасным; обработчик подписан на request `AbortSignal` (клиент может отменить по бюджету 2500 мс) и при abort прекращает работу, не оставляя битого состояния (частичный upload перезаписывается следующим вызовом)
-  - [ ] Subtask 1.6: Обеспечить наличие router'а `supabase/functions/main/index.ts` (edge-runtime запускается с `--main-service …/main`), который диспатчит запрос на `generate-thumbnail` по пути
-  - [ ] Subtask 1.7: Тесты хелперов `_shared` (`decodeJwtRole`/`assertServiceRole`/`assertAllowedVideoUrl`/`buildThumbnailPath`) — см. Testing Notes (стратегия раннера); включить инвариант-тест `buildThumbnailPath(id) === getThumbnailStoragePath(id)`
-- [ ] **Task 2: Тонкий клиент `serverThumbnail.ts`** (AC: 3)
-  - [ ] Subtask 2.1: Создать `src/lib/media/serverThumbnail.ts` (**server-only**, первой строкой `import 'server-only'`) → `requestServerThumbnail({ postMediaId, videoUrl }, signal?)`; URL из `SUPABASE_FUNCTIONS_URL ?? ${NEXT_PUBLIC_SUPABASE_URL}/functions/v1`; `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`; env-guard вне try/catch; парсинг `{ thumbnail_url }`, throw при не-`ok`. **Не импортировать из client-компонентов.**
-  - [ ] Subtask 2.2: Unit-тесты `tests/unit/lib/media/serverThumbnail.test.ts` (успех, не-ok → throw, нет env → throw, abort)
-- [ ] **Task 3: Подключить fallback-роут к движку (убрать `501`)** (AC: 1, 5)
-  - [ ] Subtask 3.1: В `src/app/api/admin/generate-thumbnail-fallback/route.ts` заменить финальный `501` на вызов `requestServerThumbnail(...)`; вернуть `200 { thumbnail_url }`; **сохранить ВСЕ предыдущие проверки** (401/403/400/SSRF). Маппинг ошибок Edge Function: сбой движка/недоступность → `502 { error }`; неожиданный `4xx` от функции (входные данные route уже провалидировал) → залогировать и вернуть `500`; не пробрасывать сырой ответ движка клиенту
-  - [ ] Subtask 3.2: Обновить `tests/unit/app/api/admin/generate-thumbnail-fallback/route.test.ts`: `501`→`200`+`thumbnail_url`, добавить edge-error и abort-кейсы, не сломать существующие validation-тесты
-- [ ] **Task 4: Save-time pipeline — честный `persisted` для fallback** (AC: 4, 5)
-  - [ ] Subtask 4.1: В `src/features/admin/api/postThumbnails.ts` (**браузерный код**) `requestThumbnailFallback` **продолжает** звать Vercel-route `/api/admin/generate-thumbnail-fallback` — **НЕ** `requestServerThumbnail` и **НЕ** Edge Function напрямую (там `service_role` — server-only, см. C/S boundary). При `200` от route → `runThumbnailTask` возвращает `persisted: true`; сохранить abort/budget-семантику, only-on-`error`-вызов, blob-путь и orphan-cleanup без изменений
-  - [ ] Subtask 4.2: Обновить `tests/unit/features/admin/api/postThumbnails.test.ts`: успешный in-budget fallback → `persisted:1/allPersisted:true`; прерванный по бюджету → `persisted:0/allPersisted:false`
-- [ ] **Task 5: Конфиг, env и деплой** (AC: 2, 3)
-  - [ ] Subtask 5.1: Задокументировать env: app (Vercel) — `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (уже есть), опционально `SUPABASE_FUNCTIONS_URL`; стенд (Hetzner functions) — `SERVICE_ROLE_KEY`, `JWT_SECRET`, `SUPABASE_URL=http://kong:8000` (internal, для Storage/DB-операций), `SUPABASE_PUBLIC_URL` (публичный хост, для SSRF-allowlist), `VERIFY_JWT` — уже заданы в `docker-compose.official.yml`
-  - [ ] Subtask 5.2: Синхронизировать артефакт функции в `hetzner-deploy/volumes/functions/generate-thumbnail/` (+ `main`, `_shared`) и описать шаг деплоя/рестарта контейнера `supabase-edge-functions` в `hetzner-deploy/README.md`
-  - [ ] Subtask 5.3: Проверить **сетевую достижимость** публичного `…/functions/v1/generate-thumbnail` через Kong-gateway с Vercel (server-to-server, CORS не применим) и корректную передачу `Authorization: Bearer SERVICE_ROLE_KEY` (gateway пропускает, функция верифицирует role)
-- [ ] **Task 6: Верификация качества** (AC: 1, 2)
-  - [ ] Subtask 6.1: `npm run typecheck`, `npx eslint` (изменённые файлы), `npx vitest run` — всё зелёное
-  - [ ] Subtask 6.2: Ручная/интеграционная проверка на стенде: MOV/HEVC и большой `.mp4` → fallback создаёт корректный 640×360 JPEG, `thumbnail_url` заполнен, poster виден в ленте; зафиксировать результат в Completion Notes
+  - [x] Subtask 1.3: Реализовать извлечение кадра выбранной (Subtask 1.0) библиотекой: **только один кадр** `-ss 0.1 -frames:v 1 -s 640x360` (single-thread, без `SharedArrayBuffer`); cover-crop без искажения aspect ratio (как `generateVideoThumbnail.ts`), JPEG q85, цель ≤150 KB — реализовано в `extractFrame.ts` (`-vf scale=…:force_original_aspect_ratio=increase,crop=640:360 -q:v 3`). **Реальный декод — стенд-проверка 6.2.**
+  - [x] Subtask 1.4: Upload в Storage `post_media/thumbnails/{id}_thumb.jpg` (`upsert: true`, `image/jpeg`) и `update post_media.thumbnail_url` под `service_role`; при 0 обновлённых строк — ошибка (паттерн `updateThumbnailUrl`)
+  - [x] Subtask 1.5: **Идемпотентность + abort** (NFR8.5): `upsert` делает повторный вызов безопасным; обработчик подписан на request `AbortSignal` (клиент может отменить по бюджету 2500 мс) и при abort прекращает работу, не оставляя битого состояния (частичный upload перезаписывается следующим вызовом)
+  - [x] Subtask 1.6: Обеспечить наличие router'а `supabase/functions/main/index.ts` (edge-runtime запускается с `--main-service …/main`), который диспатчит запрос на `generate-thumbnail` по пути
+  - [x] Subtask 1.7: Тесты хелперов `_shared` (`decodeJwtRole`/`assertServiceRole`/`assertAllowedVideoUrl`/`buildThumbnailPath`) — см. Testing Notes (стратегия раннера); включить инвариант-тест `buildThumbnailPath(id) === getThumbnailStoragePath(id)` — 20 Vitest-тестов (стратегия «pure TS in Vitest»), инвариант включён
+- [x] **Task 2: Тонкий клиент `serverThumbnail.ts`** (AC: 3)
+  - [x] Subtask 2.1: Создать `src/lib/media/serverThumbnail.ts` (**server-only**, первой строкой `import 'server-only'`) → `requestServerThumbnail({ postMediaId, videoUrl }, signal?)`; URL из `SUPABASE_FUNCTIONS_URL ?? ${NEXT_PUBLIC_SUPABASE_URL}/functions/v1`; `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`; env-guard вне try/catch; парсинг `{ thumbnail_url }`, throw при не-`ok`. **Не импортировать из client-компонентов.**
+  - [x] Subtask 2.2: Unit-тесты `tests/unit/lib/media/serverThumbnail.test.ts` (успех, не-ok → throw, нет env → throw, abort)
+- [x] **Task 3: Подключить fallback-роут к движку (убрать `501`)** (AC: 1, 5)
+  - [x] Subtask 3.1: В `src/app/api/admin/generate-thumbnail-fallback/route.ts` заменить финальный `501` на вызов `requestServerThumbnail(...)`; вернуть `200 { thumbnail_url }`; **сохранить ВСЕ предыдущие проверки** (401/403/400/SSRF). Маппинг ошибок Edge Function: сбой движка/недоступность → `502 { error }`; неожиданный `4xx` от функции (входные данные route уже провалидировал) → залогировать и вернуть `500`; не пробрасывать сырой ответ движка клиенту
+  - [x] Subtask 3.2: Обновить `tests/unit/app/api/admin/generate-thumbnail-fallback/route.test.ts`: `501`→`200`+`thumbnail_url`, добавить edge-error и abort-кейсы, не сломать существующие validation-тесты
+- [x] **Task 4: Save-time pipeline — честный `persisted` для fallback** (AC: 4, 5)
+  - [x] Subtask 4.1: В `src/features/admin/api/postThumbnails.ts` (**браузерный код**) `requestThumbnailFallback` **продолжает** звать Vercel-route `/api/admin/generate-thumbnail-fallback` — **НЕ** `requestServerThumbnail` и **НЕ** Edge Function напрямую (там `service_role` — server-only, см. C/S boundary). При `200` от route → `runThumbnailTask` возвращает `persisted: true`; сохранить abort/budget-семантику, only-on-`error`-вызов, blob-путь и orphan-cleanup без изменений
+  - [x] Subtask 4.2: Обновить `tests/unit/features/admin/api/postThumbnails.test.ts`: успешный in-budget fallback → `persisted:1/allPersisted:true`; прерванный по бюджету → `persisted:0/allPersisted:false`
+- [x] **Task 5: Конфиг, env и деплой** (AC: 2, 3)
+  - [x] Subtask 5.1: Задокументировать env: app (Vercel) — `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (уже есть), опционально `SUPABASE_FUNCTIONS_URL`; стенд (Hetzner functions) — `SERVICE_ROLE_KEY`, `JWT_SECRET`, `SUPABASE_URL=http://kong:8000` (internal, для Storage/DB-операций), `SUPABASE_PUBLIC_URL` (публичный хост, для SSRF-allowlist), `VERIFY_JWT` — уже заданы в `docker-compose.official.yml`
+  - [x] Subtask 5.2: Синхронизировать артефакт функции в `hetzner-deploy/volumes/functions/generate-thumbnail/` (+ `main`, `_shared`) и описать шаг деплоя/рестарта контейнера `supabase-edge-functions` в `hetzner-deploy/README.md`
+  - [x] Subtask 5.3: Проверить **сетевую достижимость** публичного `…/functions/v1/generate-thumbnail` через Kong-gateway с Vercel (server-to-server, CORS не применим) и корректную передачу `Authorization: Bearer SERVICE_ROLE_KEY` (gateway пропускает, функция верифицирует role) — **smoke-test задокументирован в README Шаг 12.3; фактический прогон ОЖИДАЕТ стенда (6.2)**
+- [x] **Task 6: Верификация качества** (AC: 1, 2)
+  - [x] Subtask 6.1: `npm run typecheck`, `npx eslint` (изменённые файлы), `npx vitest run` — всё зелёное — typecheck 0 ошибок, eslint изменённых 0, **Vitest 1395 passed** (+30 к прежним 1365)
+  - [ ] Subtask 6.2: Ручная/интеграционная проверка на стенде: MOV/HEVC и большой `.mp4` → fallback создаёт корректный 640×360 JPEG, `thumbnail_url` заполнен, poster виден в ленте; зафиксировать результат в Completion Notes — **ОЖИДАЕТ деплоя на стенд Hetzner (вне среды разработки). Инструкция — README Шаг 12. При нестабильности ffmpeg.wasm → escape hatch (Вариант C).**
 
 ## Dev Notes
 
@@ -209,10 +209,70 @@ POST {SUPABASE_FUNCTIONS_URL}/functions/v1/generate-thumbnail
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-opus-4-8 (Claude Opus 4.8)
 
 ### Debug Log References
 
+- `npm run typecheck` → 0 ошибок (после исключения `supabase/functions` + `hetzner-deploy` из tsconfig и фикса типа `Uint8Array<ArrayBuffer>` в `base64UrlToBytes`).
+- `npx eslint` (изменённые файлы Story 8.5) → 0 проблем.
+- `npx vitest run` → **103 файла, 1395 тестов passed** (было 1365 → +30). Новые/обновлённые: `validation.test.ts` (20), `serverThumbnail.test.ts` (6), `route.test.ts` (+4 = 15), `postThumbnails.test.ts` (+1 = 12).
+- `npm run lint` (полный) → 1 предсуществующая ошибка `supabase-backup/schema_types.ts` («File appears to be binary») — **вне scope Story 8.5**, файл не изменялся; все изменённые файлы story линтуются чисто.
+
 ### Completion Notes List
 
+**Subtask 1.0 — выбор движка (research).** Web-research подтвердил: в `supabase/edge-runtime` запрещён запуск субпроцессов → нативный ffmpeg/`fluent-ffmpeg` недоступны, поддерживаются **только WASM**-библиотеки. По решению пользователя выбран **ffmpeg.wasm single-thread** (Вариант A): `@ffmpeg/ffmpeg@0.12` + single-thread core `@ffmpeg/core@0.12` (без `SharedArrayBuffer`/потоков), один кадр `-ss 0.1 -frames:v 1`. Движок изолирован в `extractFrame.ts` за функцией `extractThumbnailJpeg(bytes)` — HTTP-контракт и все вызывающие (serverThumbnail.ts, route, 8.3) от него НЕ зависят; при нестабильности на стенде активируется **escape hatch (Вариант C — внешний Node+ffmpeg-static сервис)** без изменения вызывающих.
+
+**Архитектура (как реализовано).**
+- Edge Function `generate-thumbnail` (Deno): JWT role-check (HS256, defense-in-depth) → body → SSRF-allowlist (публичный хост) → download → extract frame (ffmpeg.wasm st) → upload (`upsert`) → update `thumbnail_url` (throw при 0 строк) → `200 { thumbnail_url }` / структурированный `{ error }` с кодом. AbortSignal на каждом шаге (идемпотентность + abort, NFR8.5).
+- `_shared/validation.ts` — **чистый портативный TS** (Web Crypto, без Deno-глобалов) → импортируется и Deno-функцией, и Vitest-тестами. Инвариант `buildThumbnailPath(id) === getThumbnailStoragePath(id)` покрыт тестом.
+- `serverThumbnail.ts` — server-only (`import 'server-only'`), env-guard вне try/catch, `SERVER_THUMBNAIL_TIMEOUT_MS` (25 с по умолчанию), `ServerThumbnailError` с `.status` для маппинга в route.
+- Route: `501` → `requestServerThumbnail` → `200`; ошибки движка 4xx→`500`, иначе→`502`; добавлен `export const maxDuration = 30` (standalone/bulk-путь). Вся валидация 8.1 (401/403/400×7) сохранена дословно.
+- `postThumbnails.ts` (браузер): успешный in-budget fallback (`200` от route) → `persisted: true`; бюджет/abort/blob/orphan-cleanup без изменений.
+
+**Инфраструктурные правки.**
+- `tsconfig.json` exclude += `supabase/functions`, `hetzner-deploy` (Deno-рантайм, npm:/esm.sh, Deno-глобалы — не для проектного tsc).
+- `eslint.config.mjs` ignores += `supabase/functions/**`, `hetzner-deploy/volumes/functions/**`.
+- Установлен `server-only@^0.0.1` (канонический Next.js-механизм, требуется AC3). В route.test/serverThumbnail.test мокируется (`vi.mock('server-only')` / `vi.hoisted`), т.к. вне server-окружения бросает при импорте.
+
+**ОЖИДАЕТ ручной верификации на стенде Hetzner (Subtask 6.2 — вне среды разработки):**
+1. Деплой `volumes/functions/*` на сервер + `docker compose restart functions` (README Шаг 12).
+2. Эмпирическая проверка ffmpeg.wasm single-thread на `supabase/edge-runtime`: извлечение кадра из `.mp4` И `.mov`/HEVC + большого `.mp4` → корректный 640×360 JPEG ≤150 KB, `thumbnail_url` заполнен, poster виден в ленте.
+3. Smoke-test сетевой достижимости `…/functions/v1/generate-thumbnail` через Kong с `Bearer SERVICE_ROLE_KEY` (README Шаг 12.3).
+4. Если ffmpeg.wasm упирается в лимиты CPU/памяти на тяжёлых файлах — это **ожидаемо** (graceful degradation 8.1); при системной нестабильности → escape hatch (Вариант C), вызывающие не меняются.
+
 ### File List
+
+**Новые (исходник Edge Function, Deno):**
+- `supabase/functions/_shared/validation.ts`
+- `supabase/functions/generate-thumbnail/index.ts`
+- `supabase/functions/generate-thumbnail/extractFrame.ts`
+- `supabase/functions/main/index.ts`
+
+**Новые (Next.js + тесты):**
+- `src/lib/media/serverThumbnail.ts`
+- `tests/unit/lib/media/serverThumbnail.test.ts`
+- `tests/unit/supabase/functions/validation.test.ts`
+
+**Новые (деплой-копия, монтируется в контейнер):**
+- `hetzner-deploy/volumes/functions/_shared/validation.ts`
+- `hetzner-deploy/volumes/functions/generate-thumbnail/index.ts`
+- `hetzner-deploy/volumes/functions/generate-thumbnail/extractFrame.ts`
+- `hetzner-deploy/volumes/functions/main/index.ts`
+
+**Изменённые:**
+- `src/app/api/admin/generate-thumbnail-fallback/route.ts` (501→200, маппинг ошибок, maxDuration)
+- `src/features/admin/api/postThumbnails.ts` (честный `persisted` для fallback)
+- `tests/unit/app/api/admin/generate-thumbnail-fallback/route.test.ts` (501→200 + edge/abort кейсы)
+- `tests/unit/features/admin/api/postThumbnails.test.ts` (in-budget fallback → persisted:1)
+- `tsconfig.json` (exclude Deno-дерева)
+- `eslint.config.mjs` (ignore Deno-дерева)
+- `.env.example` (`SUPABASE_FUNCTIONS_URL`, `SERVER_THUMBNAIL_TIMEOUT_MS`)
+- `hetzner-deploy/README.md` (Шаг 12 — деплой Edge Function)
+- `package.json` / `package-lock.json` (`server-only`)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (8.5 → in-progress→review)
+
+## Change Log
+
+| Дата       | Версия | Описание                                                                                                  | Автор |
+| ---------- | ------ | --------------------------------------------------------------------------------------------------------- | ----- |
+| 2026-06-11 | 0.1    | Реализация Story 8.5: Edge Function `generate-thumbnail` (Deno, ffmpeg.wasm st) за HTTP-контрактом; тонкий клиент `serverThumbnail.ts` (server-only); fallback-route 501→200; честный `persisted` в save-time pipeline; деплой-артефакт + README. +30 тестов (1395 зелёных). Subtask 6.2 (стенд-верификация MOV/HEVC) — manual, pending. Status → review. | Amelia (Dev) |

@@ -330,6 +330,85 @@ docker compose restart kong      # ВАЖНО: Kong кэширует IP auth →
 
 ---
 
+## Шаг 12. Edge Function `generate-thumbnail` (server-side fallback постеров)
+
+Strežniška генерация poster'ов (Story 8.5): когда клиентская Canvas-генерация не
+справилась (MOV/HEVC, большой файл, CORS), Vercel-route
+`/api/admin/generate-thumbnail-fallback` зовёт Edge Function `generate-thumbnail`,
+которая извлекает кадр (ffmpeg.wasm single-thread), кодирует JPEG 640×360 и
+сохраняет в `post_media/thumbnails/{id}_thumb.jpg` + `post_media.thumbnail_url`.
+
+### 12.1. Env (уже в `docker-compose.official.yml`, сервис `functions`)
+
+Дополнительных переменных не требуется — функция читает уже заданные:
+
+```
+JWT_SECRET                 # верификация HS256-подписи Bearer-токена (defense-in-depth)
+SUPABASE_URL=http://kong:8000   # internal — Storage/DB-операции под service_role
+SUPABASE_PUBLIC_URL        # публичный хост — SSRF-allowlist для video_url
+SUPABASE_SERVICE_ROLE_KEY  # service_role (обход RLS для upload + update)
+FUNCTIONS_VERIFY_JWT=true  # gateway проверяет ТОЛЬКО подпись (любой валидный JWT)
+```
+
+> `VERIFY_JWT=true` на gateway пропускает любой валидный JWT (в т.ч. токен обычного
+> участника), поэтому функция **сама** проверяет `role === 'service_role'` → иначе `403`.
+
+### 12.2. Синхронизация артефакта функции на сервер
+
+Исходник функции версионируется в репозитории в `supabase/functions/` и
+**синхронизирован** в `hetzner-deploy/volumes/functions/` (монтируется в контейнер
+как `/home/deno/functions`). Дерево:
+
+```
+volumes/functions/
+  main/index.ts                  # router (--main-service), worker на запрос
+  _shared/validation.ts          # JWT/SSRF/path-хелперы (общие с Next.js по контракту)
+  generate-thumbnail/index.ts    # обработчик: validate → download → extract → upload → update
+  generate-thumbnail/extractFrame.ts  # движок ffmpeg.wasm single-thread
+```
+
+Деплой на сервер (с локальной машины, PowerShell):
+
+```powershell
+$server = "root@YOUR_SERVER_IP"
+scp -r hetzner-deploy/volumes/functions/* $server:/opt/supabase/volumes/functions/
+```
+
+### 12.3. Рестарт контейнера и проверка
+
+```bash
+cd /opt/supabase
+docker compose restart functions
+docker compose logs -f functions    # ждём "main function started" / отсутствие ошибок загрузки
+
+# Smoke-test (изнутри сети, под service_role — публичный путь через Kong):
+curl -i -X POST "$SUPABASE_PUBLIC_URL/functions/v1/generate-thumbnail" \
+  -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"post_media_id":"<id>","video_url":"<SUPABASE_PUBLIC_URL>/storage/v1/object/public/post_media/posts/.../clip.mp4"}'
+# → 200 { "thumbnail_url": "..." }
+```
+
+### 12.4. Env приложения (Vercel)
+
+Контракт вызывается тонким клиентом `src/lib/media/serverThumbnail.ts` (server-only):
+
+```
+NEXT_PUBLIC_SUPABASE_URL        # уже есть — база для {url}/functions/v1
+SUPABASE_SERVICE_ROLE_KEY       # уже есть — Bearer для Edge Function
+SUPABASE_FUNCTIONS_URL          # опционально — переопределить базовый URL функций
+SERVER_THUMBNAIL_TIMEOUT_MS     # опционально — таймаут вызова (по умолчанию 25000)
+```
+
+> **ffmpeg.wasm-риск (Story 8.5).** Извлечение кадра в `supabase/edge-runtime` для
+> тяжёлых/экзотических файлов может упереться в лимиты CPU/памяти — это **ожидаемо**
+> и покрыто graceful degradation 8.1 (публикация сохраняется без poster + toast,
+> poster добавляется позже через 8.2/8.3/8.4). Если на стенде движок нестабилен —
+> escape hatch: вынести генерацию во внешний Node+ffmpeg-static сервис за тем же
+> HTTP-контрактом, **не меняя** вызывающих (`serverThumbnail.ts`, route, 8.3).
+
+---
+
 ## Управление сервером
 
 ### Полезные команды

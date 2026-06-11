@@ -100,7 +100,10 @@ async function runThumbnailTask(
         throw updateErr
       }
     } else if (item.thumbnail_status === 'error') {
+      // 200 от route = Edge Function уже persisted thumbnail_url (в пределах бюджета).
+      // Не-ok/abort → requestThumbnailFallback бросает → persisted:false (catch ниже).
       await requestThumbnailFallback({ videoUrl, postMediaId }, signal)
+      return { postMediaId, persisted: true }
     }
     return { postMediaId, persisted: false }
   } catch (err) {

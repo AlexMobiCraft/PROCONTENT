@@ -1,7 +1,11 @@
 export const dynamic = 'force-dynamic'
+// Standalone/bulk-путь даёт движку больше времени, чем дефолтные 10 с Vercel-route.
+// Save-time fallback всё равно ограничен клиентским бюджетом 2500 мс (AbortController).
+export const maxDuration = 30
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requestServerThumbnail, ServerThumbnailError } from '@/lib/media/serverThumbnail'
 
 interface FallbackBody {
   videoUrl?: string
@@ -63,8 +67,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid videoUrl' }, { status: 400 })
   }
 
-  return NextResponse.json(
-    { error: 'Server-side thumbnail generation is not implemented yet' },
-    { status: 501 }
-  )
+  try {
+    const { thumbnail_url } = await requestServerThumbnail({ postMediaId, videoUrl })
+    return NextResponse.json({ thumbnail_url }, { status: 200 })
+  } catch (err) {
+    const status = err instanceof ServerThumbnailError ? err.status : undefined
+    // Неожиданный 4xx от функции (route уже провалидировал вход) → 500, без проброса
+    // сырого ответа движка клиенту.
+    if (status && status >= 400 && status < 500) {
+      console.error('[generate-thumbnail-fallback] Unexpected 4xx from Edge Function:', err)
+      return NextResponse.json({ error: 'Thumbnail generation failed' }, { status: 500 })
+    }
+    // Сбой движка / недоступность / таймаут → 502.
+    console.error('[generate-thumbnail-fallback] Edge Function failure:', err)
+    return NextResponse.json({ error: 'Thumbnail generation failed' }, { status: 502 })
+  }
 }
