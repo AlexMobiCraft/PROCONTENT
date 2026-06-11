@@ -27,9 +27,14 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: mockCreateAdminClient,
 }))
 
-// Мок глобального fetch
-const mockFetch = vi.fn()
-vi.stubGlobal('fetch', mockFetch)
+// Рассылка вынесена в чистую функцию — cron вызывает её напрямую (без self-fetch).
+const { mockSendNewPostNotification } = vi.hoisted(() => {
+  const mockSendNewPostNotification = vi.fn()
+  return { mockSendNewPostNotification }
+})
+vi.mock('@/lib/notifications/sendNewPostNotification', () => ({
+  sendNewPostNotification: mockSendNewPostNotification,
+}))
 
 import { POST } from '@/app/api/cron/publish/route'
 
@@ -58,8 +63,6 @@ describe('POST /api/cron/publish', () => {
     vi.stubEnv('CRON_SECRET', CRON_SECRET)
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co')
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key')
-    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://procontent.si')
-    vi.stubEnv('NOTIFICATION_API_SECRET', 'notification-secret')
 
     // Дефолтный мок: атомарный UPDATE возвращает опубликованные посты
     mockFrom.mockReturnValue({ update: mockUpdate })
@@ -69,12 +72,7 @@ describe('POST /api/cron/publish', () => {
     mockIs.mockReturnValue({ select: mockSelect })
     mockSelect.mockResolvedValue({ data: PUBLISHED_POSTS, error: null })
 
-    // Дефолтный мок fetch: успешный ответ notifications endpoint (с body для тестирования body.cancel())
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      body: { cancel: vi.fn().mockResolvedValue(undefined) },
-    })
+    mockSendNewPostNotification.mockResolvedValue({ sent: 1, failed: 0 })
   })
 
   // --- AC1: Авторизация ---
@@ -136,37 +134,31 @@ describe('POST /api/cron/publish', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.published).toBe(0)
-    expect(mockFetch).not.toHaveBeenCalled()
+    expect(mockSendNewPostNotification).not.toHaveBeenCalled()
   })
 
-  // --- AC3: Email-уведомления ---
+  // --- AC3: Email-уведомления (прямой вызов функции) ---
 
-  it('вызывает /api/notifications/new-post для каждого опубликованного поста', async () => {
+  it('вызывает sendNewPostNotification для каждого опубликованного поста (без self-fetch)', async () => {
     const req = makeAuthorizedRequest()
     await POST(req)
 
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://procontent.si/api/notifications/new-post',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer notification-secret',
-          'Content-Type': 'application/json',
-        }),
-        body: JSON.stringify({
-          id: PUBLISHED_POSTS[0].id,
-          title: PUBLISHED_POSTS[0].title,
-          excerpt: PUBLISHED_POSTS[0].excerpt,
-        }),
-      })
-    )
+    expect(mockSendNewPostNotification).toHaveBeenCalledTimes(2)
+    expect(mockSendNewPostNotification).toHaveBeenNthCalledWith(1, {
+      id: PUBLISHED_POSTS[0].id,
+      title: PUBLISHED_POSTS[0].title,
+      excerpt: PUBLISHED_POSTS[0].excerpt,
+    })
+    expect(mockSendNewPostNotification).toHaveBeenNthCalledWith(2, {
+      id: PUBLISHED_POSTS[1].id,
+      title: PUBLISHED_POSTS[1].title,
+      excerpt: PUBLISHED_POSTS[1].excerpt,
+    })
   })
 
   // --- AC4: Идемпотентность ---
 
   it('повторный запрос не трогает посты с published_at IS NOT NULL (условие в запросе)', async () => {
-    // Второй запрос возвращает пустой массив (посты уже опубликованы)
     mockSelect.mockResolvedValueOnce({ data: PUBLISHED_POSTS, error: null })
     mockSelect.mockResolvedValueOnce({ data: [], error: null })
 
@@ -178,20 +170,15 @@ describe('POST /api/cron/publish', () => {
     const res2 = await POST(req2)
     expect((await res2.json()).published).toBe(0)
 
-    // Email отправлен только в первый раз
-    expect(mockFetch).toHaveBeenCalledTimes(2) // 2 поста в первом запросе
+    // Рассылка вызвана только в первый раз (2 поста)
+    expect(mockSendNewPostNotification).toHaveBeenCalledTimes(2)
   })
 
-  // --- AC5: Изоляция ошибок email ---
+  // --- AC5: Изоляция ошибок email (один сбой не валит остальные) ---
 
-  it('сбой email одного поста не прерывает остальные, emailErrors содержит ошибку', async () => {
-    // Первый fetch бросает исключение, второй успешен
-    mockFetch.mockRejectedValueOnce(new Error('Network error'))
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      body: { cancel: vi.fn().mockResolvedValue(undefined) },
-    })
+  it('сбой рассылки одного поста не прерывает остальные, emailErrors содержит ошибку', async () => {
+    mockSendNewPostNotification.mockRejectedValueOnce(new Error('Resend down'))
+    mockSendNewPostNotification.mockResolvedValueOnce({ sent: 1, failed: 0 })
 
     const req = makeAuthorizedRequest()
     const res = await POST(req)
@@ -200,39 +187,17 @@ describe('POST /api/cron/publish', () => {
 
     // Оба поста опубликованы (DB-обновление было атомарным)
     expect(body.published).toBe(2)
-    // Ошибка email записана
     expect(body.emailErrors).toHaveLength(1)
     expect(body.emailErrors[0].postId).toBe(PUBLISHED_POSTS[0].id)
-    expect(body.emailErrors[0].error).toContain('Network error')
-    // Второй fetch всё равно вызван
-    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(body.emailErrors[0].error).toContain('Resend down')
+    // Второй вызов всё равно выполнен
+    expect(mockSendNewPostNotification).toHaveBeenCalledTimes(2)
   })
 
-  it('HTTP 4xx/5xx от notifications endpoint добавляется в emailErrors', async () => {
-    const mockCancel = vi.fn().mockResolvedValue(undefined)
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, body: { cancel: mockCancel } })
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      body: { cancel: vi.fn().mockResolvedValue(undefined) },
-    })
-
-    const req = makeAuthorizedRequest()
-    const res = await POST(req)
-    expect(res.status).toBe(200)
-    const body = await res.json()
-
-    expect(body.published).toBe(2)
-    expect(body.emailErrors).toHaveLength(1)
-    expect(body.emailErrors[0].postId).toBe(PUBLISHED_POSTS[0].id)
-    expect(body.emailErrors[0].error).toContain('HTTP 401')
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-    // Проверяем что body.cancel() был вызван для потребления response body
-    expect(mockCancel).toHaveBeenCalledTimes(1)
-  })
-
-  it('при отсутствии NEXT_PUBLIC_SITE_URL все посты попадают в emailErrors', async () => {
-    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '')
+  it('env-guard ошибка функции (нет NEXT_PUBLIC_SITE_URL) попадает в emailErrors per-post', async () => {
+    mockSendNewPostNotification.mockRejectedValue(
+      new Error('[notifications] NEXT_PUBLIC_SITE_URL is not configured')
+    )
 
     const req = makeAuthorizedRequest()
     const res = await POST(req)
@@ -241,41 +206,7 @@ describe('POST /api/cron/publish', () => {
 
     expect(body.published).toBe(2)
     expect(body.emailErrors).toHaveLength(2)
-    expect(mockFetch).not.toHaveBeenCalled()
-  })
-
-  it('при отсутствии NOTIFICATION_API_SECRET все посты попадают в emailErrors', async () => {
-    vi.stubEnv('NOTIFICATION_API_SECRET', '')
-
-    const req = makeAuthorizedRequest()
-    const res = await POST(req)
-    expect(res.status).toBe(200)
-    const body = await res.json()
-
-    expect(body.published).toBe(2)
-    expect(body.emailErrors).toHaveLength(2)
-    expect(mockFetch).not.toHaveBeenCalled()
-  })
-
-  it('timeout fetch (AbortError) добавляется в emailErrors', async () => {
-    const abortError = new DOMException('The operation was aborted.', 'AbortError')
-    mockFetch.mockRejectedValueOnce(abortError)
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      body: { cancel: vi.fn().mockResolvedValue(undefined) },
-    })
-
-    const req = makeAuthorizedRequest()
-    const res = await POST(req)
-    expect(res.status).toBe(200)
-    const body = await res.json()
-
-    expect(body.published).toBe(2)
-    expect(body.emailErrors).toHaveLength(1)
-    expect(body.emailErrors[0].postId).toBe(PUBLISHED_POSTS[0].id)
-    expect(body.emailErrors[0].error).toContain('AbortError')
-    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(body.emailErrors[0].error).toContain('NEXT_PUBLIC_SITE_URL')
   })
 
   // --- Обработка ошибок БД ---

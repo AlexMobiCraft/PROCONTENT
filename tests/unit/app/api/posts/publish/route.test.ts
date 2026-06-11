@@ -22,8 +22,14 @@ vi.mock('@/lib/supabase/server', () => ({
   })),
 }))
 
-const mockFetch = vi.fn()
-vi.stubGlobal('fetch', mockFetch)
+// Рассылка вынесена в чистую функцию — route вызывает её напрямую (без self-fetch).
+const { mockSendNewPostNotification } = vi.hoisted(() => {
+  const mockSendNewPostNotification = vi.fn()
+  return { mockSendNewPostNotification }
+})
+vi.mock('@/lib/notifications/sendNewPostNotification', () => ({
+  sendNewPostNotification: mockSendNewPostNotification,
+}))
 
 import { POST } from '@/app/api/posts/publish/route'
 
@@ -48,8 +54,6 @@ describe('POST /api/posts/publish', () => {
     vi.clearAllMocks()
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co')
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key')
-    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://procontent.si')
-    vi.stubEnv('NOTIFICATION_API_SECRET', 'test-notification-secret')
 
     // Default: authenticated user
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } } })
@@ -67,11 +71,7 @@ describe('POST /api/posts/publish', () => {
       return {}
     })
 
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      body: { cancel: vi.fn().mockResolvedValue(undefined) },
-    })
+    mockSendNewPostNotification.mockResolvedValue({ sent: 1, failed: 0 })
   })
 
   it('возвращает 401 без аутентифицированного пользователя', async () => {
@@ -124,28 +124,27 @@ describe('POST /api/posts/publish', () => {
     expect(body.published).toBe(true)
   })
 
-  it('вызывает email notification после публикации', async () => {
+  it('вызывает sendNewPostNotification напрямую (без HTTP self-fetch)', async () => {
     const req = makeRequest({ postId: 'post-sched-1' })
     await POST(req)
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://procontent.si/api/notifications/new-post',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ id: 'post-sched-1', title: 'Scheduled Post', excerpt: 'An excerpt' }),
-      })
-    )
+    expect(mockSendNewPostNotification).toHaveBeenCalledOnce()
+    expect(mockSendNewPostNotification).toHaveBeenCalledWith({
+      id: 'post-sched-1',
+      title: 'Scheduled Post',
+      excerpt: 'An excerpt',
+    })
   })
 
-  it('возвращает emailError при сбое notification', async () => {
-    mockFetch.mockRejectedValueOnce(new Error('Network error'))
+  it('не откатывает публикацию при сбое рассылки (emailError заполнен, published=true)', async () => {
+    mockSendNewPostNotification.mockRejectedValueOnce(new Error('Resend down'))
 
     const req = makeRequest({ postId: 'post-sched-1' })
     const res = await POST(req)
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.published).toBe(true)
-    expect(body.emailError).toContain('Network error')
+    expect(body.emailError).toContain('Resend down')
   })
 
   it('возвращает 500 при отсутствии Supabase env vars', async () => {

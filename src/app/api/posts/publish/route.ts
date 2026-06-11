@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
+import { sendNewPostNotification } from '@/lib/notifications/sendNewPostNotification'
 import type { Database } from '@/types/supabase'
 
 function createAdminClient() {
@@ -91,44 +92,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Database error' }, { status: 500 })
   }
 
-  // Send email notification
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-  const notificationSecret = process.env.NOTIFICATION_API_SECRET
-
+  // Send email notification — прямой вызов функции (без HTTP self-fetch).
+  // Провал рассылки изолируется и НЕ откатывает публикацию поста.
   let emailError: string | null = null
 
-  if (siteUrl && notificationSecret) {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10_000)
-
-      let response: Response
-      try {
-        response = await fetch(`${siteUrl}/api/notifications/new-post`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${notificationSecret}`,
-          },
-          body: JSON.stringify({ id: post.id, title: post.title, excerpt: post.excerpt }),
-          signal: controller.signal,
-        })
-      } finally {
-        clearTimeout(timeoutId)
-      }
-
-      const status = response.status
-      const ok = response.ok
-      await response.body?.cancel()
-      if (!ok) {
-        throw new Error(`HTTP ${status}`)
-      }
-    } catch (err) {
-      console.error(`[publish] Email failed for post ${post.id}:`, err)
-      emailError = String(err)
-    }
-  } else {
-    emailError = 'Notification env vars not configured'
+  try {
+    await sendNewPostNotification({ id: post.id, title: post.title, excerpt: post.excerpt })
+  } catch (err) {
+    console.error(`[publish] Email failed for post ${post.id}:`, err)
+    emailError = err instanceof Error ? err.message : String(err)
   }
 
   return NextResponse.json({ published: true, emailError })
