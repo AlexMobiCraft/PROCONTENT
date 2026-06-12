@@ -60,3 +60,5 @@ supabase/seed_gallery_test_2_4.sql
 
 # Media files (large binaries)
 public/feedback
+
+.vercel

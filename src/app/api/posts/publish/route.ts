@@ -94,14 +94,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Send email notification — прямой вызов функции (без HTTP self-fetch).
   // Провал рассылки изолируется и НЕ откатывает публикацию поста.
+  // emailError — hard-ошибка (throw: нет env / ошибка БД).
+  // emailFailed — число писем, не доставленных без throw (partial-fail Resend),
+  // иначе теряется молча (sendNewPostNotification возвращает { sent, failed }).
   let emailError: string | null = null
+  let emailFailed = 0
 
   try {
-    await sendNewPostNotification({ id: post.id, title: post.title, excerpt: post.excerpt })
+    const result = await sendNewPostNotification({
+      id: post.id,
+      title: post.title,
+      excerpt: post.excerpt,
+    })
+    emailFailed = result.failed
   } catch (err) {
     console.error(`[publish] Email failed for post ${post.id}:`, err)
     emailError = err instanceof Error ? err.message : String(err)
   }
 
-  return NextResponse.json({ published: true, emailError })
+  return NextResponse.json({ published: true, emailError, emailFailed })
 }

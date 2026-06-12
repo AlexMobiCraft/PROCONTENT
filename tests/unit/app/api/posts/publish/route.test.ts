@@ -147,6 +147,18 @@ describe('POST /api/posts/publish', () => {
     expect(body.emailError).toContain('Resend down')
   })
 
+  it('пробрасывает emailFailed при partial-fail рассылки (без throw)', async () => {
+    mockSendNewPostNotification.mockResolvedValueOnce({ sent: 0, failed: 3 })
+
+    const req = makeRequest({ postId: 'post-sched-1' })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.published).toBe(true)
+    expect(body.emailError).toBeNull()
+    expect(body.emailFailed).toBe(3)
+  })
+
   it('возвращает 500 при отсутствии Supabase env vars', async () => {
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '')
 

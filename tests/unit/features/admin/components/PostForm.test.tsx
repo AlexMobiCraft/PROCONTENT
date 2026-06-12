@@ -24,6 +24,8 @@ vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
   },
 }))
 
@@ -865,6 +867,126 @@ describe('PostForm scheduling toggle', () => {
         })
       )
     })
+
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('PostForm immediate-publish email notification surfacing', () => {
+  const scheduledInitialData = {
+    id: 'sched-post-1',
+    title: 'Scheduled Post',
+    category: 'stories',
+    status: 'scheduled' as const,
+    scheduled_at: '2027-06-15T12:30:00.000Z',
+    post_media: [],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetCategories.mockResolvedValue(testCategories)
+    mockUpdatePost.mockResolvedValue(undefined)
+  })
+
+  async function publishScheduledNow(publishResponse: {
+    ok: boolean
+    body: Record<string, unknown>
+  }) {
+    const user = userEvent.setup()
+    const mockFetchFn = vi.fn().mockResolvedValue({
+      ok: publishResponse.ok,
+      json: () => Promise.resolve(publishResponse.body),
+    })
+    vi.stubGlobal('fetch', mockFetchFn)
+
+    render(<PostForm mode="edit" initialData={scheduledInitialData} />)
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+
+    await user.click(screen.getByRole('button', { name: /objavi zdaj/i }))
+    await user.click(screen.getByRole('button', { name: /shrani/i }))
+
+    await waitFor(() => {
+      expect(mockFetchFn).toHaveBeenCalledWith(
+        '/api/posts/publish',
+        expect.anything()
+      )
+    })
+  }
+
+  it('shows warning toast on hard email error (emailError set), still navigates', async () => {
+    const { toast } = await import('sonner')
+
+    await publishScheduledNow({
+      ok: true,
+      body: {
+        published: true,
+        emailError: '[notifications] NOTIFICATION_API_SECRET is not configured',
+        emailFailed: 0,
+      },
+    })
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith(
+        'Objava je bila objavljena, vendar e-poštna obvestila niso bila poslana.'
+      )
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed')
+
+    vi.unstubAllGlobals()
+  })
+
+  it('shows warning toast on partial-fail (emailFailed > 0 without throw)', async () => {
+    const { toast } = await import('sonner')
+
+    await publishScheduledNow({
+      ok: true,
+      body: { published: true, emailError: null, emailFailed: 2 },
+    })
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledOnce()
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed')
+
+    vi.unstubAllGlobals()
+  })
+
+  it('shows success toast (no warning) when delivery is clean', async () => {
+    const { toast } = await import('sonner')
+
+    await publishScheduledNow({
+      ok: true,
+      body: { published: true, emailError: null, emailFailed: 0 },
+    })
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Objava je bila objavljena')
+    })
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed')
+
+    vi.unstubAllGlobals()
+  })
+
+  it('regression: shows error toast and does not navigate when publish itself fails', async () => {
+    const { toast } = await import('sonner')
+
+    await publishScheduledNow({
+      ok: false,
+      body: { error: 'Napaka pri objavi' },
+    })
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Napaka pri objavi')
+    })
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(mockRouterPush).not.toHaveBeenCalled()
 
     vi.unstubAllGlobals()
   })

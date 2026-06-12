@@ -309,6 +309,8 @@ export function PostForm(props: PostFormProps) {
           editor: editorValue,
         })
 
+        let notificationFailed = false
+
         if (isImmediatePublish) {
           const response = await fetch('/api/posts/publish', {
             method: 'POST',
@@ -316,17 +318,30 @@ export function PostForm(props: PostFormProps) {
             body: JSON.stringify({ postId: initialData.id }),
           })
 
+          const data = await response.json().catch(() => ({}))
+
           if (!response.ok) {
-            const data = await response.json().catch(() => ({}))
             throw new Error(data.error ?? 'Napaka pri objavi')
           }
+
+          // Публикация состоялась (200). Провал рассылки не откатывает пост,
+          // но ОБЯЗАН быть виден: hard-ошибка (emailError) или partial-fail
+          // (emailFailed > 0, без throw) — иначе сбой проглатывается молча.
+          notificationFailed =
+            Boolean(data.emailError) || (data.emailFailed ?? 0) > 0
         }
 
-        toast.success(
-          isImmediatePublish
-            ? 'Objava je bila objavljena'
-            : 'Objava je bila posodobljena'
-        )
+        if (notificationFailed) {
+          toast.warning(
+            'Objava je bila objavljena, vendar e-poštna obvestila niso bila poslana.'
+          )
+        } else {
+          toast.success(
+            isImmediatePublish
+              ? 'Objava je bila objavljena'
+              : 'Objava je bila posodobljena'
+          )
+        }
       } else {
         await createPost({
           formValues: parsed.data,

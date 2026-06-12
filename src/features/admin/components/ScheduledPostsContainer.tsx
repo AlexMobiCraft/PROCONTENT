@@ -44,9 +44,18 @@ export function ScheduledPostsContainer({ initialPosts }: ScheduledPostsContaine
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ postId: id }),
       })
+      const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
         throw new Error(body?.error ?? `Napaka pri objavi (${res.status})`)
+      }
+
+      // Пост опубликован (строку не возвращаем). Провал рассылки не откатывает
+      // публикацию, но ОБЯЗАН быть виден: hard-ошибка (emailError) или
+      // partial-fail (emailFailed > 0, без throw) — иначе сбой теряется молча.
+      if (body?.emailError || (body?.emailFailed ?? 0) > 0) {
+        toast.warning(
+          'Objava je bila objavljena, vendar e-poštna obvestila niso bila poslana.'
+        )
       }
     } catch (err) {
       setPosts(snapshot)

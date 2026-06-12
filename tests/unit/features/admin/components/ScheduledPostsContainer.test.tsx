@@ -14,8 +14,12 @@ vi.mock('@/features/admin/api/posts', () => ({
 }))
 
 const mockToastError = vi.fn()
+const mockToastWarning = vi.fn()
 vi.mock('sonner', () => ({
-  toast: { error: (...args: unknown[]) => mockToastError(...args) },
+  toast: {
+    error: (...args: unknown[]) => mockToastError(...args),
+    warning: (...args: unknown[]) => mockToastWarning(...args),
+  },
 }))
 
 global.fetch = vi.fn()
@@ -108,6 +112,59 @@ describe('ScheduledPostsContainer', () => {
 
     await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Publish failed'))
     expect(screen.getByText('Prva objava')).toBeInTheDocument()
+    expect(mockToastWarning).not.toHaveBeenCalled()
+  })
+
+  it('handlePublishNow: hard-ошибка рассылки (emailError) — warning, строка остаётся удалённой', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        published: true,
+        emailError: '[notifications] NOTIFICATION_API_SECRET is not configured',
+        emailFailed: 0,
+      }),
+    })
+    render(<ScheduledPostsContainer initialPosts={[post1]} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /Objavi zdaj/i }))
+
+    await waitFor(() =>
+      expect(mockToastWarning).toHaveBeenCalledWith(
+        'Objava je bila objavljena, vendar e-poštna obvestila niso bila poslana.'
+      )
+    )
+    expect(screen.queryByText('Prva objava')).not.toBeInTheDocument()
+    expect(mockToastError).not.toHaveBeenCalled()
+  })
+
+  it('handlePublishNow: partial-fail (emailFailed > 0) — warning', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ published: true, emailError: null, emailFailed: 3 }),
+    })
+    render(<ScheduledPostsContainer initialPosts={[post1]} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /Objavi zdaj/i }))
+
+    await waitFor(() => expect(mockToastWarning).toHaveBeenCalledOnce())
+    expect(screen.queryByText('Prva objava')).not.toBeInTheDocument()
+    expect(mockToastError).not.toHaveBeenCalled()
+  })
+
+  it('handlePublishNow: чистая доставка — ни warning, ни error, строка удалена', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ published: true, emailError: null, emailFailed: 0 }),
+    })
+    render(<ScheduledPostsContainer initialPosts={[post1]} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /Objavi zdaj/i }))
+
+    await waitFor(() =>
+      expect(screen.queryByText('Prva objava')).not.toBeInTheDocument()
+    )
+    expect(mockToastWarning).not.toHaveBeenCalled()
+    expect(mockToastError).not.toHaveBeenCalled()
   })
 
   it('handleEdit: вызывает router.push с корректным путём', async () => {
