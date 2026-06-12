@@ -6,6 +6,7 @@ import {
   getAuthSuccessRedirectPath,
   INACTIVE_PATH,
   isPublicPath,
+  isSelfAuthenticatedApiPath,
   LOGIN_PATH,
   ROOT_PATH,
 } from '@/lib/app-routes'
@@ -104,6 +105,14 @@ function redirectWithCookies(url: URL, supabaseResponse: NextResponse): NextResp
 }
 
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
+  // Self-authenticating серверные эндпоинты (cron, Stripe-вебхуки, checkout)
+  // авторизуются сами и не используют пользовательскую сессию. Пропускаем их
+  // насквозь до env-guard и getUser — иначе запрос без cookies даёт ложный
+  // AuthSessionMissingError в логах ("[middleware] User check error").
+  if (isSelfAuthenticatedApiPath(request.nextUrl.pathname)) {
+    return NextResponse.next({ request })
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 

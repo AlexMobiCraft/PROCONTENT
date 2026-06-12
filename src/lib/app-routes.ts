@@ -15,6 +15,13 @@ export const PUBLIC_PATHS = [ROOT_PATH, LOGIN_PATH, INACTIVE_PATH, '/update-pass
 
 const PUBLIC_PATH_PREFIXES = ['/auth/', '/api/webhooks/', '/api/checkout', '/api/cron/'] as const
 
+// Self-authenticating серверные эндпоинты: авторизуются сами (CRON_SECRET,
+// подпись Stripe-вебхука) и не используют пользовательскую сессию Supabase.
+// Прокси прогоняет их насквозь, не вызывая getUser — иначе для запроса без
+// cookies в лог попадает ложный AuthSessionMissingError.
+// NB: '/auth/' сюда НЕ входит — auth-коллбэки работают с сессией.
+const SELF_AUTHENTICATED_API_PREFIXES = ['/api/webhooks/', '/api/checkout', '/api/cron/'] as const
+
 function normalizeInternalPath(path: string | undefined, fallback: string) {
   if (!path || !path.startsWith('/')) {
     return fallback
@@ -35,4 +42,8 @@ export function isPublicPath(pathname: string) {
     PUBLIC_PATHS.includes(pathname as (typeof PUBLIC_PATHS)[number]) ||
     PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   )
+}
+
+export function isSelfAuthenticatedApiPath(pathname: string) {
+  return SELF_AUTHENTICATED_API_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }

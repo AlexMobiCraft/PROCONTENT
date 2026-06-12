@@ -167,6 +167,49 @@ describe('middleware', () => {
     })
   })
 
+  // Fix: self-authenticating API (cron/webhooks/checkout) не должны прогоняться
+  // через auth-логику — иначе запрос без cookies логирует ложный
+  // AuthSessionMissingError ("[middleware] User check error").
+  describe('self-authenticating API (passthrough без getUser)', () => {
+    const selfAuthPaths = [
+      'http://localhost:3000/api/cron/publish',
+      'http://localhost:3000/api/webhooks/stripe',
+      'http://localhost:3000/api/checkout',
+    ]
+
+    it.each(selfAuthPaths)('пропускает %s насквозь без вызова getUser', async (url) => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest(url, { method: 'POST' })
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+      expect(mockGetUser).not.toHaveBeenCalled()
+      expect(mockFrom).not.toHaveBeenCalled()
+    })
+
+    it('пропускает self-auth API даже при отсутствии Supabase env (не редиректит на /login)', async () => {
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL
+      delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+      const req = new NextRequest('http://localhost:3000/api/cron/publish', { method: 'POST' })
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+      expect(mockGetUser).not.toHaveBeenCalled()
+    })
+
+    it('не затрагивает /auth/ префикс (auth-коллбэки используют сессию)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/auth/callback')
+      await updateSession(req)
+
+      // /auth/ — публичный, но НЕ self-auth: getUser должен вызываться
+      expect(mockGetUser).toHaveBeenCalled()
+    })
+  })
+
   describe('потеря сессии при редиректе', () => {
     it('редирект неавторизованного возвращает корректный Location', async () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
