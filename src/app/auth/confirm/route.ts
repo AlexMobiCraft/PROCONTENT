@@ -135,6 +135,7 @@ export async function GET(request: NextRequest) {
                       stripe_customer_id: customerId,
                       stripe_subscription_id: sub.id,
                       current_period_end: currentPeriodEnd, // F2: явный null если нет значения
+                      is_vip: false, // Rule 2: оплата снимает VIP тем же statement (инвариант chk_vip_xor_active)
                     },
                     { count: 'exact' } // F3: отслеживаем кол-во обновлённых строк
                   )

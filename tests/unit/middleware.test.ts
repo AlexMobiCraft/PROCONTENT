@@ -545,6 +545,62 @@ describe('middleware', () => {
     })
   })
 
+  // [Review][VIP] access-gate: is_vip как независимый источник доступа (spec-vip-user-management)
+  describe('VIP access-gate (is_vip)', () => {
+    const mockUser = { id: 'user-123', email: 'vip@example.com' }
+
+    it('пропускает VIP-пользователя (is_vip=true) с inactive подпиской на /feed', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({
+        data: { subscription_status: 'inactive', role: 'member', is_vip: true },
+      })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).not.toBe(307)
+    })
+
+    it('кэширует effective-access VIP как active (кука __sub_status)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({
+        data: { subscription_status: 'inactive', role: 'member', is_vip: true },
+      })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      // VIP с inactive-статусом не должен уйти на /inactive из кэш-fast-path
+      expect(response.cookies.get('__sub_status')?.value).toMatch(/^user-123:active:.+/)
+    })
+
+    it('редиректит VIP с /inactive на /feed ДО обращения к Stripe (источник истины — is_vip)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({
+        data: { subscription_status: 'inactive', role: 'member', is_vip: true },
+      })
+
+      const req = new NextRequest('http://localhost:3000/inactive')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/feed')
+    })
+
+    it('блокирует не-VIP inactive пользователя на /feed (is_vip=false)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: mockUser } })
+      mockSingle.mockResolvedValue({
+        data: { subscription_status: 'inactive', role: 'member', is_vip: false },
+      })
+
+      const req = new NextRequest('http://localhost:3000/feed')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('http://localhost:3000/inactive')
+    })
+  })
+
   // [AI-Review][Medium] Fix Round 9: UX Dead-End на /inactive
   describe('/inactive — перенаправление active пользователей', () => {
     const mockUser = { id: 'user-123', email: 'test@example.com' }

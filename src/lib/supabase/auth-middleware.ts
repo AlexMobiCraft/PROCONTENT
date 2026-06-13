@@ -256,6 +256,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
                   stripe_customer_id: customerId,
                   stripe_subscription_id: sub.id,
                   current_period_end: currentPeriodEnd,
+                  is_vip: false, // Rule 2: оплата снимает VIP тем же statement (chk_vip_xor_active)
                 })
                 .eq('id', user.id)
               

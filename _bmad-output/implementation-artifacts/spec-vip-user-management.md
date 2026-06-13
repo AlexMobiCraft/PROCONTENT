@@ -2,7 +2,7 @@
 title: 'VIP-пользователи: создание по приглашению, приостановка и удаление администратором'
 type: 'feature'
 created: '2026-06-12'
-status: 'done'
+status: 'in-progress'
 baseline_commit: '01e680944d2a192f37d46c2d8e6b5efe69549ec8'
 context:
   - '{project-root}/_bmad-output/project-context.md'
@@ -107,9 +107,20 @@ context:
 - Given VIP приостановлен (`is_vip=false`), when кэш-кука `__sub_status` истекает (≤TTL, дефолт 30 c) и middleware читает БД, then редирект на `/inactive`. Отзыв не мгновенный — лаг ≤TTL осознанно принят.
 - Given админ удаляет VIP с подтверждением, when DELETE завершён, then auth-юзер и профиль отсутствуют, строка исчезает.
 
+### Review Findings
+
+- [x] [Review][Patch] RLS helper `is_active_subscriber()` не учитывает `is_vip`, поэтому VIP проходит middleware, но блокируется RLS на `posts`/`post_media`/`post_comments` [supabase/migrations/045_add_is_vip_to_profiles.sql:7] → **Fixed:** новая миграция [`046_vip_access_in_rls.sql`](../../supabase/migrations/046_vip_access_in_rls.sql) переопределяет `is_active_subscriber()` с предикатом `is_vip = true OR subscription_status IN ('active','trialing')`, сохраняя `SET search_path`. **Требует применения к боевой self-hosted БД через `/pg/query`.**
+- [x] [Review][Patch] `/auth/confirm` fallback активирует Stripe-подписку без `is_vip=false` в том же UPDATE, из-за чего VIP→paid fallback нарушает `chk_vip_xor_active` и не снимает VIP [src/app/auth/confirm/route.ts:130] → **Fixed:** `is_vip: false` добавлен в тот же `updateData` (Rule 2). Тот же защитный фикс внесён в зеркальный write-site `auth-middleware.ts` /inactive-fallback (хотя VIP туда не доходит из-за early-return — страховка от регресса).
+- [x] [Review][Patch] Unit tests не покрывают фактический VIP access-gate через RLS/middleware и не поймали отсутствие `is_vip` в `is_active_subscriber()` [tests/unit/admin/vip.test.ts:223] → **Fixed:** добавлен блок `VIP access-gate (is_vip)` в [`middleware.test.ts`](../../tests/unit/middleware.test.ts) (VIP с inactive проходит /feed, редирект /inactive→/feed без Stripe, effective-access кэш, не-VIP блокируется) + регресс-блок `RLS access-gate (миграция 046)` в [`vip.test.ts`](../../tests/unit/admin/vip.test.ts), проверяющий `is_vip` в предикате `is_active_subscriber()`.
+- [~] [Review][Patch] Новая VIP-реализация добавляет комментарии в код и SQL вопреки project rule `No comments unless explicitly requested` [src/app/api/admin/vip/route.ts:11] → **Отклонено (ложное срабатывание):** в проекте такого правила нет. `CLAUDE.md` и `project-context.md` прямо предписывают вести комментарии на русском; весь кодбейс ими насыщен (`auth/confirm` с метками F1–F10, все SQL-миграции, middleware). Снятие комментариев только с VIP-файлов рассинхронизировало бы их со стилем проекта. Комментарии оставлены намеренно.
+
 ## Spec Change Log
 
-_Пусто — изменений по итогам review-циклов пока нет._
+**Review cycle 1 (2026-06-13):**
+- **RLS-паритет VIP (миграция 046):** `is_active_subscriber()` теперь пускает `is_vip=true` наравне с активной/триальной подпиской. Закрывает разрыв: VIP проходил middleware, но RLS отдавал пустой контент. _Требует применения DDL к боевой self-hosted БД._
+- **Rule 2 в auth-путях:** `/auth/confirm` (и зеркальный middleware /inactive-fallback) при записи active/trialing теперь ставит `is_vip=false` тем же statement — закрывает нарушение `chk_vip_xor_active` для сценария VIP→оплата вне Stripe-вебхука.
+- **Покрытие тестами:** добавлены тесты VIP access-gate (middleware) и регресс-проверка предиката `is_active_subscriber()` (чтение миграции 046).
+- **Отклонено:** замечание о комментариях — ложное срабатывание (см. Review Findings); правило `No comments` в проекте отсутствует, комментарии на русском обязательны по `CLAUDE.md`.
 
 ## Design Notes
 

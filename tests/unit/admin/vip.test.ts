@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { NextRequest } from 'next/server'
 
 // --- Моки ---
@@ -217,6 +219,31 @@ describe('/api/admin/vip', () => {
       const res = await DELETE(makeRequest('DELETE', {}))
       expect(res.status).toBe(400)
     })
+  })
+})
+
+// [Review][VIP] RLS-паритет: is_active_subscriber() должен пускать VIP, иначе VIP
+// проходит middleware, но RLS на posts/post_media/post_comments отдаёт пусто.
+describe('RLS access-gate (миграция 046)', () => {
+  const sql = readFileSync(
+    join(process.cwd(), 'supabase/migrations/046_vip_access_in_rls.sql'),
+    'utf-8'
+  )
+
+  it('переопределяет is_active_subscriber()', () => {
+    expect(sql).toMatch(/CREATE OR REPLACE FUNCTION public\.is_active_subscriber\(\)/)
+  })
+
+  it('предикат доступа включает is_vip (паритет VIP в RLS)', () => {
+    expect(sql).toMatch(/is_vip\s*=\s*true/)
+  })
+
+  it('сохраняет доступ по активной/триальной подписке', () => {
+    expect(sql).toMatch(/subscription_status IN \('active', 'trialing'\)/)
+  })
+
+  it('сохраняет SET search_path (защита SECURITY DEFINER, см. миграцию 010)', () => {
+    expect(sql).toMatch(/SET search_path = public/)
   })
 })
 
