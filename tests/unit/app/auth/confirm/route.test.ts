@@ -154,4 +154,21 @@ describe('GET /auth/confirm', () => {
     // Stripe-синхронизация пропускается для recovery — пользователь уже зарегистрирован
     expect(mockGetUser).not.toHaveBeenCalled()
   })
+
+  // VIP-приглашение (inviteUserByEmail) — письмо ведёт на установку пароля
+  it('редиректит на /update-password при успехе если type=invite (VIP)', async () => {
+    const response = await GET(makeRequest('token_hash=test-token&type=invite'))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('http://localhost:3000/update-password')
+  })
+
+  it('не вызывает getUser и Stripe при успешной верификации type=invite (новый VIP без Stripe)', async () => {
+    const response = await GET(makeRequest('token_hash=test-token&type=invite'))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('http://localhost:3000/update-password')
+    expect(mockGetUser).not.toHaveBeenCalled()
+    expect(mockVerifyOtp).toHaveBeenCalledWith({ type: 'invite', token_hash: 'test-token' })
+  })
 })

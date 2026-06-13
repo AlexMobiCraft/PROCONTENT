@@ -30,9 +30,10 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get('token_hash')
   const code = searchParams.get('code')
   const type = searchParams.get('type') as EmailOtpType | null
-  // type=recovery (сброс пароля) → редирект на установку пароля; signup идёт на обычный success path
-  const defaultRedirect =
-    type === 'recovery' ? '/update-password' : getAuthSuccessRedirectPath()
+  // type=recovery (сброс пароля) и type=invite (VIP-приглашение) → установка пароля;
+  // signup идёт на обычный success path
+  const isPasswordSetupFlow = type === 'recovery' || type === 'invite'
+  const defaultRedirect = isPasswordSetupFlow ? '/update-password' : getAuthSuccessRedirectPath()
   const rawNext = searchParams.get('next')
   // Защита от Open Redirect: принимаем только относительные пути (начинаются с /, но не //)
   const next =
@@ -78,9 +79,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (!verifyError) {
-      // 2. УМНАЯ ПРИВЯЗКА (Story 1.7): Пропускаем для type=recovery — пользователь уже зарегистрирован,
-      // Stripe-синхронизация здесь избыточна и замедляет редирект на /update-password
-      if (type !== 'recovery') {
+      // 2. УМНАЯ ПРИВЯЗКА (Story 1.7): Пропускаем для recovery и invite — пользователь уже
+      // зарегистрирован (recovery) либо это новый VIP без Stripe (invite); Stripe-синхронизация
+      // здесь избыточна и замедляет редирект на /update-password
+      if (!isPasswordSetupFlow) {
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -173,7 +175,7 @@ export async function GET(request: NextRequest) {
           }
         }
       }
-      } // end if (type !== 'recovery')
+      } // end if (!isPasswordSetupFlow)
       return response
     }
 

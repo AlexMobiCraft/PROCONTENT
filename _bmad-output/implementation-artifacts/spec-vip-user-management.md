@@ -122,6 +122,12 @@ context:
 - **Покрытие тестами:** добавлены тесты VIP access-gate (middleware) и регресс-проверка предиката `is_active_subscriber()` (чтение миграции 046).
 - **Отклонено:** замечание о комментариях — ложное срабатывание (см. Review Findings); правило `No comments` в проекте отсутствует, комментарии на русском обязательны по `CLAUDE.md`.
 
+**Change request (2026-06-13) — кастомное VIP invite-письмо:**
+- Введён кастомный GoTrue invite-шаблон [`invite.html`](../../supabase/email-templates/invite.html) (стиль клуба, словенский; тема «Vabilo v klub PROCONTENT»), отдаётся nginx-сервисом `email-templates` (зеркало: `hetzner-deploy/volumes/auth/templates/invite.html`). Ссылка ведёт на `/auth/confirm?token_hash=…&type=invite&next=/update-password` — VIP сразу попадает на страницу создания пароля.
+- GoTrue-конфиг: `GOTRUE_MAILER_SUBJECTS_INVITE` / `GOTRUE_MAILER_TEMPLATES_INVITE` в `hetzner-deploy/docker-compose.yml` + переменные в `env.example` и `.env.server.backup`.
+- `src/app/auth/confirm/route.ts`: `type=invite` приравнен к `recovery` (редирект на `/update-password`, Stripe-привязка пропускается — у нового VIP нет Stripe-клиента). Тесты добавлены в `route.test.ts`.
+- **Деплой:** требуется применить env на сервере и перезапустить контейнеры `auth` + `email-templates` (DDL не затронут).
+
 ## Design Notes
 
 **Сходимость гонки:** правило 2 («оплатил → is_vip=false») делает Stripe-оплату детерминированным победителем — при любом порядке create-VIP↔оплата финальное состояние сходится к «подписка победила, VIP снят». `CHECK`-инвариант — последняя линия: admin-API ловит `23514`→409, webhook→200. Запись `is_vip=false` идемпотентна (фиксированное значение), поэтому повтор/out-of-order событий безвреден; существующую логику `subscription_status` не трогаем.
