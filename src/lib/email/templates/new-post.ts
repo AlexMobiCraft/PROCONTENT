@@ -8,74 +8,75 @@ export interface NewPostEmailData {
 
 export function generateNewPostEmailHtml(data: NewPostEmailData): string {
   const { postTitle, postUrl, postExcerpt, recipientName, unsubscribeUrl } = data
-  const greeting = recipientName ? `Pozdravljeni, ${recipientName}!` : 'Pozdravljeni!'
-  const excerptBlock =
-    postExcerpt
-      ? `<p style="margin:0 0 24px;font-size:14px;color:#6b5e52;line-height:1.6;">${escapeHtml(postExcerpt)}</p>`
-      : ''
+  const greeting = recipientName ? `Pozdravljeni, ${escapeHtml(recipientName)}!` : 'Pozdravljeni!'
+  const excerptBlock = postExcerpt
+    ? `<p style="margin:0 0 24px;font-size:15px;color:#6e6762;line-height:1.6;">${escapeHtml(postExcerpt)}</p>`
+    : ''
 
   return `<!DOCTYPE html>
 <html lang="sl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Barlow+Condensed:wght@400;500&display=swap" rel="stylesheet" />
   <title>Nova objava: ${escapeHtml(postTitle)}</title>
 </head>
-<body style="margin:0;padding:0;background-color:#faf8f5;font-family:Inter,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f5;padding:32px 16px;">
+<body style="margin:0;padding:0;background-color:#fefdf8;font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#fefdf8;padding:48px 16px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+        <table width="460" cellpadding="0" cellspacing="0" style="max-width:460px;width:100%;">
 
-          <!-- Header -->
+          <!-- Шапка: wordmark -->
           <tr>
-            <td style="background-color:#c97d5b;padding:28px 40px;">
-              <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.02em;">PROCONTENT</p>
-              <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Skupnost za ustvarjalce vsebin</p>
+            <td style="padding-bottom:32px;border-bottom:1px solid #e5e1da;">
+              <p style="margin:0;font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.28em;text-transform:uppercase;color:#1e1a16;">PROCONTENT</p>
+              <p style="margin:4px 0 0;font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#6e6762;">Skupnost za ustvarjalce vsebin</p>
             </td>
           </tr>
 
-          <!-- Body -->
+          <!-- Тело письма -->
           <tr>
-            <td style="padding:40px 40px 32px;">
-              <p style="margin:0 0 8px;font-size:15px;color:#6b5e52;">${escapeHtml(greeting)}</p>
-              <p style="margin:0 0 24px;font-size:15px;color:#3d2e22;line-height:1.6;">
-                Objavili smo novo vsebino, ki jo ne smete zamuditi:
-              </p>
+            <td style="padding-top:32px;padding-bottom:28px;">
 
-              <!-- Post title block -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:${postExcerpt ? '16px' : '28px'};">
+              <!-- Приветствие -->
+              <p style="margin:0 0 6px;font-size:15px;color:#6e6762;line-height:1.5;">${greeting}</p>
+              <p style="margin:0 0 28px;font-size:15px;color:#6e6762;line-height:1.5;">Objavili smo novo vsebino, ki jo ne smete zamuditi:</p>
+
+              <!-- Блок заголовка поста -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:${postExcerpt ? '20px' : '28px'};">
                 <tr>
-                  <td style="background-color:#faf8f5;border-left:4px solid #c97d5b;border-radius:4px;padding:16px 20px;">
-                    <p style="margin:0;font-size:18px;font-weight:600;color:#3d2e22;line-height:1.4;">${escapeHtml(postTitle)}</p>
+                  <td style="border-left:2px solid #a75d4b;padding:14px 20px;">
+                    <p style="margin:0;font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;font-size:22px;font-weight:600;color:#1e1a16;line-height:1.35;">${escapeHtml(postTitle)}</p>
                   </td>
                 </tr>
               </table>
 
-              <!-- Excerpt / preview text -->
+              <!-- Excerpt -->
               ${excerptBlock}
 
-              <!-- CTA button -->
+              <!-- CTA outline button -->
               <table cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="background-color:#c97d5b;border-radius:8px;">
+                  <td style="border:1px solid #a75d4b;">
                     <a href="${sanitizeHref(postUrl)}"
-                       style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
-                      Preberi objavo →
+                       style="display:inline-block;padding:14px 40px;color:#1e1a16;font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;font-size:12px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;text-decoration:none;">
+                      Preberi objavo
                     </a>
                   </td>
                 </tr>
               </table>
+
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- Подвал -->
           <tr>
-            <td style="padding:20px 40px 28px;border-top:1px solid #f0ece6;">
-              <p style="margin:0;font-size:12px;color:#9b8e83;line-height:1.6;">
-                Prejemate to sporočilo, ker ste aktivni član skupnosti PROCONTENT.<br />
-                Če ne želite prejemati teh obvestil, obiščite
-                <a href="${sanitizeHref(unsubscribeUrl)}" style="color:#c97d5b;text-decoration:underline;">nastavitve e-pošte</a>.
+            <td style="border-top:1px solid #e5e1da;padding-top:24px;">
+              <p style="margin:0;font-size:12px;color:#6e6762;line-height:1.6;">
+                Prejemate ta e-mail, ker ste aktivna članica kluba PROCONTENT.<br />
+                Če ne želite prejemati obvestil o novih objavah,
+                <a href="${sanitizeHref(unsubscribeUrl)}" style="color:#a75d4b;text-decoration:underline;">se odjavite tukaj</a>.
               </p>
             </td>
           </tr>
@@ -93,16 +94,18 @@ export function generateNewPostEmailText(data: NewPostEmailData): string {
   const greeting = recipientName ? `Pozdravljeni, ${recipientName}!` : 'Pozdravljeni!'
   const excerptSection = postExcerpt ? `\n${postExcerpt}\n` : ''
 
-  return `${greeting}
+  return `PROCONTENT
 
-Objavili smo novo vsebino:
+${greeting}
 
 ${postTitle}
 ${excerptSection}
-Preberite objavo: ${postUrl}
+V klubu je nova objava — preberite jo zdaj:
+${postUrl}
 
 ---
-Odjava od obvestil: ${unsubscribeUrl}
+Če ne želite prejemati obvestil o novih objavah, se odjavite tukaj:
+${unsubscribeUrl}
 `
 }
 
