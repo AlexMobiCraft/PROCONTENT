@@ -170,13 +170,14 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       
       const { data: profile } = await supabase
         .from('profiles')
-        .select('subscription_status, role')
+        .select('subscription_status, role, is_vip')
         .eq('id', user.id)
         .maybeSingle()
-      
+
       let status = profile?.subscription_status
       const role = profile?.role
-      
+      const isVip = profile?.is_vip === true
+
       // Админы всегда перенаправляются с /inactive на feed
       if (role === 'admin') {
         console.log('[middleware] Admin on /inactive, redirecting to feed')
@@ -184,6 +185,26 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
         url.pathname = getAuthSuccessRedirectPath()
         const redirectResponse = redirectWithCookies(url, supabaseResponse)
         
+        const token = await createCacheToken(user.id, 'active')
+        if (token) {
+          redirectResponse.cookies.set(
+            SUBSCRIPTION_CACHE_COOKIE,
+            token,
+            getSubscriptionCacheCookieOptions(getSubscriptionCacheTtl())
+          )
+        }
+        return redirectResponse
+      }
+
+      // VIP-пользователи имеют доступ без подписки — раннее перенаправление на feed
+      // ДО обращения в Stripe (источник истины — локальный is_vip, не Stripe).
+      if (isVip) {
+        console.log('[middleware] VIP on /inactive, redirecting to feed')
+        const url = request.nextUrl.clone()
+        url.pathname = getAuthSuccessRedirectPath()
+        const redirectResponse = redirectWithCookies(url, supabaseResponse)
+
+        // Кэшируем effective-access: для VIP — 'active' (доступ есть).
         const token = await createCacheToken(user.id, 'active')
         if (token) {
           redirectResponse.cookies.set(
@@ -235,6 +256,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
                   stripe_customer_id: customerId,
                   stripe_subscription_id: sub.id,
                   current_period_end: currentPeriodEnd,
+                  is_vip: false, // Rule 2: оплата снимает VIP тем же statement (chk_vip_xor_active)
                 })
                 .eq('id', user.id)
               
@@ -287,10 +309,10 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
 
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('subscription_status, role')
+        .select('subscription_status, role, is_vip')
         .eq('id', user.id)
         .maybeSingle()
-      
+
       if (profileError) {
         const url = request.nextUrl.clone()
         url.pathname = ROOT_PATH
@@ -299,7 +321,8 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
 
       const status = profile?.subscription_status
       const role = profile?.role
-      
+      const isVip = profile?.is_vip === true
+
       // Админы имеют доступ независимо от статуса подписки
       if (role === 'admin') {
         console.log('[middleware] Admin access granted for:', user.email)
@@ -313,8 +336,11 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
         }
         return supabaseResponse
       }
-      
-      if (status !== 'active' && status !== 'trialing') {
+
+      // Access-gate: доступ = VIP ИЛИ активная/триальная подписка.
+      const hasAccess = isVip || status === 'active' || status === 'trialing'
+
+      if (!hasAccess) {
         const url = request.nextUrl.clone()
         url.pathname = INACTIVE_PATH
         const redirectResponse = redirectWithCookies(url, supabaseResponse)
@@ -329,7 +355,11 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
         return redirectResponse
       }
 
-      const token = await createCacheToken(user.id, status ?? 'active')
+      // Кэшируем effective-access: для VIP кодируем 'active' (доступ есть, подписка
+      // может быть inactive). Так VIP не уйдёт на /inactive из кэш-fast-path, а после
+      // снятия VIP кэш-кука истечёт по TTL и БД-проверка вернёт реальный статус.
+      const effectiveStatus = isVip ? 'active' : status ?? 'active'
+      const token = await createCacheToken(user.id, effectiveStatus)
       if (token) {
         supabaseResponse.cookies.set(
           SUBSCRIPTION_CACHE_COOKIE,

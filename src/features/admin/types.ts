@@ -8,7 +8,17 @@ export interface MemberProfile {
   subscription_status: string | null
   current_period_end: string | null
   stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  is_vip: boolean
 }
+
+/** Валидация формы создания VIP-пользователя. first_name min 1 — совпадает с DB-констрейнтом. */
+export const VipCreateSchema = z.object({
+  email: z.string().trim().min(1, 'E-pošta je obvezna').email('Neveljaven e-poštni naslov'),
+  first_name: z.string().trim().min(1, 'Ime je obvezno'),
+})
+
+export type VipCreateValues = z.infer<typeof VipCreateSchema>
 
 export type ScheduledPost = {
   id: string

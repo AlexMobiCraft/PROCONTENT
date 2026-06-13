@@ -7,6 +7,7 @@ import {
   consumeStripeWebhookRateLimit,
   getStripeWebhookRateLimitKey,
 } from '@/lib/stripe/webhook-rate-limit'
+import { applyVipRevocation } from '@/lib/stripe/vipRevocation'
 import type Stripe from 'stripe'
 import type { Database } from '@/types/supabase'
 
@@ -206,6 +207,10 @@ async function handleCheckoutSessionCompleted(
     }
   }
 
+  // Правило 2 (VIP): снимаем is_vip, если итоговый updateData активирует подписку.
+  // updateData — общий объект для всех 4 write-site ниже (один вызов покрывает их).
+  applyVipRevocation(updateData)
+
   // Шаг 0: client_reference_id — прямая привязка по userId (наиболее безопасный метод).
   // Fix [AI-Review][Critical] Round 16: customer_details.email задаётся пользователем в Stripe —
   // злоумышленник может ввести чужой email для захвата аккаунта (Account Takeover).
@@ -353,6 +358,9 @@ async function handleInvoicePaymentSucceeded(
     update.stripe_subscription_id = subscriptionId
   }
 
+  // Правило 2 (VIP): подписка активна → снимаем is_vip тем же UPDATE.
+  applyVipRevocation(update)
+
   // Шаг 1: строгое обновление по stripe_subscription_id (основной ключ)
   if (subscriptionId) {
     const { data: updatedBySub, error } = await supabase
@@ -385,6 +393,9 @@ async function handleInvoicePaymentSucceeded(
     const fallbackUpdate: ProfileUpdate = { subscription_status: 'active' }
     if (currentPeriodEnd) fallbackUpdate.current_period_end = currentPeriodEnd
     if (subscriptionId) fallbackUpdate.stripe_subscription_id = subscriptionId
+
+    // Правило 2 (VIP): подписка активна → снимаем is_vip тем же UPDATE.
+    applyVipRevocation(fallbackUpdate)
 
     // Шаг 2a: профили без sub_id
     const { error: fallbackError1 } = await supabase
@@ -528,6 +539,10 @@ async function handleSubscriptionUpdated(
   if (subscription.id) {
     update.stripe_subscription_id = subscription.id
   }
+
+  // Правило 2 (VIP): снимаем is_vip только если статус active/trialing.
+  // canceled/inactive — НЕ трогаем (VIP безвозвратен, восстановление не нужно).
+  applyVipRevocation(update)
 
   // Шаг 1: обновление по stripe_subscription_id
   const { data: updatedBySub, error } = await supabase
@@ -727,6 +742,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true }, { status: 200 })
   } catch (error) {
+    // Правило 2 (VIP): нарушение chk_vip_xor_active трактуем как уже-консистентное
+    // состояние (VIP снят/снимается) → 200, без Stripe-retry. Обработчики оборачивают
+    // ошибки supabase в Error(message), сохраняя текст констрейнта в сообщении.
+    // Прочие 23514 (другой констрейнт) → 500.
+    if (error instanceof Error && error.message.includes('chk_vip_xor_active')) {
+      console.warn('[webhook] chk_vip_xor_active conflict — VIP снят, считаем консистентным:', event.id)
+      return NextResponse.json({ received: true }, { status: 200 })
+    }
     // Task 5.1 + 5.2: логируем ошибку с event.id, возвращаем 500 для Stripe retry (AC4, NFR19)
     // Fix [AI-Review][Low]: добавлен event.id для трассировки конкретного события в логах
     console.error('[webhook] Ошибка обработки события:', event.id, error)

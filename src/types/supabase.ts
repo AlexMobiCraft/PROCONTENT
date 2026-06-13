@@ -235,6 +235,7 @@ export type Database = {
           email_notifications_enabled: boolean
           first_name: string
           id: string
+          is_vip: boolean
           last_name: string | null
           role: string
           stripe_customer_id: string | null
@@ -250,6 +251,7 @@ export type Database = {
           email_notifications_enabled?: boolean
           first_name: string
           id: string
+          is_vip?: boolean
           last_name?: string | null
           role?: string
           stripe_customer_id?: string | null
@@ -265,6 +267,7 @@ export type Database = {
           email_notifications_enabled?: boolean
           first_name?: string
           id?: string
+          is_vip?: boolean
           last_name?: string | null
           role?: string
           stripe_customer_id?: string | null
