@@ -46,4 +46,14 @@ describe('toggleMemberAccess', () => {
     supabaseChain = makeChain({ data: null, error: { message: 'DB error', code: '500' } })
     await expect(toggleMemberAccess('user-3', true)).rejects.toBeDefined()
   })
+
+  it('при 23514 (VIP-конфликт) бросает понятное сообщение, а не сырой текст констрейнта', async () => {
+    supabaseChain = makeChain({
+      data: null,
+      error: { message: 'new row violates check constraint "chk_vip_xor_active"', code: '23514' },
+    })
+    await expect(toggleMemberAccess('user-4', true)).rejects.toThrow(
+      'Uporabnik je VIP — najprej prekličite VIP status'
+    )
+  })
 })

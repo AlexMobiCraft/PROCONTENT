@@ -6,7 +6,7 @@ export async function fetchMembersServer(): Promise<MemberProfile[]> {
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'id, email, display_name, created_at, subscription_status, current_period_end, stripe_customer_id'
+      'id, email, display_name, created_at, subscription_status, current_period_end, stripe_customer_id, stripe_subscription_id, is_vip'
     )
     .order('created_at', { ascending: false })
   if (error) throw error

@@ -2,7 +2,8 @@
 title: 'VIP-пользователи: создание по приглашению, приостановка и удаление администратором'
 type: 'feature'
 created: '2026-06-12'
-status: 'draft'
+status: 'done'
+baseline_commit: '01e680944d2a192f37d46c2d8e6b5efe69549ec8'
 context:
   - '{project-root}/_bmad-output/project-context.md'
   - '{project-root}/_bmad-output/planning-artifacts/ux-design-specification.md'
@@ -83,16 +84,16 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] **Pre-flight верификация БД** (схема НЕ в репо — DDL/триггеры/RPC живут только в self-hosted БД, проверять через `/pg/query` ДО реализации): (a) триггер `handle_new_user` действительно читает `new.raw_user_meta_data->>'first_name'` и его `ON CONFLICT (id) DO UPDATE` НЕ включает `is_vip`; (b) RPC `get_auth_user_id_by_email` существует и доступен service_role; (c) FK `profiles.id → auth.users` имеет `ON DELETE CASCADE`.
-- [ ] DB migration (через `/pg/query` на self-hosted боевой БД) -- (1) `ALTER TABLE profiles ADD COLUMN is_vip boolean NOT NULL DEFAULT false`; (2) погасить возможных нарушителей `UPDATE ... SET is_vip=false WHERE is_vip AND subscription_status IN ('active','trialing')`, затем `ADD CONSTRAINT chk_vip_xor_active CHECK (NOT (is_vip AND subscription_status IN ('active','trialing')))`; (3) RLS: запретить запись `is_vip` всем кроме service_role; (4) если FK НЕ `ON DELETE CASCADE` (см. pre-flight) — явный cleanup профиля в DELETE-хендлере.
-- [ ] `src/types/supabase.ts` -- `is_vip: boolean` в типах `profiles`.
-- [ ] `src/lib/supabase/auth-middleware.ts` -- select `is_vip` в **обоих** блоках; допуск `is_vip || active/trialing || admin`; early-return для VIP в fallback до Stripe; **сменить сигнатуру `createCacheToken`/`parseCacheToken`** — кодировать effective-access с учётом `is_vip` (не только `status`). Отзыв доступа при suspend — через TTL куки, без Set-Cookie из админ-API (см. Boundaries).
-- [ ] `src/lib/supabase/requireAdmin.ts` -- guard, 403 при не-admin.
-- [ ] `src/app/api/admin/vip/route.ts` -- requireAdmin; POST: `inviteUserByEmail` → 422 → `auth.admin.listUsers()` по email → conditional update is_vip (0 строк→409); PATCH suspend: `UPDATE ... SET is_vip=false WHERE is_vip=true` (идемпотентно); PATCH resume: тот же guard что и POST (Правило 1а, 0 строк→409); POST: при 422 от `inviteUserByEmail` — lookup через RPC `get_auth_user_id_by_email` (НЕ listUsers); DELETE deleteUser (+ предупреждение при stripe_subscription_id). Отзыв доступа suspend — через TTL куки, НЕ Set-Cookie (админ не может тронуть httpOnly-куку участницы). Env-guard service_role ВНЕ try/catch. Лов `23514` только для `chk_vip_xor_active`→409.
-- [ ] `src/app/api/webhooks/stripe/route.ts` -- ввести helper `applyVipRevocation(updateData)` и вызвать его перед **каждым** `.update()/.upsert()`, где может стоять active/trialing (~8 write-site: `handleCheckoutSessionCompleted` ×4 вкл. `upsertProfileByUserId`, `handleInvoicePaymentSucceeded` ×3, `handleSubscriptionUpdated` ×2). Helper добавляет `is_vip=false` только если `updateData.subscription_status ∈ {active,trialing}` (Правило 2). На ID-only привязке (`payment_status≠paid`) — НЕ трогать `is_vip`. Catch 23514 **только для constraint `chk_vip_xor_active`** → 200; остальные 23514 → re-throw → 500. НИКОГДА не ставить `is_vip=true`.
-- [ ] `src/features/admin/{types,api/membersServer,api/vip,api/members}.ts` -- типы (`MemberProfile.is_vip`), select `is_vip`, Zod-схема (`VipCreateSchema`: email + first_name min 1), клиентские обёртки; `members.ts` — catch `23514` в `toggleMemberAccess` с понятным сообщением.
-- [ ] `src/features/admin/components/*` + `src/app/(admin)/members/page.tsx` -- VipCreateForm, бейдж/действия, логика контейнера, подключение формы.
-- [ ] `tests/unit/admin/vip.test.ts` -- покрыть матрицу + негативные: 409 при активной подписке (Rule 1); `subscription_status=NULL` → POST grant → 200; webhook→is_vip=false одним UPDATE (Rule 2); дубль события идемпотентен; не-admin→403; RLS-отказ записи is_vip; PATCH resume + active sub → 409; webhook helper `applyVipRevocation`: is_vip=false добавляется при active/trialing, НЕ добавляется на ID-only привязке (payment_status≠paid); POST существующий email → 200 без повторного invite (lookup через RPC); trigger conflict: is_vip не перезаписывается дефолтом.
+- [x] **Pre-flight верификация БД** (схема НЕ в репо — DDL/триггеры/RPC живут только в self-hosted БД, проверять через `/pg/query` ДО реализации): (a) триггер `handle_new_user` действительно читает `new.raw_user_meta_data->>'first_name'` и его `ON CONFLICT (id) DO UPDATE` НЕ включает `is_vip`; (b) RPC `get_auth_user_id_by_email` существует и доступен service_role; (c) FK `profiles.id → auth.users` имеет `ON DELETE CASCADE`.
+- [x] DB migration (через `/pg/query` на self-hosted боевой БД) -- (1) `ALTER TABLE profiles ADD COLUMN is_vip boolean NOT NULL DEFAULT false`; (2) погасить возможных нарушителей `UPDATE ... SET is_vip=false WHERE is_vip AND subscription_status IN ('active','trialing')`, затем `ADD CONSTRAINT chk_vip_xor_active CHECK (NOT (is_vip AND subscription_status IN ('active','trialing')))`; (3) RLS: запретить запись `is_vip` всем кроме service_role; (4) если FK НЕ `ON DELETE CASCADE` (см. pre-flight) — явный cleanup профиля в DELETE-хендлере.
+- [x] `src/types/supabase.ts` -- `is_vip: boolean` в типах `profiles`.
+- [x] `src/lib/supabase/auth-middleware.ts` -- select `is_vip` в **обоих** блоках; допуск `is_vip || active/trialing || admin`; early-return для VIP в fallback до Stripe; **сменить сигнатуру `createCacheToken`/`parseCacheToken`** — кодировать effective-access с учётом `is_vip` (не только `status`). Отзыв доступа при suspend — через TTL куки, без Set-Cookie из админ-API (см. Boundaries).
+- [x] `src/lib/supabase/requireAdmin.ts` -- guard, 403 при не-admin.
+- [x] `src/app/api/admin/vip/route.ts` -- requireAdmin; POST: `inviteUserByEmail` → 422 → `auth.admin.listUsers()` по email → conditional update is_vip (0 строк→409); PATCH suspend: `UPDATE ... SET is_vip=false WHERE is_vip=true` (идемпотентно); PATCH resume: тот же guard что и POST (Правило 1а, 0 строк→409); POST: при 422 от `inviteUserByEmail` — lookup через RPC `get_auth_user_id_by_email` (НЕ listUsers); DELETE deleteUser (+ предупреждение при stripe_subscription_id). Отзыв доступа suspend — через TTL куки, НЕ Set-Cookie (админ не может тронуть httpOnly-куку участницы). Env-guard service_role ВНЕ try/catch. Лов `23514` только для `chk_vip_xor_active`→409.
+- [x] `src/app/api/webhooks/stripe/route.ts` -- ввести helper `applyVipRevocation(updateData)` и вызвать его перед **каждым** `.update()/.upsert()`, где может стоять active/trialing (~8 write-site: `handleCheckoutSessionCompleted` ×4 вкл. `upsertProfileByUserId`, `handleInvoicePaymentSucceeded` ×3, `handleSubscriptionUpdated` ×2). Helper добавляет `is_vip=false` только если `updateData.subscription_status ∈ {active,trialing}` (Правило 2). На ID-only привязке (`payment_status≠paid`) — НЕ трогать `is_vip`. Catch 23514 **только для constraint `chk_vip_xor_active`** → 200; остальные 23514 → re-throw → 500. НИКОГДА не ставить `is_vip=true`.
+- [x] `src/features/admin/{types,api/membersServer,api/vip,api/members}.ts` -- типы (`MemberProfile.is_vip`), select `is_vip`, Zod-схема (`VipCreateSchema`: email + first_name min 1), клиентские обёртки; `members.ts` — catch `23514` в `toggleMemberAccess` с понятным сообщением.
+- [x] `src/features/admin/components/*` + `src/app/(admin)/members/page.tsx` -- VipCreateForm, бейдж/действия, логика контейнера, подключение формы.
+- [x] `tests/unit/admin/vip.test.ts` -- покрыть матрицу + негативные: 409 при активной подписке (Rule 1); `subscription_status=NULL` → POST grant → 200; webhook→is_vip=false одним UPDATE (Rule 2); дубль события идемпотентен; не-admin→403; RLS-отказ записи is_vip; PATCH resume + active sub → 409; webhook helper `applyVipRevocation`: is_vip=false добавляется при active/trialing, НЕ добавляется на ID-only привязке (payment_status≠paid); POST существующий email → 200 без повторного invite (lookup через RPC); trigger conflict: is_vip не перезаписывается дефолтом.
 
 **Acceptance Criteria:**
 - Given email с `subscription_status` active/trialing, when админ присваивает VIP, then 409 и `is_vip` остаётся false.
@@ -138,3 +139,76 @@ _Пусто — изменений по итогам review-циклов пок�
 **Manual checks:**
 - Создать VIP на тестовый email без подписки → invite-письмо, статус VIP, после установки пароля заходит на `/feed`.
 - Попытка VIP для email с активной подпиской → 409, тост. Приостановить → редирект на `/inactive`. Удалить → исчезает из списка.
+
+## Suggested Review Order
+
+**Инвариант БД (фундамент — начать отсюда)**
+
+- Контракт всей фичи: взаимное исключение VIP ↔ активная подписка на уровне БД.
+  [`045_add_is_vip_to_profiles.sql:19`](../../supabase/migrations/045_add_is_vip_to_profiles.sql#L19)
+
+- Guard записи `is_vip`: триггер блокирует роли `authenticated`/`anon` (защита от self-grant).
+  [`045_add_is_vip_to_profiles.sql:44`](../../supabase/migrations/045_add_is_vip_to_profiles.sql#L44)
+
+- Колонка `is_vip` + типы.
+  [`045_add_is_vip_to_profiles.sql:7`](../../supabase/migrations/045_add_is_vip_to_profiles.sql#L7)
+  [`supabase.ts:236`](../../src/types/supabase.ts#L236)
+
+**Мутации VIP (серверный API)**
+
+- Ядро: атомарный conditional update is_vip=true (Правило 1/1а), 0 строк → 409.
+  [`route.ts:30`](../../src/app/api/admin/vip/route.ts#L30)
+
+- Явная NULL-ветка фильтра — иначе новый пользователь без подписки давал бы ложный 409.
+  [`route.ts:14`](../../src/app/api/admin/vip/route.ts#L14)
+
+- POST: invite → 422 → lookup через RPC (не listUsers), без повторного invite.
+  [`route.ts:88`](../../src/app/api/admin/vip/route.ts#L88)
+
+- PATCH suspend/resume и DELETE (каскад через FK).
+  [`route.ts:144`](../../src/app/api/admin/vip/route.ts#L144)
+  [`route.ts:202`](../../src/app/api/admin/vip/route.ts#L202)
+
+- Переиспользуемый admin-guard (403), без дырявого паттерна `posts/publish`.
+  [`requireAdmin.ts:20`](../../src/lib/supabase/requireAdmin.ts#L20)
+
+**Отзыв VIP в Stripe-вебхуке (Правило 2)**
+
+- Helper: is_vip=false добавляется только при active/trialing, не на ID-only.
+  [`vipRevocation.ts:12`](../../src/lib/stripe/vipRevocation.ts#L12)
+
+- Вызовы перед каждым active/trialing write-site (~8 мест, 3 хендлера).
+  [`route.ts:212`](../../src/app/api/webhooks/stripe/route.ts#L212)
+  [`route.ts:362`](../../src/app/api/webhooks/stripe/route.ts#L362)
+
+- Защитный catch `chk_vip_xor_active` → 200 (consistent state).
+  [`route.ts:749`](../../src/app/api/webhooks/stripe/route.ts#L749)
+
+**Middleware access-gate**
+
+- Доступ = `is_vip || active/trialing || admin`; токен кодирует effective-status.
+  [`auth-middleware.ts:340`](../../src/lib/supabase/auth-middleware.ts#L340)
+  [`auth-middleware.ts:360`](../../src/lib/supabase/auth-middleware.ts#L360)
+
+- VIP early-return на /inactive ДО Stripe-вызова.
+  [`auth-middleware.ts:201`](../../src/lib/supabase/auth-middleware.ts#L201)
+
+**UI-связка**
+
+- Smart-контейнер: состояние, optimistic+rollback, router.refresh после create.
+  [`MembersContainer.tsx:16`](../../src/features/admin/components/MembersContainer.tsx#L16)
+
+- Таблица: VIP-бейдж, suspend/resume, удаление с inline-подтверждением (destructive).
+  [`MembersTable.tsx:99`](../../src/features/admin/components/MembersTable.tsx#L99)
+
+- Форма создания VIP: RHF + Zod, инлайн-валидация, toast на системные ошибки.
+  [`VipCreateForm.tsx:15`](../../src/features/admin/components/VipCreateForm.tsx#L15)
+
+- Клиентские обёртки + точечный catch 23514 в toggleMemberAccess.
+  [`vip.ts:38`](../../src/features/admin/api/vip.ts#L38)
+  [`members.ts:12`](../../src/features/admin/api/members.ts#L12)
+
+**Периферия**
+
+- Юнит-тесты матрицы (route + applyVipRevocation) и обновлённые тесты таблицы.
+  [`vip.test.ts:1`](../../tests/unit/admin/vip.test.ts#L1)
