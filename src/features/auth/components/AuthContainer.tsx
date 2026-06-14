@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 
 import { signInWithPassword } from '@/features/auth/api/auth'
 import { useAuthStore } from '@/features/auth/store'
+import { getAuthSuccessRedirectPath, sanitizeRedirectPath } from '@/lib/app-routes'
 import { LoginForm } from './LoginForm'
 
 export function AuthContainer() {
@@ -56,7 +57,9 @@ export function AuthContainer() {
       setSession(data.session)
     }
 
-    router.push('/feed')
+    // Возврат на оригинальный путь (?redirectTo), если он валиден; иначе дефолт.
+    const target = sanitizeRedirectPath(searchParams.get('redirectTo')) ?? getAuthSuccessRedirectPath()
+    router.push(target)
   }
 
   return (

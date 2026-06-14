@@ -121,6 +121,8 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     if (!isPublicPath(pathname)) {
       const url = request.nextUrl.clone()
       url.pathname = LOGIN_PATH
+      url.search = ''
+      url.searchParams.set('redirectTo', request.nextUrl.pathname + request.nextUrl.search)
       return NextResponse.redirect(url)
     }
     return NextResponse.next({ request })
@@ -161,6 +163,10 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     if (!user && !publicPath) {
       const url = request.nextUrl.clone()
       url.pathname = LOGIN_PATH
+      // Сохраняем оригинальный путь, чтобы после входа вернуть пользователя
+      // на запрошенную страницу (например, прямую ссылку на пост из письма).
+      url.search = ''
+      url.searchParams.set('redirectTo', request.nextUrl.pathname + request.nextUrl.search)
       return redirectWithCookies(url, supabaseResponse)
     }
 

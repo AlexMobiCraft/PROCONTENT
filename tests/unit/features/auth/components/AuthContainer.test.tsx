@@ -91,6 +91,40 @@ describe('AuthContainer', () => {
     })
   })
 
+  it('навигирует на валидный redirectTo после успешного входа', async () => {
+    mockSearchParams.mockReturnValue({
+      get: (key: string) => (key === 'redirectTo' ? '/feed/abc-123' : null),
+    })
+    mockSignInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: null })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.type(screen.getByLabelText('Geslo'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Prijava' }))
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/feed/abc-123')
+    })
+  })
+
+  it('игнорирует невалидный redirectTo (open-redirect) и идёт на дефолт /feed', async () => {
+    mockSearchParams.mockReturnValue({
+      get: (key: string) => (key === 'redirectTo' ? '//evil.com' : null),
+    })
+    mockSignInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: null })
+    const user = userEvent.setup()
+    render(<AuthContainer />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.com')
+    await user.type(screen.getByLabelText('Geslo'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Prijava' }))
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/feed')
+    })
+  })
+
   it('показывает inline-ошибку "Неверный email или пароль" (status 400 Invalid login credentials)', async () => {
     mockSignInWithPassword.mockResolvedValue({
       error: { message: 'Invalid login credentials', status: 400 },

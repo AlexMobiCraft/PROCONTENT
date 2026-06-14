@@ -78,7 +78,8 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+      // redirectTo сохраняет оригинальный путь для возврата после входа
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login?redirectTo=%2Ffeed')
     })
 
     it('редиректит с защищённого /profile на /login', async () => {
@@ -88,7 +89,7 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login?redirectTo=%2Fprofile')
     })
 
     it('редиректит с /onboarding на /login', async () => {
@@ -98,7 +99,7 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login?redirectTo=%2Fonboarding')
     })
 
     it('пропускает на /login без редиректа', async () => {
@@ -163,7 +164,20 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login?redirectTo=%2Fapi%2Femail%2Fother')
+    })
+
+    // Прямая ссылка на пост из письма: путь (с query) кодируется в redirectTo
+    it('кодирует путь поста с query в redirectTo (сценарий email-ссылки)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } })
+
+      const req = new NextRequest('http://localhost:3000/feed/d6fdbb4d-1234?from=email')
+      const response = await updateSession(req)
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe(
+        'http://localhost:3000/login?redirectTo=%2Ffeed%2Fd6fdbb4d-1234%3Ffrom%3Demail'
+      )
     })
   })
 
@@ -218,7 +232,7 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login?redirectTo=%2Fdashboard')
     })
 
     it('copyRedirect сохраняет name и value кук из supabaseResponse', async () => {
@@ -287,7 +301,8 @@ describe('middleware', () => {
       const response = await updateSession(req)
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('http://localhost:3000/login')
+      // redirectTo сохраняется даже в fail-secure ветке отсутствия Supabase env
+      expect(response.headers.get('location')).toBe('http://localhost:3000/login?redirectTo=%2Ffeed')
     })
 
     it('пропускает на /login без редиректа (публичный маршрут)', async () => {

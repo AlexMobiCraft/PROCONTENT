@@ -37,6 +37,32 @@ export function getAuthSuccessRedirectPath() {
   )
 }
 
+// Санитайз значения redirectTo (из ?redirectTo на /login). Возвращает безопасный
+// относительный путь либо null. Защита от open-redirect (//, /\, абсолютные URL)
+// и зацикливания (/login, /register). Декодирует через decodeURIComponent.
+export function sanitizeRedirectPath(raw: string | null | undefined): string | null {
+  if (!raw) return null
+
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(raw)
+  } catch {
+    // битый percent-encoding
+    return null
+  }
+
+  // только относительные пути, начинающиеся с одного слэша
+  if (!decoded.startsWith('/')) return null
+  // protocol-relative (//host) и backslash-трюк (/\host → //host в браузерах)
+  if (decoded.startsWith('//') || decoded.startsWith('/\\')) return null
+
+  // анти-цикл: не возвращаем на auth-страницы
+  const base = decoded.split('?')[0]
+  if (base === LOGIN_PATH || base === '/register') return null
+
+  return decoded
+}
+
 export function isPublicPath(pathname: string) {
   return (
     PUBLIC_PATHS.includes(pathname as (typeof PUBLIC_PATHS)[number]) ||
