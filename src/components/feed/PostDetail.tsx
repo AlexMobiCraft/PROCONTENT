@@ -226,7 +226,7 @@ export function PostDetail({
   }
 
   return (
-    <article className="mx-auto max-w-2xl px-4 py-6">
+    <article className="mx-auto max-w-2xl px-4 pt-6 pb-[76px] md:pb-6">
       {/* Back button — router.back() сохраняет позицию скролла (AC 3) */}
       <button
         type="button"
