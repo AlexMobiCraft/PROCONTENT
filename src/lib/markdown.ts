@@ -37,6 +37,7 @@ const ALLOWED_ATTR = [
   'style',
   'target',
   'rel',
+  'start',
 ]
 
 export function sanitizeHtml(html: string): string {
