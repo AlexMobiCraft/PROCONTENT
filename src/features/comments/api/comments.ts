@@ -10,7 +10,7 @@ export async function fetchPostComments(postId: string): Promise<Comment[]> {
 
   const { data, error } = await supabase
     .from('post_comments')
-    .select('*, profiles(id, display_name, avatar_url, role)')
+    .select('*, profiles(id, display_name, first_name, last_name, avatar_url, role)')
     .eq('post_id', postId)
     .order('created_at', { ascending: true })
 

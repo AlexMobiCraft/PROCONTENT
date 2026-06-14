@@ -24,7 +24,7 @@ function makeComment(id: string, parentId: string | null = null): Comment {
     content: `Komentar ${id}`,
     created_at: '2026-03-26T10:00:00Z',
     updated_at: '2026-03-26T10:00:00Z',
-    profiles: { id: 'u-1', display_name: 'Ana', avatar_url: null, role: 'member' },
+    profiles: { id: 'u-1', display_name: 'Ana', first_name: 'Ana', last_name: null, avatar_url: null, role: 'member' },
     replies: [],
   }
 }

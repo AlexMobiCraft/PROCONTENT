@@ -575,7 +575,7 @@ describe('PostDetail', () => {
       content: `Komentar ${i + 1}`,
       created_at: '2026-03-15T12:00:00Z',
       updated_at: '2026-03-15T12:00:00Z',
-      profiles: { id: 'user-1', display_name: 'Ana Ivanova', avatar_url: null, role: null },
+      profiles: { id: 'user-1', display_name: 'Ana Ivanova', first_name: 'Ana', last_name: 'Ivanova', avatar_url: null, role: null },
       replies: [],
     }))
     render(<PostDetail post={makePost({ comments: 12 })} initialComments={comments} />)

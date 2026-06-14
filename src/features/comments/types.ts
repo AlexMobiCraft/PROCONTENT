@@ -8,6 +8,8 @@ export type CommentWithProfile = CommentRow & {
   profiles: {
     id: string
     display_name: string | null
+    first_name: string
+    last_name: string | null
     avatar_url: string | null
     role: string | null
   } | null

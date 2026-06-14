@@ -28,7 +28,7 @@ export async function insertPostComment(
       parent_id: params.parent_id ?? null,
       user_id: user.id,
     })
-    .select('*, profiles(id, display_name, avatar_url, role)')
+    .select('*, profiles(id, display_name, first_name, last_name, avatar_url, role)')
     .single()
 
   if (error) throw error

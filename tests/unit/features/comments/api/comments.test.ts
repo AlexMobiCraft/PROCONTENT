@@ -19,6 +19,8 @@ function makeRow(id: string, parentId: string | null = null): CommentWithProfile
     profiles: {
       id: `u-${id}`,
       display_name: `Avtor ${id}`,
+      first_name: 'Avtor',
+      last_name: id,
       avatar_url: null,
       role: 'member',
     },

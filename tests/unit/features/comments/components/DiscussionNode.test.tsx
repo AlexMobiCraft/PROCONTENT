@@ -41,6 +41,8 @@ function makeComment(overrides: Partial<CommentWithStatus> = {}): CommentWithSta
     profiles: {
       id: 'u-1',
       display_name: 'Ana Novak',
+      first_name: 'Ana',
+      last_name: 'Novak',
       avatar_url: null,
       role: 'member',
     },
@@ -75,7 +77,7 @@ describe('DiscussionNode', () => {
     render(
       <DiscussionNode
         comment={makeComment({
-          profiles: { id: 'u-1', display_name: 'Ana', avatar_url: null, role: 'admin' },
+          profiles: { id: 'u-1', display_name: 'Ana', first_name: 'Ana', last_name: null, avatar_url: null, role: 'admin' },
         })}
         postAuthorId="other-user"
       />
@@ -105,23 +107,32 @@ describe('DiscussionNode', () => {
     expect(timeEl?.getAttribute('dateTime')).toBe('2026-03-25T10:00:00Z')
   })
 
-  it('показывает "?" (initials) если display_name состоит только из пробелов', () => {
+  it('показывает имя из first_name+last_name если display_name состоит только из пробелов', () => {
     render(
       <DiscussionNode
         comment={makeComment({
-          profiles: { id: 'u-1', display_name: '   ', avatar_url: null, role: 'member' },
+          profiles: { id: 'u-1', display_name: '   ', first_name: 'Maja', last_name: 'Kovač', avatar_url: null, role: 'member' },
         })}
       />
     )
-    expect(screen.getByText('?')).toBeInTheDocument()
+    expect(screen.getByText('Maja Kovač')).toBeInTheDocument()
   })
 
-  it('показывает "Uporabnik" если display_name = null', () => {
+  it('показывает имя из first_name+last_name если display_name = null', () => {
     render(
       <DiscussionNode
         comment={makeComment({
-          profiles: { id: 'u-1', display_name: null, avatar_url: null, role: 'member' },
+          profiles: { id: 'u-1', display_name: null, first_name: 'Maja', last_name: 'Kovač', avatar_url: null, role: 'member' },
         })}
+      />
+    )
+    expect(screen.getByText('Maja Kovač')).toBeInTheDocument()
+  })
+
+  it('показывает "Uporabnik" если profiles = null', () => {
+    render(
+      <DiscussionNode
+        comment={makeComment({ profiles: null })}
       />
     )
     expect(screen.getByText('Uporabnik')).toBeInTheDocument()
@@ -343,7 +354,7 @@ describe('DiscussionNode', () => {
     const { container } = render(
       <DiscussionNode
         comment={makeComment({
-          profiles: { id: 'u-1', display_name: 'Admin', avatar_url: null, role: 'admin' },
+          profiles: { id: 'u-1', display_name: 'Admin', first_name: 'Admin', last_name: null, avatar_url: null, role: 'admin' },
         })}
         postAuthorId="other"
       />

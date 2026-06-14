@@ -57,8 +57,13 @@ export function DiscussionNode({
   const [showReplyForm, setShowReplyForm] = useState(false)
 
   const profile = comment.profiles
-  const name = profile?.display_name ?? 'Uporabnik'
-  const initials = getInitials(profile?.display_name ?? null)
+  const resolvedName = profile?.display_name?.trim()
+    ? profile.display_name
+    : profile?.first_name
+      ? [profile.first_name, profile.last_name].filter(Boolean).join(' ')
+      : null
+  const name = resolvedName ?? 'Uporabnik'
+  const initials = getInitials(resolvedName)
   const isAuthor = comment.user_id === postAuthorId
   const isAdmin = profile?.role === 'admin'
   const showBadge = isAuthor || isAdmin

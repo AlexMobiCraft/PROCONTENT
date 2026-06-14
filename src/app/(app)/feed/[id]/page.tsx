@@ -70,12 +70,12 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
     user
       ? supabase
           .from('profiles')
-          .select('id, display_name, avatar_url, role')
+          .select('id, display_name, first_name, last_name, avatar_url, role')
           .eq('id', user.id)
           .single()
       : Promise.resolve({ data: null }),
   ])
-  const currentUserProfile = (profileResult as { data: { id: string; display_name: string | null; avatar_url: string | null; role: string | null } | null })?.data ?? null
+  const currentUserProfile = (profileResult as { data: { id: string; display_name: string | null; first_name: string; last_name: string | null; avatar_url: string | null; role: string | null } | null })?.data ?? null
 
   // Форматируем дату в RSC — исключает useState+useEffect и layout shift на клиенте (Fix #3)
   const formattedDate = new Date(post.created_at).toLocaleDateString('sl-SI', {
