@@ -144,6 +144,12 @@ export function useComments({
           parent_id: parentId,
         })
         setComments((prev) => replaceInTree(prev, tempId, { ...saved, _status: undefined }))
+        // Fire-and-forget: уведомить автора поста (ошибка не влияет на UI)
+        fetch('/api/notifications/new-comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ post_id: postId }),
+        }).catch(() => {})
       } catch {
         setComments((prev) => updateStatusInTree(prev, tempId, 'error'))
         // Откат счётчика
