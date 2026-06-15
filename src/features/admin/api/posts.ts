@@ -224,7 +224,9 @@ export async function createPost(input: CreatePostInput): Promise<string> {
   }
 }
 
-export async function updatePost(input: UpdatePostInput): Promise<void> {
+export async function updatePost(
+  input: UpdatePostInput
+): Promise<{ published: boolean }> {
   const supabase = createClient()
   const gallery = resolveGallery(input)
   const meta = resolveMeta(input)
@@ -246,6 +248,10 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
 
   const uploadedUrls: string[] = []
   let textUpdated = false
+  // Факт реального перехода draft → published (определяется по серверному
+  // snapshot, НЕ по клиентскому состоянию). Возвращается наружу, чтобы рассылку
+  // триггерил фактический результат мутации, а не устаревший initialData.status.
+  let didPublish = false
 
   const { data: snapshot } = await supabase
     .from('posts')
@@ -280,6 +286,16 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
       updatePayload.scheduled_at = null
       updatePayload.is_published = false
       updatePayload.published_at = null
+    } else if (meta.status === 'published' && snapshot?.status === 'draft') {
+      // Переход draft → published: выставляем published-поля.
+      // НЕ обрабатываем scheduled → published здесь — этот пост должен остаться
+      // scheduled, чтобы /api/posts/publish (требует status==='scheduled') его
+      // подхватил. И НЕ трогаем уже опубликованный пост (обычное редактирование),
+      // чтобы не сбросить исходный published_at.
+      updatePayload.status = 'published'
+      updatePayload.is_published = true
+      updatePayload.published_at = getPublishedTimestamp()
+      didPublish = true
     }
 
     const { error: updateError } = await supabase
@@ -370,6 +386,8 @@ export async function updatePost(input: UpdatePostInput): Promise<void> {
         }
       )
     }
+
+    return { published: didPublish }
   } catch (error) {
     if (uploadedUrls.length > 0) {
       await removeStorageFiles(uploadedUrls).catch((rollbackError) => {

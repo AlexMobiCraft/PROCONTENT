@@ -256,6 +256,29 @@ export function PostForm(props: PostFormProps) {
     setScheduledAtError(null)
   }
 
+  // Рассылка о новом published-посте через admin-session route.
+  // Пост к этому моменту уже сохранён/опубликован, поэтому !response.ok здесь —
+  // НЕ ошибка операции (не бросаем), а сигнал «рассылка не ушла» → warning.
+  // Контракт route: 200 { sent, failed } | 500 { error }.
+  // Возвращает true, если рассылка провалилась (hard 500 или partial failed>0).
+  async function notifyNewPost(post: {
+    id: string
+    title: string
+    excerpt?: string
+  }): Promise<boolean> {
+    try {
+      const response = await fetch('/api/notifications/new-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(post),
+      })
+      const data = await response.json().catch(() => ({}))
+      return !response.ok || (data.failed ?? 0) > 0
+    } catch {
+      return true
+    }
+  }
+
   async function onSubmit(values: PostFormValues) {
     const parsed = PostFormSchema.safeParse({
       ...values,
@@ -299,7 +322,7 @@ export function PostForm(props: PostFormProps) {
         const isImmediatePublish =
           initialData.status === 'scheduled' && parsed.data.status === 'published'
 
-        await updatePost({
+        const { published: didPublish } = await updatePost({
           postId: initialData.id,
           formValues: parsed.data,
           mediaItems,
@@ -329,7 +352,18 @@ export function PostForm(props: PostFormProps) {
           // (emailFailed > 0, без throw) — иначе сбой проглатывается молча.
           notificationFailed =
             Boolean(data.emailError) || (data.emailFailed ?? 0) > 0
+        } else if (didPublish) {
+          // Фактический переход draft → published (подтверждён серверным snapshot
+          // внутри updatePost, а не клиентским initialData.status — это исключает
+          // ложную/повторную рассылку при гонке). Письмо через notifications-route.
+          notificationFailed = await notifyNewPost({
+            id: initialData.id,
+            title: meta.title,
+            excerpt: meta.excerpt ?? undefined,
+          })
         }
+
+        const wasPublished = isImmediatePublish || didPublish
 
         if (notificationFailed) {
           toast.warning(
@@ -337,13 +371,13 @@ export function PostForm(props: PostFormProps) {
           )
         } else {
           toast.success(
-            isImmediatePublish
+            wasPublished
               ? 'Objava je bila objavljena'
               : 'Objava je bila posodobljena'
           )
         }
       } else {
-        await createPost({
+        const postId = await createPost({
           formValues: parsed.data,
           mediaItems,
           authorId: user.id,
@@ -351,7 +385,25 @@ export function PostForm(props: PostFormProps) {
           gallery: mediaItems,
           editor: editorValue,
         })
-        toast.success('Objava je bila objavljena')
+
+        // Рассылку шлём только для нового published-поста (не scheduled).
+        // Пост уже создан — провал рассылки виден через warning, но не откатывает создание.
+        const notificationFailed =
+          meta.status === 'published'
+            ? await notifyNewPost({
+                id: postId,
+                title: meta.title,
+                excerpt: meta.excerpt ?? undefined,
+              })
+            : false
+
+        if (notificationFailed) {
+          toast.warning(
+            'Objava je bila objavljena, vendar e-poštna obvestila niso bila poslana.'
+          )
+        } else {
+          toast.success('Objava je bila objavljena')
+        }
       }
 
       router.push('/feed')

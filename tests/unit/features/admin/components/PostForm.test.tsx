@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const mockCreatePost = vi.fn()
 const mockUpdatePost = vi.fn()
@@ -613,7 +613,7 @@ describe('PostForm (edit mode)', () => {
 
   it('calls updatePost on valid submit in edit mode', async () => {
     const user = userEvent.setup()
-    mockUpdatePost.mockResolvedValue(undefined)
+    mockUpdatePost.mockResolvedValue({ published: false })
     render(<PostForm mode="edit" initialData={initialData} />)
 
     await waitFor(() =>
@@ -826,7 +826,7 @@ describe('PostForm scheduling toggle', () => {
 
   it('calls /api/posts/publish when transitioning scheduled to published', async () => {
     const user = userEvent.setup()
-    mockUpdatePost.mockResolvedValue(undefined)
+    mockUpdatePost.mockResolvedValue({ published: false })
     const mockFetchFn = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ published: true }),
@@ -885,7 +885,7 @@ describe('PostForm immediate-publish email notification surfacing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetCategories.mockResolvedValue(testCategories)
-    mockUpdatePost.mockResolvedValue(undefined)
+    mockUpdatePost.mockResolvedValue({ published: false })
   })
 
   async function publishScheduledNow(publishResponse: {
@@ -989,5 +989,254 @@ describe('PostForm immediate-publish email notification surfacing', () => {
     expect(mockRouterPush).not.toHaveBeenCalled()
 
     vi.unstubAllGlobals()
+  })
+})
+
+describe('PostForm new-post email notification (create + draft→published)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetCategories.mockResolvedValue(testCategories)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function stubFetch(response: { ok: boolean; body: Record<string, unknown> }) {
+    const mockFetchFn = vi.fn().mockResolvedValue({
+      ok: response.ok,
+      json: () => Promise.resolve(response.body),
+    })
+    vi.stubGlobal('fetch', mockFetchFn)
+    return mockFetchFn
+  }
+
+  async function createPublishedPost() {
+    const user = userEvent.setup()
+    render(<PostForm mode="create" />)
+    await user.type(screen.getByLabelText(/naslov/i), 'Fresh Post')
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
+    await user.click(screen.getByRole('button', { name: /^objavi$/i }))
+  }
+
+  it('calls /api/notifications/new-post and shows success on clean delivery', async () => {
+    const { toast } = await import('sonner')
+    mockCreatePost.mockResolvedValue('new-post-id')
+    const mockFetchFn = stubFetch({ ok: true, body: { sent: 3, failed: 0 } })
+
+    await createPublishedPost()
+
+    await waitFor(() => {
+      expect(mockFetchFn).toHaveBeenCalledWith(
+        '/api/notifications/new-post',
+        expect.anything()
+      )
+    })
+    const body = JSON.parse(mockFetchFn.mock.calls[0][1].body)
+    expect(body.id).toBe('new-post-id')
+    expect(body.title).toBe('Fresh Post')
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Objava je bila objavljena')
+    })
+    expect(toast.warning).not.toHaveBeenCalled()
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed')
+  })
+
+  it('shows warning toast on hard email error (route 500), still navigates', async () => {
+    const { toast } = await import('sonner')
+    mockCreatePost.mockResolvedValue('new-post-id')
+    stubFetch({ ok: false, body: { error: 'Failed to send notification' } })
+
+    await createPublishedPost()
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith(
+        'Objava je bila objavljena, vendar e-poštna obvestila niso bila poslana.'
+      )
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed')
+  })
+
+  it('shows warning toast on partial-fail (failed > 0)', async () => {
+    const { toast } = await import('sonner')
+    mockCreatePost.mockResolvedValue('new-post-id')
+    stubFetch({ ok: true, body: { sent: 1, failed: 2 } })
+
+    await createPublishedPost()
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledOnce()
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed')
+  })
+
+  it('does NOT send notification for a scheduled new post', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    mockCreatePost.mockResolvedValue('sched-post-id')
+    const mockFetchFn = stubFetch({ ok: true, body: { sent: 0, failed: 0 } })
+
+    render(<PostForm mode="create" />)
+    await user.type(screen.getByLabelText(/naslov/i), 'Scheduled Post')
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.selectOptions(screen.getByLabelText(/kategorija/i), 'insight')
+    await user.click(screen.getByTestId('add-media-btn'))
+    const { scheduleButton } = getPublishModeButtons()
+    await user.click(scheduleButton)
+    const datetimeInput = getDatetimeInput()
+    await user.clear(datetimeInput)
+    await user.type(datetimeInput, '2027-06-15T14:30')
+    await user.click(getSubmitButton())
+
+    await waitFor(() => {
+      expect(mockCreatePost).toHaveBeenCalledOnce()
+    })
+    expect(mockFetchFn).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('Objava je bila objavljena')
+  })
+
+  it('sends notification on draft → published edit', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    mockUpdatePost.mockResolvedValue({ published: true })
+    const mockFetchFn = stubFetch({ ok: true, body: { sent: 2, failed: 0 } })
+
+    render(
+      <PostForm
+        mode="edit"
+        initialData={{
+          id: 'draft-post-1',
+          title: 'Draft Post',
+          category: 'stories',
+          status: 'draft',
+          post_media: [],
+        }}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.click(getSubmitButton())
+
+    await waitFor(() => {
+      expect(mockUpdatePost).toHaveBeenCalledOnce()
+    })
+    await waitFor(() => {
+      expect(mockFetchFn).toHaveBeenCalledWith(
+        '/api/notifications/new-post',
+        expect.anything()
+      )
+    })
+    expect(toast.success).toHaveBeenCalledWith('Objava je bila objavljena')
+    expect(mockRouterPush).toHaveBeenCalledWith('/feed')
+  })
+
+  it('does NOT notify when updatePost reports no publish (stale draft / race)', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    // Форма открыта как draft, но сервер уже опубликовал пост → updatePost
+    // возвращает { published: false }. Рассылка должна опираться на этот факт,
+    // а не на initialData.status, иначе будет повторное письмо.
+    mockUpdatePost.mockResolvedValue({ published: false })
+    const mockFetchFn = stubFetch({ ok: true, body: { sent: 1, failed: 0 } })
+
+    render(
+      <PostForm
+        mode="edit"
+        initialData={{
+          id: 'draft-post-stale',
+          title: 'Draft Post',
+          category: 'stories',
+          status: 'draft',
+          post_media: [],
+        }}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.click(getSubmitButton())
+
+    await waitFor(() => {
+      expect(mockUpdatePost).toHaveBeenCalledOnce()
+    })
+    expect(mockFetchFn).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('Objava je bila posodobljena')
+  })
+
+  it('regression: scheduled → published goes through /api/posts/publish, not notifications', async () => {
+    const user = userEvent.setup()
+    mockUpdatePost.mockResolvedValue({ published: false })
+    const mockFetchFn = stubFetch({
+      ok: true,
+      body: { published: true, emailError: null, emailFailed: 0 },
+    })
+
+    render(
+      <PostForm
+        mode="edit"
+        initialData={{
+          id: 'sched-post-1',
+          title: 'Scheduled Post',
+          category: 'stories',
+          status: 'scheduled',
+          scheduled_at: '2027-06-15T12:30:00.000Z',
+          post_media: [],
+        }}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.click(screen.getByRole('button', { name: /objavi zdaj/i }))
+    await user.click(screen.getByRole('button', { name: /shrani/i }))
+
+    await waitFor(() => {
+      expect(mockFetchFn).toHaveBeenCalledWith(
+        '/api/posts/publish',
+        expect.anything()
+      )
+    })
+    const calledUrls = mockFetchFn.mock.calls.map((call) => call[0])
+    expect(calledUrls).not.toContain('/api/notifications/new-post')
+  })
+
+  it('regression: published → published edit does not send notification', async () => {
+    const { toast } = await import('sonner')
+    const user = userEvent.setup()
+    mockUpdatePost.mockResolvedValue({ published: false })
+    const mockFetchFn = stubFetch({ ok: true, body: {} })
+
+    render(
+      <PostForm
+        mode="edit"
+        initialData={{
+          id: 'pub-post-1',
+          title: 'Published Post',
+          category: 'stories',
+          status: 'published',
+          published_at: '2026-06-01T10:00:00.000Z',
+          post_media: [],
+        }}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByLabelText(/kategorija/i)).not.toBeDisabled()
+    )
+    await user.click(getSubmitButton())
+
+    await waitFor(() => {
+      expect(mockUpdatePost).toHaveBeenCalledOnce()
+    })
+    expect(mockFetchFn).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('Objava je bila posodobljena')
   })
 })

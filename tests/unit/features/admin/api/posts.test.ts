@@ -588,6 +588,119 @@ describe('updatePost — scheduling', () => {
   })
 })
 
+describe('updatePost — draft → published', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUploadFilesWithTracking.mockImplementation(
+      async (_postId: string, _files: File[], uploadedUrls: string[]) => {
+        const urls = _files.map((_: File, i: number) => `https://cdn.example.com/new-file${i}.jpg`)
+        uploadedUrls.push(...urls)
+        return urls
+      }
+    )
+    mockRemoveStorageFiles.mockResolvedValue(undefined)
+    supabaseChain = makeChain({ data: null, error: null })
+    // Snapshot: пост в статусе draft
+    supabaseChain.single.mockResolvedValue({
+      data: {
+        title: 'Draft Title',
+        content: 'Draft Content',
+        excerpt: null,
+        category: 'cat',
+        type: 'photo',
+        is_landing_preview: false,
+        is_onboarding: false,
+        is_published: false,
+        status: 'draft',
+        scheduled_at: null,
+        published_at: null,
+      },
+      error: null,
+    })
+    supabaseChain.update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    supabaseChain.delete.mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) })
+  })
+
+  it('sets published fields when transitioning draft → published', async () => {
+    const result = await updatePost({
+      postId: 'p1',
+      formValues: { ...baseFormValues, status: 'published' as PostStatus },
+      mediaItems: [],
+      originalMedia: [],
+    })
+
+    expect(supabaseChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'published',
+        is_published: true,
+        published_at: expect.any(String),
+      })
+    )
+    expect(result).toEqual({ published: true })
+  })
+
+  it('does NOT set published fields for scheduled → published (left for publish-route)', async () => {
+    // Snapshot: пост в статусе scheduled
+    supabaseChain.single.mockResolvedValue({
+      data: {
+        title: 'Scheduled Title',
+        content: 'Content',
+        excerpt: null,
+        category: 'cat',
+        type: 'photo',
+        is_landing_preview: false,
+        is_onboarding: false,
+        is_published: false,
+        status: 'scheduled',
+        scheduled_at: '2027-05-01T10:00:00.000Z',
+        published_at: null,
+      },
+      error: null,
+    })
+
+    const result = await updatePost({
+      postId: 'p1',
+      formValues: { ...baseFormValues, status: 'published' as PostStatus },
+      mediaItems: [],
+      originalMedia: [],
+    })
+
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('status')
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('published_at')
+    expect(result).toEqual({ published: false })
+  })
+
+  it('does NOT touch published_at for an already published post (normal edit)', async () => {
+    // Snapshot: пост уже published
+    supabaseChain.single.mockResolvedValue({
+      data: {
+        title: 'Published Title',
+        content: 'Content',
+        excerpt: null,
+        category: 'cat',
+        type: 'photo',
+        is_landing_preview: false,
+        is_onboarding: false,
+        is_published: true,
+        status: 'published',
+        scheduled_at: null,
+        published_at: '2026-04-01T18:00:00.000Z',
+      },
+      error: null,
+    })
+
+    await updatePost({
+      postId: 'p1',
+      formValues: { ...baseFormValues, status: 'published' as PostStatus },
+      mediaItems: [],
+      originalMedia: [],
+    })
+
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('published_at')
+    expect(supabaseChain.update.mock.calls[0][0]).not.toHaveProperty('status')
+  })
+})
+
 describe('cancelScheduledPost', () => {
   beforeEach(() => {
     vi.clearAllMocks()
