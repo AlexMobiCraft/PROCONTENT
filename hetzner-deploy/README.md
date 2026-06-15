@@ -238,6 +238,35 @@ sudo systemctl restart caddy
 2. Создайте tunnel
 3. Укажите `http://localhost:8000` как origin
 
+### Вариант C: Nginx (фактически используется на проде)
+
+```nginx
+server {
+    server_name api.procontent.si;
+
+    # КРИТИЧНО: лимит тела запроса. Дефолт nginx = 1 МБ.
+    # Без этой строки любая загрузка > 1 МБ (видео, крупные изображения)
+    # режется с 413 БЕЗ CORS-заголовков → в браузере падает как "Load failed".
+    # Значение должно быть >= FILE_SIZE_LIMIT storage (docker-compose.yml)
+    # и >= MAX_VIDEO_SIZE в клиенте (src/features/admin/types.ts).
+    client_max_body_size 110m;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+После правки: `sudo nginx -t && sudo systemctl reload nginx`.
+
+> **Лимиты загрузки должны быть согласованы по всей цепочке:**
+> host-proxy (`client_max_body_size` в nginx / `request_body` в Caddy / план Cloudflare)
+> ≥ storage `FILE_SIZE_LIMIT` (`docker-compose.yml`)
+> ≥ `MAX_VIDEO_SIZE` в клиенте. Сейчас целевое значение — **100 МБ** (proxy 110 МБ с запасом).
+
 После настройки домена обновите `.env`:
 
 ```bash

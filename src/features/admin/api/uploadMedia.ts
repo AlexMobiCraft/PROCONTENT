@@ -51,6 +51,30 @@ function generateStoragePath(postId: string, fileName: string): string {
 }
 
 /**
+ * Builds a user-facing (Slovenian) message for a Storage upload error.
+ *
+ * Bare network failures from the storage fetch surface as "Load failed"
+ * (WebKit) / "Failed to fetch" (Chromium). The most common cause in our
+ * self-hosted setup is the reverse proxy (nginx `client_max_body_size`)
+ * rejecting an oversized body with a 413 that lacks CORS headers, so the
+ * browser blocks the response and the SDK only sees a generic network error.
+ * We translate that into an actionable message instead of the opaque original.
+ */
+function toUploadErrorMessage(error: { message: string; statusCode?: string }, file: File): string {
+  const raw = error.message ?? ''
+  const isPayloadTooLarge =
+    error.statusCode === '413' || /payload too large|entity too large|exceeded/i.test(raw)
+  const isNetworkFailure = /load failed|failed to fetch|networkerror|network error/i.test(raw)
+
+  if (isPayloadTooLarge || isNetworkFailure) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1)
+    return `Datoteke "${file.name}" (${sizeMb} MB) ni bilo mogoče naložiti. Datoteka je morda prevelika ali pa je prišlo do napake v omrežju.`
+  }
+
+  return `Napaka pri nalaganju datoteke: ${raw}`
+}
+
+/**
  * Uploads a single file to Supabase Storage and returns its public URL.
  */
 export async function uploadSingleFile(postId: string, file: File): Promise<string> {
@@ -63,7 +87,7 @@ export async function uploadSingleFile(postId: string, file: File): Promise<stri
   })
 
   if (error) {
-    throw new Error(`Napaka pri nalaganju datoteke: ${error.message}`, { cause: error })
+    throw new Error(toUploadErrorMessage(error, file), { cause: error })
   }
 
   const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path)

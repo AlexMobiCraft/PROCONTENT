@@ -50,6 +50,20 @@ describe('uploadSingleFile', () => {
     mockUpload.mockResolvedValue({ error: { message: 'Bucket not found' } })
     await expect(uploadSingleFile('p1', makeFile())).rejects.toThrow('Napaka pri nalaganju datoteke')
   })
+
+  it('maps bare network failure ("Load failed") to a size/network hint', async () => {
+    mockUpload.mockResolvedValue({ error: { message: 'Load failed' } })
+    await expect(uploadSingleFile('p1', makeFile('clip.mp4', 'video/mp4'))).rejects.toThrow(
+      /prevelika ali pa je prišlo do napake v omrežju/
+    )
+  })
+
+  it('maps 413 payload-too-large to the same friendly hint', async () => {
+    mockUpload.mockResolvedValue({ error: { message: 'Payload too large', statusCode: '413' } })
+    await expect(uploadSingleFile('p1', makeFile('clip.mp4', 'video/mp4'))).rejects.toThrow(
+      /ni bilo mogoče naložiti/
+    )
+  })
 })
 
 describe('uploadFilesWithTracking', () => {
