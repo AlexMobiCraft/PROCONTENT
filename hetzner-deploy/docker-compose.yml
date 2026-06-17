@@ -241,10 +241,10 @@ services:
       DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       STORAGE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
       REQUEST_ALLOW_X_FORWARDED_PATH: "true"
-      # 100 MB — должно совпадать с MAX_VIDEO_SIZE в клиенте (src/features/admin/types.ts).
+      # 300 MB — должно совпадать с MAX_VIDEO_SIZE в клиенте (src/features/admin/types.ts).
       # Внимание: client_max_body_size в host-nginx ОБЯЗАН быть не меньше этого значения,
       # иначе nginx режет загрузку с 413 без CORS-заголовков → в браузере "Load failed".
-      FILE_SIZE_LIMIT: 104857600
+      FILE_SIZE_LIMIT: 314572800
       STORAGE_BACKEND: file
       GLOBAL_S3_BUCKET: ${GLOBAL_S3_BUCKET}
       FILE_STORAGE_BACKEND_PATH: /var/lib/storage

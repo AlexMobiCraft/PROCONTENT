@@ -29,9 +29,12 @@ fi
 echo ""
 echo "--- Шаг 1: Создание buckets ---"
 docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" <<'SQL'
--- Создаем bucket post_media, если его нет
+-- Создаем bucket post_media, если его нет.
+-- file_size_limit = 300 МБ (314572800): per-bucket лимит имеет приоритет над
+-- глобальным FILE_SIZE_LIMIT, поэтому ОБЯЗАН совпадать с MAX_VIDEO_SIZE в клиенте
+-- (src/features/admin/types.ts) и FILE_SIZE_LIMIT в docker-compose.yml.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('post_media', 'post_media', true, 52428800, null)
+VALUES ('post_media', 'post_media', true, 314572800, null)
 ON CONFLICT (id) DO NOTHING;
 
 -- Создаем bucket inline_images, если его нет

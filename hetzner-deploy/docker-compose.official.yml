@@ -372,8 +372,8 @@ services:
       DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       STORAGE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
       REQUEST_ALLOW_X_FORWARDED_PATH: "true"
-      # 100 MB — должно совпадать с MAX_VIDEO_SIZE в клиенте и с client_max_body_size в host-nginx.
-      FILE_SIZE_LIMIT: 104857600
+      # 300 MB — должно совпадать с MAX_VIDEO_SIZE в клиенте и с client_max_body_size в host-nginx.
+      FILE_SIZE_LIMIT: 314572800
       STORAGE_BACKEND: file
       # S3 bucket when using S3 backend, directory name when using 'file'
       GLOBAL_S3_BUCKET: ${GLOBAL_S3_BUCKET}

@@ -212,8 +212,8 @@ export const MAX_ONBOARDING_POSTS = 5
 /** Maximum file size for images (10 MB) */
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
-/** Maximum file size for videos (100 MB) */
-export const MAX_VIDEO_SIZE = 100 * 1024 * 1024
+/** Maximum file size for videos (300 MB) */
+export const MAX_VIDEO_SIZE = 300 * 1024 * 1024
 
 /** Allowed MIME types for image uploads */
 export const ALLOWED_IMAGE_TYPES = [

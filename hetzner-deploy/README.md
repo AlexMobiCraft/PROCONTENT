@@ -249,7 +249,7 @@ server {
     # режется с 413 БЕЗ CORS-заголовков → в браузере падает как "Load failed".
     # Значение должно быть >= FILE_SIZE_LIMIT storage (docker-compose.yml)
     # и >= MAX_VIDEO_SIZE в клиенте (src/features/admin/types.ts).
-    client_max_body_size 110m;
+    client_max_body_size 320m;
 
     location / {
         proxy_pass http://localhost:8000;
@@ -265,7 +265,11 @@ server {
 > **Лимиты загрузки должны быть согласованы по всей цепочке:**
 > host-proxy (`client_max_body_size` в nginx / `request_body` в Caddy / план Cloudflare)
 > ≥ storage `FILE_SIZE_LIMIT` (`docker-compose.yml`)
-> ≥ `MAX_VIDEO_SIZE` в клиенте. Сейчас целевое значение — **100 МБ** (proxy 110 МБ с запасом).
+> ≥ `MAX_VIDEO_SIZE` в клиенте. Сейчас целевое значение — **300 МБ** (proxy 320 МБ с запасом).
+>
+> ⚠️ **Cloudflare (Вариант B):** free/Pro план Cloudflare режет тело запроса на 100 МБ
+> независимо от nginx. Для 300 МБ Cloudflare-туннель подходит только на Enterprise-плане —
+> иначе используйте прямой nginx (Вариант C).
 
 После настройки домена обновите `.env`:
 
