@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- PROCONTENT favicon: терракота #B0664A и кремовый #FDFBF7. -->
+  <rect width="64" height="64" rx="14" fill="#B0664A" />
+  <path
+    fill="#FDFBF7"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M16 50v-4h4V18h-4v-4h18.5C44.8 14 50 18.5 50 26.5S44.7 39 34.5 39H29v7h5v4H16Zm13-31v15h5c5.6 0 8-2.4 8-7.5S39.6 19 34 19h-5Z"
+  />
+</svg>

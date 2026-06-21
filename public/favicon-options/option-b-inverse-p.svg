@@ -1,0 +1,6 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Вариант B: инверсный — кремовая «P» на сплошной терракоте -->
+  <rect x="0" y="0" width="64" height="64" rx="14" fill="#B0664A"/>
+  <text x="32" y="46" font-family="Cormorant Garamond, Georgia, 'Times New Roman', serif"
+        font-size="48" font-weight="600" fill="#FDFBF7" text-anchor="middle">P</text>
+</svg>
