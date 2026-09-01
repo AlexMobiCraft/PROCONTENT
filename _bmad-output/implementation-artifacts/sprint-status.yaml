@@ -41,8 +41,8 @@
 #   - Story 5.1 обновлена: группировка медиагрупп, Exponential Backoff, post_media
 # 2026-03-29: Обновлен статус Story 4.3 с backlog на ready-for-dev
 
-generated: 2026-03-29T17:30:00+01:00
-last_updated: 2026-04-09 (Epic 7 retrospective -> done)
+generated: '09-01-2026 21:00'
+last_updated: 09-01-2026 21:00
 project: PROCONTENT
 project_key: NOKEY
 tracking_system: file-system
@@ -51,132 +51,68 @@ story_location: c:/Users/1/DEV/PROCONTENT/_bmad-output/implementation-artifacts
 development_status:
   # ─── EPIC 1: Growth & Conversion ───────────────────────────────────────────
   epic-1: done
-  1-1-basic-landing-and-technical-foundation-infrastructure: done
-  1-2-registration-and-login-email-password-auth: done
-  1-3-public-landing-landing-page-ui: done
-  1-4-stripe-checkout-integration: done
-  1-5-processing-stripe-webhooks-and-access-management: done
-  1-6-onboarding-page-for-new-members: done
-  1-7-personal-account-and-subscription-management: done
-  1-8-password-reset-and-recovery: done
+  1-1-базовый-лендинг-и-технический-фундамент-infrastructure: done
+  1-2-регистрация-и-вход-на-платформу-email-password-auth: done
+  1-3-публичный-лендинг-landing-page-ui: done
+  1-4-интеграция-stripe-checkout: done
+  1-5-обработка-stripe-webhooks-и-управление-доступом: done
+  1-6-onboarding-страница-для-новых-участниц: done
+  1-7-личный-кабинет-и-управление-подпиской: done
+  1-8-сброс-и-восстановление-пароля-forgot-password: done
   epic-1-retrospective: optional
 
-  # ─── EPIC 2: Knowledge Discovery (Content Feed, Multimedia & Archive) ──────
-  # Переработан 2026-03-22: добавлены нормализованная БД (post_media), GalleryGrid, Video Controller
   epic-2: done
-
-  # Story-файл создан 2026-03-22 SM Bob
-  2-1-normalized-post-media-database-schema: done
-
-  # Ранее были 2-1, 2-2 → переименованы в 2-2, 2-3 (файлы переименованы)
-  2-2-basic-content-feed-with-infinite-scroll: done
-  2-3-optimized-media-display-in-cards-lazymediawrapper: done
-
-  # Story-файл создан 2026-03-22 SM Bob
-  2-4-gallery-grid-adaptive-layout-component: done
-
-  # Story-файл создан 2026-03-22 SM Bob
-  2-5-global-video-playback-controller: done
-
-  # Ранее 2-3 → переименована в 2-6 (файл переименован), статус сохранён
-  # 2026-03-25: CR выявил 4 action items (3 MEDIUM + 1 LOW) → back to in-progress
-  # 2026-03-25: 4 AI-Review items resolved → ready for review
-  # 2026-03-25: Code review выявил 4 новых MEDIUM issues → in-progress
-  # 2026-03-25: CR Round 5 resolved 4 items (avatar optimization, text selection, disabled attr) → review
-  # 2026-03-25: Final Code Review completed successfully → done
-  2-6-detailed-view-of-multiformat-post: done
-
-  # Ранее 2-4 → переименованы в 2-7 (статусы сохранены)
-  # 2026-03-25: Review Follow-ups (6 шт.) выполнены: useLikeToggle хук, act() fixes, isPostArray валидатор, MIN_QUERY_LENGTH, Input UI компонент, .gitignore → review
-  # 2026-03-25: Code Review passed successfully — no actionable findings remain → done
-  2-7-search-across-the-entire-knowledge-base: done
-
+  2-1-нормализованная-модель-данных-для-мультимедиа-database-schem: done
+  2-2-базовая-лента-контента-с-бесконечным-скроллом-infinite-scrol: done
+  2-3-оптимизированное-отображение-медиа-в-карточках-lazymediawrap: done
+  2-4-компонент-галереи-с-адаптивной-сеткой-gallerygrid: done
+  2-5-глобальный-менеджер-воспроизведения-видео-video-controller: done
+  2-6-детальный-просмотр-мультиформатного-поста: done
+  2-7-поиск-по-всей-базе-знаний: done
+  2-8-горизонтальные-фильтры-рубрики-sticky-pill-filters: backlog
   epic-2-retrospective: optional
 
-  # ─── EPIC 3: Community Engagement ──────────────────────────────────────────
   epic-3: done
-  3-1-viewing-discussions-under-a-post: done
-  3-2-writing-a-comment-with-instant-response-optimistic-ui: done
-  # 2026-03-26: CR выявил 3 проблемы (RLS несоответствие, отступы ответов, удаление своих комментов) -> in-progress
-  3-3-moderation-and-replies-to-comments-admin-functions: done
-  # 2026-03-27: Review Findings resolved (9 items: 1 decision + 8 patch) → review
-  # 2026-03-27: Code Review Round 2 (6 patches) → in-progress
-  # 2026-03-27: Round 2 Review Findings resolved (6 patches) → review
-  # 2026-03-27: Code Review Round 3 (1 patch: Supabase row limit pagination) → review
-  # 2026-03-27: Round 4 Review Findings resolved (6 patches: stable sort, no extra DB request, DB email filter, type, PAGE_SIZE export, dedup) → review
-  # 2026-03-27: Round 5 patch items resolved (trialing, webhook payload, email @) → review
-  # 2026-03-27: Round 6 findings resolved (trailing slashes, excerpt validation, test fixtures) → review
-  # 2026-03-27: Round 7 patch items resolved (rawBody null → 400, createAdminClient try/catch, SMTP header sanitized) → review
-  # 2026-03-27: Round 8 patch resolved (safeTitle in html/text body generators) → review
-  3-4-automatic-email-notifications-about-new-posts: done
-  # 2026-03-28: Story реализована → review
-  3-5-managing-email-preferences: done
+  3-1-просмотр-обсуждений-под-постом: done
+  3-2-написание-комментария-с-мгновенным-откликом-optimistic-ui: done
+  3-3-модерация-и-ответы-на-комментарии-админ-функции: done
+  3-4-автоматические-email-уведомления-о-новых-постах: done
+  3-5-управление-email-предпочтениями: done
   epic-3-retrospective: optional
 
-  # ─── EPIC 4: Creator Operations (Admin Dashboard) ──────────────────────────
-  # Story 4-1 обновлена 2026-03-22: мультимедиа до 10 файлов, выбор обложки, drag-and-drop порядок
   epic-4: done
-  # 2026-03-28: 13 review findings resolved (error handling, validation, UX, a11y, memory leaks) → review
-  # 2026-03-28: Round 2 Review generated 13 action items for edge cases & security. Story returned to in-progress.
-  # 2026-03-29: Round 3 Review findings resolved (8 fixes + 3 N/A) → review
-  # 2026-03-29: Round 4 Review findings resolved (8 fixes + 3 N/A + 4 deferred) → review
-  # 2026-03-29: Раунд 5 Edge Case Review сгенерировал 6 action items. Story возвращена в in-progress.
-  # 2026-03-29: Round 5 findings resolved (5 fixes + 1 N/A) → review
-  4-1-creating-and-editing-multimedia-posts: done
-  # 2026-03-29: Story реализована → review
-  # 2026-03-29: Code Review Round 1 (Group 1: DB & Types) — 10 patch findings
-  # 2026-03-29: Code Review Round 2 (Group 2: API Layer) — 11 patch findings
-  # 2026-03-29: Code Review Round 3 (Group 3: Components & Pages) — 12 patch findings
-  # 2026-03-29: Code Review Round 4 (Group 4: Tests) — 20 patch findings
-  # 2026-03-29: Code Review Complete — 53 patch findings (8 CRITICAL, 16 HIGH, 29 MEDIUM) left as action items → in-progress
-  4-2-managing-categories-and-post-rubrics: done
-  # 2026-03-30: Story реализована → review
-  4-3-managing-content-for-onboarding-and-landing: done
-  # 2026-03-30: Story реализована → review
-  4-4-monitoring-members-and-manual-access-control: done
-  # 2026-03-30: Добавлена новая story — admin-навигация обнаружена как пропущенная при реализации 4.3
-  4-5-admin-interface-navigation: done
+  4-1-создание-и-редактирование-мультимедийных-постов: done
+  4-2-управление-категориями-и-рубриками-постов: done
+  4-3-управление-контентом-для-onboarding-и-лендинга: done
+  4-4-мониторинг-участниц-и-ручное-управление-доступом: done
+  4-5-навигация-в-интерфейсе-администратора: done
   epic-4-retrospective: optional
 
-  # ─── EPIC 5: Platform Initialization (Telegram Migration) ──────────────────
-  # Story 5-1 обновлена 2026-03-22: группировка медиагрупп, Exponential Backoff, post_media
   epic-5: done
-  # 2026-03-30: Story-файл создан SM Bob
-  # 2026-03-30: Story реализована → review
-  5-1-access-to-the-entire-content-archive-telegram-migration: done
+  5-1-доступ-ко-всему-архиву-контента-telegram-migration: done
   epic-5-retrospective: optional
 
-  # ─── EPIC 6: Scheduled Publishing ──────────────────────────────────────────
   epic-6: done
-  # 2026-04-01: Story 6.1 взята в разработку
-  # 2026-04-02: Code Review Round 1 — 5 patch findings → in-progress
-  # 2026-04-02: Round 1 patch findings resolved (backfill fix, published_at timing, rollback test, dead code, status type) → review
-  # 2026-04-02: Code Review Round 2 passed successfully → done
-  6-1-post-status-model-database-schema: done
-  # 2026-04-01: Story-файл создан
-  # 2026-04-03: Round 3 patch findings resolved (migration guard DO block, mockFetch body.cancel test) → review
-  # 2026-04-03: Round 4 patch findings resolved (5 doc-only: CRON_SECRET removed from story, Dev Notes fixed, subtask 1.5 sync, Reference path, .env.local label) → review
-  6-2-pg-cron-automatic-publishing-of-scheduled-posts: done
-  # 2026-04-03: Story-файл создан SM Bob
-  # 2026-04-03: Code Review выявил несоответствия AC (manual publish route не подключён, scheduled→draft/published не реализован, published→scheduled не запрещён) → in-progress
-  # 2026-04-03: Code Review fixes resolved (publish route auth, PostForm→publish endpoint, guard published→scheduled) → review
-  6-3-ui-toggle-schedule-and-datetime-picker-in-post-form: done
-  # 2026-04-03: Story реализована — ScheduledPostsTable/Container + postsServer.ts + cancelScheduledPost + Sidebar nav + 46 тестов → review
-  6-4-admin-scheduled-posts-table: done
+  6-1-схема-бд-статусная-модель-постов: done
+  6-2-pg_cron-автоматическая-публикация-запланированных-постов: done
+  6-3-ui-toggle-запланировать-datetime-picker-в-форме-поста: done
+  6-4-admin-раздел-запланировано-в-admin-панели: done
   epic-6-retrospective: optional
- 
-  # EPIC 7: Rich Content Experience (Markdown Editor & Inline Media)
+
   epic-7: done
-  # 2026-04-05: Story file created by SM Bob
-  "7-1-wysiwyg-editor-inline-images-posts": "done"
-  7-2-markdown-rendering-posts-inline-images-and-combined-layout: done
+  7-1-wysiwyg-редактор-для-инлайн-изображений-в-постах-fr19-1: done
+  7-2-html-рендеринг-rich-content-постов-с-инлайн-изображениями-и: done
   epic-7-retrospective: done
 
-  # ─── EPIC 8: Video Thumbnails ────────────────────────────────────────────────
-  # 2026-05-17: Story files created for all 8.x stories
-  epic-8: in-progress
-  8-1-automatic-thumbnail-generation-on-save: ready-for-dev
-  8-2-manual-poster-replacement-in-editor: ready-for-dev
-  8-3-retroactive-thumbnail-generation: ready-for-dev
-  8-4-regenerate-and-delete-thumbnail: ready-for-dev
-  epic-8-retrospective: backlog
+  epic-8: backlog
+  8-1-автоматическая-генерация-thumbnail-а-при-сохранении-объекта: backlog
+  8-2-ручная-замена-poster-а-в-редакторе: backlog
+  8-3-ретроактивная-генерация-thumbnail-ов-для-существующих-объект: backlog
+  8-4-повторная-генерация-и-удаление-thumbnail-а: backlog
+  epic-8-retrospective: optional
+
+  epic-9: in-progress
+  9-1-ограниченный-entitlement-и-единый-контроль-доступа: ready-for-dev
+  9-2-разовая-покупка-29-и-активация-доступа: backlog
+  9-3-безопасное-завершение-предложения-и-обработка-исключений: backlog
+  epic-9-retrospective: optional

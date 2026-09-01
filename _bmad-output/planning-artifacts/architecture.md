@@ -4,8 +4,10 @@ workflowType: 'architecture'
 lastStep: 8
 status: 'complete'
 completedAt: '2026-03-06'
-lastUpdated: '2026-06-07'
+lastUpdated: '2026-09-01'
 updateHistory:
+  - date: '2026-09-01'
+    changes: 'Добавлен изолированный architecture slice временного one-time предложения: access_entitlements, webhook-authoritative fulfillment, verified-email claim, единый access-state resolver для middleware/RLS/email, календарный expiry и rollback без изменения recurring subscriptions.'
   - date: '2026-06-07'
     changes: 'Добавлен раздел Post Category System: категория поста стала необязательной (nullable), удаление темы каскадно снимает её со всех постов (ON DELETE SET NULL), документированы Zod-схема и UI-паттерны для отображения/редактирования.'
   - date: '2026-04-09'
@@ -15,6 +17,7 @@ updateHistory:
 inputDocuments:
   [
     '{project-root}/_bmad-output/planning-artifacts/prd.md',
+    '{project-root}/_bmad-output/planning-artifacts/sprint-change-proposal-2026-09-01.md',
     '{project-root}/_bmad-output/planning-artifacts/ux-design-specification.md',
   ]
 project_name: 'PROCONTENT'
@@ -32,7 +35,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 **Functional Requirements:**
 
 - **Контент и Лента:** Клиентский SPA для ленты, поиска, категоризации, отображения мультимедиа (фото/видео) и галерей (до 10 элементов).
-- **Монетизация и Доступ:** Автоматизированное управление подписками через Stripe Webhooks (блокировка доступа при неоплате). Строгая матрица доступов (RBAC) между Гостем, Участницей и Автором.
+- **Монетизация и Доступ:** Автоматизированное управление recurring subscriptions через Stripe Webhooks и отдельный entitlement lifecycle для временного one-time доступа. Строгая матрица доступов (RBAC) между Гостем, Участницей и Автором.
 - **Сообщество:** Одноуровневые комментарии, email-уведомления.
 - **Администрирование:** Публикация контента, управление пользователями, выбор превью для лендинга.
 - **Миграция:** Разовый импорт архива из Telegram (интеллектуальная группировка медиа без потерь, поддержка стейт-переходов и Exponential Backoff при Rate Limit ошибках).
@@ -52,7 +55,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 ### Technical Constraints & Dependencies
 
 - **Ресурсы:** Один full-stack разработчик (требует простого, стандартного стека технологий и чистой документации).
-- **Интеграции:** Stripe API (жизненный цикл подписок и webhooks).
+- **Интеграции:** Stripe API (раздельные lifecycle recurring subscriptions и one-time payment fulfillment через webhooks).
 - **Инфраструктура:** CDN / Провайдер медиа-хранилища для надежного воспроизведения мобильного видео.
 
 ### Cross-Cutting Concerns Identified
@@ -119,6 +122,7 @@ React Fast Refresh, настроенный ESLint, удобная работа �
 **Critical Decisions (Block Implementation):**
 
 - Data Architecture & Auth (Supabase)
+- Temporary One-Time Access (entitlement ledger + canonical access-state resolver)
 - Frontend State Management (Zustand)
 - Infrastructure & Hosting (Vercel)
 - Content Editor System (Tiptap + sanitized HTML rendering)
@@ -141,6 +145,138 @@ React Fast Refresh, настроенный ESLint, удобная работа �
 - **Version:** Supabase (Latest 2.x)
 - **Rationale:** В условиях "одного разработчика" требуется надежное Backend-as-a-Service (BaaS) решение. Supabase закрывает Аутентификацию, Реляционную Базу Данных (нормализация данных - `post_media` связанная с `posts`) и Хранилище (Storage) для видео/фото. Row Level Security обеспечит надежное соблюдение спецификаций RBAC. Интегрируется со Stripe через Webhooks.
 - **Affects:** Auth Module, User Profiles, Content Feed (Gallery Data)
+
+### Temporary One-Time Access Architecture (01.09–01.12.2026)
+
+#### Design paradigm: Policy Decision Point / Policy Enforcement Points
+
+`access_entitlements` является отдельным ledger прав доступа, Stripe webhook — единственным источником подтверждённого payment fact, а DB access-state resolver — единственным Policy Decision Point (PDP). Middleware, RLS и email recipient selection являются Policy Enforcement Points (PEP) и не воспроизводят правила доступа собственными условиями.
+
+```mermaid
+flowchart LR
+  Stripe[Stripe Payment Link / Checkout Session] -->|signed paid webhook| Fulfillment[One-time fulfillment transaction]
+  Fulfillment --> Ledger[(access_entitlements)]
+  VerifiedAuth[Verified Supabase identity] --> Claim[Atomic entitlement claim]
+  Ledger --> Claim
+  Claim --> Ledger
+  Profiles[(profiles: admin / VIP / recurring)] --> Resolver[DB access-state resolver]
+  Ledger --> Resolver
+  Resolver --> Middleware[Next.js middleware RPC]
+  Resolver --> RLS[Supabase RLS policies]
+  Resolver --> Recipients[Service-role email recipient selector]
+```
+
+#### AD-TA1 — Recurring и one-time являются независимыми lifecycle
+
+- **Binds:** Stripe checkout, webhook, auth, profiles, RLS, email notifications.
+- **Prevents:** использование `subscription_status='active'` как суррогата временного доступа и повреждение действующих subscriptions.
+- **Rule:** one-time flow записывает только `access_entitlements` и собственный audit context. Он не создаёт, не обновляет и не отменяет Stripe Subscription и не пишет в `stripe_subscription_id`, `subscription_status`, `current_period_end`, price, billing interval или `cancel_at_period_end`. Existing subscription handlers продолжают принимать только subscription events/resources.
+
+#### AD-TA2 — Entitlement создаётся только из валидного paid webhook
+
+- **Binds:** `checkout.session.completed`, `checkout.session.async_payment_succeeded`, fulfillment transaction.
+- **Prevents:** выдачу доступа по success redirect, client clock, произвольной one-time оплате или повторной доставке.
+- **Rule:** fulfillment начинается только после проверки Stripe signature на raw body и затем проверяет `mode='payment'`, paid status, exact `payment_link_id`, exact `price_id`, `offer_code`, `offer_version`, amount, currency и quantity по server-only allowlist. `checkout.session.completed` исполняется только при `payment_status='paid'`; delayed methods входят через тот же handler после `checkout.session.async_payment_succeeded`. Уникальный `stripe_checkout_session_id` делает retry и параллельную доставку no-op и никогда не продлевает существующий grant.
+- **Rule:** после signature verification handler повторно получает Checkout Session server-side с expanded `line_items` и использует retrieved values для Price/quantity/amount/currency/payment status checks; webhook snapshot и metadata сами по себе не являются достаточной product allowlist validation.
+- **Rule:** `paid_at` — Stripe-origin `event.created` единственного qualifying paid-event для Session: `checkout.session.completed` при `payment_status='paid'` для immediate payment либо `checkout.session.async_payment_succeeded` для delayed payment, чей completed-event не был paid. Retry сохраняет тот же `event.id/event.created`; receipt order не выбирает timestamp и повторное событие не меняет `paid_at`.
+
+#### AD-TA3 — Grant ledger отделён от append-only payment attempts
+
+- **Binds:** schema, claim, support audit, expiry.
+- **Prevents:** смешивание billing state с authorization state и потерю доказательства происхождения права.
+- **Rule:** `payment_fulfillment_attempts` — append-only audit всех qualifying/exception Sessions с unique `stripe_checkout_session_id`, nullable unique `stripe_payment_intent_id`, `stripe_event_id`, Link/Price/metadata, canonical purchaser email, amount/currency, `paid_at`, immutable disposition и safe error context. Он никогда не участвует в access predicate и не хранит mutable refund status.
+- **Rule:** `access_entitlements` хранит только единственный grant: `id`, nullable `user_id -> auth.users(id)`, `source='stripe_one_time'`, `status`, `offer_code/version`, unique `fulfillment_attempt_id`, `purchaser_email_normalized`, `paid_at`, `access_starts_at`, `access_ends_at`, nullable `claimed_at`, nullable `revoked_at`, `created_at`.
+- **Rule:** `payment_refund_cases` отдельно владеет mutable refund lifecycle для non-granting attempt: unique `fulfillment_attempt_id`, `status`, nullable `stripe_refund_id`, `last_error_code`, `created_at`, `updated_at`. Изменение refund case никогда не изменяет attempt или entitlement.
+- **Rule:** lifecycle grant — `unclaimed -> claimed`; expiry является вычисляемым состоянием и не записывается cron-задачей. `unclaimed` — только webhook-verified payment candidate, не выданное право. Active entitlement существует только после verified-email claim при `status='claimed'`, non-null `user_id/claimed_at`, `revoked_at IS NULL` и `access_starts_at <= evaluated_at AND evaluated_at < access_ends_at`.
+- **Rule:** DB unique constraint на `(offer_code, purchaser_email_normalized)` является обязательной частью schema, не Deferred. В atomic transaction fulfillment сначала фиксирует attempt, затем `INSERT ... ON CONFLICT DO NOTHING` пытается занять grant key; первая transaction, успешно вставившая unique key, является authoritative winner. Проигравшие distinct Sessions получают disposition `duplicate_review` и не могут заменить/продлить winner.
+- **Rule:** authoritative purchaser identity берётся только из retrieved `Checkout Session.customer_details.email`; значение обязано присутствовать и нормализуется один раз как `lower(btrim(email))`. Metadata, redirect query и PaymentIntent email не подменяют этот источник; отсутствие email создаёт non-granting exception.
+
+#### AD-TA4 — Три календарных месяца считаются в явной timezone
+
+- **Binds:** `paid_at`, `access_starts_at`, `access_ends_at`, tests around DST and month ends.
+- **Prevents:** подмену трёх календарных месяцев 90 днями и зависимость результата от session `TimeZone` PostgreSQL.
+- **Rule:** `access_starts_at = paid_at`; `access_ends_at` вычисляется один раз в той же DB transaction с calendar arithmetic `+ interval '3 months'` в `Europe/Ljubljana`, затем сохраняется как `timestamptz`. Эквивалентная явная форма: `((paid_at AT TIME ZONE 'Europe/Ljubljana') + interval '3 months') AT TIME ZONE 'Europe/Ljubljana'`. Правая граница exclusive: при `evaluated_at = access_ends_at` доступа нет.
+
+#### AD-TA5 — Claim наследует verified identity binding
+
+- **Binds:** `/auth/confirm`, authenticated post-payment/login return, entitlement claim RPC.
+- **Prevents:** account takeover через введённый в Stripe чужой email или украденный `session_id`.
+- **Rule:** webhook сначала создаёт `unclaimed` entitlement. После Supabase email verification server-side claim атомарно связывает только webhook-issued `unclaimed` record с `(select auth.uid())`, когда `lower(btrim(auth.users.email)) = purchaser_email_normalized`. Provider-specific aliasing (`+tag`, Gmail dots) не применяется. Один entitlement нельзя присоединить к двум users.
+- **Rule:** success redirect и `{CHECKOUT_SESSION_ID}` являются UX hint. Они не создают, не подтверждают и не продлевают право; claim не выполняет fallback, который строит entitlement непосредственно из Stripe API response.
+- **Rule:** Payment Link возвращает новую покупательницу в существующий register/verification entry point, а существующую verified покупательницу — в login/authenticated return. Оба пути после получения authenticated identity вызывают один atomic claim contract; если webhook ещё не доставлен, UI показывает pending state и безопасно повторяет claim без создания права из Stripe redirect.
+
+#### AD-TA6 — Один access-state resolver управляет всеми gates
+
+- **Binds:** middleware, posts/post_media/post_comments RLS, email recipient selection, access cache.
+- **Prevents:** ситуацию, когда middleware пропускает, RLS возвращает пустые данные, email включает истёкших users или cache переживает deadline.
+- **Rule:** private DB resolver принимает `user_id` и `evaluated_at` и возвращает `has_access`, полный уникальный `sources[]`, `valid_until` и `evaluated_at`. Wire identifiers фиксированы как `admin`, `vip`, `recurring`, `temporary_one_time` и возвращаются в этом canonical order без duplicates. Если `has_access=false`, `valid_until=evaluated_at`; если существует admin/VIP/recurring source без локального entitlement deadline, `valid_until=NULL`; если доступ дают только time-limited grants, `valid_until=max(active access_ends_at)`. PEPs не назначают собственный source priority.
+- **Rule:** RLS вызывает authenticated-only no-argument `public.has_current_content_access()`, который под `SECURITY DEFINER` передаёт `(select auth.uid())` и DB time private core resolver. Middleware вызывает no-argument authenticated RPC `public.get_my_content_access_state()`, возвращающий ровно одну row shape: `has_access boolean NOT NULL`, `sources text[] NOT NULL`, `valid_until timestamptz NULL`, `evaluated_at timestamptz NOT NULL`. Email pipeline вызывает service-role-only recipient RPC, основанный на том же private resolver, и поверх доступа применяет `email_notifications_enabled=true` и существующую audience policy, расширенную источником `temporary_one_time`; admin/VIP не добавляются в рассылку только из-за этого change.
+- **Rule:** resolver и claim helpers размещаются в non-exposed schema, используют schema-qualified names и `search_path=''`. Public RPC wrappers не принимают произвольный `user_id`; `EXECUTE` отозван у `PUBLIC`/`anon` и выдан только необходимой роли. `access_entitlements` имеет RLS и не доступен для client-side mutations.
+- **Rule:** полный PEP inventory охватывает protected `posts`, `post_media`, `post_comments`, `post_likes`, likes/comments mutation policies, `toggle_like` и другие content RPC, `storage.objects` для `gallery-media`/`inline-images`, views и все public `SECURITY DEFINER` functions. Embedded `subscription_status`, `is_vip` и legacy `is_active_subscriber()` checks заменяются canonical wrapper/resolver; function/view grants и `security_invoker` semantics аудитятся до rollout.
+- **Rule:** отдельные anonymous policies допустимы только для явно публичного preview/avatar/site-assets contract и не могут раскрывать protected body/media/comments/engagement data. Profile exposure аудитится отдельно и не раскрывает authorization/payment fields; protected media нельзя делать public bucket/object ради обхода RLS.
+
+#### AD-TA7 — Middleware cache не является источником доступа
+
+- **Binds:** `__sub_status` successor, exact expiry, NFR7.
+- **Prevents:** доступ после `access_ends_at` и подмену cache token.
+- **Rule:** signed HttpOnly cache token привязан к `user_id`, содержит effective access и entitlement `valid_until`. Его lifetime равен `min(configured_ttl, valid_until - now)`; token с достигнутым deadline считается invalid независимо от cookie expiry. Для admin/VIP/recurring сохраняется короткий действующий TTL, чтобы существующая revocation latency не ухудшалась.
+- **Rule:** wire token хранит `sources` в canonical identifiers и `valid_until_epoch: integer|null`, где integer — Unix time в целых UTC seconds. `NULL` означает только отсутствие entitlement-bound deadline, не бесконечный cache: cookie всё равно истекает по configured short TTL и затем повторно вызывает PDP.
+
+#### AD-TA8 — Offer window и purchase eligibility вычисляются server-side
+
+- **Binds:** pricing UI, CTA redirect gate, temporary Payment Link, recurring checkout rollback.
+- **Prevents:** продажу по stale UI/client time и удаление baseline recurring path.
+- **Rule:** один server-only `TemporaryOfferConfig` является владельцем start/end/timezone, offer code/version, exact Link/Price IDs, amount/currency/quantity и metadata. Он загружает ровно один explicit environment (`test` или `live`) и fail-closed валидирует согласованность Stripe key/ID/link namespace; mixed/missing config отключает temporary UI/redirect и не допускает fulfillment. UI mode, redirect gate, webhook allowlist и rollback evidence читают этот contract; дублирование constants/env parsing запрещено.
+- **Rule:** canonical window — `[2026-09-01T00:00:00+02:00, 2026-12-01T00:00:00+01:00)` (`Europe/Ljubljana`). UI получает только server-derived offer mode. Temporary Link URL выдаётся только через server redirect gate внутри окна.
+- **Rule:** authenticated `active`/`trialing` users и purchaser с уже существующим grant для `offer_code` не получают Link; бывшая подписчица с неактивным recurring status допускается. Это app-level eligibility: сохранённый/переданный direct Payment Link технически остаётся внешним обходом. Paid direct Sessions для ineligible/duplicate users не получают grant и переходят в approved refund/support flow.
+- **Rule:** original `/api/checkout` contract `monthly|quarterly`, recurring Price IDs и UI baseline сохраняются пригодными для rollback и не переиспользуются one-time flow.
+- **Rule:** temporary pricing contract рендерит одну карточку и не содержит recurring plan selector, monthly/per-month math, cancellation/autorenewal copy или обещание частоты новых материалов. Server-derived mode является единственным переключателем между temporary и сохранённым recurring baseline.
+
+#### AD-TA9 — Rollback прекращает продажу, но не entitlement lifecycle
+
+- **Binds:** 2026-12-01 cutoff, UI/config, Payment Link operation, late/retried webhooks.
+- **Prevents:** отзыв уже оплаченного доступа и потерю fulfillment из-за webhook retry после окончания offer.
+- **Rule:** с `2026-12-01T00:00:00+01:00` server-derived mode возвращает recurring UI и checkout, redirect gate не выдаёт temporary Link, а Owner деактивирует allowlisted Payment Link. Existing recurring objects и subscriptions не мутируются.
+- **Rule:** fulfillment handler остаётся доступным для retries. Eligibility определяется immutable `paid_at`, а не receipt time: webhook, доставленный после cutoff, может завершить grant только когда qualifying event `event.created` находится внутри окна. Новый `checkout.session.async_payment_succeeded` с `event.created` после cutoff является out-of-window payment, grant не создаёт и входит в refund path. Все ранее выданные entitlements продолжают действовать до собственного `access_ends_at`.
+
+**Executable rollback contract:**
+
+1. Accountable — Owner; Responsible — заранее назначенный Operations operator; DEV является technical escalation. До cutoff operator фиксирует baseline recurring UI/config и подтверждает готовность rollback artifact.
+2. В cutoff server-time mode автоматически прекращает Link redirects и возвращает recurring UI/checkout независимо от Stripe operation.
+3. Назначенный operator деактивирует exact allowlisted Payment Link, сохраняет Link ID, timestamp и Stripe evidence; при ошибке немедленно сохраняется fail-closed app gate и запускается escalation/fallback из утверждённого runbook.
+4. Smoke verification подтверждает recurring checkout, неизменность sample subscriptions, недоступность Link и сохранение ранее claimed entitlements до individual deadline.
+
+#### AD-TA10 — Failure и exception paths остаются наблюдаемыми
+
+- **Binds:** webhook NFR18/NFR19, duplicate/ineligible/late payments, support reconciliation.
+- **Prevents:** silent loss valid payments и выдачу доступа при частичной обработке.
+- **Rule:** invalid signature/shape завершается fail-closed; transient DB/processing failure возвращает retryable response и логирует safe `event.id/session.id`; accepted payment с business exception сохраняет `duplicate_review` или `ineligible_review` без grant. Для каждого exception доступен service-role/admin reconciliation path, но никакой manual action не меняет recurring fields.
+- **Rule:** refundable business exception создаёт отдельный `payment_refund_cases` и проходит `refund_pending -> refunded | refund_failed_manual`; entitlement access всегда false, а append-only attempt не мутируется. Stripe refund mutation использует idempotency key, производный от Checkout Session ID. Production enablement запрещено, пока Owner/PM не утвердил automatic-vs-manual refund executor, SLA и customer communication.
+- **Rule:** launch go/no-go требует valid single-environment config, controlled payment -> attempt -> claim -> middleware/RLS/email smoke, unchanged recurring fixtures и rollback rehearsal. Любой fulfillment 5xx для controlled event, resolver/RLS mismatch или production `refund_pending/refund_failed_manual` автоматически закрывает app redirect gate и создаёт alert; recurring access и уже claimed entitlements при этом не отключаются.
+
+#### AD-TA11 — Authorization inputs не доступны для self-service mutation
+
+- **Binds:** profiles RLS/column grants, recurring reconciliation, resolver integrity.
+- **Prevents:** самостоятельную установку `role='admin'`, `is_vip=true` или `subscription_status='active'` через Data API.
+- **Rule:** authenticated users получают UPDATE только на явно перечисленные self-service profile columns; `role`, `is_vip`, `subscription_status`, `stripe_customer_id`, `stripe_subscription_id`, `current_period_end` и entitlement/audit fields изменяются только trusted server/service-role paths. Existing middleware/auth reconciliation, которое пишет recurring fields пользовательским Supabase client, переносится за trusted server boundary до включения нового resolver.
+- **Rule:** entitlement, fulfillment-attempt и refund-case tables имеют RLS enabled, `REVOKE ALL` от `anon/authenticated`, DML только у `service_role`, DELETE отсутствует в runtime grant. Private core resolver не исполняется `PUBLIC/anon/authenticated`; `public.has_current_content_access()` и `public.get_my_content_access_state()` исполняются только `authenticated`; recipient/exception RPC — только `service_role`. Для новых функций default `EXECUTE` у `PUBLIC` отозван.
+
+#### Approval gate для реализации и операций
+
+Архитектура не авторизует изменения кода, Stripe, Supabase или tracker. До реализации нужны отдельные решения:
+
+1. **Owner/PM + Architect:** утвердить весь Major-change architecture package до изменения documentation downstream, code, Stripe, Supabase или tracker.
+2. **Owner/PM + Architect:** утвердить exact test/live `payment_link_id`, `price_id`, `offer_code/version`, amount/currency/quantity, allowed payment methods и server-only config ownership.
+3. **Architect:** утвердить migration-level schema, partial uniqueness для одного grant, private resolver/RPC privileges, полный RLS policy inventory/GRANT matrix и отсутствие Data API mutation surface.
+4. **Owner/PM:** утвердить refund/support policy для direct ineligible purchase, duplicate distinct Session и delayed payment с `paid_at` после cutoff; без неё такие платежи не готовы к production launch.
+5. **Owner/PM + Architect:** подтвердить mapping qualifying Stripe paid-event timestamp -> `paid_at` и календарную DST semantics `Europe/Ljubljana` для дат 29/30/31 числа.
+6. **Owner/PM:** определить eligibility VIP/admin; до approval temporary CTA для уже имеющих доступ VIP/admin должна быть fail-closed.
+7. **Owner/PM:** утвердить словенский pricing/post-payment/inactive copy. Включение temporary users в email audience уже принято данным change и не является открытым решением.
+8. **Owner/Operations:** назначить ответственного и способ точной деактивации Payment Link на cutoff (scheduled operation либо midnight runbook), а также evidence и fallback при ошибке.
+9. **Owner/Legal/Data:** утвердить retention/redaction для `purchaser_email_normalized`, unclaimed entitlements и exception audit с учётом payment records и GDPR.
+10. **Owner/DEV/Security:** до implementation/launch обновить `next` с уязвимого project seed `16.1.6` минимум до актуального patched Active LTS (`16.3.3` на 2026-09-01) и повторно проверить official advisories; architecture не авторизует dependency change.
+
+Технические основания сверены с актуальными официальными контрактами: [Stripe Checkout fulfillment](https://docs.stripe.com/checkout/fulfillment), [Stripe Payment Links API](https://docs.stripe.com/api/payment-link), [Stripe webhook signature verification](https://docs.stripe.com/webhooks/signature), [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security) и [Supabase Database Functions](https://supabase.com/docs/guides/database/functions).
 
 ### Frontend Architecture (State Management)
 
@@ -165,13 +301,15 @@ React Fast Refresh, настроенный ESLint, удобная работа �
 3. Vercel Project Link & CI/CD Setup
 4. Auth Integration (Supabase Auth)
 5. Stripe Webhooks Integration
-6. Global State (Zustand) + UI Shell (MobileNav)
-7. Content Editor (Tiptap) + Media Upload
-8. Scheduled Publishing (pg_cron + UI)
+6. Temporary one-time entitlement ledger + access-state resolver (isolated change)
+7. Global State (Zustand) + UI Shell (MobileNav)
+8. Content Editor (Tiptap) + Media Upload
+9. Scheduled Publishing (pg_cron + UI)
 
 **Cross-Component Dependencies:**
 
-- **Auth → Stripe:** Статус подписки (Stripe) должен обновлять `app_metadata` в Supabase Auth для защиты маршрутов Next.js на стороне клиента.
+- **Auth → Access PDP:** recurring status и claimed entitlements остаются в PostgreSQL; middleware, RLS и recipient selection получают effective access через один access-state resolver, а не через user-editable metadata или независимые проверки.
+- **Stripe → Access Ledger:** subscription handlers обновляют только recurring fields; валидный payment-mode webhook создаёт только `access_entitlements`.
 - **Supabase Storage → Next.js:** Медиафайлы из Supabase должны обслуживаться через пайплайн оптимизации Vercel (Next/Image) для соблюдения требований производительности.
 - **Content Editor → Storage:** Инлайн-изображения загружаются в отдельный bucket `inline-images` при редактировании поста, а `posts.content` сохраняет HTML output из Tiptap как source of truth для article body.
 - **pg_cron → Email Service:** Автоматическая публикация запланированных постов триггерит email-рассылку (NFR20, NFR25).
@@ -343,6 +481,8 @@ _Критическое правило:_ В конфигурации ESLint об
 - Фильтровать ленту по `status = 'published'`; draft/scheduled доступны только в админке.
 - Treat `posts.content` как HTML output from Tiptap и не возвращать markdown parsing assumptions в новые stories.
 - Использовать `loading="lazy"` для всех article images в HTML renderer (NFR4.2).
+- Не писать one-time access в `profiles.subscription_status` и не менять recurring Stripe fields из temporary-offer flow.
+- Получать effective content access через canonical DB access-state resolver; middleware, RLS и email pipeline не должны дублировать access conditions.
 
 ## Project Structure & Boundaries
 
@@ -425,6 +565,7 @@ procontent/
 
 - **Client-Side Data Fetching (SPA):** Все запросы на чтение данных (лента, комментарии) происходят напрямую из клиентских компонентов (`use client`) через `lib/supabase/client.ts`, минуя Next.js API Routes. Это обеспечивает мгновенный отклик и классический SPA-опыт.
 - **Server-Side Mutations & Webhooks:** Next.js Route Handlers (`/api/webhooks/*`, `/auth/confirm/route.ts`) и `lib/supabase/server.ts` используются ИСКЛЮЧИТЕЛЬНО для безопасного взаимодействия со сторонними серверами (Stripe Webhooks), обработки ссылок верификации email/пароля и серверной логики админки.
+- **Access Decision Boundary:** `access_entitlements` не мутируется из browser client. Signed webhook выполняет fulfillment, verified authenticated server flow выполняет claim, а private DB resolver принимает решение для всех enforcement surfaces.
 
 **Component Boundaries:**
 
@@ -441,7 +582,8 @@ procontent/
 **Feature/Epic Mapping:**
 
 - **MVP Content Feed:** `src/features/feed/` (Включает нормированные данные, `PostCard`, `GalleryGrid`, `MarkdownRenderer`, пагинацию через Supabase с учетом JOIN `post_media`).
-- **Stripe Subscription Management:** `src/features/auth/` (Проверка `app_metadata` статуса) + `src/app/api/webhooks/stripe` (Обновление статуса в Supabase).
+- **Stripe Subscription Management:** `src/features/auth/` + `src/app/api/webhooks/stripe` сохраняют существующий recurring lifecycle и его поля.
+- **Temporary One-Time Access:** isolated access module + payment-mode branch в signed Stripe webhook + `access_entitlements` + DB access-state resolver; recurring checkout/handlers не переиспользуются.
 - **Engagement / Comments:** `src/features/comments/` (Включает логику плоского списка комментариев из UX-спецификации).
 - **Content Editor (WYSIWYG):** `src/features/editor/` (Tiptap-редактор, кастомные расширения для загрузки изображений, upload helpers).
 - **Scheduled Publishing:** `src/features/scheduler/` (ScheduleToggle, DateTimePicker, ScheduledPostsTable, API для управления расписанием).
@@ -456,17 +598,18 @@ procontent/
 
 1. Supabase Auth настроен на использование классической комбинации Email + Password. Для верификации email при первой регистрации, а также для сброса пароля используются уникальные ссылки-приглашения (Invite/Recovery links).
 2. Чтобы избежать проблем с почтовыми клиентами, ломающими URL-строки, эти ссылки направляются на кастомный Route Handler `src/app/auth/confirm/route.ts`, который валидирует `token_hash` и `type` (например, `invite` или `recovery`), после чего перенаправляет участницу на страницу создания нового пароля.
-3. Stripe Webhook обновляет статус подписки в таблице `users` и `auth.users` (metadata) в Supabase.
-4. При входе в `(app)/layout.tsx` проверяется сессия Supabase через `client.ts` и `server.ts`.
-5. Если подписка неактивна, пользователь редиректится на Paywall (`src/features/auth/components/Paywall.tsx`).
-6. Если активна, монтируется `FeedContainer`, который запрашивает данные напрямую из Supabase.
+3. Stripe subscription webhooks обновляют только recurring fields; валидный temporary payment webhook создаёт отдельный unclaimed entitlement.
+4. После verified email server-side claim атомарно связывает webhook-issued entitlement с Supabase user.
+5. При входе middleware запрашивает effective access у canonical DB resolver; signed cache не переживает `valid_until`.
+6. Если resolver возвращает `has_access=false`, пользователь редиректится на Paywall (`src/features/auth/components/Paywall.tsx`).
+7. Если resolver возвращает `has_access=true`, монтируется `FeedContainer`; его прямые Supabase reads дополнительно защищены RLS, использующим тот же resolver.
 
 ## Architecture Validation Results
 
 ### Coherence Validation ✅
 
 **Decision Compatibility:**
-Стек Next.js (App Router) + Supabase + Zustand + Vercel работает без конфликтов. Использование `@supabase/ssr` для серверной части и `supabase-js` для клиентских компонентов (`use client`) обеспечивает безопасность и SPA-скорость одновременно. Tiptap интегрируется как `'use client'` компонент в админке, а consumer-side rich-content rendering опирается на DOMPurify + HTML render path в клиентских компонентах ленты. pg_cron работает внутри PostgreSQL без внешних зависимостей.
+Стек Next.js (App Router) + Supabase + Zustand + Vercel работает без конфликтов. Использование `@supabase/ssr` для серверной части и `supabase-js` для клиентских компонентов (`use client`) обеспечивает безопасность и SPA-скорость одновременно. Tiptap интегрируется как `'use client'` компонент в админке, а consumer-side rich-content rendering опирается на DOMPurify + HTML render path в клиентских компонентах ленты. pg_cron работает внутри PostgreSQL без внешних зависимостей. Temporary one-time access расширяет authorization через отдельный entitlement ledger и не изменяет recurring billing model.
 
 **Pattern Consistency:**
 Паттерн "Smart Container / Dumb UI" отлично сочетается с локализацией Zustand в `features/` и глобальным UI-стейтом в корневых Layouts. Исключение для `src/components/ui/` гарантирует переиспользование базовых элементов без нарушения Feature-based архитектуры. Разделение Storage buckets (`gallery-media` vs `inline-images`) обеспечивает чёткие границы для разных типов загрузки медиа.
@@ -486,6 +629,7 @@ procontent/
 - **Lazy Loading (NFR4.2):** HTML render path с принудительным `loading="lazy"` для article images.
 - **Scheduled Publishing (NFR25-NFR27):** pg_cron с идемпотентностью (`published_at IS NULL`) и self-healing.
 - **Single Video Playback (NFR4.1):** Zustand видеоконтроллер в `features/feed/store.ts`.
+- **Temporary Access:** signed paid webhook, verified-email claim, exclusive `access_ends_at`, one-grant uniqueness и canonical access-state resolver обеспечивают одинаковое решение middleware/RLS/email без изменения subscriptions.
 
 ### Epic 7 Follow-up Validation ✅
 
@@ -517,6 +661,9 @@ Epic 7 implementation reality теперь совпадает с architecture na
 - [x] Critical decisions documented (Next.js, Supabase 2.x, Zustand 5.x)
 - [x] Technology stack fully specified
 - [x] Integration patterns defined (Stripe Webhooks)
+- [x] Temporary one-time access isolated from recurring subscriptions
+- [x] Canonical access-state resolver defined for middleware, RLS and email recipients
+- [x] Offer cutoff and non-revoking entitlement rollback defined
 - [x] Performance considerations addressed
 - [x] Content Editor System documented (Tiptap + sanitized HTML rendering)
 - [x] Scheduled Publishing documented (pg_cron + статусная модель)
@@ -555,6 +702,8 @@ Epic 7 implementation reality теперь совпадает с architecture na
 - Нулевое трение при переходе от SPA MVP к гибридному рендерингу в v1.1.
 - Нулевая DevOps нагрузка.
 - Четкие рамки для AI-ассистентов.
+- Один Policy Decision Point для content access вместо расходящихся middleware/RLS/email checks.
+- Изолированный entitlement ledger сохраняет неизменность recurring subscription lifecycle.
 - Разделение медиа-потоков (inline vs gallery) предотвращает конфликты при масштабировании контента.
 - pg_cron обеспечивает надёжное расписание публикаций без внешних worker-сервисов.
 - HTML contract для rich-content больше не должен дрейфовать: planning и implementation синхронизированы на Tiptap HTML output + DOMPurify render path.

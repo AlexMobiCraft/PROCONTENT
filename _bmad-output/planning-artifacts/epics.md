@@ -1,8 +1,18 @@
 ---
-stepsCompleted: ["step-01-validate-prerequisites", "step-02-design-epics", "step-03-create-stories", "step-04-final-validation", "epic6-step-01-validate-prerequisites", "epic6-step-02-design-epics", "epic6-step-03-create-stories", "epic6-step-04-final-validation", "epic8-step-01-validate-prerequisites", "epic8-step-02-design-epics", "epic8-step-03-create-stories"]
-inputDocuments: ["_bmad-output/planning-artifacts/prd.md", "_bmad-output/planning-artifacts/architecture.md", "_bmad-output/planning-artifacts/ux-design-specification.md", "_bmad-output/planning-artifacts/prd-scheduled-publishing.md"]
-lastEdited: '2026-05-17'
+stepsCompleted: ["step-01-validate-prerequisites", "step-02-design-epics", "step-03-create-stories", "step-04-final-validation", "epic6-step-01-validate-prerequisites", "epic6-step-02-design-epics", "epic6-step-03-create-stories", "epic6-step-04-final-validation", "epic8-step-01-validate-prerequisites", "epic8-step-02-design-epics", "epic8-step-03-create-stories", "epic9-step-01-validate-prerequisites", "epic9-step-02-design-epics", "epic9-step-03-create-stories", "epic9-step-04-final-validation"]
+inputDocuments: ["_bmad-output/planning-artifacts/prd.md", "_bmad-output/planning-artifacts/architecture.md", "_bmad-output/planning-artifacts/ux-design-specification.md", "_bmad-output/planning-artifacts/sprint-change-proposal-2026-09-01.md"]
+lastEdited: '2026-09-01'
 editHistory:
+  - date: '2026-09-01'
+    changes: 'Извлечены требования временного one-time предложения из согласованного набора PRD, Architecture, UX и Sprint Change Proposal; общий FR/NFR inventory синхронизирован с актуальным PRD без изменения завершённых Epics 1–8.'
+  - date: '2026-09-01'
+    changes: 'Одобрена структура Epic 9 как одного самостоятельного user-value epic; добавлены Epic List entry и FR coverage для временной коммерческой ветви.'
+  - date: '2026-09-01'
+    changes: 'По результатам Party Mode Epic 9 разделён на три последовательные истории: 9.1 entitlement/access foundation, 9.2 one-time purchase/activation, 9.3 rollback/exceptions; истории утверждены и добавлены с полными Acceptance Criteria.'
+  - date: '2026-09-01'
+    changes: 'После scoped final validation уточнены AC Epic 9: payment provenance FK без forward dependency, resolver valid_until semantics, Stripe paid_at source, post-payment/network UX и email SLA/deliverability.'
+  - date: '2026-09-01'
+    changes: 'Scoped final validation Epic 9 пройдена: все change FR/NFR/architecture/UX requirements покрыты, story dependencies направлены 9.1 → 9.2 → 9.3, placeholders и formatting errors отсутствуют.'
   - date: '2026-03-22'
     changes: 'Обновлены эпики и стори на основании обновлённых PRD, Architecture и двух брифов (architect-brief-multimedia-posts, sm-brief-multimedia-posts): добавлена нормализация БД (post_media), RBAC/RLS, GalleryGrid, видеоконтроллер, NFR SLAs, обновлена Telegram-миграция (Exponential Backoff, медиагруппы как галереи), обновлены Acceptance Criteria'
   - date: '2026-04-01'
@@ -23,14 +33,23 @@ This document provides the complete epic and story breakdown for PROCONTENT, dec
 
 ### Functional Requirements
 
-FR1: [M] Посетительница может оформить платную подписку через Stripe (ежемесячно 12,99€ или 3 месяца 34€)
-FR2: [M] Участница может отменить подписку в любое время через личный кабинет
-FR3: [M] Система автоматически закрывает доступ к закрытому контенту при неоплате или отмене подписки
+FR1: [M] Постоянная коммерческая модель позволяет посетительнице оформить через Stripe recurring-подписку: ежемесячно 12,99€ или на 3 месяца 34€
+FR1.1: [M] При первичной регистрации участница получает ссылку на введённый email; перейдя по ней, верифицирует почту и придумывает пароль
+FR1.2: [M] Участница может входить на платформу, используя введённые ранее email и пароль
+FR1.3: [M] Участница может запросить ссылку для сброса и изменения пароля на свой подтверждённый email
+FR1.4: [M] В период `[2026-09-01 00:00, 2026-12-01 00:00) Europe/Ljubljana` для новых покупок система предлагает только разовый Stripe-платёж 29€ за доступ к существующей базе на 3 календарных месяца; действующие recurring-подписки остаются без изменений
+FR1.4.1: [M] Временное предложение не содержит выбора тарифов, recurring-платежей, автопродления, помесячного расчёта, отмены подписки или обещания регулярной публикации нового контента
+FR1.4.2: [M] Право временного разового доступа создаётся только после подтверждённой оплаты и верификации того же нормализованного email; оно действует от `paid_at` до `paid_at + interval '3 months'`
+FR1.4.3: [M] Участница с действующей recurring-подпиской (`active` или `trialing`) не видит и не может оформить временное предложение; бывшая участница без действующей recurring-подписки допускается на общих условиях
+FR2: [M] В рамках постоянной recurring-модели участница может отменить подписку в любое время через личный кабинет
+FR3: [M] Система автоматически закрывает доступ к закрытому контенту при неоплате или отмене recurring-подписки
+FR3.1: [M] Система автоматически закрывает временный разовый доступ при достижении `access_ends_at`; окончание публичного предложения не сокращает ранее выданный индивидуальный срок
 FR4: [M] Участница может просмотреть статус своей подписки (активна / истекает / отменена)
-FR5: [M] Система восстанавливает доступ автоматически при успешной повторной оплате
+FR5: [M] В постоянной recurring-модели система восстанавливает доступ автоматически при успешной повторной оплате
+FR5.1: [M] С `2026-12-01 00:00 Europe/Ljubljana` система прекращает направлять новые покупки к временному предложению, возвращает исходный recurring UI/checkout и деактивирует временный Payment Link; уже выданные entitlements действуют до `access_ends_at`, а действующие subscriptions не изменяются
 FR6: [M] Незарегистрированная посетительница может просмотреть превью-посты на лендинге без регистрации
 FR7: [M] Незарегистрированная посетительница может прочитать отзывы участниц сообщества на лендинге
-FR8: [M] Незарегистрированная посетительница может перейти к оплате подписки напрямую с лендинга
+FR8: [M] Незарегистрированная посетительница может перейти с лендинга к оплате, соответствующей действующей коммерческой модели
 FR9: [S] Автор может выбрать, какие посты отображаются как превью на лендинге
 FR10: [M] Новая участница после первой оплаты попадает на специальную onboarding-страницу
 FR11: [M] Участница видит на onboarding-странице подборку «Начни здесь» (топ-5 рекомендованных постов)
@@ -39,10 +58,12 @@ FR13: [S] Автор может управлять содержимым onboardi
 FR14: [M] Участница может просматривать ленту всех опубликованных постов в хронологическом порядке
 FR15: [M] Участница может фильтровать ленту по рубрикам/категориям контента
 FR16: [M] Участница может открыть отдельный пост любого формата (текст, одиночное медиа, галерея)
-FR16.1: [M] Система отображает галереи в зависимости от количества медиа: 2-4 элемента — сетка, 5 — сетка 2х3, 6 — сетка 3х3, 7+ — сетка 2х2 с каруселью ниже
+FR16.1: [M] Система отображает галереи в зависимости от количества медиа: 2–4 элемента — сетка, 5 — сетка 2х3, 6 — сетка 3х3, 7+ — сетка 2х2 с каруселью ниже
+FR16.2: [M] Контент поста поддерживает rich-text article body как sanitized HTML из WYSIWYG-редактора со встроенными инлайн-изображениями; при наличии галереи она располагается над article body без смешивания доменов
 FR17: [S] Участница может искать контент по ключевым словам во всём архиве
 FR18: [S] Участница может просмотреть весь контент архива Telegram в хронологическом порядке
-FR19: [M] Автор может создавать и публиковать посты с поддержкой форматов (лимит до 10 медиа): текст, одиночные медиа, галереи (комбинация фото и видео)
+FR19: [M] Автор может создавать и публиковать посты с галереями до 10 медиа вне article body и rich-text article body без жёстких лимитов на инлайн-изображения, сохраняя gallery media и inline media независимыми доменами
+FR19.1: [M] Платформа предоставляет встроенный легковесный WYSIWYG-редактор для HTML article body, прямой загрузки инлайн-изображений в secure media storage и автоматической вставки ссылок в тело поста
 FR20: [M] Автор может назначать рубрику/категорию каждому посту при публикации
 FR21: [M] Автор может редактировать и удалять опубликованные посты
 FR22: [S] Автор может назначать посты в подборку onboarding («Начни здесь»)
@@ -50,11 +71,22 @@ FR23: [M] Участница может оставить комментарий 
 FR24: [M] Участница может видеть все комментарии под постом
 FR25: [M] Автор может ответить на комментарий участницы
 FR26: [M] Автор может удалить комментарий
-FR27: [M] Участница автоматически получает email-уведомление о новом опубликованном посте
+FR27: [M] Участница автоматически получает email-уведомление о новом опубликованном посте; участница с действующим временным entitlement включается в число получателей наравне с recurring-подписчицами
 FR28: [M] Участница может управлять своими email-предпочтениями (отписаться от уведомлений)
 FR29: [M] Администратор может запустить импорт архива Telegram-контента через отдельный инструмент
 FR30: [M] Система сохраняет оригинальные даты публикаций при импорте из Telegram
 FR31: [M] Система без потерь импортирует все медиаформаты из Telegram (текст, фото, видео, медиагруппы сохраняются как единые галереи с оригинальным текстом)
+FR32: [M] Автор может просматривать список всех активных участниц и статус их Stripe-подписок
+FR33: [M] Автор может вручную предоставить или отозвать доступ для конкретной участницы
+FR34: [M] Автор может управлять рубриками и категориями контента
+FR35: [M] Автор может обновить WhatsApp-ссылку в onboarding-странице и интерфейсе платформы
+FR36: [M] Автор может выбрать режим публикации при создании поста — «Опубликовать сейчас» или «Запланировать»
+FR37: [M] Автор может указать дату и время плановой публикации в режиме «Запланировать» с валидацией будущего времени
+FR38: [M] Система сохраняет пост в статусе `scheduled`, и он не отображается в ленте до времени публикации
+FR39: [M] Система автоматически публикует запланированные посты и отправляет email-уведомления без участия автора
+FR40: [S] Автор может просматривать очередь всех запланированных постов
+FR41: [S] Автор может изменить содержимое или время публикации запланированного поста до его выхода
+FR42: [S] Автор может отменить запланированную публикацию, вернув пост в `draft`, или опубликовать её немедленно
 
 ### NonFunctional Requirements
 
@@ -63,6 +95,7 @@ NFR2: Time to Interactive (TTI) для всех публичных страни�
 NFR3: Страницы с видеоконтентом сохраняют Time to Interactive ≤ 4 сек на мобайле (3G сеть) — видео не блокирует интерактивность страницы
 NFR4: Изображения загружаются за ≤ 1 сек на мобайле (3G сеть) при любом разрешении экрана
 NFR4.1: В галерее одновременно активно воспроизводится только одно видео (для производительности и фокусировки внимания)
+NFR4.2: Все инлайн-изображения в HTML article body используют lazy loading для предотвращения блокировки интерактивности страницы
 NFR5: Платформа поддерживает одновременную сессию до 50 активных пользователей с 95th percentile response time ≤ 500ms для API-запросов (целевой масштаб v1)
 NFR6: Все HTTP-соединения защищены TLS (HTTPS обязателен для всех страниц и API)
 NFR7: Аутентификационные сессии имеют ограниченный срок действия (≤ 30 дней) и инвалидируются в течение 60 секунд после отмены или неоплаты подписки
@@ -85,6 +118,9 @@ NFR21: Email-уведомления о публикациях доставляю
 NFR22: База данных резервируется автоматически не реже 1 раза в сутки
 NFR23: Медиафайлы (видео, фото) доступны с uptime ≥ 99.5% и загружаются со скоростью ≥ 1 Мб/с для пользователей в Словении
 NFR24: Telegram-архив после импорта является иммутабельной исторической записью и не перезаписывается повторными запусками скрипта
+NFR25: Запланированный пост публикуется в течение 10 минут от назначенного времени (`scheduled_at`)
+NFR26: Система гарантирует публикацию каждого поста ровно один раз через идемпотентность `published_at`
+NFR27: При временном сбое все пропущенные публикации выполняются автоматически после восстановления планировщика
 
 ### Additional Requirements
 
@@ -112,7 +148,9 @@ NFR24: Telegram-архив после импорта является иммут
 ### FR Coverage Map
 
 - FR1–FR5: Epic 1 - Stripe-подписки и доступ
+- FR1.4, FR1.4.1, FR1.4.2, FR1.4.3, FR3.1, FR5.1: Epic 9 - временная one-time покупка, entitlement, expiry и rollback без изменения recurring lifecycle
 - FR6–FR9: Epic 1 - Лендинг и превью
+- FR8 (temporary branch): Epic 9 - server-derived переход к действующей временной коммерческой модели
 - FR10–FR13: Epic 1 - Онбординг и WhatsApp
 - FR14–FR16, FR16.1: Epic 2 - Лента, фильтры, просмотр контента и мультимедиа-галереи
 - FR16.2: Epic 7 / Story 7.2 - HTML-рендеринг rich-content с инлайн-изображениями и комбинированный layout
@@ -121,6 +159,7 @@ NFR24: Telegram-архив после импорта является иммут
 - FR19.1: Epic 7 / Story 7.1 - WYSIWYG-редактор для инлайн-изображений
 - FR23–FR26: Epic 3 - Комментарии
 - FR27–FR28: Epic 3 - Email-уведомления
+- FR27 (temporary branch): Epic 9 - включение активных temporary entitlements в recipient selection
 - FR29–FR31: Epic 5 - Миграция из Telegram (включая интеллектуальную группировку медиагрупп)
 - FR32–FR35: Epic 4 - Управление участницами, категориями и настройками
 - FR6.1–FR6.18: Epic 6 - Scheduled Publishing (отложенная публикация)
@@ -189,6 +228,75 @@ UX-DR9: Дизайн-токены design system — `--primary` (Muted Terracott
 
 ---
 
+## Change Requirements Inventory — Temporary One-Time Access (2026-09-01)
+
+### Functional Requirements — Temporary Offer Change
+
+FR1.4: В период `[2026-09-01 00:00, 2026-12-01 00:00) Europe/Ljubljana` новым покупательницам доступен только разовый Stripe-платёж 29€ за 3 календарных месяца доступа к существующей базе; действующие recurring-подписки не изменяются.
+FR1.4.1: Временное предложение не содержит выбора тарифов, recurring-платежей, автопродления, помесячного расчёта, отмены подписки или обещания регулярной публикации нового контента.
+FR1.4.2: Временное entitlement создаётся только после подтверждённой оплаты и claim по тому же нормализованному verified email; доступ действует на полуинтервале `[paid_at, paid_at + 3 calendar months)`.
+FR1.4.3: Текущие `active`/`trialing` подписчицы не видят и не могут оформить временное предложение; бывшие подписчицы без действующей recurring-подписки допускаются.
+FR3.1: Временный доступ автоматически прекращается при `now() == access_ends_at`; окончание публичного offer window не сокращает уже выданный доступ.
+FR5.1: В момент cutoff система прекращает temporary redirects, возвращает исходные recurring UI/checkout и обеспечивает деактивацию временного Payment Link, сохраняя все ранее выданные entitlements до их индивидуального срока.
+FR8: CTA лендинга ведёт к оплате, соответствующей server-derived коммерческой модели и eligibility пользователя.
+FR27: Пользовательницы с действующим temporary entitlement входят в email audience новых публикаций при сохранении существующих email preferences и audience rules.
+
+### Non-Functional Requirements — Temporary Offer Change
+
+NFR7: Access cache и сессии не могут сохранять доступ после `access_ends_at`; recurring revocation latency остаётся не хуже 60 секунд.
+NFR8: Любой Stripe webhook проверяется по signature на raw body до чтения payment payload.
+NFR9: Платформа не принимает и не хранит карточные данные; Payment Link и Checkout остаются Stripe-hosted.
+NFR13: Retention и redaction purchaser email, unclaimed entitlements и payment audit должны быть формально утверждены с учётом GDPR и требований к платёжным записям.
+NFR14: Temporary pricing, post-payment, pending и inactive states соответствуют WCAG 2.1 AA.
+NFR15: Pricing copy, old price, CTA, focus и status states сохраняют контраст не менее 4.5:1 и не зависят только от цвета.
+NFR17: Pricing CTA и post-payment flow полностью доступны с клавиатуры на desktop.
+NFR18: Retry и параллельная доставка одного Checkout Session создают максимум один grant и не продлевают `access_ends_at`.
+NFR19: Ошибки fulfillment и business exceptions логируются с безопасными `event.id`/`session.id` и доступны для reconciliation без раскрытия платёжных данных.
+NFR19.1: Ошибка temporary redirect/checkout показывает понятное словенское сообщение, не выполняет повторный переход автоматически и минимизирует риск двойной оплаты.
+NFR20: Временные участницы получают уведомления о публикациях в пределах существующего SLA 5 минут.
+NFR21: Расширение recipient selection не ухудшает существующий email delivery rate ≥ 95%.
+
+### Additional Requirements — Temporary Offer Change
+
+- Использовать один server-only `TemporaryOfferConfig` для start/end/timezone, environment, offer code/version, exact Link/Price IDs, amount, currency, quantity и metadata; mixed или incomplete config должен fail closed.
+- Не создавать и не менять recurring Stripe Price, Payment Link, Subscription или contract `/api/checkout` для `monthly|quarterly`; one-time flow пишет только в собственные сущности.
+- Перед production enablement read-only подтвердить отдельные test/live one-time Price и Payment Link: `mode='payment'`, 29.00 EUR, quantity 1, отсутствие recurring/trial и корректные metadata/redirect.
+- Temporary Link URL выдаётся только server-side redirect gate внутри canonical offer window; UI получает только server-derived mode, а сохранённый direct Link закрывается операционной деактивацией в cutoff.
+- Signed webhook повторно получает Checkout Session server-side с expanded `line_items` и проверяет exact Link, Price, metadata, amount, currency, quantity, `mode='payment'` и paid status по allowlist.
+- `checkout.session.completed` исполняет fulfillment только при `payment_status='paid'`; delayed methods используют тот же `fulfillTemporaryOffer(sessionId)` через `checkout.session.async_payment_succeeded`.
+- `paid_at` берётся из `event.created` единственного qualifying paid event; receipt order и retry не меняют timestamp.
+- Создать append-only `payment_fulfillment_attempts`, отдельный grant ledger `access_entitlements` и независимый mutable `payment_refund_cases`; audit/refund state не участвует в access predicate.
+- `access_entitlements` хранит nullable `user_id`, immutable offer/payment attribution, `paid_at`, `access_starts_at`, `access_ends_at`, `claimed_at`, `revoked_at` и unique `fulfillment_attempt_id`; client-side DML запрещён.
+- Уникальность `stripe_checkout_session_id`, nullable `stripe_payment_intent_id` и `(offer_code, purchaser_email_normalized)` должна предотвращать retry, parallel delivery и несколько grant для одного email/offer; проигравшая distinct Session уходит в `duplicate_review`.
+- Authoritative purchaser identity берётся только из retrieved `Checkout Session.customer_details.email` и нормализуется как `lower(btrim(email))`; отсутствие email создаёт non-granting exception.
+- `access_ends_at` вычисляется один раз в DB transaction как три календарных месяца в `Europe/Ljubljana`, сохраняется как `timestamptz`; 90 дней использовать нельзя, правая граница exclusive.
+- Atomic claim связывает только webhook-issued `unclaimed` entitlement с `auth.uid()`, если verified `auth.users.email` точно совпадает после `lower(btrim(...))`; provider aliasing и создание entitlement из redirect запрещены.
+- Если webhook ещё не доставлен, post-payment UX показывает pending state и безопасно повторяет claim, не создавая право из `{CHECKOUT_SESSION_ID}` или Stripe redirect.
+- Один private DB access-state resolver является Policy Decision Point для admin, VIP, recurring и temporary sources; middleware, RLS и email recipient selection используют его через строго ограниченные wrappers/RPC.
+- Полный PEP inventory включает RLS для posts/media/comments/likes, mutation policies, content RPC, protected Storage objects, views и public `SECURITY DEFINER` functions; legacy access checks должны быть заменены canonical resolver.
+- Signed HttpOnly access cache привязывается к `user_id`, содержит canonical `sources` и `valid_until_epoch`, а его TTL ограничивается entitlement deadline; cache никогда не является источником access truth.
+- Profile authorization fields (`role`, `is_vip`, recurring Stripe/status fields) и entitlement/audit tables недоступны self-service mutation; trusted writes выполняются только server/service-role paths с минимальными GRANT.
+- После cutoff UI и redirect gate автоматически возвращают recurring baseline; late webhook может создать grant только если immutable qualifying `paid_at` находился внутри offer window.
+- Duplicate/ineligible/out-of-window paid Sessions не получают доступ и проходят утверждённый refund/support lifecycle с идемпотентным Stripe refund key; production запрещён до утверждения policy, SLA и customer communication.
+- Launch go/no-go требует controlled payment → attempt → claim → middleware/RLS/email smoke, unchanged recurring fixtures и rollback rehearsal; critical mismatch автоматически закрывает temporary redirect gate, не отключая recurring или уже claimed access.
+- До реализации/launch нужны зафиксированные approvals Owner/PM и Architect для Major change, exact Stripe config, schema/RLS/GRANT matrix, refund policy, VIP/admin eligibility, Slovene copy, GDPR retention и rollback operator/runbook.
+- До implementation/launch обновить Next.js с уязвимого seed `16.1.6` минимум до актуальной patched версии, отдельно сверив official advisories в момент выполнения.
+
+### UX Design Requirements — Temporary Offer Change
+
+UX-DR9.1: Внутри offer window pricing surface показывает одну карточку без radiogroup или plan selector; вне окна автоматически возвращается исходная двухтарифная interaction model.
+UX-DR9.2: Карточка отображает `€29,00 / 3 mesece`, семантически зачёркнутую `€34,00` и строку `Dostop do obstoječe baze znanja za 3 mesece.`
+UX-DR9.3: Temporary UI не содержит `MESEČNO`, `€12,99`, `/ mesec`, `≈`, `Prihranek`, cancellation/autorenewal copy или обещания `Izobraževalne vsebine 3-4x na teden`.
+UX-DR9.4: CTA имеет доступное имя `Pridruži se zdaj`, ведёт только через server-side eligibility/time gate и блокирует повторный переход во время обработки.
+UX-DR9.5: Post-payment flow объясняет verified-email claim, pending webhook state, индивидуальную дату окончания доступа и отсутствие автопродления; `session_id` используется только как UX hint.
+UX-DR9.6: Inactive/expired state ясно сообщает об окончании временного доступа и предлагает только актуальную на этот момент коммерческую модель.
+UX-DR9.7: Текущие `active`/`trialing` подписчицы не видят temporary CTA; бывшие подписчицы без активного recurring доступа видят его на общих условиях.
+UX-DR9.8: На 375px, 768px и ≥1024px отсутствует горизонтальное переполнение, CTA имеет touch target не меньше 44×44 px, а layout сохраняет Warm Minimalism и editorial outline hierarchy.
+UX-DR9.9: Keyboard focus видим на CTA и post-payment controls; зачёркнутая цена доступна семантически, а различия состояний не передаются только цветом.
+UX-DR9.10: Loading, pending, invalid/ineligible и network-error states используют существующие Skeleton/inline/Toast patterns и словенский user-facing copy.
+
+---
+
 ## Epic List
 
 ### Epic 1: Growth & Conversion (Landing, Subscriptions & Onboarding)
@@ -225,6 +333,10 @@ UX-DR9: Дизайн-токены design system — `--primary` (Muted Terracott
 Sistem avtomatsko generira poster (thumbnail) iz prvega kadra video posnetka, če `thumbnail_url` manjka — ob shranjevanju objave ali retroaktivno za obstoječe zapise. Avtor v editorju lahko ročno izbere poljubno sliko kot poster ali ponovno generira avtomatski. Admin lahko zažene masovno obdelavo za vse video posnetke brez posterja (npr. po Telegram migraciji). LazyMediaWrapper in GalleryGrid uporabljata `thumbnail_url` za privlačen predogled v lenti.
 **FRs covered:** FR8.1–FR8.7
 **Stories:** 8.1 (Avtomatsko generiranje ob shranjevanju) → 8.2 (Ročna zamenjava v editorju) → 8.3 (Retroaktivna obdelava) → 8.4 (Ponovno generiranje in brisanje)
+
+### Epic 9: Временное предложение и ограниченный по сроку разовый доступ
+Новая или бывшая участница без действующей recurring-подписки может один раз оплатить €29,00 и безопасно получить доступ к существующей базе на три календарных месяца. Действующие подписчицы сохраняют текущий subscription lifecycle, а после cutoff автоматически возвращается исходная recurring-модель без сокращения ранее выданного временного доступа.
+**FRs covered:** FR1.4, FR1.4.1, FR1.4.2, FR1.4.3, FR3.1, FR5.1, FR8 (temporary branch), FR27 (temporary branch)
 
 ## Epic 1: Growth & Conversion (Landing, Subscriptions & Onboarding)
 
@@ -912,3 +1024,398 @@ So that я могла удобно читать богатый контент б
 **And** sanitization utilities вынесены в `src/lib/markdown.ts`
 
 **FRs covered:** FR16.2, NFR4.2
+
+---
+
+## Epic 8: Video Thumbnails — Avtomatska in ročna upravljanje posterjev za video
+
+Автор получает автоматическое и ручное управление poster-изображениями для видео; детали требований, Acceptance Criteria и NFR находятся в `prd-video-thumbnails.md`.
+
+**FRs covered:** FR8.1–FR8.7
+**NFRs covered:** NFR8.1–NFR8.6
+**Зависимости:** после Epic 2 и Story 4.1.
+
+### Story 8.1: Автоматическая генерация thumbnail'а при сохранении объекта
+
+Автор получает автоматически созданный poster из первого кадра видео без блокировки сохранения объекта.
+
+**Canonical acceptance criteria:** `prd-video-thumbnails.md`, Story 8.1.
+
+### Story 8.2: Ручная замена poster'а в редакторе
+
+Автор может загрузить, заменить или удалить poster конкретного видео в редакторе.
+
+**Canonical acceptance criteria:** `prd-video-thumbnails.md`, Story 8.2.
+
+### Story 8.3: Ретроактивная генерация thumbnail'ов для существующих объектов
+
+Администратор запускает идемпотентную массовую обработку видео без `thumbnail_url` и получает отчёт.
+
+**Canonical acceptance criteria:** `prd-video-thumbnails.md`, Story 8.3.
+
+### Story 8.4: Повторная генерация и удаление thumbnail'а
+
+Автор повторно создаёт poster или удаляет его с корректным fallback в ленте.
+
+**Canonical acceptance criteria:** `prd-video-thumbnails.md`, Story 8.4.
+
+---
+
+## Epic 9: Временное предложение и ограниченный по сроку разовый доступ
+
+Новая или бывшая участница без действующей recurring-подписки может один раз оплатить €29,00 и безопасно получить доступ к существующей базе на три календарных месяца. Действующие подписчицы сохраняют текущий subscription lifecycle, а после cutoff автоматически возвращается исходная recurring-модель без сокращения ранее выданного временного доступа.
+
+**FRs covered:** FR1.4, FR1.4.1, FR1.4.2, FR1.4.3, FR3.1, FR5.1, FR8 (temporary branch), FR27 (temporary branch)
+**Stories:** 9.1 (Time-limited Entitlement & Unified Access) → 9.2 (One-Time Purchase & Activation) → 9.3 (Safe Rollback & Exceptions)
+**Зависимости:** после Epic 1 и Epic 3; existing recurring checkout, authentication, protected content и email pipeline уже существуют
+
+---
+
+### Story 9.1: Ограниченный entitlement и единый контроль доступа
+
+As a участница с подтверждённым временным правом доступа,
+I want получать одинаковый доступ ко всему закрытому контенту до точного `access_ends_at`,
+So that мой доступ не зависит от recurring subscription и корректно прекращается через три календарных месяца.
+
+**Acceptance Criteria:**
+
+1. **Entitlement ledger**
+
+   **Given** применяется migration
+   **When** создаются `payment_fulfillment_attempts` и `access_entitlements`
+   **Then** append-only attempt содержит unique `stripe_checkout_session_id`, nullable unique `stripe_payment_intent_id`, Stripe event и immutable payment/offer attribution, необходимые для service-role fixture и будущего fulfillment
+   **And** entitlement содержит `id`, nullable `user_id`, `source`, `status`, `offer_code`, `offer_version`, unique `fulfillment_attempt_id` с FK на attempt, `purchaser_email_normalized`, `paid_at`, `access_starts_at`, `access_ends_at`, nullable `claimed_at`, nullable `revoked_at` и `created_at`
+   **And** lifecycle ограничен переходом `unclaimed → claimed`; expiry вычисляется по времени, а не записывается cron-задачей.
+
+2. **Уникальность grant**
+
+   **Given** для одного email уже существует entitlement данного `offer_code`
+   **When** trusted service пытается создать второй grant
+   **Then** constraint `(offer_code, purchaser_email_normalized)` предотвращает дублирование
+   **And** существующий `access_ends_at` не изменяется и не продлевается.
+
+3. **Calendar expiry**
+
+   **Given** entitlement создаётся с известным `paid_at`
+   **When** рассчитывается срок доступа
+   **Then** `access_starts_at = paid_at`
+   **And** `access_ends_at` один раз вычисляется в PostgreSQL как три календарных месяца в `Europe/Ljubljana` и сохраняется как `timestamptz`
+   **And** расчёт не зависит от session `TimeZone` и не использует 90 дней
+   **And** при `evaluated_at == access_ends_at` доступ отсутствует.
+
+4. **Atomic verified-email claim**
+
+   **Given** существует webhook-compatible `unclaimed` entitlement
+   **When** authenticated пользовательница вызывает claim
+   **Then** server-side функция связывает его с `auth.uid()` только при точном совпадении `lower(btrim(auth.users.email))` и `purchaser_email_normalized`
+   **And** provider aliasing не применяется
+   **And** один entitlement нельзя связать с двумя пользователями
+   **And** повторный вызов тем же пользователем идемпотентен.
+
+5. **Canonical access resolver**
+
+   **Given** системе переданы `user_id` и `evaluated_at`
+   **When** private DB resolver вычисляет доступ
+   **Then** он учитывает источники `admin`, `vip`, `recurring` и `temporary_one_time`
+   **And** возвращает `has_access`, уникальный `sources[]` в canonical order, `valid_until` и `evaluated_at`
+   **And** при `has_access=false` возвращает `valid_until=evaluated_at`
+   **And** при наличии active admin/VIP/recurring source возвращает `valid_until=NULL`, а при доступе только через time-limited grants — максимальный active `access_ends_at`
+   **And** active temporary source требует `status='claimed'`, non-null `user_id/claimed_at`, `revoked_at IS NULL` и полуинтервал `[access_starts_at, access_ends_at)`.
+
+6. **Ограниченные RPC wrappers**
+
+   **Given** authenticated пользовательница проверяет собственный доступ
+   **When** вызывается public wrapper
+   **Then** `has_current_content_access()` и `get_my_content_access_state()` используют `auth.uid()` и private resolver
+   **And** не принимают произвольный `user_id`
+   **And** private functions используют schema-qualified names и `search_path=''`
+   **And** `EXECUTE` выдан только необходимым ролям.
+
+7. **RLS и защищённые поверхности**
+
+   **Given** пользовательница обращается к закрытому контенту
+   **When** выполняется read или mutation
+   **Then** posts, post media, comments, likes, content RPC и protected Storage objects применяют canonical access predicate
+   **And** expired entitlement одинаково запрещается во всех этих точках
+   **And** anonymous preview policies не раскрывают protected body, media, comments или authorization/payment fields.
+
+8. **Middleware parity и cache deadline**
+
+   **Given** middleware получает access state через authenticated RPC
+   **When** создаётся signed HttpOnly cache token
+   **Then** token привязан к `user_id` и содержит canonical `sources` и `valid_until_epoch`
+   **And** его lifetime равен `min(configured_ttl, valid_until - now)`
+   **And** достигнутый entitlement deadline делает token недействительным независимо от cookie expiry
+   **And** admin/VIP/recurring сохраняют существующий короткий TTL и revocation SLA.
+
+9. **Email recipient parity**
+
+   **Given** формируется рассылка нового опубликованного поста
+   **When** service-role recipient RPC вычисляет аудиторию
+   **Then** claimed active temporary entitlement включается наравне с recurring access
+   **And** дополнительно применяются `email_notifications_enabled` и существующая audience policy
+   **And** expired entitlement исключается
+   **And** admin/VIP не включаются только на основании доступа
+   **And** расширение recipient selection сохраняет доставку в течение 5 минут и delivery rate ≥ 95%.
+
+10. **Trusted mutation boundary**
+
+    **Given** запрос выполняется от `anon` или `authenticated`
+    **When** он пытается изменить entitlement либо `role`, `is_vip`, `subscription_status` и Stripe-поля profile
+    **Then** операция запрещается RLS и column/table grants
+    **And** entitlement DML доступен только trusted server/service-role path
+    **And** runtime DELETE grant отсутствует.
+
+11. **Regression и независимая проверяемость**
+
+    **Given** Story 9.1 реализована без checkout из Story 9.2
+    **When** тест создаёт entitlement через контролируемый service-role fixture и выполняет verified claim
+    **Then** middleware, RLS, Storage и email дают согласованный доступ до deadline и запрещают его на точной правой границе
+    **And** тесты покрывают DST, даты 29/30/31 числа, повторный claim и параллельную попытку второго grant
+    **And** доступ существующих admin, VIP, `active` и `trialing` пользователей остаётся неизменным.
+
+**FRs covered:** FR1.4.2, FR3.1, FR27 (temporary branch)
+
+---
+
+### Story 9.2: Разовая покупка €29 и активация доступа
+
+As a новая или бывшая участница без действующей recurring-подписки,
+I want один раз оплатить €29,00 и активировать доступ через подтверждённый email,
+So that я получаю три месяца доступа без подписки и автопродления.
+
+**Acceptance Criteria:**
+
+1. **TemporaryOfferConfig**
+
+   **Given** приложение запускается в `test` или `live` environment
+   **When** загружается server-only конфигурация предложения
+   **Then** она содержит start/end/timezone, offer code/version, exact Payment Link и Price IDs, URL, amount, currency, quantity и metadata
+   **And** missing, mixed или environment-mismatched значения fail closed отключают temporary UI, redirect и fulfillment.
+
+2. **Server-derived offer mode**
+
+   **Given** server time находится внутри canonical offer window
+   **When** рендерится landing pricing
+   **Then** UI получает temporary mode только от сервера
+   **And** client time, stale tab или cached JavaScript не могут самостоятельно открыть temporary checkout
+   **And** вне окна отображается исходная recurring-модель.
+
+3. **Purchase eligibility**
+
+   **Given** authenticated пользовательница имеет `active`/`trialing` subscription либо существующий grant данного `offer_code`
+   **When** она запрашивает temporary Link
+   **Then** redirect gate возвращает отказ без раскрытия Link URL
+   **And** бывшая подписчица без активного recurring-доступа допускается
+   **And** VIP/admin исключаются fail closed до утверждения отдельной policy.
+
+4. **Pricing UI**
+
+   **Given** temporary mode активен
+   **When** посетительница видит PricingSection
+   **Then** показана одна карточка с `€29,00 / 3 mesece`, семантически зачёркнутой `€34,00` и строкой `Dostop do obstoječe baze znanja za 3 mesece.`
+   **And** отсутствуют radiogroup, plan selector, `MESEČNO`, `€12,99`, `/ mesec`, `≈`, `Prihranek`, cancellation/autorenewal copy и обещание новых материалов `3-4x na teden`.
+
+5. **Accessible CTA**
+
+   **Given** eligible посетительница использует временную карточку
+   **When** активирует CTA
+   **Then** доступное имя равно `Pridruži se zdaj`
+   **And** повторное нажатие блокируется до ответа redirect gate
+   **And** network/redirect failure показывает понятное словенское сообщение через существующий error pattern, не выполняет автоматический retry и не инициирует второй переход или оплату
+   **And** keyboard focus видим, touch target не меньше 44×44 px и состояния не зависят только от цвета
+   **And** на 375px, 768px и ≥1024px отсутствует горизонтальное переполнение.
+
+6. **Stripe Payment Link contract**
+
+   **Given** redirect gate разрешил покупку
+   **When** пользовательница переходит в Stripe
+   **Then** используется exact allowlisted Payment Link с `mode='payment'`, одним item €29.00 EUR и quantity 1
+   **And** присутствуют утверждённые `offer_code`, `offer_version` и `access_months`
+   **And** отсутствуют recurring Price, subscription, trial и auto-renewal.
+
+7. **Signed webhook validation**
+
+   **Given** Stripe отправляет checkout event
+   **When** webhook начинает обработку
+   **Then** signature проверяется на raw body до разбора payload
+   **And** Checkout Session повторно загружается server-side с expanded `line_items`
+   **And** проверяются exact Link, Price, metadata, amount, currency, quantity, `mode='payment'` и paid status
+   **And** webhook snapshot или metadata без server-side retrieval недостаточны для выдачи доступа.
+
+8. **Immediate и delayed payment**
+
+   **Given** вызывается общий `fulfillTemporaryOffer(sessionId)`
+   **When** получен `checkout.session.completed`
+   **Then** fulfillment выполняется только при `payment_status='paid'`
+   **And** delayed payment получает тот же fulfillment через `checkout.session.async_payment_succeeded`
+   **And** `paid_at` равен `event.created` первого qualifying paid event: paid completed-event для immediate payment либо async success для delayed payment; receipt order и retry не меняют timestamp
+   **And** unpaid, failed или неизвестный one-time payment не создаёт entitlement.
+
+9. **Append-only payment attempt**
+
+   **Given** Session прошла payment validation
+   **When** фиксируется результат fulfillment
+   **Then** в созданной Story 9.1 таблице фиксируется immutable attempt с unique Checkout Session ID, nullable unique PaymentIntent ID, Stripe event, allowlist attribution, canonical purchaser email, amount/currency и `paid_at`
+   **And** authoritative email берётся только из retrieved `customer_details.email` и нормализуется через `lower(btrim(...))`
+   **And** отсутствие email создаёт non-granting exception.
+
+10. **Idempotent grant transaction**
+
+    **Given** qualifying paid Session обрабатывается впервые или повторно
+    **When** transaction фиксирует attempt и пытается создать entitlement
+    **Then** первый успешный insert создаёт ровно один `unclaimed` grant
+    **And** retry или параллельная доставка той же Session становится no-op
+    **And** существующие `paid_at` и `access_ends_at` не изменяются
+    **And** distinct duplicate Session не заменяет первый grant и получает review disposition.
+
+11. **Post-payment claim UX**
+
+    **Given** Stripe возвращает покупательницу с `{CHECKOUT_SESSION_ID}`
+    **When** она проходит существующий register/verification либо authenticated login return
+    **Then** вызывается claim contract из Story 9.1
+    **And** совпавший verified email активирует entitlement и открывает onboarding
+    **And** если webhook ещё не доставлен, UI показывает словенский pending state и безопасно повторяет claim
+    **And** success/onboarding state показывает индивидуальную дату окончания доступа и прямо сообщает об отсутствии автопродления
+    **And** redirect/session ID никогда не создаёт entitlement и не заменяет проверку email.
+
+12. **Recurring regression**
+
+    **Given** temporary checkout и webhook завершены
+    **When** сравниваются recurring данные до и после
+    **Then** `/api/checkout` продолжает принимать `monthly|quarterly` для rollback
+    **And** неизменны recurring Price IDs, Stripe customer/subscription IDs, `subscription_status`, `current_period_end`, billing interval и `cancel_at_period_end`
+    **And** one-time handler не создаёт, не обновляет и не отменяет Stripe Subscription.
+
+13. **Verification**
+
+    **Given** Story 9.2 готова
+    **When** выполняются automated и Stripe test-mode проверки
+    **Then** покрыты обе временные границы, eligibility, invalid config/signature/link/price/mode/status, immediate и delayed payment, duplicate delivery, pending claim и email mismatch
+    **And** проходят accessibility/responsive проверки temporary pricing
+    **And** существующие recurring checkout и subscription webhook suites остаются зелёными.
+
+**FRs covered:** FR1.4, FR1.4.1, FR1.4.3, FR8 (temporary branch)
+
+---
+
+### Story 9.3: Безопасное завершение предложения и обработка исключений
+
+As a владелица PROCONTENT,
+I want контролируемо завершить временное предложение и обработать ошибочные платежи,
+So that recurring-модель возвращается без повреждения действующих подписок и уже выданного доступа.
+
+**Acceptance Criteria:**
+
+1. **Automatic cutoff**
+
+   **Given** наступает `2026-12-01 00:00:00+01:00`
+   **When** server-derived commercial mode вычисляется после cutoff
+   **Then** temporary pricing и Link redirect отключаются независимо от client cache
+   **And** лендинг возвращает исходные €12,99/месяц и €34/3 месяца, plan selector и recurring checkout copy
+   **And** `/api/checkout` снова является публичным purchase path.
+
+2. **Payment Link deactivation**
+
+   **Given** наступил cutoff
+   **When** назначенный operator выполняет rollback runbook
+   **Then** деактивируется exact allowlisted live Payment Link
+   **And** сохраняются Link ID, timestamp, Stripe evidence и результат проверки недоступности Link
+   **And** при ошибке Stripe operation app redirect gate остаётся fail closed и запускается escalation.
+
+3. **Сохранение выданного доступа**
+
+   **Given** entitlement был создан до окончания предложения
+   **When** temporary UI и Payment Link отключаются
+   **Then** claimed entitlement продолжает действовать до индивидуального `access_ends_at`
+   **And** не удаляется, не сокращается и не конвертируется в subscription
+   **And** после deadline canonical resolver прекращает доступ обычным способом.
+
+4. **Late webhook semantics**
+
+   **Given** qualifying Stripe event доставлен после cutoff
+   **When** fulfillment проверяет immutable `paid_at`
+   **Then** grant может быть завершён только если qualifying paid event возник внутри offer window
+   **And** retry ранее принятого события остаётся идемпотентным
+   **And** новый async success с `event.created` после cutoff не создаёт grant и переходит в exception flow.
+
+5. **Business exception classification**
+
+   **Given** оплаченная Session является duplicate, ineligible или out-of-window
+   **When** fulfillment завершает проверку
+   **Then** entitlement не создаётся
+   **And** attempt получает immutable disposition `duplicate_review` либо `ineligible_review`
+   **And** сохраняется безопасный reconciliation context без секретов и полных платёжных данных.
+
+6. **Refund case lifecycle**
+
+   **Given** exception требует возврата
+   **When** создаётся `payment_refund_cases`
+   **Then** запись имеет unique `fulfillment_attempt_id` и lifecycle `refund_pending → refunded | refund_failed_manual`
+   **And** refund state не изменяет append-only attempt или entitlement
+   **And** Stripe refund использует idempotency key, производный от Checkout Session ID
+   **And** retry не создаёт повторный refund.
+
+7. **Approved refund policy**
+
+   **Given** automatic или manual refund executor ещё не утверждён
+   **When** проверяется production readiness
+   **Then** temporary offer не может быть включён в production
+   **And** Owner/PM должны утвердить executor, SLA, customer communication и support ownership
+   **And** каждый `refund_pending` и `refund_failed_manual` доступен в reconciliation workflow.
+
+8. **Observability и automatic containment**
+
+   **Given** fulfillment, resolver или RLS работает некорректно
+   **When** обнаружен controlled-event 5xx, access-state mismatch либо production refund failure
+   **Then** создаётся alert с безопасными event/session identifiers
+   **And** temporary redirect gate автоматически закрывается
+   **And** recurring access и ранее claimed entitlements не отключаются.
+
+9. **Existing subscriber protection**
+
+   **Given** выполняется launch или rollback
+   **When** сравниваются зафиксированные sample subscriptions
+   **Then** неизменны customer/subscription IDs, Price, billing interval, `subscription_status`, `current_period_end` и `cancel_at_period_end`
+   **And** ни один temporary handler или runbook step не изменяет и не отменяет существующую subscription.
+
+10. **Expired и inactive UX**
+
+    **Given** temporary entitlement истёк
+    **When** пользовательница открывает закрытую поверхность
+    **Then** она получает понятное словенское сообщение об окончании доступа
+    **And** видит только актуальную коммерческую модель
+    **And** сообщение объясняет отсутствие автопродления и не утверждает, что subscription была отменена
+    **And** keyboard, focus, contrast и responsive требования сохраняются.
+
+11. **Launch approvals**
+
+    **Given** команда готовит production enablement
+    **When** проводится go/no-go review
+    **Then** утверждены exact live Link/Price/config, schema и migration, RLS/GRANT matrix, VIP/admin eligibility, словенский copy, refund policy, GDPR retention/redaction и rollback operator
+    **And** test и live identifiers разделены
+    **And** секреты и Payment Link URL остаются server-only там, где это предусмотрено contract.
+
+12. **Launch verification**
+
+    **Given** approvals получены
+    **When** выполняется controlled launch test
+    **Then** подтверждён полный путь payment → attempt → entitlement → verified claim → middleware/RLS/email
+    **And** проверены invalid signature/config, duplicate delivery, delayed payment, email mismatch, exact expiry и exception/refund states
+    **And** recurring regression suites остаются зелёными.
+
+13. **Rollback rehearsal**
+
+    **Given** предложение ещё не включено в production
+    **When** команда репетирует rollback
+    **Then** подтверждены автоматическое переключение UI, блокировка redirect, процедура деактивации Link, smoke test recurring checkout и сохранение active entitlements
+    **And** runbook содержит accountable Owner, responsible operator, DEV escalation и fallback при ошибке.
+
+14. **Dependency security gate**
+
+    **Given** проект использует уязвимую или неподдерживаемую версию Next.js
+    **When** оценивается readiness к launch
+    **Then** dependency обновляется до актуальной patched версии согласно official advisories на момент реализации
+    **And** после обновления повторно выполняются build, typecheck, lint и relevant regression suites.
+
+**FRs covered:** FR5.1; operational completion FR1.4, FR3.1 и FR8
