@@ -39,7 +39,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
-        <RegisterContainer email={email} />
+        <RegisterContainer email={email} sessionId={sessionId} />
       </div>
     </main>
   )

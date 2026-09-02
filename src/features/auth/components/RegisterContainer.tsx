@@ -6,13 +6,15 @@ import { createClient } from '@/lib/supabase/client'
 import { ONBOARDING_PATH } from '@/lib/app-routes'
 import { cn } from '@/lib/utils'
 import { signUp } from '@/features/auth/api/auth'
+import { linkSubscriptionAfterSignup } from '@/features/auth/api/server-actions'
 import { RegisterForm } from './RegisterForm'
 
 interface RegisterContainerProps {
   email: string
+  sessionId: string
 }
 
-export function RegisterContainer({ email }: RegisterContainerProps) {
+export function RegisterContainer({ email, sessionId }: RegisterContainerProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,6 +80,15 @@ export function RegisterContainer({ email }: RegisterContainerProps) {
     // оставлял уже залогиненную участницу ждать несуществующее письмо.
     // Ориентируемся на факт сессии, а не на предположение о настройках почты.
     if (data.session) {
+      // Вебхук приходил до регистрации и никого не нашёл, поэтому профиль ещё без
+      // subscription_status. Без привязки здесь access-gate увёл бы участницу с
+      // /onboarding на /inactive, и онбординг она бы не увидела. Сбой не блокирует:
+      // на /inactive остаётся прежний Stripe-fallback, доступ она получит в любом случае.
+      const linkResult = await linkSubscriptionAfterSignup(sessionId)
+      if (!linkResult.linked) {
+        console.error('[register] Подписка не привязана после регистрации:', linkResult.reason)
+      }
+
       router.push(ONBOARDING_PATH)
       // isLoading намеренно остаётся true: идёт навигация, форму включать обратно незачем
       return

@@ -3,7 +3,15 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Цепочка: from('profiles').update({...}).eq('id', userId).select('id')
-const { mockPush, mockSignUp, mockSelect, mockEq, mockUpdate, mockFrom } = vi.hoisted(() => {
+const {
+  mockPush,
+  mockSignUp,
+  mockLinkSubscription,
+  mockSelect,
+  mockEq,
+  mockUpdate,
+  mockFrom,
+} = vi.hoisted(() => {
   const mockSelect = vi.fn()
   const mockEq = vi.fn(() => ({ select: mockSelect }))
   const mockUpdate = vi.fn(() => ({ eq: mockEq }))
@@ -11,6 +19,7 @@ const { mockPush, mockSignUp, mockSelect, mockEq, mockUpdate, mockFrom } = vi.ho
   return {
     mockPush: vi.fn(),
     mockSignUp: vi.fn(),
+    mockLinkSubscription: vi.fn(),
     mockSelect,
     mockEq,
     mockUpdate,
@@ -24,6 +33,10 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/features/auth/api/auth', () => ({
   signUp: mockSignUp,
+}))
+
+vi.mock('@/features/auth/api/server-actions', () => ({
+  linkSubscriptionAfterSignup: mockLinkSubscription,
 }))
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -46,6 +59,7 @@ describe('RegisterContainer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSelect.mockResolvedValue({ data: [{ id: 'user-1' }], error: null })
+    mockLinkSubscription.mockResolvedValue({ linked: true, status: 'active' })
   })
 
   // На боевом GoTrue включён autoconfirm — письма с подтверждением не будет никогда,
@@ -57,7 +71,7 @@ describe('RegisterContainer', () => {
       error: null,
     })
 
-    render(<RegisterContainer email="nova@example.com" />)
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
     await fillAndSubmit()
 
     await waitFor(() => {
@@ -70,13 +84,50 @@ describe('RegisterContainer', () => {
     expect(screen.queryByText(CONFIRM_MESSAGE)).not.toBeInTheDocument()
   })
 
+  // Без привязки профиль остаётся без subscription_status, и access-gate уводит
+  // с /onboarding на /inactive — экран онбординга участница не увидит.
+  it('привязывает подписку по session_id до перехода на /onboarding', async () => {
+    mockSignUp.mockResolvedValue({
+      data: { user: { id: 'user-1' }, session: { access_token: 'token' } },
+      error: null,
+    })
+
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
+    await fillAndSubmit()
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/onboarding')
+    })
+
+    expect(mockLinkSubscription).toHaveBeenCalledWith('cs_live_abc123')
+    // Привязка обязана произойти раньше навигации, иначе гейт увидит пустой статус
+    expect(mockLinkSubscription.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPush.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('не блокирует участницу, если привязка не удалась — fallback на /inactive остаётся', async () => {
+    mockSignUp.mockResolvedValue({
+      data: { user: { id: 'user-1' }, session: { access_token: 'token' } },
+      error: null,
+    })
+    mockLinkSubscription.mockResolvedValue({ linked: false, reason: 'no_subscription' })
+
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
+    await fillAndSubmit()
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/onboarding')
+    })
+  })
+
   it('без сессии показывает сообщение о письме и никуда не уводит', async () => {
     mockSignUp.mockResolvedValue({
       data: { user: { id: 'user-1' }, session: null },
       error: null,
     })
 
-    render(<RegisterContainer email="nova@example.com" />)
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
     await fillAndSubmit()
 
     expect(await screen.findByText(CONFIRM_MESSAGE)).toBeInTheDocument()
@@ -90,7 +141,7 @@ describe('RegisterContainer', () => {
     })
 
     const user = userEvent.setup()
-    render(<RegisterContainer email="nova@example.com" />)
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
     await user.type(screen.getByLabelText('Ime'), 'Laura')
     await user.type(screen.getByLabelText('Ustvarite geslo'), 'geslo123')
     await user.click(screen.getByRole('button', { name: /Dokončaj registracijo/i }))
@@ -107,7 +158,7 @@ describe('RegisterContainer', () => {
     })
     mockSelect.mockResolvedValue({ data: null, error: { message: 'RLS denied' } })
 
-    render(<RegisterContainer email="nova@example.com" />)
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
     await fillAndSubmit()
 
     expect(
@@ -124,7 +175,7 @@ describe('RegisterContainer', () => {
       error: null,
     })
 
-    render(<RegisterContainer email="nova@example.com" />)
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
     await fillAndSubmit()
 
     expect(await screen.findByText(/Račun s tem e-naslovom že obstaja/)).toBeInTheDocument()
@@ -142,7 +193,7 @@ describe('RegisterContainer', () => {
     })
     mockSelect.mockResolvedValue({ data: [], error: null })
 
-    render(<RegisterContainer email="nova@example.com" />)
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
     await fillAndSubmit()
 
     expect(
@@ -157,7 +208,7 @@ describe('RegisterContainer', () => {
       error: { message: 'User already registered' },
     })
 
-    render(<RegisterContainer email="nova@example.com" />)
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
     await fillAndSubmit()
 
     expect(await screen.findByText('User already registered')).toBeInTheDocument()
@@ -168,7 +219,7 @@ describe('RegisterContainer', () => {
   it('при ответе signUp без пользователя показывает общую ошибку', async () => {
     mockSignUp.mockResolvedValue({ data: { user: null, session: null }, error: null })
 
-    render(<RegisterContainer email="nova@example.com" />)
+    render(<RegisterContainer email="nova@example.com" sessionId="cs_live_abc123" />)
     await fillAndSubmit()
 
     expect(await screen.findByText(/Napaka pri registraciji/)).toBeInTheDocument()
