@@ -8,6 +8,7 @@ import {
   getStripeWebhookRateLimitKey,
 } from '@/lib/stripe/webhook-rate-limit'
 import { applyVipRevocation } from '@/lib/stripe/vipRevocation'
+import { PROMO_OFFER_CODE } from '@/lib/stripe/promoOffer'
 import type Stripe from 'stripe'
 import type { Database } from '@/types/supabase'
 
@@ -125,6 +126,40 @@ async function findSubscriptionLineItem(invoice: Stripe.Invoice) {
   return null
 }
 
+/**
+ * Временное предложение €29 / 3 месяца: promo-подписка не должна продлеваться.
+ *
+ * Checkout API не умеет задавать отмену при создании сессии — `cancel_at_period_end`
+ * существует только на `subscriptions.update`, — поэтому флаг ставится после оплаты.
+ *
+ * Вызывается из обоих мест, которые переводят оплаченную подписку в `active`:
+ * `checkout.session.completed` и `invoice.payment_succeeded`. Второй путь обязателен:
+ * при отложенной оплате (банковский перевод, зависший 3DS) checkout приходит с
+ * `payment_status: 'unpaid'`, и доступ выдаётся только из инвойса.
+ *
+ * Идемпотентно: при ретрае вебхука или срабатывании обоих путей Stripe не дёргается
+ * повторно. Ошибка не прерывает выдачу доступа — оплата прошла, доступ важнее флага,
+ * но лог остаётся сигналом, что автопродление придётся снять вручную.
+ */
+async function disablePromoAutoRenewal(
+  subscriptionId: string,
+  knownSubscription: Stripe.Subscription | null = null
+) {
+  try {
+    const subscription =
+      knownSubscription ?? (await stripe.subscriptions.retrieve(subscriptionId))
+
+    if (subscription.cancel_at_period_end) return
+
+    await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true })
+  } catch (error) {
+    console.error(
+      `[webhook] Не удалось отключить автопродление promo-подписки ${subscriptionId}:`,
+      error
+    )
+  }
+}
+
 // Task 3.1: checkout.session.completed
 // Привязываем stripe_customer_id / stripe_subscription_id к профилю пользователя.
 // Fix [AI-Review][Critical] Round 16: приоритет привязки:
@@ -187,9 +222,11 @@ async function handleCheckoutSessionCompleted(
   // оживляет уже удалённую подписку, устанавливая subscription_status = 'active'.
   // Верифицируем статус подписки через Stripe API — если уже удалена/неактивна,
   // убираем subscription_status из updateData (IDs всё равно привязываем).
+  let verifiedSubscription: Stripe.Subscription | null = null
   if (subscriptionId && updateData.subscription_status === 'active') {
     try {
       const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId)
+      verifiedSubscription = stripeSubscription
       if (stripeSubscription.status !== 'active' && stripeSubscription.status !== 'trialing') {
         console.warn(
           '[webhook] checkout.session.completed: подписка уже не активна, пропускаем активацию:',
@@ -204,6 +241,21 @@ async function handleCheckoutSessionCompleted(
         subscriptionId
       )
       delete updateData.subscription_status
+    }
+  }
+
+  // Временное предложение €29 / 3 месяца: подписка не должна продлеваться.
+  // Флаг ставится только при подтверждённой оплате и активной в Stripe подписке;
+  // подписка уже получена выше — переиспользуем её, не делая второй запрос.
+  if (session.metadata?.offer === PROMO_OFFER_CODE) {
+    if (subscriptionId && updateData.subscription_status === 'active') {
+      await disablePromoAutoRenewal(subscriptionId, verifiedSubscription)
+    } else if (!subscriptionId) {
+      // Доступ выдан, но отменять нечего — оператору придётся разобраться вручную
+      console.error(
+        '[webhook] checkout.session.completed: promo-сессия без subscription id, автопродление не снято:',
+        session.id
+      )
     }
   }
 
@@ -337,6 +389,14 @@ async function handleInvoicePaymentSucceeded(
   if (!subscriptionId) return
 
   if (invoice.status !== 'paid') return
+
+  // Временное предложение: при отложенной оплате доступ выдаётся именно здесь,
+  // а не из checkout.session.completed, — значит и автопродление снимать нужно здесь.
+  // subscription_details.metadata — снимок метаданных подписки на момент выпуска инвойса,
+  // поэтому обычные продления распознаются без единого лишнего запроса к Stripe.
+  if (invoice.parent?.subscription_details?.metadata?.offer === PROMO_OFFER_CODE) {
+    await disablePromoAutoRenewal(subscriptionId)
+  }
 
   // Fix [AI-Review][Medium] Round 5: ищем строку с type==='subscription' для точного period_end.
   // type отсутствует в Stripe TypeScript типах для API 2026-02-25.clover — используем type cast.

@@ -8,6 +8,7 @@ import { TestimonialsSection } from '@/features/landing/components/TestimonialsS
 import { PricingCheckoutWrapper } from '@/features/landing/components/PricingCheckoutWrapper'
 import { CtaSection } from '@/features/landing/components/CtaSection'
 import { createClient } from '@/lib/supabase/server'
+import { isPromoPriceId } from '@/lib/stripe/promoOffer'
 import { getLandingPreviewPosts } from '@/features/landing/api/publicPreview'
 
 export const metadata: Metadata = {
@@ -51,7 +52,8 @@ export default async function LandingPage() {
       <BenefitsSection />
       <PreviewPostsSection posts={previewPosts} />
       <TestimonialsSection />
-      <PricingCheckoutWrapper />
+      {/* Promo-режим выводится только на сервере: клиентское время или кэш его не включат. */}
+      <PricingCheckoutWrapper isPromoActive={isPromoPriceId(process.env.STRIPE_PROMO_PRICE_ID)} />
       <CtaSection />
     </main>
   )

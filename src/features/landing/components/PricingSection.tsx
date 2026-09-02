@@ -3,6 +3,8 @@
 import { useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 
+import type { CheckoutPlan } from '../api/checkout'
+
 const features = [
   'Popoln dostop do baze znanja (2+ leti vsebine)',
   'Izobraževalne vsebine 3-4x na teden',
@@ -13,6 +15,16 @@ const features = [
 ]
 
 type Plan = 'monthly' | 'quarterly'
+
+// Временное предложение: одна карточка вместо двух recurring-тарифов.
+const promo = {
+  price: '€29,00',
+  per: '/ 3 mesece',
+  oldPriceLabel: 'Namesto',
+  note: 'Enkratno plačilo. Naročnina se ne podaljša samodejno.',
+  tagline: 'Brez skritih plačil. Enkratno plačilo za 3 mesece.',
+  footer: 'Varno plačilo prek Stripe · Brez samodejnega podaljšanja.',
+}
 
 const plans: Record<Plan, { label: string; price: string; per: string; sub?: string; badge?: string }> = {
   monthly: {
@@ -30,11 +42,17 @@ const plans: Record<Plan, { label: string; price: string; per: string; sub?: str
 }
 
 interface PricingSectionProps {
-  onCheckout: (plan: 'monthly' | 'quarterly') => void
+  onCheckout: (plan: CheckoutPlan) => void
   isLoading: boolean
+  /**
+   * Включается только сервером (src/app/page.tsx) по STRIPE_PROMO_PRICE_ID.
+   * Проп обязателен намеренно: оборванный проброс должен ломать типы,
+   * а не молча возвращать лендинг к обычным тарифам.
+   */
+  isPromoActive: boolean
 }
 
-export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
+export function PricingSection({ onCheckout, isLoading, isPromoActive }: PricingSectionProps) {
   const [selected, setSelected] = useState<Plan>('quarterly')
   const active = plans[selected]
   const planKeys = Object.keys(plans) as Plan[]
@@ -72,13 +90,37 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
             Vse vključeno
           </h2>
           <p className="mt-1 text-[11px] tracking-[0.15em] uppercase text-muted-foreground">
-            Brez skritih plačil. Odpoved kadar koli.
+            {isPromoActive ? promo.tagline : 'Brez skritih plačil. Odpoved kadar koli.'}
           </p>
         </div>
 
         {/* Unified card */}
         <div className="rounded-lg border border-border bg-card px-5 py-6 sm:px-8 sm:py-8 flex flex-col gap-5">
 
+          {isPromoActive ? (
+            /* Promo — акционная цена вместо переключателя тарифов */
+            <div className="flex flex-col gap-2">
+              <div className="flex items-baseline gap-2">
+                <span className="font-serif text-5xl font-light leading-none text-foreground [font-variant-numeric:lining-nums_tabular-nums]">
+                  {promo.price}
+                </span>
+                <span className="text-xs tracking-[0.15em] uppercase text-muted-foreground">
+                  {promo.per}
+                </span>
+              </div>
+              <p className="flex items-baseline gap-1.5">
+                <span className="text-[11px] tracking-[0.15em] uppercase text-muted-foreground">
+                  {promo.oldPriceLabel}
+                </span>
+                {/* Старая цена берётся из квартального тарифа, чтобы не разъехаться с ним */}
+                <s className="font-serif text-base font-light text-muted-foreground [font-variant-numeric:lining-nums_tabular-nums]">
+                  {plans.quarterly.price}
+                </s>
+              </p>
+              <p className="text-[11px] text-muted-foreground">{promo.note}</p>
+            </div>
+          ) : (
+            <>
           {/* Price — single string, fixed size, no superscript */}
           <div className="flex items-baseline gap-2">
             <span className="font-serif text-5xl font-light leading-none text-foreground [font-variant-numeric:lining-nums_tabular-nums]">
@@ -132,6 +174,8 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
               )
             })}
           </div>
+            </>
+          )}
 
           {/* Features */}
           <ul className="flex flex-col gap-3" aria-label="Kaj je vključeno v naročnino">
@@ -147,7 +191,7 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
           <div className="flex flex-col items-center gap-3">
             <button
               type="button"
-              onClick={() => onCheckout(selected)}
+              onClick={() => onCheckout(isPromoActive ? 'promo' : selected)}
               disabled={isLoading}
               className="inline-flex min-h-[48px] w-full items-center justify-center border border-primary bg-transparent px-8 font-sans text-xs font-medium tracking-[0.2em] uppercase text-foreground transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -158,7 +202,7 @@ export function PricingSection({ onCheckout, isLoading }: PricingSectionProps) {
               )}
             </button>
             <p className="text-[11px] text-muted-foreground text-center">
-              Varno plačilo prek Stripe · Odpoved z 1 klikom.
+              {isPromoActive ? promo.footer : 'Varno plačilo prek Stripe · Odpoved z 1 klikom.'}
             </p>
           </div>
 

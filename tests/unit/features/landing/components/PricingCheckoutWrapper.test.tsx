@@ -37,7 +37,7 @@ describe('PricingCheckoutWrapper', () => {
       })
     )
 
-    render(<PricingCheckoutWrapper />)
+    render(<PricingCheckoutWrapper isPromoActive={false} />)
 
     const button = screen.getByRole('button', { name: /Pridruži se zdaj/i })
     await user.click(button)
@@ -51,7 +51,7 @@ describe('PricingCheckoutWrapper', () => {
     const user = userEvent.setup()
     mockStartCheckout.mockResolvedValueOnce('https://checkout.stripe.com/test-session')
 
-    render(<PricingCheckoutWrapper />)
+    render(<PricingCheckoutWrapper isPromoActive={false} />)
 
     await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
 
@@ -66,7 +66,7 @@ describe('PricingCheckoutWrapper', () => {
       new Error('Naročnine ni bilo mogoče začeti. Poskusite znova.')
     )
 
-    render(<PricingCheckoutWrapper />)
+    render(<PricingCheckoutWrapper isPromoActive={false} />)
 
     await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
 
@@ -81,7 +81,7 @@ describe('PricingCheckoutWrapper', () => {
     const user = userEvent.setup()
     mockStartCheckout.mockRejectedValueOnce(new Error('Ошибка'))
 
-    render(<PricingCheckoutWrapper />)
+    render(<PricingCheckoutWrapper isPromoActive={false} />)
 
     await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
 
@@ -94,13 +94,46 @@ describe('PricingCheckoutWrapper', () => {
     const user = userEvent.setup()
     mockStartCheckout.mockRejectedValueOnce('network failure')
 
-    render(<PricingCheckoutWrapper />)
+    render(<PricingCheckoutWrapper isPromoActive={false} />)
 
     await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
         'Naročnine ni bilo mogoče začeti. Poskusite znova.'
+      )
+    })
+  })
+
+  // Проводка isPromoActive до самого вызова API: без этого тесты остаются
+  // зелёными, даже если проброс пропа оборвётся, а лендинг молча вернётся к €34,00
+  it('при isPromoActive рендерит акцию и запрашивает checkout с планом promo', async () => {
+    const user = userEvent.setup()
+    mockStartCheckout.mockResolvedValueOnce('https://checkout.stripe.com/promo')
+
+    render(<PricingCheckoutWrapper isPromoActive />)
+
+    expect(screen.getByText('€29,00')).toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
+
+    await waitFor(() => {
+      expect(mockStartCheckout).toHaveBeenCalledWith('promo')
+    })
+  })
+
+  it('без isPromoActive запрашивает checkout по обычному тарифу', async () => {
+    const user = userEvent.setup()
+    mockStartCheckout.mockResolvedValueOnce('https://checkout.stripe.com/quarterly')
+
+    render(<PricingCheckoutWrapper isPromoActive={false} />)
+
+    await user.click(screen.getByRole('button', { name: /Pridruži se zdaj/i }))
+
+    await waitFor(() => {
+      expect(mockStartCheckout).toHaveBeenCalledWith(
+        expect.stringMatching(/^(monthly|quarterly)$/)
       )
     })
   })

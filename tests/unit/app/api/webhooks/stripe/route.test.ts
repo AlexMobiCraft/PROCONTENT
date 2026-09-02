@@ -2,15 +2,24 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 // --- Моки подняты до импортов ---
 
-const { mockConstructEvent, mockWebhooks, mockListLineItems, mockRetrieveSubscription } = vi.hoisted(() => {
+const {
+  mockConstructEvent,
+  mockWebhooks,
+  mockListLineItems,
+  mockRetrieveSubscription,
+  mockUpdateSubscription,
+} = vi.hoisted(() => {
   const mockConstructEvent = vi.fn()
   const mockListLineItems = vi.fn()
   // Fix [AI-Review][Critical] Round 21: мок для проверки статуса подписки в Stripe (out-of-order race)
   const mockRetrieveSubscription = vi.fn()
+  // Временное предложение: отключение автопродления promo-подписке
+  const mockUpdateSubscription = vi.fn()
   return {
     mockConstructEvent,
     mockListLineItems,
     mockRetrieveSubscription,
+    mockUpdateSubscription,
     mockWebhooks: { constructEvent: mockConstructEvent },
   }
 })
@@ -22,6 +31,7 @@ vi.mock('@/lib/stripe', () => ({
     },
     subscriptions: {
       retrieve: mockRetrieveSubscription,
+      update: mockUpdateSubscription,
     },
     webhooks: mockWebhooks,
   },
@@ -125,6 +135,7 @@ vi.mock('@supabase/supabase-js', () => ({
 
 import { POST } from '@/app/api/webhooks/stripe/route'
 import { resetStripeWebhookRateLimitStore } from '@/lib/stripe/webhook-rate-limit'
+import { PROMO_OFFER_CODE } from '@/lib/stripe/promoOffer'
 
 const DEFAULT_PERIOD_END_TS = 1800000000
 const UPGRADED_PERIOD_END_TS = 1900000000
@@ -251,6 +262,7 @@ describe('POST /api/webhooks/stripe', () => {
     mockListLineItems.mockResolvedValue({ data: [], has_more: false })
     // Fix [AI-Review][Critical] Round 21: дефолт — подписка активна в Stripe (out-of-order race guard)
     mockRetrieveSubscription.mockResolvedValue({ status: 'active' })
+    mockUpdateSubscription.mockResolvedValue({ id: 'sub_123', cancel_at_period_end: true })
     mockFrom.mockReturnValue({ update: mockUpdate, upsert: mockUpsert })
 
     // Fix [AI-Review][Critical] Round 8: дефолтный мок RPC — пользователь найден по email (O(1) поиск)
@@ -1271,6 +1283,164 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200)
       // current_period_end НЕ должен браться из разовой позиции инвойса
       expect(mockUpdate.mock.calls[0]?.[0]).not.toHaveProperty('current_period_end')
+    })
+  })
+
+  // Временное предложение €29 / 3 месяца: Checkout API не умеет задавать отмену
+  // при создании сессии, поэтому автопродление снимается здесь — после оплаты.
+  describe('checkout.session.completed — отмена автопродления promo-подписки', () => {
+    // Импортируем константу, а не литерал: переименование кода акции должно
+    // ломать тест, а не оставлять его зелёным при сломанном продакшене
+    const PROMO_METADATA = { metadata: { offer: PROMO_OFFER_CODE } }
+
+    it('отключает автопродление подписке с меткой акции', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent(PROMO_METADATA))
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdateSubscription).toHaveBeenCalledWith('sub_123', {
+        cancel_at_period_end: true,
+      })
+    })
+
+    it('не трогает обычную recurring-подписку без метки акции', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdateSubscription).not.toHaveBeenCalled()
+    })
+
+    it('не отключает автопродление, пока оплата не подтверждена', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ ...PROMO_METADATA, payment_status: 'unpaid' })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdateSubscription).not.toHaveBeenCalled()
+    })
+
+    it('не отключает автопродление, если подписка в Stripe уже неактивна', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent(PROMO_METADATA))
+      mockRetrieveSubscription.mockResolvedValueOnce({ status: 'canceled' })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdateSubscription).not.toHaveBeenCalled()
+    })
+
+    // Оплата уже прошла — доступ важнее флага, сбой Stripe не должен его блокировать
+    it('выдаёт доступ даже если Stripe не смог снять автопродление', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent(PROMO_METADATA))
+      mockUpdateSubscription.mockRejectedValueOnce(new Error('Stripe unavailable'))
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+    })
+
+    it('не дёргает Stripe повторно, если автопродление уже снято', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent(PROMO_METADATA))
+      mockRetrieveSubscription.mockResolvedValueOnce({
+        status: 'active',
+        cancel_at_period_end: true,
+      })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdateSubscription).not.toHaveBeenCalled()
+    })
+
+    it('логирует promo-сессию без subscription id, чтобы её нашли вручную', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(
+        makeCheckoutEvent({ ...PROMO_METADATA, subscription: null, id: 'cs_promo_123' })
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdateSubscription).not.toHaveBeenCalled()
+      // В логе должен быть id сессии — иначе запись бесполезна для ручного разбора
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('promo-сессия без subscription id'),
+        'cs_promo_123'
+      )
+      consoleSpy.mockRestore()
+    })
+  })
+
+  // Отложенная оплата (банковский перевод, зависший 3DS): checkout приходит unpaid,
+  // доступ выдаёт invoice.payment_succeeded — значит и автопродление снимать нужно там,
+  // иначе участница получила бы повторное списание €29 через 3 месяца.
+  describe('invoice.payment_succeeded — отмена автопродления promo-подписки', () => {
+    function makePromoInvoiceEvent() {
+      return makeInvoiceEvent('invoice.payment_succeeded', {
+        parent: {
+          subscription_details: {
+            subscription: 'sub_123',
+            metadata: { offer: PROMO_OFFER_CODE },
+          },
+        },
+      })
+    }
+
+    it('снимает автопродление при активации через инвойс', async () => {
+      mockConstructEvent.mockReturnValueOnce(makePromoInvoiceEvent())
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdateSubscription).toHaveBeenCalledWith('sub_123', {
+        cancel_at_period_end: true,
+      })
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+    })
+
+    it('не трогает обычные продления и не ходит за подпиской в Stripe', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInvoiceEvent('invoice.payment_succeeded'))
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdateSubscription).not.toHaveBeenCalled()
+      expect(mockRetrieveSubscription).not.toHaveBeenCalled()
+    })
+
+    it('идемпотентен при ретрае: не снимает уже снятое автопродление', async () => {
+      mockConstructEvent.mockReturnValueOnce(makePromoInvoiceEvent())
+      mockRetrieveSubscription.mockResolvedValueOnce({
+        status: 'active',
+        cancel_at_period_end: true,
+      })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdateSubscription).not.toHaveBeenCalled()
+    })
+
+    it('выдаёт доступ даже если Stripe не смог снять автопродление', async () => {
+      mockConstructEvent.mockReturnValueOnce(makePromoInvoiceEvent())
+      mockRetrieveSubscription.mockRejectedValueOnce(new Error('Stripe unavailable'))
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
     })
   })
 })

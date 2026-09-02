@@ -2,13 +2,21 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { startCheckout } from '../api/checkout'
+import { startCheckout, type CheckoutPlan } from '../api/checkout'
 import { PricingSection } from './PricingSection'
 
-export function PricingCheckoutWrapper() {
+interface PricingCheckoutWrapperProps {
+  /**
+   * Promo-режим выводится на сервере (см. src/app/page.tsx) — клиент его включить не может.
+   * Проп обязателен: забытый проброс должен быть ошибкой типов, а не тихим откатом к €34,00.
+   */
+  isPromoActive: boolean
+}
+
+export function PricingCheckoutWrapper({ isPromoActive }: PricingCheckoutWrapperProps) {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
 
-  async function handleCheckout(plan: 'monthly' | 'quarterly') {
+  async function handleCheckout(plan: CheckoutPlan) {
     setIsCheckoutLoading(true)
 
     try {
@@ -24,5 +32,11 @@ export function PricingCheckoutWrapper() {
     }
   }
 
-  return <PricingSection onCheckout={handleCheckout} isLoading={isCheckoutLoading} />
+  return (
+    <PricingSection
+      onCheckout={handleCheckout}
+      isLoading={isCheckoutLoading}
+      isPromoActive={isPromoActive}
+    />
+  )
 }

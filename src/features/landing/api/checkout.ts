@@ -1,4 +1,6 @@
-export async function startCheckout(plan: 'monthly' | 'quarterly'): Promise<string> {
+export type CheckoutPlan = 'monthly' | 'quarterly' | 'promo'
+
+export async function startCheckout(plan: CheckoutPlan): Promise<string> {
   let response: Response
   try {
     response = await fetch('/api/checkout', {

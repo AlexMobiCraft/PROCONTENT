@@ -96,6 +96,7 @@
 **Что нужно скопировать:**
 - `STRIPE_MONTHLY_PRICE_ID` - ID для ежемесячной подписки
 - `STRIPE_QUARTERLY_PRICE_ID` - ID для квартальной подписки
+- `STRIPE_PROMO_PRICE_ID` - ID временного предложения (recurring €29 / 3 мес). Задан = акция включена, удалён = обычные тарифы
 
 **Проверка ID цен:**
 - Должны начинаться с `price_`
@@ -112,10 +113,11 @@ STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_MONTHLY_PRICE_ID=price_...
 STRIPE_QUARTERLY_PRICE_ID=price_...
+STRIPE_PROMO_PRICE_ID=price_...   # опционально: включает временное предложение
 ```
 
 **На хостинге** (Vercel, если используется):
-- Settings → Environment Variables → обновить эти 4 переменные
+- Settings → Environment Variables → обновить эти переменные
 - Передеплоить проект
 
 ### 5. Синхронизировать существующих клиентов

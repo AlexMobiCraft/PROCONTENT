@@ -57,6 +57,7 @@ description: Отладка Stripe webhook событий и checkout сесси
 - `STRIPE_WEBHOOK_SECRET` — для верификации подписи
 - `STRIPE_MONTHLY_PRICE_ID` — тариф monthly
 - `STRIPE_QUARTERLY_PRICE_ID` — тариф quarterly
+- `STRIPE_PROMO_PRICE_ID` — временное предложение €29 / 3 мес; задан = promo-режим включён
 - `SUPABASE_SERVICE_ROLE_KEY` — admin клиент (обходит RLS)
 - `NEXT_PUBLIC_SUPABASE_URL` — URL Supabase
 
