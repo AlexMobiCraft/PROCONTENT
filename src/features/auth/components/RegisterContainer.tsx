@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { ONBOARDING_PATH } from '@/lib/app-routes'
 import { cn } from '@/lib/utils'
 import { signUp } from '@/features/auth/api/auth'
 import { RegisterForm } from './RegisterForm'
@@ -36,29 +37,54 @@ export function RegisterContainer({ email }: RegisterContainerProps) {
       return
     }
 
-    if (data?.user) {
-      // Fix #4: trim перед сохранением в профиль
-      const trimmedFirstName = firstName.trim()
-      const trimmedLastName = lastName.trim()
-
-      const supabase = createClient()
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ first_name: trimmedFirstName, last_name: trimmedLastName || null })
-        .eq('id', data.user.id)
-
-      if (updateError) {
-        // Fix #4: показываем ошибку пользователю, не тихий console.warn
-        setError('Napaka pri shranjevanju podatkov profila. Prosimo, posodobite profil ročno.')
-        setIsLoading(false)
-        return
-      }
-
-      setError('Potrditveno sporočilo je bilo poslano na vašo e-pošto. Potrdite e-pošto za vstop v klub.')
+    if (!data?.user) {
+      setError('Napaka pri registraciji. Poskusite znova.')
       setIsLoading(false)
-    } else {
-      router.push('/feed')
+      return
     }
+
+    // Ссылка из письма после оплаты живёт долго и по ней можно прийти повторно.
+    // Supabase не раскрывает существование аккаунта: вместо ошибки возвращает
+    // пользователя с пустым identities. Без этой ветки уже зарегистрированной
+    // участнице показывалось бы «ждите письмо», которого никто не отправлял.
+    if (data.user.identities && data.user.identities.length === 0) {
+      setError('Račun s tem e-naslovom že obstaja. Prijavite se s svojim geslom.')
+      setIsLoading(false)
+      return
+    }
+
+    // Fix #4: trim перед сохранением в профиль
+    const trimmedFirstName = firstName.trim()
+    const trimmedLastName = lastName.trim()
+
+    const supabase = createClient()
+    const { data: updatedRows, error: updateError } = await supabase
+      .from('profiles')
+      .update({ first_name: trimmedFirstName, last_name: trimmedLastName || null })
+      .eq('id', data.user.id)
+      .select('id')
+
+    // 0 строк без ошибки — профиль ещё не создан триггером или отсечён RLS.
+    // Без .select() имя молча терялось бы, а участница видела бы успех.
+    if (updateError || !updatedRows || updatedRows.length === 0) {
+      // Fix #4: показываем ошибку пользователю, не тихий console.warn
+      setError('Napaka pri shranjevanju podatkov profila. Prosimo, posodobite profil ročno.')
+      setIsLoading(false)
+      return
+    }
+
+    // На боевом GoTrue включён autoconfirm: signUp сразу возвращает сессию, письма
+    // с подтверждением не будет никогда. Прежний безусловный текст «проверьте почту»
+    // оставлял уже залогиненную участницу ждать несуществующее письмо.
+    // Ориентируемся на факт сессии, а не на предположение о настройках почты.
+    if (data.session) {
+      router.push(ONBOARDING_PATH)
+      // isLoading намеренно остаётся true: идёт навигация, форму включать обратно незачем
+      return
+    }
+
+    setError('Potrditveno sporočilo je bilo poslano na vašo e-pošto. Potrdite e-pošto za vstop v klub.')
+    setIsLoading(false)
   }
 
   return (

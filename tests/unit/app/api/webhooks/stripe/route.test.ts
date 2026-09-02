@@ -133,6 +133,15 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: mockCreateClient,
 }))
 
+// Приглашение на регистрацию после оплаты
+const { mockSendRegistrationInvite } = vi.hoisted(() => ({
+  mockSendRegistrationInvite: vi.fn(),
+}))
+
+vi.mock('@/lib/notifications/sendRegistrationInvite', () => ({
+  sendRegistrationInvite: mockSendRegistrationInvite,
+}))
+
 import { POST } from '@/app/api/webhooks/stripe/route'
 import { resetStripeWebhookRateLimitStore } from '@/lib/stripe/webhook-rate-limit'
 import { PROMO_OFFER_CODE } from '@/lib/stripe/promoOffer'
@@ -267,6 +276,8 @@ describe('POST /api/webhooks/stripe', () => {
 
     // Fix [AI-Review][Critical] Round 8: дефолтный мок RPC — пользователь найден по email (O(1) поиск)
     mockRpc.mockResolvedValue({ data: 'auth-user-id', error: null })
+
+    mockSendRegistrationInvite.mockResolvedValue({ sent: 1, failed: 0 })
   })
 
   // AC1, AC4: валидная подпись — успешная обработка
@@ -434,7 +445,7 @@ describe('POST /api/webhooks/stripe', () => {
     })
 
     // Fix [AI-Review][Critical] Round 6: ранний выход если шаг 1 нашёл профиль
-    it('обновляет по stripe_customer_id в шаге 1, не вызывает RPC если профиль найден (Data Corruption fix)', async () => {
+    it('обновляет по stripe_customer_id в шаге 1, не привязывает профиль по id если он найден (Data Corruption fix)', async () => {
       mockConstructEvent.mockReturnValueOnce(makeCheckoutEvent())
       // mockSelectAfterEq по умолчанию возвращает строку → ранний выход после шага 1
 
@@ -442,8 +453,11 @@ describe('POST /api/webhooks/stripe', () => {
 
       expect(response.status).toBe(200)
       expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
-      // Шаг 2 (RPC lookup) НЕ должен вызываться — ранний выход
-      expect(mockRpc).not.toHaveBeenCalled()
+      // Шаг 2 (привязка по id из auth.users) НЕ должен выполняться — ранний выход
+      expect(mockEq).not.toHaveBeenCalledWith('id', 'auth-user-id')
+      // Поиск в auth.users выполняется ровно один раз: он поднят выше шага 1, потому что
+      // его результат решает, слать ли приглашение на регистрацию. Дубля запроса быть не должно.
+      expect(mockRpc).toHaveBeenCalledTimes(1)
     })
 
     it('вызывает RPC lookup если профиль не найден по stripe_customer_id (шаг 2)', async () => {
@@ -1441,6 +1455,215 @@ describe('POST /api/webhooks/stripe', () => {
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({ subscription_status: 'active' })
       )
+    })
+  })
+
+  // Раньше единственным путём к аккаунту был redirect на success_url: клиентка,
+  // закрывшая вкладку после оплаты, оставалась без аккаунта и без уведомлений.
+  describe('checkout.session.completed — приглашение на регистрацию', () => {
+    function makeInviteEvent(overrides = {}) {
+      return makeCheckoutEvent({ id: 'cs_live_abc123', ...overrides })
+    }
+
+    it('шлёт приглашение, если плательщицы ещё нет в auth.users', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeInviteEvent({ customer_details: { email: 'nova@example.com', name: 'Laura Maja' } })
+      )
+      mockRpc.mockResolvedValueOnce({ data: null, error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockSendRegistrationInvite).toHaveBeenCalledTimes(1)
+      expect(mockSendRegistrationInvite).toHaveBeenCalledWith({
+        email: 'nova@example.com',
+        sessionId: 'cs_live_abc123',
+        recipientName: 'Laura Maja',
+      })
+    })
+
+    it('не шлёт приглашение действующей участнице (найдена в auth.users)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent())
+      // дефолтный mockRpc возвращает 'auth-user-id'
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockSendRegistrationInvite).not.toHaveBeenCalled()
+    })
+
+    it('не шлёт приглашение при неподтверждённой оплате, но привязывает IDs', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent({ payment_status: 'unpaid' }))
+      mockRpc.mockResolvedValueOnce({ data: null, error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockSendRegistrationInvite).not.toHaveBeenCalled()
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ stripe_customer_id: 'cus_123' })
+      )
+      expect(mockUpdate).not.toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+    })
+
+    it('не шлёт приглашение при разовом платеже (mode !== subscription)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent({ mode: 'payment' }))
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockSendRegistrationInvite).not.toHaveBeenCalled()
+      expect(mockRpc).not.toHaveBeenCalled()
+    })
+
+    // Ветка, ради которой блок поднят выше ранних return: профиль уже привязан к Stripe,
+    // но аккаунта в auth.users нет. До подъёма письмо на этом пути не отправлялось бы.
+    it('шлёт приглашение, даже если профиль найден по stripe_customer_id', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent())
+      mockRpc.mockResolvedValueOnce({ data: null, error: null })
+      // mockSelectAfterEq по умолчанию возвращает строку → шаг 1 сделает ранний выход
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockEq).toHaveBeenCalledWith('stripe_customer_id', 'cus_123')
+      expect(mockSendRegistrationInvite).toHaveBeenCalledTimes(1)
+    })
+
+    it('шлёт приглашение при payment_status = no_payment_required', async () => {
+      mockConstructEvent.mockReturnValueOnce(
+        makeInviteEvent({ payment_status: 'no_payment_required' })
+      )
+      mockRpc.mockResolvedValueOnce({ data: null, error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockSendRegistrationInvite).toHaveBeenCalledTimes(1)
+    })
+
+    // Round 21 guard: подписка уже неактивна в Stripe → доступ не выдаём, значит и звать
+    // регистрироваться незачем.
+    it('не шлёт приглашение, если подписка уже неактивна в Stripe', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent())
+      mockRpc.mockResolvedValueOnce({ data: null, error: null })
+      mockRetrieveSubscription.mockResolvedValueOnce({ status: 'canceled' })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockSendRegistrationInvite).not.toHaveBeenCalled()
+    })
+
+    // sendEmailBatch не бросает на отказе Resend — возвращает failed > 0.
+    // Без разбора результата письмо терялось бы молча.
+    it('логирует недоставленное приглашение при partial-fail Resend (без throw)', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent())
+      mockRpc.mockResolvedValueOnce({ data: null, error: null })
+      mockSendRegistrationInvite.mockResolvedValueOnce({ sent: 0, failed: 1 })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[webhook] Приглашение на регистрацию не доставлено:',
+        'cs_live_abc123',
+        'user@example.com'
+      )
+
+      consoleSpy.mockRestore()
+    })
+
+    it('логирует пропуск отправки, если приглашение вернуло skipped', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent())
+      mockRpc.mockResolvedValueOnce({ data: null, error: null })
+      mockSendRegistrationInvite.mockResolvedValueOnce({ skipped: 'no_email' })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[webhook] Приглашение на регистрацию пропущено:',
+        'no_email',
+        'cs_live_abc123'
+      )
+
+      consoleSpy.mockRestore()
+    })
+
+    // Регрессия: поиск в auth.users поднят выше шага 1, но его сбой не должен блокировать
+    // привязку профиля, которая раньше отрабатывала вообще без RPC.
+    it('при сбое поиска в auth.users всё равно привязывает профиль по customer_id', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent())
+      mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'RPC недоступен' } })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+      // Не знаем, есть ли аккаунт — письмо не шлём, чтобы не звать регистрироваться участницу
+      expect(mockSendRegistrationInvite).not.toHaveBeenCalled()
+    })
+
+    it('при сбое поиска в auth.users и ненайденном профиле отвечает 500 (Stripe повторит)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent())
+      mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'RPC недоступен' } })
+      // Шаг 1 не нашёл профиль → доходим до шага 2, где результат поиска обязателен
+      mockSelectAfterEq.mockResolvedValueOnce({ data: [], error: null })
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(500)
+    })
+
+    it('не шлёт приглашение, если в сессии нет email', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent({ customer_details: {} }))
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockSendRegistrationInvite).not.toHaveBeenCalled()
+      expect(mockRpc).not.toHaveBeenCalled()
+    })
+
+    it('не шлёт приглашение при покупке из-под залогиненного аккаунта (client_reference_id)', async () => {
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent({ client_reference_id: 'user-uuid' }))
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(mockSendRegistrationInvite).not.toHaveBeenCalled()
+      expect(mockRpc).not.toHaveBeenCalled()
+    })
+
+    it('отвечает 200 и логирует, если отправка письма упала — доступ важнее письма', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockConstructEvent.mockReturnValueOnce(makeInviteEvent())
+      mockRpc.mockResolvedValueOnce({ data: null, error: null })
+      mockSendRegistrationInvite.mockRejectedValueOnce(
+        new Error('[email] RESEND_API_KEY is not configured')
+      )
+
+      const response = await POST(makeRequest('{}'))
+
+      expect(response.status).toBe(200)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[webhook] Не удалось отправить приглашение на регистрацию:',
+        'cs_live_abc123',
+        expect.any(Error)
+      )
+      // Привязка профиля не должна пострадать от сбоя почты
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ subscription_status: 'active' })
+      )
+
+      consoleSpy.mockRestore()
     })
   })
 })

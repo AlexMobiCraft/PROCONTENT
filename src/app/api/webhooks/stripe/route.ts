@@ -9,6 +9,7 @@ import {
 } from '@/lib/stripe/webhook-rate-limit'
 import { applyVipRevocation } from '@/lib/stripe/vipRevocation'
 import { PROMO_OFFER_CODE } from '@/lib/stripe/promoOffer'
+import { sendRegistrationInvite } from '@/lib/notifications/sendRegistrationInvite'
 import type Stripe from 'stripe'
 import type { Database } from '@/types/supabase'
 
@@ -259,6 +260,77 @@ async function handleCheckoutSessionCompleted(
     }
   }
 
+  // Единый поиск пользователя в auth.users по email (O(1) RPC, lower() в SQL).
+  // Результат нужен дважды: для решения об отправке приглашения (сразу ниже) и для
+  // шага 2 привязки профиля. Поиск поднят из шага 2 сюда, чтобы не делать два
+  // одинаковых запроса; при наличии client_reference_id пользователь заведомо
+  // существует — поиск не нужен вовсе.
+  const clientReferenceId = session.client_reference_id
+  let authUserId: string | null = null
+  let authLookupErrorMessage: string | null = null
+  if (!clientReferenceId && email) {
+    const { data: foundUserId, error: authLookupError } = await supabase.rpc(
+      'get_auth_user_id_by_email',
+      { p_email: email }
+    )
+
+    if (authLookupError) {
+      // Ошибку НЕ бросаем здесь: до подъёма поиска шаг 1 (привязка по stripe_customer_id)
+      // отрабатывал, вообще не касаясь RPC, и его сбой не мог заблокировать запись профиля.
+      // Бросим ниже — только если дойдём до шага 2, где этот результат действительно нужен.
+      authLookupErrorMessage = authLookupError.message
+    } else {
+      authUserId = foundUserId
+    }
+  }
+
+  // Приглашение к регистрации: единственным путём к аккаунту был redirect на success_url.
+  // Клиентка, закрывшая вкладку сразу после оплаты, оставалась без аккаунта и без единого
+  // уведомления. Блок стоит ДО веток с ранними return ниже — иначе оплатившие, чей профиль
+  // находится по customer_id, письма не получат.
+  // Дедупликации нет намеренно: повторная доставка события Stripe — штатный способ
+  // добить клиентку, которой письмо не дошло.
+  if (
+    updateData.subscription_status === 'active' &&
+    email &&
+    !clientReferenceId &&
+    !authUserId &&
+    !authLookupErrorMessage
+  ) {
+    try {
+      const inviteResult = await sendRegistrationInvite({
+        email,
+        sessionId: session.id,
+        recipientName: session.customer_details?.name ?? null,
+      })
+
+      // sendEmailBatch не бросает при отказе Resend (rate limit, невалидный домен, 4xx):
+      // логирует и возвращает failed > 0. Без разбора результата письмо терялось бы молча —
+      // ровно тот сценарий, ради которого блок написан. См. src/app/api/posts/publish/route.ts.
+      if ('failed' in inviteResult && inviteResult.failed > 0) {
+        console.error(
+          '[webhook] Приглашение на регистрацию не доставлено:',
+          session.id,
+          email
+        )
+      } else if ('skipped' in inviteResult) {
+        console.error(
+          '[webhook] Приглашение на регистрацию пропущено:',
+          inviteResult.skipped,
+          session.id
+        )
+      }
+    } catch (error) {
+      // Оплата прошла и доступ важнее письма: не роняем вебхук в 500, иначе Stripe
+      // уйдёт в retry по уже успешно обработанному событию. Лог — сигнал оператору.
+      console.error(
+        '[webhook] Не удалось отправить приглашение на регистрацию:',
+        session.id,
+        error
+      )
+    }
+  }
+
   // Правило 2 (VIP): снимаем is_vip, если итоговый updateData активирует подписку.
   // updateData — общий объект для всех 4 write-site ниже (один вызов покрывает их).
   applyVipRevocation(updateData)
@@ -268,7 +340,6 @@ async function handleCheckoutSessionCompleted(
   // злоумышленник может ввести чужой email для захвата аккаунта (Account Takeover).
   // client_reference_id устанавливается нашим сервером при создании Stripe сессии (Story 1.4),
   // поэтому ему можно доверять как идентификатору пользователя.
-  const clientReferenceId = session.client_reference_id
   if (clientReferenceId) {
     const { data: updatedById, error: updateByIdError } = await supabase
       .from('profiles')
@@ -313,20 +384,18 @@ async function handleCheckoutSessionCompleted(
     if (updatedByCustomerId && updatedByCustomerId.length > 0) return
   }
 
-  // Шаг 2: O(1) поиск в auth.users через Postgres RPC (case-insensitive lower() в SQL).
+  // Шаг 2: результат O(1) поиска в auth.users через Postgres RPC (case-insensitive
+  // lower() в SQL) уже получен выше — переиспользуем его, не повторяя запрос.
   // Fix [AI-Review][Critical] Round 8: замена auth.admin.listUsers — загружала весь список
   //   пользователей в память и не масштабируется при росте базы.
   // Fix [AI-Review][Medium] Round 8: lower() в SQL функции обеспечивает case-insensitive сравнение.
-  const { data: userId, error: authLookupError } = await supabase.rpc(
-    'get_auth_user_id_by_email',
-    { p_email: email }
-  )
-
-  if (authLookupError) {
+  if (authLookupErrorMessage) {
     throw new Error(
-      `[webhook] Ошибка поиска пользователя в auth.users: ${authLookupError.message}`
+      `[webhook] Ошибка поиска пользователя в auth.users: ${authLookupErrorMessage}`
     )
   }
+
+  const userId = authUserId
 
   if (!userId) {
     console.warn(
